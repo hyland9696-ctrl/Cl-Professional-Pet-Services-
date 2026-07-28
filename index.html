@@ -249,7 +249,7 @@
       <button data-page="services" onclick="showPage('services')">Services</button>
       <button data-page="about" onclick="showPage('about')">About</button>
       <button data-page="areas" onclick="showPage('areas')">Service Areas</button>
-      <button data-page="quote" onclick="showPage('quote')">Get a Quote</button>
+      <button onclick="goQuote()">Request a Quote</button>
     </div>
   </nav>
 
@@ -268,7 +268,7 @@
           <span class="badge">Military &amp; First Responder Discounts</span>
         </div>
         <div class="hero-btns">
-          <button class="btn-primary" onclick="showPage('quote')">Get a Free Quote</button>
+          <button class="btn-primary" onclick="goQuote()">Request a Free Quote</button>
           <button class="btn-secondary" onclick="window.location.href='tel:+16363754342'">Call (636) 375-4342</button>
         </div>
       </div>
@@ -289,7 +289,7 @@
         <div class="sb-title">Spring Cleanup Special</div>
         <div class="sb-sub">A whole winter's worth of mess, gone in one visit. Book a one-time spring cleanup and get your yard back — then keep it that way with regular weekly service.</div>
       </div>
-      <button onclick="showPage('quote')">Claim This Deal</button>
+      <button onclick="goQuote()">Claim This Deal</button>
     </div>
 
     <div class="why-section">
@@ -374,7 +374,7 @@
           <div class="sb-title">Military, Veterans &amp; First Responders</div>
           <div class="sb-sub">Thank you for your service — enjoy an ongoing discount on any recurring plan. Just mention it when you request your quote.</div>
         </div>
-        <button onclick="showPage('quote')">Get My Discount</button>
+        <button onclick="goQuote()">Get My Discount</button>
       </div>
     </div>
   </section>
@@ -424,62 +424,6 @@
     </div>
   </section>
 
-  <!-- ============ QUOTE ============ -->
-  <section class="page" id="page-quote">
-    <div class="page-hero">
-      <h1>Get a Free Quote</h1>
-      <p>Tell us about your yard and your pack, and we'll get back to you fast with a no-obligation price. Or just call — we answer.</p>
-    </div>
-    <div class="quote-layout">
-      <div class="quote-info">
-        <div class="contact-item">
-          <div class="ci-icon"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
-          <div><div class="ci-label">Phone</div><div class="ci-val"><a href="tel:+16363754342">(636) 375-4342</a></div></div>
-        </div>
-        <div class="contact-item">
-          <div class="ci-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
-          <div><div class="ci-label">Email</div><div class="ci-val"><a href="mailto:info@clpropetservices.com">info@clpropetservices.com</a></div></div>
-        </div>
-        <div class="contact-item">
-          <div class="ci-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-          <div><div class="ci-label">Hours</div><div class="ci-val">Mon &ndash; Fri &middot; 8am &ndash; 6pm</div></div>
-        </div>
-        <div class="contact-item">
-          <div class="ci-icon"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
-          <div><div class="ci-label">Based In</div><div class="ci-val">St. Peters, MO 63376</div></div>
-        </div>
-        <div class="zip-section" style="margin-top:8px;">
-          <div class="zip-title">Hero Discounts</div>
-          <div class="zip-sub">Military, veterans &amp; first responders receive an ongoing discount on recurring service &mdash; just mention it in your request.</div>
-        </div>
-      </div>
-      <div class="form-card">
-        <div class="form-title">Request Your Quote</div>
-        <div class="form-sub">Takes about 30 seconds. No spam, no pressure.</div>
-        <form id="quoteForm" onsubmit="return handleSubmit(event)">
-          <div class="form-row">
-            <div class="form-field"><label for="qf-name">Name</label><input id="qf-name" name="name" type="text" required autocomplete="name" /></div>
-            <div class="form-field"><label for="qf-phone">Phone</label><input id="qf-phone" name="phone" type="tel" required autocomplete="tel" /></div>
-          </div>
-          <div class="form-row">
-            <div class="form-field"><label for="qf-email">Email</label><input id="qf-email" name="email" type="email" autocomplete="email" /></div>
-            <div class="form-field"><label for="qf-zip">ZIP Code</label><input id="qf-zip" name="zip" type="text" inputmode="numeric" required autocomplete="postal-code" /></div>
-          </div>
-          <div class="form-row">
-            <div class="form-field"><label for="qf-dogs">Number of Dogs</label>
-              <select id="qf-dogs" name="dogs"><option>1</option><option>2</option><option>3</option><option>4+</option></select>
-            </div>
-            <div class="form-field"><label for="qf-freq">Service Type</label>
-              <select id="qf-freq" name="frequency"><option>Weekly</option><option>Bi-Weekly</option><option>One-Time Cleanup</option><option>Spring Cleanup</option><option>Not Sure Yet</option></select>
-            </div>
-          </div>
-          <div class="form-field"><label for="qf-msg">Anything else we should know?</label><textarea id="qf-msg" name="message" placeholder="Gate codes, dog names, yard size&hellip;"></textarea></div>
-          <button type="submit" class="submit-btn">Send My Quote Request</button>
-          <div class="success-msg" id="successMsg" role="status">Thanks! Your request is on its way &mdash; we'll get back to you shortly. Need it faster? Call <strong>(636) 375-4342</strong>.</div>
-        </form>
-      </div>
-    </div>
-  </section>
 
   </main>
 
@@ -502,24 +446,8 @@
     window.scrollTo({top:0,behavior:'smooth'});
   }
 
-  function handleSubmit(e){
-    e.preventDefault();
-    var form=document.getElementById('quoteForm');
-    var msg=document.getElementById('successMsg');
-    // Build a mailto fallback so requests reach the inbox without a backend
-    var data=new FormData(form);
-    var body='Quote request from website:%0D%0A'
-      +'Name: '+encodeURIComponent(data.get('name')||'')+'%0D%0A'
-      +'Phone: '+encodeURIComponent(data.get('phone')||'')+'%0D%0A'
-      +'Email: '+encodeURIComponent(data.get('email')||'')+'%0D%0A'
-      +'ZIP: '+encodeURIComponent(data.get('zip')||'')+'%0D%0A'
-      +'Dogs: '+encodeURIComponent(data.get('dogs')||'')+'%0D%0A'
-      +'Service: '+encodeURIComponent(data.get('frequency')||'')+'%0D%0A'
-      +'Notes: '+encodeURIComponent(data.get('message')||'');
-    window.location.href='mailto:info@clpropetservices.com?subject=New%20Quote%20Request&body='+body;
-    msg.style.display='block';
-    form.reset();
-    return false;
+  function goQuote(){
+    window.location.href='https://client.sweepandgo.com/cl-professional-pet-services-/register';
   }
 </script>
 </body>
