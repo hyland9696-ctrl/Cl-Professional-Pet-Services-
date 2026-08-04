@@ -230,6 +230,48 @@
       footer{padding:20px 16px;flex-direction:column;align-items:flex-start;}
     }
 
+    /* Instant quote wizard */
+    .q-wrap{max-width:1100px;margin:0 auto;}
+    .q-steps{display:flex;gap:8px;margin-bottom:26px;flex-wrap:wrap;}
+    .q-step{display:flex;align-items:center;gap:8px;font-size:13px;color:#999;padding:8px 14px;border-radius:20px;background:#f5f5f5;transition:all 0.25s;}
+    .q-step .dot{width:22px;height:22px;border-radius:50%;background:#ddd;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:all 0.25s;}
+    .q-step.active{background:#E1F5EE;color:#0F6E56;font-weight:600;}
+    .q-step.active .dot{background:#1D9E75;}
+    .q-step.done .dot{background:#0F6E56;}
+    .q-panel{display:none;animation:fadeUp 0.4s cubic-bezier(0.22,1,0.36,1) both;}
+    .q-panel.active{display:block;}
+    .q-title{font-size:26px;font-weight:700;margin-bottom:8px;}
+    .q-sub{font-size:14px;color:#666;margin-bottom:20px;line-height:1.6;}
+    .zip-row{display:flex;gap:10px;max-width:430px;}
+    .zip-row input{flex:1;font-size:18px;padding:14px 16px;border:2px solid #e0e0e0;border-radius:10px;font-family:inherit;outline:none;letter-spacing:0.1em;transition:border-color 0.2s;}
+    .zip-row input:focus{border-color:#1D9E75;}
+    .zip-msg{margin-top:14px;font-size:14px;line-height:1.6;display:none;padding:14px 16px;border-radius:10px;}
+    .zip-msg.ok{display:block;background:#E1F5EE;color:#085041;border:1px solid #5DCAA5;}
+    .zip-msg.bad{display:block;background:#FDECEC;color:#8a1f1f;border:1px solid #f0b9b9;}
+    .opt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:22px;}
+    .opt-card{border:2px solid #e8e8e8;border-radius:14px;padding:18px;cursor:pointer;text-align:center;transition:all 0.2s;background:#fff;font-family:inherit;}
+    .opt-card:hover{border-color:#5DCAA5;transform:translateY(-2px);}
+    .opt-card.sel{border-color:#1D9E75;background:#f0fdf8;box-shadow:0 4px 14px rgba(29,158,117,0.15);}
+    .opt-card .oc-big{font-size:19px;font-weight:700;margin-bottom:4px;}
+    .opt-card .oc-sub{font-size:12px;color:#888;line-height:1.5;}
+    .q-label{font-size:13px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.05em;margin:20px 0 10px;}
+    .price-panel{background:linear-gradient(135deg,#0F6E56,#1D9E75);border-radius:18px;padding:26px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin:26px 0 18px;box-shadow:0 10px 30px rgba(15,110,86,0.3);}
+    .price-panel .pp-label{font-size:13px;opacity:0.85;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;}
+    .price-panel .pp-price{font-size:44px;font-weight:800;line-height:1;}
+    .price-panel .pp-price small{font-size:18px;font-weight:600;opacity:0.85;}
+    .price-panel .pp-note{font-size:12px;opacity:0.8;margin-top:6px;}
+    .q-nav{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;}
+    .q-back{background:transparent;border:1px solid #ddd;border-radius:8px;padding:13px 22px;font-size:14px;cursor:pointer;font-family:inherit;color:#555;transition:all 0.2s;}
+    .q-back:hover{background:#f5f5f5;}
+    .agree-row{display:flex;align-items:flex-start;gap:10px;background:#f8f8f8;border-radius:10px;padding:14px 16px;margin:16px 0;font-size:14px;color:#444;line-height:1.55;}
+    .agree-row input{width:20px;height:20px;margin-top:2px;accent-color:#1D9E75;}
+    .q-success{display:none;text-align:center;padding:40px 20px;}
+    .q-success.show{display:block;animation:scaleIn 0.4s cubic-bezier(0.22,1,0.36,1) both;}
+    .q-success .big{font-size:56px;margin-bottom:12px;}
+    .q-success h3{font-size:26px;font-weight:700;margin-bottom:10px;}
+    .q-success p{font-size:15px;color:#666;line-height:1.7;max-width:480px;margin:0 auto;}
+    @media(max-width:720px){.price-panel .pp-price{font-size:34px;}}
+
     /* ADA Accessibility */
     .skip-link{position:absolute;top:-100px;left:0;background:#1D9E75;color:#fff;padding:12px 20px;font-size:16px;font-weight:600;z-index:9999;border-radius:0 0 8px 0;transition:top 0.2s;}
     .skip-link:focus{top:0;}
@@ -256,7 +298,7 @@
       <button data-page="services" onclick="showPage('services')">Services</button>
       <button data-page="about" onclick="showPage('about')">About</button>
       <button data-page="areas" onclick="showPage('areas')">Service Areas</button>
-      <a href="https://client.sweepandgo.com/cl-professional-pet-services-/register" target="_blank" rel="noopener">Request a Quote</a>
+      <button data-page="quote" onclick="showPage('quote')">Get a Quote</button>
     </div>
   </nav>
 
@@ -275,7 +317,7 @@
           <span class="badge">Military &amp; First Responder Discounts</span>
         </div>
         <div class="hero-btns">
-          <a class="btn-primary" href="https://client.sweepandgo.com/cl-professional-pet-services-/register" target="_blank" rel="noopener">Request a Free Quote</a>
+          <button class="btn-primary" onclick="showPage('quote')">Get My Instant Quote</button>
           <a class="btn-secondary" href="tel:+16363754342">Call (636) 375-4342</a>
         </div>
       </div>
@@ -381,7 +423,7 @@
           <div class="sb-title">Military, Veterans &amp; First Responders</div>
           <div class="sb-sub">Thank you for your service — enjoy an ongoing discount on any recurring plan. Just mention it when you request your quote.</div>
         </div>
-        <a class="sb-btn" href="https://client.sweepandgo.com/cl-professional-pet-services-/register" target="_blank" rel="noopener">Get My Discount</a>
+        <button onclick="showPage('quote')">Get My Discount</button>
       </div>
     </div>
   </section>
@@ -433,6 +475,93 @@
   </section>
 
 
+  <!-- ============ INSTANT QUOTE ============ -->
+  <section class="page" id="page-quote">
+    <div class="page-hero">
+      <h1>Get Your Instant Quote</h1>
+      <p>Answer three quick questions, see your price on the spot, and lock it in. No phone tag, no waiting.</p>
+    </div>
+    <div class="q-wrap">
+      <div class="q-steps">
+        <div class="q-step active" id="qs1"><span class="dot">1</span> Your Area</div>
+        <div class="q-step" id="qs2"><span class="dot">2</span> Your Service</div>
+        <div class="q-step" id="qs3"><span class="dot">3</span> Lock It In</div>
+      </div>
+
+      <!-- STEP 1: ZIP -->
+      <div class="q-panel active" id="qp1">
+        <div class="q-title">First, are we neighbors?</div>
+        <div class="q-sub">Enter your ZIP code and we'll check that you're in our service area.</div>
+        <div class="zip-row">
+          <input id="q-zip" type="text" inputmode="numeric" maxlength="5" placeholder="e.g. 63376" aria-label="ZIP code" />
+          <button class="btn-primary" onclick="qCheckZip()">Check My Area</button>
+        </div>
+        <div class="zip-msg" id="q-zipmsg" role="status"></div>
+      </div>
+
+      <!-- STEP 2: SERVICE -->
+      <div class="q-panel" id="qp2">
+        <div class="q-title">Build your service.</div>
+        <div class="q-sub">Pick what fits your pack — your price updates instantly below.</div>
+        <div class="q-label">How often?</div>
+        <div class="opt-grid" id="q-freq">
+          <button class="opt-card sel" data-v="weekly" onclick="qSet('freq','weekly',this)"><div class="oc-big">Weekly</div><div class="oc-sub">Most popular — always clean</div></button>
+          <button class="opt-card" data-v="biweekly" onclick="qSet('freq','biweekly',this)"><div class="oc-big">Bi-Weekly</div><div class="oc-sub">Every other week</div></button>
+          <button class="opt-card" data-v="onetime" onclick="qSet('freq','onetime',this)"><div class="oc-big">One-Time</div><div class="oc-sub">Single deep cleanup</div></button>
+        </div>
+        <div class="q-label">How many dogs?</div>
+        <div class="opt-grid" id="q-dogs">
+          <button class="opt-card sel" data-v="1" onclick="qSet('dogs','1',this)"><div class="oc-big">1</div><div class="oc-sub">dog</div></button>
+          <button class="opt-card" data-v="2" onclick="qSet('dogs','2',this)"><div class="oc-big">2</div><div class="oc-sub">dogs</div></button>
+          <button class="opt-card" data-v="3" onclick="qSet('dogs','3',this)"><div class="oc-big">3</div><div class="oc-sub">dogs</div></button>
+          <button class="opt-card" data-v="4" onclick="qSet('dogs','4',this)"><div class="oc-big">4+</div><div class="oc-sub">dogs</div></button>
+        </div>
+        <div class="q-label">Add-on</div>
+        <div class="opt-grid">
+          <button class="opt-card" id="q-deo" onclick="qToggleDeo()"><div class="oc-big">Deodorize &amp; Sanitize</div><div class="oc-sub" id="q-deo-sub">+ per treatment — kills odors at the source</div></button>
+        </div>
+        <div class="price-panel">
+          <div>
+            <div class="pp-label" id="q-price-label">Your weekly service</div>
+            <div class="pp-price" id="q-price">$—</div>
+            <div class="pp-note" id="q-price-note"></div>
+          </div>
+          <button class="btn-secondary" style="background:#fff;border:none;font-weight:700;" onclick="qGo(3)">Looks Good — Continue</button>
+        </div>
+        <div class="q-nav"><button class="q-back" onclick="qGo(1)">&larr; Back</button></div>
+      </div>
+
+      <!-- STEP 3: CONFIRM -->
+      <div class="q-panel" id="qp3">
+        <div id="q-form-area">
+          <div class="q-title">Lock in your quote.</div>
+          <div class="q-sub">We'll confirm your start date within one business day. No payment now — you pay after service begins.</div>
+          <div class="form-row">
+            <div class="form-field"><label for="qf2-name">Name</label><input id="qf2-name" type="text" required autocomplete="name" /></div>
+            <div class="form-field"><label for="qf2-phone">Phone</label><input id="qf2-phone" type="tel" required autocomplete="tel" /></div>
+          </div>
+          <div class="form-row">
+            <div class="form-field"><label for="qf2-email">Email</label><input id="qf2-email" type="email" autocomplete="email" /></div>
+            <div class="form-field"><label for="qf2-addr">Service Address</label><input id="qf2-addr" type="text" autocomplete="street-address" /></div>
+          </div>
+          <div class="form-field"><label for="qf2-notes">Anything we should know? (gate code, dog names&hellip;)</label><textarea id="qf2-notes"></textarea></div>
+          <div class="agree-row">
+            <input type="checkbox" id="qf2-agree" />
+            <label for="qf2-agree">I agree to the quoted price of <strong id="q-agree-price">$—</strong> and want to start service. CL Professional Pet Services will contact me to confirm my schedule.</label>
+          </div>
+          <button class="submit-btn" onclick="qSubmit()">Send My Signed-Off Quote</button>
+          <div class="zip-msg" id="q-formerr" style="margin-top:12px;"></div>
+          <div class="q-nav" style="margin-top:14px;"><button class="q-back" onclick="qGo(2)">&larr; Back</button></div>
+        </div>
+        <div class="q-success" id="q-success">
+          <div class="big">&#127881;</div>
+          <h3>You're on the list!</h3>
+          <p>Your quote request is in our inbox. We'll reach out within one business day to confirm your start date and get you on the schedule. Need us sooner? Call <strong>(636) 375-4342</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   </main>
 
   <footer>
@@ -442,6 +571,109 @@
 </div>
 
 <script>
+  /* ===== Instant quote wizard ===== */
+  /* EDIT PRICING HERE — placeholder numbers until real prices provided */
+  var PRICING = {
+    weekly:   {1: 70,  2: 85,  3: 100, 4: 115},  // per month
+    biweekly: {1: 45,  2: 55,  3: 65,  4: 75},   // per month
+    onetime:  {1: 85,  2: 100, 3: 115, 4: 130},  // flat
+    deodorize: 20                                 // per treatment
+  };
+  var SERVICE_ZIPS = ["63376","63301","63303","63304","63366","63368","63385","63367","63017","63011","63021","63031","63033","63034","62025","62026","62034","62062","62294","62234","62002","62010","62040","62035","62095","62249"];
+  var FORM_EMAIL = "info@clpropetservices.com";
+  var q = { zip:"", freq:"weekly", dogs:"1", deo:false };
+
+  function qGo(n){
+    for (var i=1;i<=3;i++){
+      document.getElementById('qp'+i).classList.toggle('active', i===n);
+      var s = document.getElementById('qs'+i);
+      s.classList.toggle('active', i===n);
+      s.classList.toggle('done', i<n);
+    }
+    qPrice();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  function qCheckZip(){
+    var v = (document.getElementById('q-zip').value||'').trim();
+    var msg = document.getElementById('q-zipmsg');
+    msg.className = 'zip-msg';
+    if(!/^\d{5}$/.test(v)){ msg.classList.add('bad'); msg.innerHTML = 'Please enter a 5-digit ZIP code.'; return; }
+    q.zip = v;
+    if (SERVICE_ZIPS.indexOf(v) >= 0){
+      msg.classList.add('ok');
+      msg.innerHTML = '&#10004; Great news — we serve your area! Taking you to step 2&hellip;';
+      setTimeout(function(){ qGo(2); }, 900);
+    } else {
+      msg.classList.add('bad');
+      msg.innerHTML = "We don't have a route in " + v + " yet — but routes grow every month! Call <a href='tel:+16363754342'><strong>(636) 375-4342</strong></a> and we'll see what we can do.";
+    }
+  }
+  function qSet(key, val, el){
+    q[key] = val;
+    var kids = el.parentElement.querySelectorAll('.opt-card');
+    for (var i=0;i<kids.length;i++) kids[i].classList.remove('sel');
+    el.classList.add('sel');
+    qPrice();
+  }
+  function qToggleDeo(){
+    q.deo = !q.deo;
+    document.getElementById('q-deo').classList.toggle('sel', q.deo);
+    qPrice();
+  }
+  function qPriceParts(){
+    var base = PRICING[q.freq][q.dogs];
+    var deo = q.deo ? PRICING.deodorize : 0;
+    var per = q.freq === 'onetime' ? '' : '/mo';
+    var deoNote = '';
+    if (q.deo) deoNote = q.freq === 'onetime' ? ' + $' + deo + ' deodorize' : ' + $' + deo + ' per treatment';
+    return { total: base, per: per, deoNote: deoNote };
+  }
+  function qPrice(){
+    var p = qPriceParts();
+    var labels = { weekly:'Your weekly service', biweekly:'Your bi-weekly service', onetime:'Your one-time cleanup' };
+    document.getElementById('q-price-label').textContent = labels[q.freq];
+    document.getElementById('q-price').innerHTML = '$' + p.total + '<small>' + p.per + '</small>';
+    document.getElementById('q-price-note').textContent = (q.deo ? 'Includes deodorize & sanitize add-on' + p.deoNote : 'Add deodorize & sanitize any time');
+    document.getElementById('q-agree-price').textContent = '$' + p.total + p.per + p.deoNote;
+  }
+  function qSubmit(){
+    var err = document.getElementById('q-formerr');
+    err.className = 'zip-msg'; err.textContent = '';
+    var name = document.getElementById('qf2-name').value.trim();
+    var phone = document.getElementById('qf2-phone').value.trim();
+    if (!name || !phone){ err.classList.add('bad'); err.textContent = 'Please add your name and phone number so we can reach you.'; return; }
+    if (!document.getElementById('qf2-agree').checked){ err.classList.add('bad'); err.textContent = 'Please check the agreement box to lock in your quote.'; return; }
+    var p = qPriceParts();
+    var payload = {
+      _subject: 'NEW QUOTE (agreed): ' + name + ' — $' + p.total + p.per,
+      Name: name,
+      Phone: phone,
+      Email: document.getElementById('qf2-email').value.trim(),
+      Address: document.getElementById('qf2-addr').value.trim(),
+      ZIP: q.zip,
+      Service: q.freq,
+      Dogs: q.dogs === '4' ? '4+' : q.dogs,
+      Deodorize_Addon: q.deo ? 'YES' : 'no',
+      Agreed_Price: '$' + p.total + p.per + p.deoNote,
+      Notes: document.getElementById('qf2-notes').value.trim()
+    };
+    var btn = document.querySelector('#q-form-area .submit-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    fetch('https://formsubmit.co/ajax/' + FORM_EMAIL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json(); }).then(function(){
+      document.getElementById('q-form-area').style.display = 'none';
+      document.getElementById('q-success').classList.add('show');
+    }).catch(function(){
+      // Fallback: open the user's email app pre-filled
+      var body = Object.keys(payload).map(function(k){ return k + ': ' + payload[k]; }).join('%0D%0A');
+      window.location.href = 'mailto:' + FORM_EMAIL + '?subject=New%20Quote%20Request&body=' + body;
+      btn.disabled = false; btn.textContent = 'Send My Signed-Off Quote';
+    });
+  }
+
   function showPage(id){
     document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
     var target=document.getElementById('page-'+id);
