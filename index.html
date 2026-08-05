@@ -562,6 +562,21 @@
             <div class="form-field"><label for="qf2-addr">Service Address</label><input id="qf2-addr" type="text" autocomplete="street-address" /></div>
           </div>
           <div class="form-field"><label for="qf2-notes">Anything we should know? (gate code, dog names&hellip;)</label><textarea id="qf2-notes"></textarea></div>
+          <div class="agree-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+            <div style="display:flex;align-items:flex-start;gap:10px;">
+              <input type="checkbox" id="qf2-hero" onchange="qHeroToggle()" style="width:20px;height:20px;margin-top:2px;accent-color:#1D9E75;" />
+              <label for="qf2-hero"><strong>Hero discount:</strong> I'm active military, a veteran, or a first responder.</label>
+            </div>
+            <div id="qf2-hero-detail" style="display:none;padding-left:30px;">
+              <div class="form-field" style="margin-bottom:6px;">
+                <label for="qf2-branch">Branch / Role</label>
+                <select id="qf2-branch">
+                  <option>Army</option><option>Navy</option><option>Air Force</option><option>Marine Corps</option><option>Coast Guard</option><option>Space Force</option><option>National Guard / Reserve</option><option>Law Enforcement</option><option>Fire</option><option>EMS / Paramedic</option>
+                </select>
+              </div>
+              <div style="font-size:13px;color:#666;line-height:1.6;">Thank you for your service! We'll confirm eligibility with a quick look at your service ID at first contact and apply your discount from there. <strong>Please don't send ID documents through this form or by email.</strong></div>
+            </div>
+          </div>
           <div class="agree-row" style="background:#f0fdf8;border:1px solid #c9ecdf;">
             <div style="font-size:20px;">&#128274;</div>
             <div><strong>Payment:</strong> after we confirm your start date, you'll receive a secure link from our billing system to place a card on file. For your protection we never collect card numbers on this form. Billed monthly &mdash; no contracts, cancel anytime.</div>
@@ -709,6 +724,10 @@
     }
     agreeEl.textContent = p.agree;
   }
+  function qHeroToggle(){
+    var on = document.getElementById('qf2-hero').checked;
+    document.getElementById('qf2-hero-detail').style.display = on ? 'block' : 'none';
+  }
   function qTos(show){
     document.getElementById('tos-modal').style.display = show ? 'block' : 'none';
   }
@@ -738,6 +757,9 @@
       Yard_Size: q.yard === 'large' ? 'OVER 1/4 acre (manual review)' : 'up to 1/4 acre',
       Deodorize: q.deo === 'none' ? 'no' : (q.deo === 'every' ? 'every visit ($15/treatment)' : 'every other visit ($15/treatment)'),
       Manual_Review: p.manual ? 'YES' : 'no',
+      Hero_Discount: document.getElementById('qf2-hero').checked
+        ? 'CLAIMED \u2014 ' + document.getElementById('qf2-branch').value + ' (verify service ID at first contact, apply discount manually)'
+        : 'no',
       Quoted_Price: priceStr,
       Quote_Honored_Until: new Date(Date.now() + 183*24*3600*1000).toDateString(),
       TOS_Accepted: activate ? 'YES \u2014 ' + new Date().toISOString() : 'not yet (quote saved only)',
