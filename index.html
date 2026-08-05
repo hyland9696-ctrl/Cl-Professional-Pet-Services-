@@ -506,7 +506,7 @@
         <div class="q-label">How often?</div>
         <div class="opt-grid" id="q-freq">
           <button class="opt-card sel" data-v="weekly" onclick="qSet('freq','weekly',this)"><div class="oc-big">Weekly</div><div class="oc-sub">Most popular — always clean</div></button>
-          <button class="opt-card" data-v="biweekly" onclick="qSet('freq','biweekly',this)"><div class="oc-big">Bi-Weekly</div><div class="oc-sub">Every other week</div></button>
+          <button class="opt-card" data-v="biweekly" onclick="qSet('freq','biweekly',this)"><div class="oc-big">Every Other Week</div><div class="oc-sub">Visits every two weeks</div></button>
           <button class="opt-card" data-v="onetime" onclick="qSet('freq','onetime',this)"><div class="oc-big">One-Time</div><div class="oc-sub">Single deep cleanup</div></button>
         </div>
         <div class="q-label">How many dogs?</div>
@@ -514,11 +514,18 @@
           <button class="opt-card sel" data-v="1" onclick="qSet('dogs','1',this)"><div class="oc-big">1</div><div class="oc-sub">dog</div></button>
           <button class="opt-card" data-v="2" onclick="qSet('dogs','2',this)"><div class="oc-big">2</div><div class="oc-sub">dogs</div></button>
           <button class="opt-card" data-v="3" onclick="qSet('dogs','3',this)"><div class="oc-big">3</div><div class="oc-sub">dogs</div></button>
-          <button class="opt-card" data-v="4" onclick="qSet('dogs','4',this)"><div class="oc-big">4+</div><div class="oc-sub">dogs</div></button>
+          <button class="opt-card" data-v="4" onclick="qSet('dogs','4',this)"><div class="oc-big">4</div><div class="oc-sub">dogs</div></button>
+          <button class="opt-card" data-v="5" onclick="qSet('dogs','5',this)"><div class="oc-big">5</div><div class="oc-sub">dogs</div></button>
+          <button class="opt-card" data-v="6" onclick="qSet('dogs','6',this)"><div class="oc-big">6+</div><div class="oc-sub">custom quote</div></button>
         </div>
-        <div class="q-label">Add-on</div>
+        <div class="q-label">Yard size</div>
+        <div class="opt-grid" id="q-yard">
+          <button class="opt-card sel" data-v="small" onclick="qSet('yard','small',this)"><div class="oc-big">Up to &frac14; acre</div><div class="oc-sub">Typical residential yard</div></button>
+          <button class="opt-card" data-v="large" onclick="qSet('yard','large',this)"><div class="oc-big">Larger than &frac14; acre</div><div class="oc-sub">We'll build a custom quote</div></button>
+        </div>
+        <div class="q-label">Interested in an add-on?</div>
         <div class="opt-grid">
-          <button class="opt-card" id="q-deo" onclick="qToggleDeo()"><div class="oc-big">Deodorize &amp; Sanitize</div><div class="oc-sub" id="q-deo-sub">+ per treatment — kills odors at the source</div></button>
+          <button class="opt-card" id="q-deo" onclick="qToggleDeo()"><div class="oc-big">Deodorize &amp; Sanitize</div><div class="oc-sub">Check here and we'll include add-on pricing with your confirmation</div></button>
         </div>
         <div class="price-panel">
           <div>
@@ -528,6 +535,13 @@
           </div>
           <button class="btn-secondary" style="background:#fff;border:none;font-weight:700;" onclick="qGo(3)">Looks Good — Continue</button>
         </div>
+        <div class="zip-section" style="margin-top:4px;">
+          <div class="zip-title">Every visit includes</div>
+          <div class="zip-tags">
+            <span class="zip-tag">&#10004; Visit on schedule</span><span class="zip-tag">&#10004; Full-yard sweep</span><span class="zip-tag">&#10004; Haul-away included</span><span class="zip-tag">&#10004; Gate latched &amp; checked</span><span class="zip-tag">&#10004; No contract — cancel anytime</span><span class="zip-tag">&#10004; No hidden fees</span>
+          </div>
+        </div>
+        <div class="q-sub" style="margin-top:10px;">Commercial, HOA, or apartment community? Call <a href="tel:+16363754342" style="color:#0F6E56;font-weight:600;">(636) 375-4342</a> for a custom proposal.</div>
         <div class="q-nav"><button class="q-back" onclick="qGo(1)">&larr; Back</button></div>
       </div>
 
@@ -550,6 +564,7 @@
             <label for="qf2-agree">I agree to the quoted price of <strong id="q-agree-price">$—</strong> and want to start service. CL Professional Pet Services will contact me to confirm my schedule.</label>
           </div>
           <button class="submit-btn" onclick="qSubmit()">Send My Signed-Off Quote</button>
+          <div class="q-sub" style="margin-top:10px;text-align:center;">No hidden fees &bull; Quote valid 30 days &bull; No contracts — cancel anytime</div>
           <div class="zip-msg" id="q-formerr" style="margin-top:12px;"></div>
           <div class="q-nav" style="margin-top:14px;"><button class="q-back" onclick="qGo(2)">&larr; Back</button></div>
         </div>
@@ -572,16 +587,16 @@
 
 <script>
   /* ===== Instant quote wizard ===== */
-  /* EDIT PRICING HERE — placeholder numbers until real prices provided */
+  /* OFFICIAL CLPPS PRICING (Aug 2026, Updated_Pricing.pdf — owner: Jesse Duncan) */
   var PRICING = {
-    weekly:   {1: 70,  2: 85,  3: 100, 4: 115},  // per month
-    biweekly: {1: 45,  2: 55,  3: 65,  4: 75},   // per month
-    onetime:  {1: 85,  2: 100, 3: 115, 4: 130},  // flat
-    deodorize: 20                                 // per treatment
+    weekly:   {1: 73, 2: 81, 3: 88,  4: 95,  5: 103},  // per month
+    biweekly: {1: 86, 2: 95, 3: 104, 4: 112, 5: 121},  // per month (every other week costs MORE — intentional)
+    onetime:  75,           // flat, any dog count; no initial clean fee
+    initialClean: 40        // one-time, added to first invoice for new recurring clients
   };
   var SERVICE_ZIPS = ["63376","63301","63303","63304","63366","63368","63385","63367","63017","63011","63021","63031","63033","63034","62025","62026","62034","62062","62294","62234","62002","62010","62040","62035","62095","62249"];
   var FORM_EMAIL = "info@clpropetservices.com";
-  var q = { zip:"", freq:"weekly", dogs:"1", deo:false };
+  var q = { zip:"", freq:"weekly", dogs:"1", yard:"small", deo:false };
 
   function qGo(n){
     for (var i=1;i<=3;i++){
@@ -621,20 +636,43 @@
     qPrice();
   }
   function qPriceParts(){
+    // Manual-review paths: yards over 1/4 acre, or 6+ dogs
+    if (q.yard === 'large' || q.dogs === '6'){
+      return { manual: true };
+    }
+    if (q.freq === 'onetime'){
+      return { manual: false, total: PRICING.onetime, per: '', first: PRICING.onetime,
+               agree: '$' + PRICING.onetime + ' one-time cleanup' };
+    }
     var base = PRICING[q.freq][q.dogs];
-    var deo = q.deo ? PRICING.deodorize : 0;
-    var per = q.freq === 'onetime' ? '' : '/mo';
-    var deoNote = '';
-    if (q.deo) deoNote = q.freq === 'onetime' ? ' + $' + deo + ' deodorize' : ' + $' + deo + ' per treatment';
-    return { total: base, per: per, deoNote: deoNote };
+    var first = base + PRICING.initialClean;
+    return { manual: false, total: base, per: '/mo', first: first,
+             agree: '$' + base + '/mo (first invoice $' + first + ', including the one-time $' + PRICING.initialClean + ' initial clean)' };
   }
   function qPrice(){
     var p = qPriceParts();
-    var labels = { weekly:'Your weekly service', biweekly:'Your bi-weekly service', onetime:'Your one-time cleanup' };
-    document.getElementById('q-price-label').textContent = labels[q.freq];
-    document.getElementById('q-price').innerHTML = '$' + p.total + '<small>' + p.per + '</small>';
-    document.getElementById('q-price-note').textContent = (q.deo ? 'Includes deodorize & sanitize add-on' + p.deoNote : 'Add deodorize & sanitize any time');
-    document.getElementById('q-agree-price').textContent = '$' + p.total + p.per + p.deoNote;
+    var priceEl = document.getElementById('q-price');
+    var labelEl = document.getElementById('q-price-label');
+    var noteEl = document.getElementById('q-price-note');
+    var agreeEl = document.getElementById('q-agree-price');
+    if (p.manual){
+      labelEl.textContent = 'Custom quote';
+      priceEl.innerHTML = "We'll price it personally";
+      priceEl.style.fontSize = '30px';
+      noteEl.textContent = (q.dogs === '6' ? '6+ dogs' : 'Larger yards') + ' get a hand-built quote — continue and we\u2019ll contact you within one business day.';
+      agreeEl.textContent = 'a custom quote (CLPPS will contact me with personal pricing)';
+      return;
+    }
+    priceEl.style.fontSize = '';
+    var labels = { weekly:'Your weekly service', biweekly:'Your every-other-week service', onetime:'Your one-time cleanup' };
+    labelEl.textContent = labels[q.freq];
+    priceEl.innerHTML = '$' + p.total + '<small>' + p.per + '</small>';
+    if (q.freq === 'onetime'){
+      noteEl.textContent = 'Flat rate, any number of dogs. Haul-away included — no other fees.';
+    } else {
+      noteEl.textContent = 'First invoice $' + p.first + ' — includes your one-time $' + PRICING.initialClean + ' initial clean. Haul-away always included.';
+    }
+    agreeEl.textContent = p.agree;
   }
   function qSubmit(){
     var err = document.getElementById('q-formerr');
@@ -645,16 +683,20 @@
     if (!document.getElementById('qf2-agree').checked){ err.classList.add('bad'); err.textContent = 'Please check the agreement box to lock in your quote.'; return; }
     var p = qPriceParts();
     var payload = {
-      _subject: 'NEW QUOTE (agreed): ' + name + ' — $' + p.total + p.per,
+      _subject: p.manual ? 'QUOTE REQUEST (manual review): ' + name
+                         : 'NEW QUOTE (agreed): ' + name + ' — $' + p.total + p.per,
       Name: name,
       Phone: phone,
       Email: document.getElementById('qf2-email').value.trim(),
       Address: document.getElementById('qf2-addr').value.trim(),
       ZIP: q.zip,
-      Service: q.freq,
-      Dogs: q.dogs === '4' ? '4+' : q.dogs,
-      Deodorize_Addon: q.deo ? 'YES' : 'no',
-      Agreed_Price: '$' + p.total + p.per + p.deoNote,
+      Service: q.freq === 'biweekly' ? 'every other week' : q.freq,
+      Dogs: q.dogs === '6' ? '6+ (manual pricing)' : q.dogs,
+      Yard_Size: q.yard === 'large' ? 'OVER 1/4 acre (manual review)' : 'up to 1/4 acre',
+      Deodorize_Interest: q.deo ? 'YES — send add-on pricing' : 'no',
+      Manual_Review: p.manual ? 'YES' : 'no',
+      Agreed_Price: p.manual ? 'custom — to be quoted' : p.agree,
+      Quote_Valid: '30 days',
       Notes: document.getElementById('qf2-notes').value.trim()
     };
     var btn = document.querySelector('#q-form-area .submit-btn');
