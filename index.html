@@ -567,22 +567,20 @@
             <div><strong>Payment:</strong> after we confirm your start date, you'll receive a secure link from our billing system to place a card on file. For your protection we never collect card numbers on this form. Billed monthly &mdash; no contracts, cancel anytime.</div>
           </div>
           <div class="agree-row">
-            <input type="checkbox" id="qf2-agree" />
-            <label for="qf2-agree">I agree to the quoted price of <strong id="q-agree-price">$—</strong> and want to start service. CL Professional Pet Services will contact me to confirm my schedule. I understand my quote assumes a yard up to &frac14; acre and is valid for 30 days.</label>
-          </div>
-          <div class="agree-row">
             <input type="checkbox" id="qf2-tos" />
-            <label for="qf2-tos">I have read and accept the <a href="#" onclick="qTos(true);return false;" style="color:#0F6E56;font-weight:600;">Terms of Service</a>.</label>
+            <label for="qf2-tos">I have read and accept the <a href="#" onclick="qTos(true);return false;" style="color:#0F6E56;font-weight:600;">Terms of Service</a>. <strong>By accepting these terms, I am choosing to activate service</strong> at the quoted price of <strong id="q-agree-price">$—</strong>, and CL Professional Pet Services will contact me to confirm my start date. My quote assumes a yard up to &frac14; acre.</label>
           </div>
-          <button class="submit-btn" onclick="qSubmit()">Send My Signed-Off Quote</button>
-          <div class="q-sub" style="margin-top:10px;text-align:center;">No hidden fees &bull; Quote valid 30 days &bull; No contracts — cancel anytime</div>
+          <button class="submit-btn" onclick="qSubmit(true)">Activate My Service</button>
+          <div class="q-sub" style="margin-top:14px;text-align:center;">Not ready to start today?</div>
+          <button class="q-back" style="width:100%;margin-top:6px;padding:14px;" onclick="qSubmit(false)">Save my quote instead &mdash; we'll honor it for 6 months</button>
+          <div class="q-sub" style="margin-top:12px;text-align:center;">No hidden fees &bull; Quotes honored for 6 months &bull; No contracts — cancel anytime</div>
           <div class="zip-msg" id="q-formerr" style="margin-top:12px;"></div>
           <div class="q-nav" style="margin-top:14px;"><button class="q-back" onclick="qGo(2)">&larr; Back</button></div>
         </div>
         <div class="q-success" id="q-success">
-          <div class="big">&#127881;</div>
-          <h3>You're on the list!</h3>
-          <p>Your quote request is in our inbox. We'll reach out within one business day to confirm your start date and get you on the schedule. Need us sooner? Call <strong>(636) 375-4342</strong>.</p>
+          <div class="big" id="q-success-icon">&#127881;</div>
+          <h3 id="q-success-title">You're on the list!</h3>
+          <p id="q-success-text">Your activation is in our inbox. We'll reach out within one business day to confirm your start date and get you on the schedule. Need us sooner? Call <strong>(636) 375-4342</strong>.</p>
         </div>
       </div>
     </div>
@@ -596,7 +594,7 @@
       <p style="font-size:12px;color:#999;margin-bottom:18px;">CL Professional Pet Services LLC &mdash; St. Peters, Missouri</p>
       <div style="font-size:14px;color:#444;line-height:1.75;display:flex;flex-direction:column;gap:12px;">
         <p><strong>1. Services.</strong> CL Professional Pet Services LLC ("CLPPS") provides pet waste removal at the service address you provide, on the schedule you select (weekly, every other week, or one-time). Every visit includes a full-yard sweep, waste haul-away, and securing your gate before we leave.</p>
-        <p><strong>2. Quotes &amp; pricing.</strong> Quotes are valid for 30 days and assume a serviceable yard of up to &frac14; acre. Lot size may be verified against county records; if your yard is materially larger, we will contact you to agree on adjusted pricing before service begins. New recurring clients are charged a one-time $40 initial clean on the first invoice. There are no hidden fees.</p>
+        <p><strong>2. Quotes &amp; pricing.</strong> Quotes are honored for 6 months from the date issued and assume a serviceable yard of up to &frac14; acre. Lot size may be verified against county records; if your yard is materially larger, we will contact you to agree on adjusted pricing before service begins. New recurring clients are charged a one-time $40 initial clean on the first invoice. There are no hidden fees.</p>
         <p><strong>3. Billing.</strong> Recurring service is billed monthly through our billing system using the payment method you place on file via a secure link. A late fee of $10 per month applies to invoices remaining unpaid 30 days after the due date.</p>
         <p><strong>4. No contracts.</strong> Service is month-to-month. You may cancel at any time with no cancellation fee.</p>
         <p><strong>5. Yard access.</strong> Please ensure gates are unlocked and pets are secured on your service day. If we cannot access the yard, the visit may be skipped and charged; we will notify you and attempt to reschedule where possible.</p>
@@ -714,18 +712,22 @@
   function qTos(show){
     document.getElementById('tos-modal').style.display = show ? 'block' : 'none';
   }
-  function qSubmit(){
+  function qSubmit(activate){
     var err = document.getElementById('q-formerr');
     err.className = 'zip-msg'; err.textContent = '';
     var name = document.getElementById('qf2-name').value.trim();
     var phone = document.getElementById('qf2-phone').value.trim();
     if (!name || !phone){ err.classList.add('bad'); err.textContent = 'Please add your name and phone number so we can reach you.'; return; }
-    if (!document.getElementById('qf2-agree').checked){ err.classList.add('bad'); err.textContent = 'Please check the agreement box to lock in your quote.'; return; }
-    if (!document.getElementById('qf2-tos').checked){ err.classList.add('bad'); err.textContent = 'Please read and accept the Terms of Service to continue.'; return; }
+    if (activate && !document.getElementById('qf2-tos').checked){
+      err.classList.add('bad');
+      err.textContent = 'To activate service, please read and accept the Terms of Service (that\u2019s what turns your quote into a start date).';
+      return;
+    }
     var p = qPriceParts();
+    var priceStr = p.manual ? 'custom \u2014 to be quoted' : p.agree;
     var payload = {
-      _subject: p.manual ? 'QUOTE REQUEST (manual review): ' + name
-                         : 'NEW QUOTE (agreed): ' + name + ' — $' + p.total + p.per,
+      _subject: (activate ? '\u2705 ACTIVATE SERVICE: ' : '\ud83d\udcbe SAVED QUOTE (6 mo): ') + name + (p.manual ? ' \u2014 manual review' : ' \u2014 $' + p.total + p.per),
+      Status: activate ? 'ACTIVATED \u2014 accepted Terms of Service, wants to start service' : 'SAVED QUOTE \u2014 not activating yet; honor price for 6 months',
       Name: name,
       Phone: phone,
       Email: document.getElementById('qf2-email').value.trim(),
@@ -736,25 +738,38 @@
       Yard_Size: q.yard === 'large' ? 'OVER 1/4 acre (manual review)' : 'up to 1/4 acre',
       Deodorize: q.deo === 'none' ? 'no' : (q.deo === 'every' ? 'every visit ($15/treatment)' : 'every other visit ($15/treatment)'),
       Manual_Review: p.manual ? 'YES' : 'no',
-      Agreed_Price: p.manual ? 'custom — to be quoted' : p.agree,
-      Quote_Valid: '30 days',
-      TOS_Accepted: 'YES \u2014 ' + new Date().toISOString(),
+      Quoted_Price: priceStr,
+      Quote_Honored_Until: new Date(Date.now() + 183*24*3600*1000).toDateString(),
+      TOS_Accepted: activate ? 'YES \u2014 ' + new Date().toISOString() : 'not yet (quote saved only)',
       Notes: document.getElementById('qf2-notes').value.trim()
     };
     var btn = document.querySelector('#q-form-area .submit-btn');
-    btn.disabled = true; btn.textContent = 'Sending…';
+    btn.disabled = true; btn.textContent = 'Sending\u2026';
     fetch('https://formsubmit.co/ajax/' + FORM_EMAIL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify(payload)
     }).then(function(r){ return r.json(); }).then(function(){
       document.getElementById('q-form-area').style.display = 'none';
+      var icon = document.getElementById('q-success-icon');
+      var title = document.getElementById('q-success-title');
+      var text = document.getElementById('q-success-text');
+      if (activate){
+        icon.innerHTML = '&#127881;';
+        title.textContent = "You're on the list!";
+        text.innerHTML = "Your activation is in our inbox. We'll reach out within one business day to confirm your start date and get you on the schedule. Need us sooner? Call <strong>(636) 375-4342</strong>.";
+      } else {
+        icon.innerHTML = '&#128190;';
+        title.textContent = 'Your quote is locked in for 6 months!';
+        text.innerHTML = 'We saved your quote' + (p.manual ? '' : ' of <strong>' + (p.per ? '$' + p.total + p.per : '$' + p.total) + '</strong>') +
+          " \u2014 we'll honor it until <strong>" + new Date(Date.now() + 183*24*3600*1000).toLocaleDateString() + '</strong>. ' +
+          'Whenever you\u2019re ready, come back and activate or just call <strong>(636) 375-4342</strong> and mention your saved quote.';
+      }
       document.getElementById('q-success').classList.add('show');
     }).catch(function(){
-      // Fallback: open the user's email app pre-filled
       var body = Object.keys(payload).map(function(k){ return k + ': ' + payload[k]; }).join('%0D%0A');
       window.location.href = 'mailto:' + FORM_EMAIL + '?subject=New%20Quote%20Request&body=' + body;
-      btn.disabled = false; btn.textContent = 'Send My Signed-Off Quote';
+      btn.disabled = false; btn.textContent = 'Activate My Service';
     });
   }
 
