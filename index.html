@@ -521,12 +521,14 @@
         </div>
         <div class="q-label">Yard size</div>
         <div class="opt-grid" id="q-yard">
-          <button class="opt-card sel" data-v="small" onclick="qSet('yard','small',this)"><div class="oc-big">Up to &frac14; acre</div><div class="oc-sub">Typical residential yard</div></button>
+          <button class="opt-card sel" data-v="small" onclick="qSet('yard','small',this)"><div class="oc-big">Up to &frac14; acre</div><div class="oc-sub">We verify lot size from county records before your first visit</div></button>
           <button class="opt-card" data-v="large" onclick="qSet('yard','large',this)"><div class="oc-big">Larger than &frac14; acre</div><div class="oc-sub">We'll build a custom quote</div></button>
         </div>
-        <div class="q-label">Interested in an add-on?</div>
-        <div class="opt-grid">
-          <button class="opt-card" id="q-deo" onclick="qToggleDeo()"><div class="oc-big">Deodorize &amp; Sanitize</div><div class="oc-sub">Check here and we'll include add-on pricing with your confirmation</div></button>
+        <div class="q-label">Deodorize &amp; sanitize add-on &mdash; $15 per treatment</div>
+        <div class="opt-grid" id="q-deo-grid">
+          <button class="opt-card sel" data-v="none" onclick="qSet('deo','none',this)"><div class="oc-big">No thanks</div><div class="oc-sub">Just the scooping</div></button>
+          <button class="opt-card" data-v="every" onclick="qSet('deo','every',this)"><div class="oc-big">Every visit</div><div class="oc-sub">Freshest yard possible</div></button>
+          <button class="opt-card" data-v="eo" onclick="qSet('deo','eo',this)"><div class="oc-big">Every other visit</div><div class="oc-sub">Budget-friendly freshness</div></button>
         </div>
         <div class="price-panel">
           <div>
@@ -560,9 +562,17 @@
             <div class="form-field"><label for="qf2-addr">Service Address</label><input id="qf2-addr" type="text" autocomplete="street-address" /></div>
           </div>
           <div class="form-field"><label for="qf2-notes">Anything we should know? (gate code, dog names&hellip;)</label><textarea id="qf2-notes"></textarea></div>
+          <div class="agree-row" style="background:#f0fdf8;border:1px solid #c9ecdf;">
+            <div style="font-size:20px;">&#128274;</div>
+            <div><strong>Payment:</strong> after we confirm your start date, you'll receive a secure link from our billing system to place a card on file. For your protection we never collect card numbers on this form. Billed monthly &mdash; no contracts, cancel anytime.</div>
+          </div>
           <div class="agree-row">
             <input type="checkbox" id="qf2-agree" />
-            <label for="qf2-agree">I agree to the quoted price of <strong id="q-agree-price">$—</strong> and want to start service. CL Professional Pet Services will contact me to confirm my schedule.</label>
+            <label for="qf2-agree">I agree to the quoted price of <strong id="q-agree-price">$—</strong> and want to start service. CL Professional Pet Services will contact me to confirm my schedule. I understand my quote assumes a yard up to &frac14; acre and is valid for 30 days.</label>
+          </div>
+          <div class="agree-row">
+            <input type="checkbox" id="qf2-tos" />
+            <label for="qf2-tos">I have read and accept the <a href="#" onclick="qTos(true);return false;" style="color:#0F6E56;font-weight:600;">Terms of Service</a>.</label>
           </div>
           <button class="submit-btn" onclick="qSubmit()">Send My Signed-Off Quote</button>
           <div class="q-sub" style="margin-top:10px;text-align:center;">No hidden fees &bull; Quote valid 30 days &bull; No contracts — cancel anytime</div>
@@ -577,6 +587,26 @@
       </div>
     </div>
   </section>
+
+  <!-- Terms of Service modal -->
+  <div id="tos-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:300;padding:24px;overflow:auto;" onclick="if(event.target===this)qTos(false)">
+    <div style="max-width:760px;margin:40px auto;background:#fff;border-radius:16px;padding:34px;position:relative;">
+      <button onclick="qTos(false)" aria-label="Close terms" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:26px;cursor:pointer;color:#888;">&times;</button>
+      <h2 style="font-size:24px;margin-bottom:6px;">Terms of Service</h2>
+      <p style="font-size:12px;color:#999;margin-bottom:18px;">CL Professional Pet Services LLC &mdash; St. Peters, Missouri</p>
+      <div style="font-size:14px;color:#444;line-height:1.75;display:flex;flex-direction:column;gap:12px;">
+        <p><strong>1. Services.</strong> CL Professional Pet Services LLC ("CLPPS") provides pet waste removal at the service address you provide, on the schedule you select (weekly, every other week, or one-time). Every visit includes a full-yard sweep, waste haul-away, and securing your gate before we leave.</p>
+        <p><strong>2. Quotes &amp; pricing.</strong> Quotes are valid for 30 days and assume a serviceable yard of up to &frac14; acre. Lot size may be verified against county records; if your yard is materially larger, we will contact you to agree on adjusted pricing before service begins. New recurring clients are charged a one-time $40 initial clean on the first invoice. There are no hidden fees.</p>
+        <p><strong>3. Billing.</strong> Recurring service is billed monthly through our billing system using the payment method you place on file via a secure link. A late fee of $10 per month applies to invoices remaining unpaid 30 days after the due date.</p>
+        <p><strong>4. No contracts.</strong> Service is month-to-month. You may cancel at any time with no cancellation fee.</p>
+        <p><strong>5. Yard access.</strong> Please ensure gates are unlocked and pets are secured on your service day. If we cannot access the yard, the visit may be skipped and charged; we will notify you and attempt to reschedule where possible.</p>
+        <p><strong>6. Weather &amp; safety.</strong> Service may be delayed for severe weather or unsafe conditions; missed visits are rescheduled or credited.</p>
+        <p><strong>7. Liability.</strong> CLPPS is licensed and insured. Our liability for any claim arising from services is limited to the amount paid for the month in which the claim arose.</p>
+        <p><strong>8. Governing law.</strong> These terms are governed by the laws of the State of Missouri.</p>
+        <p style="font-size:12px;color:#999;">Questions? Call (636) 375-4342 or email info@clpropetservices.com.</p>
+      </div>
+    </div>
+  </div>
 
   </main>
 
@@ -593,13 +623,14 @@
     weekly:   {1: 73, 2: 81, 3: 88,  4: 95,  5: 103},  // per month
     biweekly: {1: 86, 2: 95, 3: 104, 4: 112, 5: 121},  // per month (every other week costs MORE — intentional)
     onetime:  75,           // flat, any dog count; no initial clean fee
-    initialClean: 40        // one-time, added to first invoice for new recurring clients
+    initialClean: 40,       // one-time, added to first invoice for new recurring clients
+    deodorize: 15           // per treatment
   };
   /* Metro ZIP prefixes: 630/631/633 = MO (St. Charles, St. Louis Co+City, Franklin,
      Jefferson, Warren, Lincoln), 620/622 = IL Metro East (Madison, St. Clair, Monroe) */
   var SERVICE_ZIP_PREFIXES = ["630","631","633","620","622"];
   var FORM_EMAIL = "info@clpropetservices.com";
-  var q = { zip:"", freq:"weekly", dogs:"1", yard:"small", deo:false };
+  var q = { zip:"", freq:"weekly", dogs:"1", yard:"small", deo:"none" };
 
   function qGo(n){
     for (var i=1;i<=3;i++){
@@ -634,24 +665,26 @@
     el.classList.add('sel');
     qPrice();
   }
-  function qToggleDeo(){
-    q.deo = !q.deo;
-    document.getElementById('q-deo').classList.toggle('sel', q.deo);
-    qPrice();
-  }
   function qPriceParts(){
     // Manual-review paths: yards over 1/4 acre, or 6+ dogs
     if (q.yard === 'large' || q.dogs === '6'){
       return { manual: true };
     }
     if (q.freq === 'onetime'){
-      return { manual: false, total: PRICING.onetime, per: '', first: PRICING.onetime,
-               agree: '$' + PRICING.onetime + ' one-time cleanup' };
+      var ot = PRICING.onetime + (q.deo !== 'none' ? PRICING.deodorize : 0);
+      return { manual: false, total: ot, per: '', first: ot, deoAmt: q.deo !== 'none' ? PRICING.deodorize : 0,
+               agree: '$' + ot + ' one-time cleanup' + (q.deo !== 'none' ? ' (includes $15 deodorize & sanitize)' : '') };
     }
     var base = PRICING[q.freq][q.dogs];
-    var first = base + PRICING.initialClean;
-    return { manual: false, total: base, per: '/mo', first: first,
-             agree: '$' + base + '/mo (first invoice $' + first + ', including the one-time $' + PRICING.initialClean + ' initial clean)' };
+    // visits/month: weekly ~4, every other week ~2
+    var visits = q.freq === 'weekly' ? 4 : 2;
+    var treatments = q.deo === 'every' ? visits : (q.deo === 'eo' ? Math.round(visits / 2) : 0);
+    var deoMo = treatments * PRICING.deodorize;
+    var total = base + deoMo;
+    var first = total + PRICING.initialClean;
+    var agree = '$' + total + '/mo' + (deoMo ? ' (includes ' + treatments + ' deodorize treatments at $15 each)' : '') +
+                ' \u2014 first invoice $' + first + ' including the one-time $' + PRICING.initialClean + ' initial clean';
+    return { manual: false, total: total, per: '/mo', first: first, deoMo: deoMo, treatments: treatments, agree: agree };
   }
   function qPrice(){
     var p = qPriceParts();
@@ -672,11 +705,14 @@
     labelEl.textContent = labels[q.freq];
     priceEl.innerHTML = '$' + p.total + '<small>' + p.per + '</small>';
     if (q.freq === 'onetime'){
-      noteEl.textContent = 'Flat rate, any number of dogs. Haul-away included — no other fees.';
+      noteEl.textContent = 'Flat rate, any number of dogs.' + (p.deoAmt ? ' Includes $15 deodorize & sanitize.' : '') + ' Haul-away included \u2014 no other fees.';
     } else {
-      noteEl.textContent = 'First invoice $' + p.first + ' — includes your one-time $' + PRICING.initialClean + ' initial clean. Haul-away always included.';
+      noteEl.textContent = (p.deoMo ? 'Includes ' + p.treatments + '\u00d7 $15 deodorize/mo. ' : '') + 'First invoice $' + p.first + ' \u2014 includes your one-time $' + PRICING.initialClean + ' initial clean. Haul-away always included.';
     }
     agreeEl.textContent = p.agree;
+  }
+  function qTos(show){
+    document.getElementById('tos-modal').style.display = show ? 'block' : 'none';
   }
   function qSubmit(){
     var err = document.getElementById('q-formerr');
@@ -685,6 +721,7 @@
     var phone = document.getElementById('qf2-phone').value.trim();
     if (!name || !phone){ err.classList.add('bad'); err.textContent = 'Please add your name and phone number so we can reach you.'; return; }
     if (!document.getElementById('qf2-agree').checked){ err.classList.add('bad'); err.textContent = 'Please check the agreement box to lock in your quote.'; return; }
+    if (!document.getElementById('qf2-tos').checked){ err.classList.add('bad'); err.textContent = 'Please read and accept the Terms of Service to continue.'; return; }
     var p = qPriceParts();
     var payload = {
       _subject: p.manual ? 'QUOTE REQUEST (manual review): ' + name
@@ -697,10 +734,11 @@
       Service: q.freq === 'biweekly' ? 'every other week' : q.freq,
       Dogs: q.dogs === '6' ? '6+ (manual pricing)' : q.dogs,
       Yard_Size: q.yard === 'large' ? 'OVER 1/4 acre (manual review)' : 'up to 1/4 acre',
-      Deodorize_Interest: q.deo ? 'YES — send add-on pricing' : 'no',
+      Deodorize: q.deo === 'none' ? 'no' : (q.deo === 'every' ? 'every visit ($15/treatment)' : 'every other visit ($15/treatment)'),
       Manual_Review: p.manual ? 'YES' : 'no',
       Agreed_Price: p.manual ? 'custom — to be quoted' : p.agree,
       Quote_Valid: '30 days',
+      TOS_Accepted: 'YES \u2014 ' + new Date().toISOString(),
       Notes: document.getElementById('qf2-notes').value.trim()
     };
     var btn = document.querySelector('#q-form-area .submit-btn');
