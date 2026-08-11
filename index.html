@@ -297,6 +297,7 @@
       <button data-page="services" onclick="showPage('services')">Services</button>
       <button data-page="about" onclick="showPage('about')">About</button>
       <button data-page="areas" onclick="showPage('areas')">Service Areas</button>
+      <button data-page="sell" onclick="showPage('sell')">Sell Your Business</button>
       <button data-page="quote" onclick="showPage('quote')">Get a Quote</button>
     </div>
   </nav>
@@ -475,6 +476,89 @@
     </div>
   </section>
 
+
+  <!-- ============ ACQUISITIONS ============ -->
+  <section class="page" id="page-sell">
+    <div class="page-hero">
+      <h1>Own a scooper business? Let's talk.</h1>
+      <p>CLPPS is growing across the St. Louis metro by acquiring pet waste removal routes and companies. If you're ready to move on — retirement, a new venture, or just done scooping — we'd love to make you a fair, confidential offer.</p>
+    </div>
+    <div class="content-section">
+      <div class="services-grid">
+        <div class="service-card">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <h3>Fair, straightforward offers</h3>
+          <p>We value your route on real numbers — recurring clients and revenue — and show you exactly how we got there. No lowball games.</p>
+        </div>
+        <div class="service-card">
+          <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <h3>Fast, flexible closing</h3>
+          <p>Deals sized for route businesses close in weeks, not months. We work around your timeline — immediate exit or a gradual handoff.</p>
+        </div>
+        <div class="service-card">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+          <h3>Your clients stay cared for</h3>
+          <p>The families and dogs you've served get the same schedule, licensed &amp; insured crews, and a warm introduction — your reputation stays intact.</p>
+        </div>
+        <div class="service-card">
+          <div class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <h3>Confidential from the first call</h3>
+          <p>Your clients, staff, and competitors hear nothing until you're ready. Everything you share stays between us.</p>
+        </div>
+      </div>
+
+      <div class="why-section">
+        <h2 class="section-title">How it works</h2>
+        <div class="about-cards">
+          <div class="aside-card"><div class="ac-title">Step 1 — Reach out</div><div class="ac-val">Fill out the short form below or call (636) 375-4342. A conversation, not a commitment.</div></div>
+          <div class="aside-card"><div class="ac-title">Step 2 — Share the basics</div><div class="ac-val">Rough client count, service area, and what you're hoping for. Ballpark numbers are fine to start.</div></div>
+          <div class="aside-card"><div class="ac-title">Step 3 — Get an offer</div><div class="ac-val">We'll follow up within two business days with questions or a straightforward offer.</div></div>
+          <div class="aside-card"><div class="ac-title">Step 4 — Smooth handoff</div><div class="ac-val">We handle client introductions and route transition so nobody misses a cleanup.</div></div>
+        </div>
+      </div>
+
+      <div class="form-card" style="max-width:860px;">
+        <div id="s-form-area">
+          <div class="form-title">Start the conversation</div>
+          <div class="form-sub">100% confidential. No obligation — even "just curious what my route is worth" is welcome.</div>
+          <div class="form-row">
+            <div class="form-field"><label for="sf-name">Your Name</label><input id="sf-name" type="text" autocomplete="name" /></div>
+            <div class="form-field"><label for="sf-biz">Business Name</label><input id="sf-biz" type="text" autocomplete="organization" /></div>
+          </div>
+          <div class="form-row">
+            <div class="form-field"><label for="sf-phone">Phone</label><input id="sf-phone" type="tel" autocomplete="tel" /></div>
+            <div class="form-field"><label for="sf-email">Email</label><input id="sf-email" type="email" autocomplete="email" /></div>
+          </div>
+          <div class="form-row">
+            <div class="form-field"><label for="sf-area">Service Area (cities / counties)</label><input id="sf-area" type="text" /></div>
+            <div class="form-field"><label for="sf-years">Years in Business</label>
+              <select id="sf-years"><option>Under 1</option><option>1–3</option><option>3–5</option><option>5–10</option><option>10+</option></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field"><label for="sf-clients">Recurring Clients (approx.)</label>
+              <select id="sf-clients"><option>Under 25</option><option>25–50</option><option>50–100</option><option>100–250</option><option>250+</option></select>
+            </div>
+            <div class="form-field"><label for="sf-rev">Monthly Revenue (optional)</label>
+              <select id="sf-rev"><option>Prefer not to say yet</option><option>Under $2,000</option><option>$2,000–$5,000</option><option>$5,000–$10,000</option><option>$10,000+</option></select>
+            </div>
+          </div>
+          <div class="form-field"><label for="sf-when">Timeline</label>
+            <select id="sf-when"><option>As soon as possible</option><option>Next 3–6 months</option><option>Within a year</option><option>Just exploring</option></select>
+          </div>
+          <div class="form-field"><label for="sf-notes">Anything else? (why you're selling, equipment included, etc.)</label><textarea id="sf-notes"></textarea></div>
+          <button class="submit-btn" onclick="sSubmit()">Send Confidential Inquiry</button>
+          <div class="q-sub" style="margin-top:10px;text-align:center;">Private &amp; confidential &bull; No obligation &bull; Response within two business days</div>
+          <div class="zip-msg" id="s-formerr" style="margin-top:12px;"></div>
+        </div>
+        <div class="q-success" id="s-success">
+          <div class="big">&#129309;</div>
+          <h3>Inquiry received — quietly.</h3>
+          <p>Thanks for reaching out. We'll review and get back to you within two business days. Everything you shared stays confidential. Prefer to talk now? Call <strong>(636) 375-4342</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- ============ INSTANT QUOTE ============ -->
   <section class="page" id="page-quote">
@@ -723,6 +807,46 @@
       noteEl.textContent = (p.deoMo ? 'Includes ' + p.treatments + '\u00d7 $15 deodorize/mo. ' : '') + 'First invoice $' + p.first + ' \u2014 includes your one-time $' + PRICING.initialClean + ' initial clean. Haul-away always included.';
     }
     agreeEl.textContent = p.agree;
+  }
+  function sSubmit(){
+    var err = document.getElementById('s-formerr');
+    err.className = 'zip-msg'; err.textContent = '';
+    var name = document.getElementById('sf-name').value.trim();
+    var phone = document.getElementById('sf-phone').value.trim();
+    var email = document.getElementById('sf-email').value.trim();
+    if (!name || (!phone && !email)){
+      err.classList.add('bad');
+      err.textContent = 'Please add your name and at least one way to reach you (phone or email).';
+      return;
+    }
+    var payload = {
+      _subject: '\ud83e\udd1d ACQUISITION INQUIRY: ' + (document.getElementById('sf-biz').value.trim() || name),
+      Type: 'BUSINESS ACQUISITION INQUIRY (confidential)',
+      Owner_Name: name,
+      Business_Name: document.getElementById('sf-biz').value.trim(),
+      Phone: phone,
+      Email: email,
+      Service_Area: document.getElementById('sf-area').value.trim(),
+      Years_In_Business: document.getElementById('sf-years').value,
+      Recurring_Clients: document.getElementById('sf-clients').value,
+      Monthly_Revenue: document.getElementById('sf-rev').value,
+      Timeline: document.getElementById('sf-when').value,
+      Notes: document.getElementById('sf-notes').value.trim()
+    };
+    var btn = document.querySelector('#s-form-area .submit-btn');
+    btn.disabled = true; btn.textContent = 'Sending\u2026';
+    fetch('https://formsubmit.co/ajax/' + FORM_EMAIL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json(); }).then(function(){
+      document.getElementById('s-form-area').style.display = 'none';
+      document.getElementById('s-success').classList.add('show');
+    }).catch(function(){
+      var body = Object.keys(payload).map(function(k){ return k + ': ' + payload[k]; }).join('%0D%0A');
+      window.location.href = 'mailto:' + FORM_EMAIL + '?subject=Acquisition%20Inquiry&body=' + body;
+      btn.disabled = false; btn.textContent = 'Send Confidential Inquiry';
+    });
   }
   function qHeroToggle(){
     var on = document.getElementById('qf2-hero').checked;
