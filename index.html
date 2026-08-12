@@ -1047,6 +1047,8 @@
   document.addEventListener('DOMContentLoaded', function(){
     setupReveal();
     animateStats();
+    var h = (location.hash || '').replace('#', '');
+    if (h && document.getElementById('page-' + h)) showPage(h);
   });
 
   function showPage(id){
@@ -1059,6 +1061,7 @@
       if(isActive){b.setAttribute('aria-current','page');}else{b.removeAttribute('aria-current');}
     });
     if (id === 'home') animateStats();
+    if (history.replaceState) history.replaceState(null, '', id === 'home' ? '#' : '#' + id);
     window.scrollTo({top:0,behavior:'smooth'});
   }
 
