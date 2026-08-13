@@ -1,8 +1,10 @@
 /**
- * CLPPS Lead Tracker backend — paste this whole file into Google Apps Script
- * (sheet.new → Extensions → Apps Script), then
- * Deploy → New deployment → Web app → Execute as: Me → Access: Anyone.
- * Nothing needs to be edited.
+ * CLPPS Lead Tracker backend — paste this whole file into a new project at
+ * script.google.com, then Deploy → New deployment → Web app →
+ * Execute as: Me → Access: Anyone. Nothing needs to be edited.
+ *
+ * On its first use it automatically creates a spreadsheet named
+ * "CLPPS Leads" in your Google Drive and stores everything there.
  */
 
 var PIN = 'clpps-8k3v51';   // built-in key the tracker page sends automatically
@@ -12,7 +14,16 @@ var HEADERS = ['id','created','type','name','phone','email','address','zip','ser
                'status','crmnotes','updated'];
 
 function sheet_() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('SHEET_ID');
+  var ss;
+  if (id) {
+    try { ss = SpreadsheetApp.openById(id); } catch (e) { ss = null; }
+  }
+  if (!ss) {
+    ss = SpreadsheetApp.create('CLPPS Leads');
+    props.setProperty('SHEET_ID', ss.getId());
+  }
   var sh = ss.getSheets()[0];
   if (sh.getLastRow() === 0) sh.appendRow(HEADERS);
   return sh;
