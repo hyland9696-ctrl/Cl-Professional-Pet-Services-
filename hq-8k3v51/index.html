@@ -59,21 +59,11 @@
 </head>
 <body>
 
-<div id="gate" class="gate">
-  <img src="../images/logo.png" alt="CLPPS" style="width:90px;">
-  <h2 style="margin-top:10px;">Lead Tracker</h2>
-  <p style="color:#777;font-size:13px;margin-top:6px;">Enter your office PIN</p>
-  <input id="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="&bull;&bull;&bull;&bull;">
-  <button onclick="unlock()">Unlock</button>
-  <div class="err" id="gate-err"></div>
-</div>
-
-<div id="app" style="display:none;">
+<div id="app">
   <header>
     <img src="../images/logo.png" alt="">
     <h1>Lead Tracker</h1>
     <button onclick="loadLeads(true)">&#8635; Refresh</button>
-    <button onclick="lockOut()">Lock</button>
   </header>
   <div class="wrap">
     <div id="setupNote" style="display:none;" class="setup">
@@ -101,35 +91,15 @@ var STATUSES = [
   {k:'lost',   label:'Not interested'}
 ];
 var FILTERS = [{k:'all',label:'All'}].concat(STATUSES);
-var leads = [], filter = 'all', KEY = '';
+var leads = [], filter = 'all', KEY = 'clpps-8k3v51';
 
 function toast(m){
   var t = document.getElementById('toast');
   t.textContent = m; t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2200);
 }
-function unlock(){
-  var v = document.getElementById('pin').value.trim();
-  if (!v){ return; }
-  KEY = v;
-  loadLeads(false, function(ok){
-    if (ok){
-      sessionStorage.setItem('clpps_key', KEY);
-      document.getElementById('gate').style.display = 'none';
-      document.getElementById('app').style.display = 'block';
-    } else {
-      document.getElementById('gate-err').textContent = 'Wrong PIN, try again.';
-    }
-  });
-}
-function lockOut(){
-  sessionStorage.removeItem('clpps_key');
-  location.reload();
-}
 function loadLeads(showToast, cb){
   if (!CRM_ENDPOINT){
-    document.getElementById('gate').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
     document.getElementById('setupNote').style.display = 'block';
     render();
     if (cb) cb(true);
@@ -233,12 +203,7 @@ function render(){
     '</div>';
   }).join('');
 }
-document.getElementById('pin').addEventListener('keydown', function(e){ if (e.key === 'Enter') unlock(); });
-(function(){
-  var saved = sessionStorage.getItem('clpps_key');
-  if (saved){ KEY = saved; document.getElementById('pin').value = saved; unlock(); }
-  if (!CRM_ENDPOINT) loadLeads(false);
-})();
+loadLeads(false);
 </script>
 </body>
 </html>

@@ -1,10 +1,11 @@
 /**
  * CLPPS Lead Tracker backend — paste this whole file into Google Apps Script
- * (sheet.new → Extensions → Apps Script), set your PIN below, then
+ * (sheet.new → Extensions → Apps Script), then
  * Deploy → New deployment → Web app → Execute as: Me → Access: Anyone.
+ * Nothing needs to be edited.
  */
 
-var PIN = 'CHANGE-ME';   // <-- set your office PIN (same one you type on the tracker page)
+var PIN = 'clpps-8k3v51';   // built-in key the tracker page sends automatically
 
 var HEADERS = ['id','created','type','name','phone','email','address','zip','service',
                'dogs','yard','deodorize','hero','price','manual','honored','notes',
