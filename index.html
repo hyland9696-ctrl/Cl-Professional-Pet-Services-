@@ -1113,9 +1113,16 @@
     document.getElementById('tos-modal').style.display = show ? 'block' : 'none';
   }
 
-  /* ===== Live address lookup (OpenStreetMap Photon, free) ===== */
-  var addrTimer = null, addrFeats = [], addrVerified = false, addrPickedZip = '';
+  /* ===== Live address lookup: Google Places, OpenStreetMap fallback ===== */
+  var GMAPS_KEY = 'AIzaSyDWeALiej4mtuj-BvfUOeTjUIus7JnyZfM'; /* referer-locked to this domain */
+  var addrTimer = null, addrFeats = [], addrVerified = false, addrPickedZip = '', addrSession = null;
   function hEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function addrToken(){
+    if (!addrSession){
+      addrSession = 'xxxx-xxxx-xxxx-xxxx'.replace(/x/g, function(){ return Math.floor(Math.random()*16).toString(16); }) + '-' + Date.now().toString(16);
+    }
+    return addrSession;
+  }
   function addrHide(){ document.getElementById('addr-sug').style.display = 'none'; }
   function addrBlur(){ setTimeout(addrHide, 200); }
   function addrInput(){
@@ -1127,35 +1134,59 @@
     if (v.length < 5){ addrHide(); return; }
     addrTimer = setTimeout(function(){ addrLookup(v); }, 350);
   }
+  function addrShow(){
+    var box = document.getElementById('addr-sug');
+    if (!addrFeats.length){ addrHide(); return; }
+    box.innerHTML = addrFeats.map(function(f, i){
+      return '<div class="addr-opt" onmousedown="addrPick(' + i + ')">' + hEsc(f.label) + '</div>';
+    }).join('');
+    box.style.display = 'block';
+  }
+  function addrLookup(v){
+    if (!GMAPS_KEY){ addrLookupOSM(v); return; }
+    fetch('https://places.googleapis.com/v1/places:autocomplete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GMAPS_KEY },
+      body: JSON.stringify({
+        input: v,
+        sessionToken: addrToken(),
+        includedRegionCodes: ['us'],
+        locationBias: { circle: { center: { latitude: 38.75, longitude: -90.45 }, radius: 50000 } }
+      })
+    }).then(function(r){ if (!r.ok) throw new Error('places ' + r.status); return r.json(); })
+      .then(function(d){
+        addrFeats = (d.suggestions || []).filter(function(s){ return s.placePrediction; }).slice(0, 5)
+          .map(function(s){
+            var pp = s.placePrediction;
+            return { gid: pp.placeId, label: pp.text ? pp.text.text : '', zip: '' };
+          }).filter(function(f){ return f.label; });
+        addrShow();
+      })
+      .catch(function(){ addrLookupOSM(v); });
+  }
   function addrLine(p){
     var street = p.housenumber ? (p.housenumber + ' ' + (p.street || p.name || '')) : (p.name || p.street || '');
     var cityish = p.city || p.town || p.village || p.district || '';
     var tail = [p.state || '', p.postcode || ''].filter(Boolean).join(' ');
     return [street, cityish, tail].filter(Boolean).join(', ');
   }
-  function addrLookup(v){
+  function addrLookupOSM(v){
     fetch('https://photon.komoot.io/api/?q=' + encodeURIComponent(v) + '&limit=6&lat=38.75&lon=-90.45&lang=en')
       .then(function(r){ return r.json(); })
       .then(function(d){
         addrFeats = (d.features || []).filter(function(f){
           var p = f.properties || {};
           return p.housenumber && (p.postcode || p.city || p.town);
-        }).slice(0, 5);
-        var box = document.getElementById('addr-sug');
-        if (!addrFeats.length){ addrHide(); return; }
-        box.innerHTML = addrFeats.map(function(f, i){
-          return '<div class="addr-opt" onmousedown="addrPick(' + i + ')">' + hEsc(addrLine(f.properties)) + '</div>';
-        }).join('');
-        box.style.display = 'block';
+        }).slice(0, 5).map(function(f){
+          return { gid: null, label: addrLine(f.properties), zip: String(f.properties.postcode || '') };
+        });
+        addrShow();
       })
       .catch(function(){ addrHide(); });
   }
-  function addrPick(i){
-    var p = (addrFeats[i] || {}).properties || {};
-    document.getElementById('qf2-addr').value = addrLine(p);
+  function addrConfirm(zipc){
     addrVerified = true;
-    addrPickedZip = String(p.postcode || '');
-    addrHide();
+    addrPickedZip = String(zipc || '');
     var note = document.getElementById('addr-note');
     if (q.zip && addrPickedZip && addrPickedZip !== q.zip){
       note.className = 'addr-note warn';
@@ -1165,6 +1196,29 @@
       note.innerHTML = '&#10004; Address verified';
     }
     note.style.display = 'block';
+  }
+  function addrPick(i){
+    var f = addrFeats[i];
+    if (!f) return;
+    document.getElementById('qf2-addr').value = f.label;
+    addrHide();
+    if (f.gid && GMAPS_KEY){
+      fetch('https://places.googleapis.com/v1/places/' + encodeURIComponent(f.gid) + '?sessionToken=' + encodeURIComponent(addrToken()), {
+        headers: { 'X-Goog-Api-Key': GMAPS_KEY, 'X-Goog-FieldMask': 'formattedAddress,addressComponents' }
+      }).then(function(r){ if (!r.ok) throw new Error('details ' + r.status); return r.json(); })
+        .then(function(p){
+          addrSession = null;
+          var zipc = '';
+          (p.addressComponents || []).forEach(function(c){
+            if ((c.types || []).indexOf('postal_code') >= 0) zipc = c.longText || c.shortText || '';
+          });
+          if (p.formattedAddress) document.getElementById('qf2-addr').value = p.formattedAddress;
+          addrConfirm(zipc);
+        })
+        .catch(function(){ addrSession = null; addrConfirm(''); });
+    } else {
+      addrConfirm(f.zip);
+    }
   }
   function qSubmit(activate){
     var err = document.getElementById('q-formerr');
