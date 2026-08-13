@@ -231,6 +231,16 @@
     footer .fr{font-size:13px;color:#888;}
     footer a{color:#0F6E56;text-decoration:none;}
 
+    /* Address lookup suggestions */
+    .addr-wrap{position:relative;}
+    .addr-sug{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:0 0 10px 10px;box-shadow:0 10px 24px rgba(0,0,0,0.12);z-index:60;display:none;max-height:230px;overflow-y:auto;}
+    .addr-opt{padding:11px 13px;font-size:13.5px;cursor:pointer;border-bottom:1px solid #f2f2f2;}
+    .addr-opt:last-child{border-bottom:none;}
+    .addr-opt:hover{background:#f0fdf8;}
+    .addr-note{font-size:12.5px;margin-top:5px;display:none;font-weight:600;}
+    .addr-note.ok{color:#0F6E56;}
+    .addr-note.warn{color:#b8860b;}
+
     @media(max-width:720px){
       nav{padding:10px 12px;flex-wrap:wrap;gap:4px;}
       .nav-logo .sub{display:none;}
@@ -352,6 +362,7 @@
       <button data-page="services" onclick="showPage('services')">Services</button>
       <button data-page="about" onclick="showPage('about')">About</button>
       <button data-page="areas" onclick="showPage('areas')">Service Areas</button>
+      <button data-page="commercial" onclick="showPage('commercial')">Commercial</button>
       <button data-page="sell" onclick="showPage('sell')">Sell Your Business</button>
       <button data-page="quote" onclick="showPage('quote')">Get a Quote</button>
     </div>
@@ -562,6 +573,81 @@
 
 
   <!-- ============ ACQUISITIONS ============ -->
+  <section class="page" id="page-commercial">
+    <div class="page-hero">
+      <h1>Commercial &amp; community pet waste service</h1>
+      <p>HOAs, apartment communities, property managers, parks and businesses across the St. Louis metro. Clean common areas keep residents happy, complaints down, and property values up. Tell us about your property and we'll build a plan and pricing around it, personally.</p>
+    </div>
+    <div class="content-section">
+      <div class="services-grid">
+        <div class="service-card">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M9 13h1M14 9h1M14 13h1M11 21v-4h2v4"/></svg></div>
+          <h3>HOAs &amp; communities</h3>
+          <p>Scheduled cleanup of common grounds, walking trails and green spaces, with service logs your board can actually see.</p>
+        </div>
+        <div class="service-card">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M4 21h16M8 7h2M8 11h2M8 15h2M14 7h2M14 11h2M14 15h2"/></svg></div>
+          <h3>Apartments &amp; condos</h3>
+          <p>Pet-friendly properties stay pet-friendly when the grounds stay clean. Flexible visit frequency sized to your community.</p>
+        </div>
+        <div class="service-card">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 2v6M12 8c-3 0-5 2-5 5v9h10v-9c0-3-2-5-5-5zM4 22h16"/></svg></div>
+          <h3>Pet waste stations</h3>
+          <p>We install, stock and service waste stations: bags refilled, bins emptied, hardware maintained on every visit.</p>
+        </div>
+        <div class="service-card">
+          <div class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg></div>
+          <h3>Built around your property</h3>
+          <p>Custom schedules, simple monthly invoicing, licensed and insured crew, and one point of contact who answers the phone.</p>
+        </div>
+      </div>
+
+      <div class="form-card" style="max-width:860px;">
+        <div id="c-form-area">
+          <div class="form-title">Tell us about your property</div>
+          <div class="form-sub">No automated pricing here, commercial properties deserve a real conversation. Send the basics and we'll get back to you personally within one business day.</div>
+          <div class="form-row">
+            <div class="form-field"><label for="cf-prop">Property / Company Name</label><input id="cf-prop" type="text" autocomplete="organization" /></div>
+            <div class="form-field"><label for="cf-name">Your Name</label><input id="cf-name" type="text" autocomplete="name" /></div>
+          </div>
+          <div class="form-row">
+            <div class="form-field"><label for="cf-role">Your Role</label>
+              <select id="cf-role"><option>Property manager</option><option>HOA board member</option><option>Owner</option><option>Maintenance / grounds</option><option>Other</option></select>
+            </div>
+            <div class="form-field"><label for="cf-type">Property Type</label>
+              <select id="cf-type"><option>HOA / subdivision</option><option>Apartment community</option><option>Condo association</option><option>Commercial property</option><option>Park / municipality</option><option>Other</option></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field"><label for="cf-phone">Phone</label><input id="cf-phone" type="tel" autocomplete="tel" /></div>
+            <div class="form-field"><label for="cf-email">Email</label><input id="cf-email" type="email" autocomplete="email" /></div>
+          </div>
+          <div class="form-row">
+            <div class="form-field"><label for="cf-addr">Property Address / Location</label><input id="cf-addr" type="text" /></div>
+            <div class="form-field"><label for="cf-size">Size (units, acres, or best guess)</label><input id="cf-size" type="text" placeholder="e.g. 120 units, ~5 acres of common ground" /></div>
+          </div>
+          <div class="form-row">
+            <div class="form-field"><label for="cf-current">Current pet waste service?</label>
+              <select id="cf-current"><option>No service today</option><option>Yes, looking to switch</option><option>Yes, comparing options</option><option>Not sure</option></select>
+            </div>
+            <div class="form-field"><label for="cf-stations">Interested in waste stations?</label>
+              <select id="cf-stations"><option>Yes, install and service</option><option>We have stations, need servicing</option><option>No stations needed</option><option>Not sure yet</option></select>
+            </div>
+          </div>
+          <div class="form-field"><label for="cf-notes">Anything else we should know?</label><textarea id="cf-notes" placeholder="Problem areas, resident complaints, timeline, budget cycle..."></textarea></div>
+          <button class="submit-btn" onclick="cSubmit()">Request a Callback</button>
+          <div class="q-sub" style="margin-top:10px;text-align:center;">No obligation &bull; Licensed &amp; insured &bull; Response within one business day</div>
+          <div class="zip-msg" id="c-formerr" style="margin-top:12px;"></div>
+        </div>
+        <div class="q-success" id="c-success">
+          <div class="big">&#127970;</div>
+          <h3>Got it, we'll be in touch.</h3>
+          <p>Thanks! Your property details are in our inbox and we'll reach out personally within one business day to talk through a plan and pricing. Want to talk now? Call <strong>(636) 375-4342</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="page" id="page-sell">
     <div class="page-hero">
       <h1>Own a scooper business? Let's talk.</h1>
@@ -727,7 +813,11 @@
           </div>
           <div class="form-row">
             <div class="form-field"><label for="qf2-email">Email</label><input id="qf2-email" type="email" autocomplete="email" /></div>
-            <div class="form-field"><label for="qf2-addr">Service Address</label><input id="qf2-addr" type="text" autocomplete="street-address" /></div>
+            <div class="form-field addr-wrap"><label for="qf2-addr">Service Address</label>
+              <input id="qf2-addr" type="text" autocomplete="off" placeholder="Start typing, then pick your address&hellip;" oninput="addrInput()" onblur="addrBlur()" />
+              <div class="addr-sug" id="addr-sug"></div>
+              <div class="addr-note" id="addr-note"></div>
+            </div>
           </div>
           <div class="form-field"><label for="qf2-notes">Anything we should know? (gate code, dog names&hellip;)</label><textarea id="qf2-notes"></textarea></div>
           <div class="agree-row" style="flex-direction:column;align-items:stretch;gap:8px;">
@@ -908,6 +998,73 @@
     }
     agreeEl.textContent = p.agree;
   }
+  function cSubmit(){
+    var err = document.getElementById('c-formerr');
+    err.className = 'zip-msg'; err.textContent = '';
+    var prop = document.getElementById('cf-prop').value.trim();
+    var name = document.getElementById('cf-name').value.trim();
+    var phone = document.getElementById('cf-phone').value.trim();
+    var email = document.getElementById('cf-email').value.trim();
+    if (!name || (!phone && !email)){
+      err.classList.add('bad');
+      err.textContent = 'Please add your name and at least one way to reach you (phone or email).';
+      return;
+    }
+    var ptype = document.getElementById('cf-type').value;
+    var size = document.getElementById('cf-size').value.trim();
+    var current = document.getElementById('cf-current').value;
+    var stations = document.getElementById('cf-stations').value;
+    var notes = document.getElementById('cf-notes').value.trim();
+    var payload = {
+      _subject: '🏢 COMMERCIAL INQUIRY: ' + (prop || name) + ' (' + ptype + ')',
+      Type: 'COMMERCIAL SERVICE INQUIRY: no pricing quoted, call back personally',
+      Property_Name: prop,
+      Contact_Name: name,
+      Role: document.getElementById('cf-role').value,
+      Phone: phone,
+      Email: email,
+      Property_Type: ptype,
+      Property_Address: document.getElementById('cf-addr').value.trim(),
+      Size: size,
+      Current_Service: current,
+      Waste_Stations: stations,
+      Notes: notes
+    };
+    crmCapture({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      created: new Date().toISOString(),
+      type: 'COMMERCIAL',
+      name: name + (prop ? ' — ' + prop : ''),
+      phone: phone,
+      email: email,
+      address: payload.Property_Address,
+      zip: '',
+      service: 'commercial: ' + ptype,
+      dogs: '',
+      yard: size,
+      deodorize: '',
+      hero: 'no',
+      price: 'custom, call back',
+      manual: 'YES',
+      honored: '',
+      notes: [current, 'stations: ' + stations, notes].filter(Boolean).join(' · ')
+    });
+    var btn = document.querySelector('#c-form-area .submit-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    fetch('https://formsubmit.co/ajax/' + FORM_EMAIL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json(); }).then(function(){
+      document.getElementById('c-form-area').style.display = 'none';
+      document.getElementById('c-success').classList.add('show');
+    }).catch(function(){
+      var body = Object.keys(payload).map(function(k){ return k + ': ' + payload[k]; }).join('%0D%0A');
+      window.location.href = 'mailto:' + FORM_EMAIL + '?subject=Commercial%20Inquiry&body=' + body;
+      btn.disabled = false; btn.textContent = 'Request a Callback';
+    });
+  }
+
   function sSubmit(){
     var err = document.getElementById('s-formerr');
     err.className = 'zip-msg'; err.textContent = '';
@@ -955,6 +1112,60 @@
   function qTos(show){
     document.getElementById('tos-modal').style.display = show ? 'block' : 'none';
   }
+
+  /* ===== Live address lookup (OpenStreetMap Photon, free) ===== */
+  var addrTimer = null, addrFeats = [], addrVerified = false, addrPickedZip = '';
+  function hEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function addrHide(){ document.getElementById('addr-sug').style.display = 'none'; }
+  function addrBlur(){ setTimeout(addrHide, 200); }
+  function addrInput(){
+    addrVerified = false; addrPickedZip = '';
+    var note = document.getElementById('addr-note');
+    note.style.display = 'none'; note.className = 'addr-note';
+    var v = document.getElementById('qf2-addr').value.trim();
+    clearTimeout(addrTimer);
+    if (v.length < 5){ addrHide(); return; }
+    addrTimer = setTimeout(function(){ addrLookup(v); }, 350);
+  }
+  function addrLine(p){
+    var street = p.housenumber ? (p.housenumber + ' ' + (p.street || p.name || '')) : (p.name || p.street || '');
+    var cityish = p.city || p.town || p.village || p.district || '';
+    var tail = [p.state || '', p.postcode || ''].filter(Boolean).join(' ');
+    return [street, cityish, tail].filter(Boolean).join(', ');
+  }
+  function addrLookup(v){
+    fetch('https://photon.komoot.io/api/?q=' + encodeURIComponent(v) + '&limit=6&lat=38.75&lon=-90.45&lang=en')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        addrFeats = (d.features || []).filter(function(f){
+          var p = f.properties || {};
+          return p.housenumber && (p.postcode || p.city || p.town);
+        }).slice(0, 5);
+        var box = document.getElementById('addr-sug');
+        if (!addrFeats.length){ addrHide(); return; }
+        box.innerHTML = addrFeats.map(function(f, i){
+          return '<div class="addr-opt" onmousedown="addrPick(' + i + ')">' + hEsc(addrLine(f.properties)) + '</div>';
+        }).join('');
+        box.style.display = 'block';
+      })
+      .catch(function(){ addrHide(); });
+  }
+  function addrPick(i){
+    var p = (addrFeats[i] || {}).properties || {};
+    document.getElementById('qf2-addr').value = addrLine(p);
+    addrVerified = true;
+    addrPickedZip = String(p.postcode || '');
+    addrHide();
+    var note = document.getElementById('addr-note');
+    if (q.zip && addrPickedZip && addrPickedZip !== q.zip){
+      note.className = 'addr-note warn';
+      note.innerHTML = '&#9888;&#65039; This address is in ZIP ' + hEsc(addrPickedZip) + ', but you checked ' + hEsc(q.zip) + ' in step 1. That’s fine if it’s intentional, we’ll use the address.';
+    } else {
+      note.className = 'addr-note ok';
+      note.innerHTML = '&#10004; Address verified';
+    }
+    note.style.display = 'block';
+  }
   function qSubmit(activate){
     var err = document.getElementById('q-formerr');
     err.className = 'zip-msg'; err.textContent = '';
@@ -975,6 +1186,9 @@
       Phone: phone,
       Email: document.getElementById('qf2-email').value.trim(),
       Address: document.getElementById('qf2-addr').value.trim(),
+      Address_Verified: addrVerified
+        ? ('YES, matched map lookup' + (addrPickedZip && q.zip && addrPickedZip !== q.zip ? ' (NOTE: address ZIP ' + addrPickedZip + ' differs from step-1 ZIP ' + q.zip + ')' : ''))
+        : 'no, typed manually — double-check before first visit',
       ZIP: q.zip,
       Service: q.freq === 'biweekly' ? 'every other week' : q.freq,
       Dogs: q.dogs === '6' ? '6+ (manual pricing)' : q.dogs,
