@@ -66,16 +66,35 @@
     <button onclick="loadLeads(true)">&#8635; Refresh</button>
   </header>
   <div class="wrap">
-    <div id="setupNote" style="display:none;" class="setup">
-      <strong>Almost ready.</strong> The database connection hasn't been added yet. Once the Google Sheet script URL is plugged in, every quote from the website appears here automatically.
-    </div>
     <div class="stats" id="stats"></div>
     <div class="toolbar">
       <input id="search" placeholder="Search name, phone, ZIP&hellip;" oninput="render()">
+    </div>
+    <div class="toolbar">
+      <button class="copybtn" onclick="toggleAdd()">&#10133; Add lead</button>
+      <button class="copybtn" onclick="exportCsv()">&#11015;&#65039; Download CSV</button>
       <button class="copybtn" onclick="copyEmails()">Copy emails</button>
+    </div>
+    <div id="addPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px;">Paste the quote email</div>
+      <p style="font-size:12.5px;color:#777;margin-bottom:8px;">Open the quote email, select all the text, copy it, and paste it below. I'll pull out the name, phone, price and the rest automatically.</p>
+      <textarea id="pasteBox" style="width:100%;min-height:110px;border:1px solid #ddd;border-radius:9px;padding:10px;font-size:13px;font-family:inherit;" placeholder="Paste email text here&hellip;"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="copybtn" style="background:#1D9E75;color:#fff;border-color:#1D9E75;" onclick="addFromPaste()">Add this lead</button>
+        <button class="copybtn" onclick="toggleAdd()">Cancel</button>
+      </div>
+      <div style="font-size:12px;color:#999;margin-top:10px;">Or add by hand: fill only what you know.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <input id="m-name" placeholder="Name" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+        <input id="m-phone" placeholder="Phone" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+        <input id="m-email" placeholder="Email" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+        <input id="m-price" placeholder="Price (e.g. $81/mo)" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+      </div>
+      <button class="copybtn" style="margin-top:8px;" onclick="addManual()">Add manual lead</button>
     </div>
     <div class="chips" id="chips"></div>
     <div id="list"></div>
+    <p style="font-size:11.5px;color:#aaa;margin-top:16px;line-height:1.6;">Leads live in this phone's browser. Download the CSV now and then to keep a backup copy, and after big days. Clearing the browser's data clears the list (the CSV file keeps everything).</p>
   </div>
 </div>
 
@@ -98,10 +117,17 @@ function toast(m){
   t.textContent = m; t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2200);
 }
+function saveLocal(){
+  try { localStorage.setItem('clpps_leads', JSON.stringify(leads)); } catch (e) {}
+}
+function loadLocal(){
+  try { leads = JSON.parse(localStorage.getItem('clpps_leads') || '[]'); } catch (e) { leads = []; }
+}
 function loadLeads(showToast, cb){
+  loadLocal();
+  render();
   if (!CRM_ENDPOINT){
-    document.getElementById('setupNote').style.display = 'block';
-    render();
+    if (showToast) toast('List refreshed');
     if (cb) cb(true);
     return;
   }
@@ -109,7 +135,12 @@ function loadLeads(showToast, cb){
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok){ if (cb) cb(false); return; }
-      leads = d.leads || [];
+      var remote = d.leads || [];
+      var ids = {};
+      leads.forEach(function(l){ ids[l.id] = true; });
+      remote.forEach(function(l){ if (!ids[l.id]) leads.push(l); });
+      leads.sort(function(a, b){ return String(b.created).localeCompare(String(a.created)); });
+      saveLocal();
       render();
       if (showToast) toast('Up to date ✓');
       if (cb) cb(true);
@@ -118,15 +149,18 @@ function loadLeads(showToast, cb){
 }
 function setStatus(id, status){
   var l = leads.filter(function(x){ return x.id === id; })[0];
-  if (l) l.status = status;
+  if (l){ l.status = status; l.updated = new Date().toISOString(); }
+  saveLocal();
   render();
   post({action:'update', key:KEY, id:id, status:status}, 'Marked ' + status);
 }
 function saveNote(id){
   var v = document.getElementById('note-' + id).value;
   var l = leads.filter(function(x){ return x.id === id; })[0];
-  if (l) l.crmnotes = v;
+  if (l){ l.crmnotes = v; l.updated = new Date().toISOString(); }
+  saveLocal();
   post({action:'update', key:KEY, id:id, notes:v}, 'Note saved ✓');
+  if (!CRM_ENDPOINT) toast('Note saved ✓');
 }
 function post(body, okMsg){
   if (!CRM_ENDPOINT) return;
@@ -134,6 +168,84 @@ function post(body, okMsg){
     .then(function(r){ return r.json(); })
     .then(function(d){ toast(d.ok ? okMsg : 'Save failed'); })
     .catch(function(){ toast('Save failed, check connection'); });
+}
+function toggleAdd(){
+  var p = document.getElementById('addPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+function grab(text, keys){
+  for (var i = 0; i < keys.length; i++){
+    var m = text.match(new RegExp('^\\s*' + keys[i] + '\\s*[:\\t]\\s*(.+)$', 'mi'));
+    if (m) return m[1].trim();
+  }
+  return '';
+}
+function addFromPaste(){
+  var t = document.getElementById('pasteBox').value;
+  if (!t.trim()){ toast('Paste the email text first'); return; }
+  var status_line = grab(t, ['Status']);
+  var lead = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    created: new Date().toISOString(),
+    type: /ACTIVATED/i.test(status_line) || /ACTIVATE SERVICE/i.test(t) ? 'ACTIVATE' : 'SAVED',
+    name: grab(t, ['Name']),
+    phone: grab(t, ['Phone']),
+    email: grab(t, ['Email']),
+    address: grab(t, ['Address']),
+    zip: grab(t, ['ZIP', 'Zip']),
+    service: grab(t, ['Service']),
+    dogs: grab(t, ['Dogs']),
+    yard: grab(t, ['Yard_Size', 'Yard Size']),
+    deodorize: grab(t, ['Deodorize']),
+    hero: grab(t, ['Hero_Discount', 'Hero Discount']),
+    price: grab(t, ['Quoted_Price', 'Quoted Price']),
+    manual: grab(t, ['Manual_Review', 'Manual Review']),
+    honored: grab(t, ['Quote_Honored_Until', 'Quote Honored Until']),
+    notes: grab(t, ['Notes']),
+    status: 'new', crmnotes: ''
+  };
+  if (!lead.name && !lead.phone){ toast("Couldn't find a name or phone in that text"); return; }
+  leads.unshift(lead);
+  saveLocal(); render();
+  post({action:'lead', lead:lead});
+  document.getElementById('pasteBox').value = '';
+  toggleAdd();
+  toast('Lead added ✓');
+}
+function addManual(){
+  var name = document.getElementById('m-name').value.trim();
+  var phone = document.getElementById('m-phone').value.trim();
+  if (!name && !phone){ toast('Add at least a name or phone'); return; }
+  var lead = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    created: new Date().toISOString(), type: 'SAVED',
+    name: name, phone: phone,
+    email: document.getElementById('m-email').value.trim(),
+    price: document.getElementById('m-price').value.trim(),
+    status: 'new', crmnotes: ''
+  };
+  leads.unshift(lead);
+  saveLocal(); render();
+  post({action:'lead', lead:lead});
+  ['m-name','m-phone','m-email','m-price'].forEach(function(i){ document.getElementById(i).value = ''; });
+  toggleAdd();
+  toast('Lead added ✓');
+}
+var CSV_COLS = ['created','type','name','phone','email','address','zip','service','dogs',
+                'yard','deodorize','hero','price','manual','honored','notes','status','crmnotes'];
+function exportCsv(){
+  if (!leads.length){ toast('Nothing to download yet'); return; }
+  var esc = function(v){ v = String(v == null ? '' : v); return '"' + v.replace(/"/g, '""') + '"'; };
+  var rows = [CSV_COLS.join(',')];
+  leads.forEach(function(l){
+    rows.push(CSV_COLS.map(function(c){ return esc(l[c]); }).join(','));
+  });
+  var blob = new Blob(['﻿' + rows.join('\r\n')], {type: 'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'CLPPS-leads-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  toast(leads.length + ' leads downloaded');
 }
 function copyEmails(){
   var set = visible().map(function(l){ return (l.email||'').trim(); }).filter(Boolean);
