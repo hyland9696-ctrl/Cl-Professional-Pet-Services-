@@ -1,5 +1,3 @@
- */
-
 var PIN = 'clpps-8k3v51';   // built-in key the tracker page sends automatically
 
 var HEADERS = ['id','created','type','name','phone','email','address','zip','service',
