@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>CLPPS Lead Tracker</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f4f6f5;color:#1a1a1a;padding-bottom:60px;}
+  header{background:#0F6E56;color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10;}
+  header img{width:36px;height:36px;object-fit:contain;background:#fff;border-radius:8px;padding:2px;}
+  header h1{font-size:16px;font-weight:700;flex:1;}
+  header button{background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:13px;padding:8px 12px;border-radius:8px;cursor:pointer;font-family:inherit;}
+  .wrap{max-width:720px;margin:0 auto;padding:14px;}
+  .gate{max-width:340px;margin:80px auto;text-align:center;padding:24px;}
+  .gate input{width:100%;font-size:22px;text-align:center;letter-spacing:6px;padding:12px;border:2px solid #ccc;border-radius:12px;margin:14px 0;}
+  .gate button{width:100%;background:#1D9E75;color:#fff;border:none;font-size:16px;font-weight:600;padding:13px;border-radius:12px;cursor:pointer;}
+  .gate .err{color:#c0392b;font-size:13px;margin-top:10px;min-height:18px;}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}
+  .stat{background:#fff;border-radius:12px;padding:10px 6px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+  .stat .n{font-size:20px;font-weight:800;}
+  .stat .l{font-size:10.5px;color:#888;text-transform:uppercase;letter-spacing:0.4px;}
+  .toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;}
+  .toolbar input{flex:1;min-width:140px;padding:10px 12px;border:1px solid #ddd;border-radius:10px;font-size:14px;font-family:inherit;}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+  .chip{background:#fff;border:1px solid #ddd;border-radius:16px;padding:6px 13px;font-size:12.5px;cursor:pointer;color:#555;font-family:inherit;}
+  .chip.on{background:#0F6E56;color:#fff;border-color:#0F6E56;font-weight:600;}
+  .copybtn{background:#fff;border:1px solid #1D9E75;color:#0F6E56;border-radius:10px;padding:9px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600;}
+  .card{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);border-left:5px solid #bbb;}
+  .card.s-new{border-left-color:#2980ef;}
+  .card.s-called{border-left-color:#e6a817;}
+  .card.s-closed{border-left-color:#1D9E75;}
+  .card.s-lost{border-left-color:#b0b0b0;}
+  .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .who{font-size:16px;font-weight:700;}
+  .badge{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;white-space:nowrap;}
+  .badge.act{background:#E1F5EE;color:#0F6E56;}
+  .badge.sav{background:#FDF3DC;color:#9a6d00;}
+  .meta{font-size:13px;color:#555;margin-top:6px;line-height:1.75;}
+  .meta a{color:#0F6E56;font-weight:600;text-decoration:none;}
+  .price{font-size:15px;font-weight:800;color:#0F6E56;}
+  .stbtns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+  .stbtns button{border:1px solid #ddd;background:#fafafa;border-radius:9px;padding:8px 11px;font-size:12px;cursor:pointer;font-family:inherit;color:#555;}
+  .stbtns button.on{color:#fff;font-weight:700;border-color:transparent;}
+  .stbtns button.on.b-new{background:#2980ef;}
+  .stbtns button.on.b-called{background:#e6a817;}
+  .stbtns button.on.b-closed{background:#1D9E75;}
+  .stbtns button.on.b-lost{background:#8a8a8a;}
+  .notes{margin-top:10px;display:flex;gap:6px;}
+  .notes textarea{flex:1;border:1px solid #ddd;border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;min-height:38px;}
+  .notes button{background:#0F6E56;color:#fff;border:none;border-radius:9px;padding:0 14px;font-size:12.5px;cursor:pointer;font-family:inherit;}
+  .when{font-size:11px;color:#aaa;margin-top:8px;}
+  .empty{text-align:center;color:#888;padding:50px 20px;font-size:14px;}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;opacity:0;transition:opacity 0.25s;pointer-events:none;z-index:50;}
+  .toast.show{opacity:1;}
+  .setup{background:#FDF3DC;border:1px solid #e6c96a;border-radius:12px;padding:16px;font-size:14px;line-height:1.6;}
+</style>
+</head>
+<body>
+
+<div id="gate" class="gate">
+  <img src="../images/logo.png" alt="CLPPS" style="width:90px;">
+  <h2 style="margin-top:10px;">Lead Tracker</h2>
+  <p style="color:#777;font-size:13px;margin-top:6px;">Enter your office PIN</p>
+  <input id="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="&bull;&bull;&bull;&bull;">
+  <button onclick="unlock()">Unlock</button>
+  <div class="err" id="gate-err"></div>
+</div>
+
+<div id="app" style="display:none;">
+  <header>
+    <img src="../images/logo.png" alt="">
+    <h1>Lead Tracker</h1>
+    <button onclick="loadLeads(true)">&#8635; Refresh</button>
+    <button onclick="lockOut()">Lock</button>
+  </header>
+  <div class="wrap">
+    <div id="setupNote" style="display:none;" class="setup">
+      <strong>Almost ready.</strong> The database connection hasn't been added yet. Once the Google Sheet script URL is plugged in, every quote from the website appears here automatically.
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="toolbar">
+      <input id="search" placeholder="Search name, phone, ZIP&hellip;" oninput="render()">
+      <button class="copybtn" onclick="copyEmails()">Copy emails</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var CRM_ENDPOINT = "";   /* Google Apps Script web-app URL goes here */
+
+var STATUSES = [
+  {k:'new',    label:'New'},
+  {k:'called', label:'Called'},
+  {k:'closed', label:'Closed ✓'},
+  {k:'lost',   label:'Not interested'}
+];
+var FILTERS = [{k:'all',label:'All'}].concat(STATUSES);
+var leads = [], filter = 'all', KEY = '';
+
+function toast(m){
+  var t = document.getElementById('toast');
+  t.textContent = m; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+function unlock(){
+  var v = document.getElementById('pin').value.trim();
+  if (!v){ return; }
+  KEY = v;
+  loadLeads(false, function(ok){
+    if (ok){
+      sessionStorage.setItem('clpps_key', KEY);
+      document.getElementById('gate').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+    } else {
+      document.getElementById('gate-err').textContent = 'Wrong PIN, try again.';
+    }
+  });
+}
+function lockOut(){
+  sessionStorage.removeItem('clpps_key');
+  location.reload();
+}
+function loadLeads(showToast, cb){
+  if (!CRM_ENDPOINT){
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('setupNote').style.display = 'block';
+    render();
+    if (cb) cb(true);
+    return;
+  }
+  fetch(CRM_ENDPOINT + '?action=list&key=' + encodeURIComponent(KEY))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok){ if (cb) cb(false); return; }
+      leads = d.leads || [];
+      render();
+      if (showToast) toast('Up to date ✓');
+      if (cb) cb(true);
+    })
+    .catch(function(){ toast('Could not reach the database'); if (cb) cb(false); });
+}
+function setStatus(id, status){
+  var l = leads.filter(function(x){ return x.id === id; })[0];
+  if (l) l.status = status;
+  render();
+  post({action:'update', key:KEY, id:id, status:status}, 'Marked ' + status);
+}
+function saveNote(id){
+  var v = document.getElementById('note-' + id).value;
+  var l = leads.filter(function(x){ return x.id === id; })[0];
+  if (l) l.crmnotes = v;
+  post({action:'update', key:KEY, id:id, notes:v}, 'Note saved ✓');
+}
+function post(body, okMsg){
+  if (!CRM_ENDPOINT) return;
+  fetch(CRM_ENDPOINT, {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(body)})
+    .then(function(r){ return r.json(); })
+    .then(function(d){ toast(d.ok ? okMsg : 'Save failed'); })
+    .catch(function(){ toast('Save failed, check connection'); });
+}
+function copyEmails(){
+  var set = visible().map(function(l){ return (l.email||'').trim(); }).filter(Boolean);
+  var uniq = set.filter(function(e,i){ return set.indexOf(e) === i; });
+  if (!uniq.length){ toast('No emails in this view'); return; }
+  var txt = uniq.join(', ');
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){ toast(uniq.length + ' emails copied'); });
+  } else {
+    prompt('Copy these:', txt);
+  }
+}
+function visible(){
+  var s = (document.getElementById('search').value||'').toLowerCase();
+  return leads.filter(function(l){
+    var st = (l.status||'new');
+    if (filter !== 'all' && st !== filter) return false;
+    if (!s) return true;
+    return ((l.name||'')+(l.phone||'')+(l.email||'')+(l.zip||'')+(l.address||'')).toLowerCase().indexOf(s) >= 0;
+  });
+}
+function esc(x){
+  return String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function render(){
+  var counts = {all: leads.length};
+  STATUSES.forEach(function(s){ counts[s.k] = leads.filter(function(l){ return (l.status||'new') === s.k; }).length; });
+  document.getElementById('stats').innerHTML =
+    '<div class="stat"><div class="n">' + counts.all + '</div><div class="l">Leads</div></div>' +
+    '<div class="stat"><div class="n" style="color:#2980ef">' + counts.new + '</div><div class="l">New</div></div>' +
+    '<div class="stat"><div class="n" style="color:#1D9E75">' + counts.closed + '</div><div class="l">Closed</div></div>' +
+    '<div class="stat"><div class="n" style="color:#8a8a8a">' + counts.lost + '</div><div class="l">Lost</div></div>';
+  document.getElementById('chips').innerHTML = FILTERS.map(function(f){
+    return '<button class="chip' + (filter === f.k ? ' on' : '') + '" onclick="filter=\'' + f.k + '\';render()">' + f.label +
+      (f.k === 'all' ? '' : ' (' + counts[f.k] + ')') + '</button>';
+  }).join('');
+  var v = visible();
+  if (!v.length){
+    document.getElementById('list').innerHTML = '<div class="empty">' +
+      (leads.length ? 'Nothing matches this filter.' : 'No leads yet. The moment someone finishes the quote wizard on the website, they show up here.') + '</div>';
+    return;
+  }
+  document.getElementById('list').innerHTML = v.map(function(l){
+    var st = l.status || 'new';
+    var digits = String(l.phone||'').replace(/[^\d+]/g,'');
+    return '<div class="card s-' + st + '">' +
+      '<div class="row1"><div class="who">' + esc(l.name || '(no name)') + '</div>' +
+      '<span class="badge ' + (l.type === 'ACTIVATE' ? 'act">WANTS TO START' : 'sav">SAVED QUOTE') + '</span></div>' +
+      '<div class="meta">' +
+        (l.phone ? '&#128222; <a href="tel:' + esc(digits) + '">' + esc(l.phone) + '</a><br>' : '') +
+        (l.email ? '&#9993;&#65039; <a href="mailto:' + esc(l.email) + '">' + esc(l.email) + '</a><br>' : '') +
+        (l.address || l.zip ? '&#128205; ' + esc((l.address ? l.address + ', ' : '') + (l.zip||'')) + '<br>' : '') +
+        '&#128021; ' + esc(l.dogs||'?') + ' dog(s) &middot; ' + esc(l.service||'') +
+        (l.deodorize && l.deodorize !== 'no' ? ' &middot; deodorize' : '') +
+        (l.hero && l.hero !== 'no' ? '<br>&#127894; Hero discount claimed' : '') +
+        (l.manual === 'YES' ? '<br>&#9888;&#65039; Needs manual pricing' : '') +
+        '<br><span class="price">' + esc(l.price||'') + '</span>' +
+        (l.honored ? ' &middot; honored until ' + esc(l.honored) : '') +
+        (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
+      '</div>' +
+      '<div class="stbtns">' + STATUSES.map(function(s){
+        return '<button class="b-' + s.k + (st === s.k ? ' on' : '') + '" onclick="setStatus(\'' + esc(l.id) + '\',\'' + s.k + '\')">' + s.label + '</button>';
+      }).join('') + '</div>' +
+      '<div class="notes"><textarea id="note-' + esc(l.id) + '" placeholder="Your notes (follow-up date, gate code, price agreed…)">' + esc(l.crmnotes||'') + '</textarea>' +
+      '<button onclick="saveNote(\'' + esc(l.id) + '\')">Save</button></div>' +
+      '<div class="when">Came in ' + esc(l.created ? new Date(l.created).toLocaleString() : '') + '</div>' +
+    '</div>';
+  }).join('');
+}
+document.getElementById('pin').addEventListener('keydown', function(e){ if (e.key === 'Enter') unlock(); });
+(function(){
+  var saved = sessionStorage.getItem('clpps_key');
+  if (saved){ KEY = saved; document.getElementById('pin').value = saved; unlock(); }
+  if (!CRM_ENDPOINT) loadLeads(false);
+})();
+</script>
+</body>
+</html>
