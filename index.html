@@ -763,6 +763,7 @@
           <button class="opt-card" data-v="twiceweekly" onclick="qSet('freq','twiceweekly',this)"><div class="oc-big">Twice a Week</div><div class="oc-sub">Spotless, always</div></button>
           <button class="opt-card sel" data-v="weekly" onclick="qSet('freq','weekly',this)"><div class="oc-big">Weekly</div><div class="oc-sub">Most popular, always clean</div></button>
           <button class="opt-card" data-v="biweekly" onclick="qSet('freq','biweekly',this)"><div class="oc-big">Every Other Week</div><div class="oc-sub">Visits every two weeks</div></button>
+          <button class="opt-card" data-v="monthly" onclick="qSet('freq','monthly',this)"><div class="oc-big">Monthly</div><div class="oc-sub">One visit a month</div></button>
           <button class="opt-card" data-v="onetime" onclick="qSet('freq','onetime',this)"><div class="oc-big">One-Time</div><div class="oc-sub">Single deep cleanup</div></button>
         </div>
         <div class="q-label">How many dogs?</div>
@@ -867,7 +868,7 @@
       <h2 style="font-size:24px;margin-bottom:6px;">Terms of Service</h2>
       <p style="font-size:12px;color:#999;margin-bottom:18px;">CL Professional Pet Services LLC &middot; St. Peters, Missouri</p>
       <div style="font-size:14px;color:#444;line-height:1.75;display:flex;flex-direction:column;gap:12px;">
-        <p><strong>1. Services.</strong> CL Professional Pet Services LLC ("CLPPS") provides pet waste removal at the service address you provide, on the schedule you select (twice a week, weekly, every other week, or one-time). Every visit includes a full-yard sweep, waste haul-away, and securing your gate before we leave.</p>
+        <p><strong>1. Services.</strong> CL Professional Pet Services LLC ("CLPPS") provides pet waste removal at the service address you provide, on the schedule you select (twice a week, weekly, every other week, monthly, or one-time). Every visit includes a full-yard sweep, waste haul-away, and securing your gate before we leave.</p>
         <p><strong>2. Quotes &amp; pricing.</strong> Quotes are honored for 6 months from the date issued and assume a serviceable yard of up to &frac14; acre. Lot size may be verified against county records; if your yard is materially larger, we will contact you to agree on adjusted pricing before service begins. New recurring clients are charged a one-time $40 initial clean on the first invoice. There are no hidden fees.</p>
         <p><strong>3. Billing.</strong> Recurring service is billed monthly through our billing system using the payment method you place on file via a secure link. A late fee of $10 per month applies to invoices remaining unpaid 30 days after the due date.</p>
         <p><strong>4. No contracts.</strong> Service is month-to-month. You may cancel at any time with no cancellation fee.</p>
@@ -899,6 +900,7 @@
     twiceweekly: {1: 146, 2: 162, 3: 176, 4: 190, 5: 206},  // per month (2x the weekly rate)
     weekly:   {1: 73, 2: 81, 3: 88,  4: 95,  5: 103},  // per month
     biweekly: {1: 86, 2: 95, 3: 104, 4: 112, 5: 121},  // per month (every other week costs MORE — intentional)
+    monthly:  {1: 65, 2: 70, 3: 75,  4: 80,  5: 85},   // per month, one visit ($65 + $5/extra dog)
     onetime:  75,           // flat, any dog count; no initial clean fee
     initialClean: 40,       // one-time, added to first invoice for new recurring clients
     deodorize: 15           // per treatment
@@ -952,6 +954,15 @@
     var kids = el.parentElement.querySelectorAll('.opt-card');
     for (var i=0;i<kids.length;i++) kids[i].classList.remove('sel');
     el.classList.add('sel');
+    if (key === 'freq'){
+      var eoCard = document.querySelector('#q-deo-grid .opt-card[data-v="eo"]');
+      eoCard.style.display = (val === 'monthly') ? 'none' : '';
+      if (val === 'monthly' && q.deo === 'eo'){
+        q.deo = 'none';
+        var deoCards = document.querySelectorAll('#q-deo-grid .opt-card');
+        for (var j=0;j<deoCards.length;j++) deoCards[j].classList.toggle('sel', deoCards[j].getAttribute('data-v') === 'none');
+      }
+    }
     qPrice();
   }
   function qPriceParts(){
@@ -965,8 +976,8 @@
                agree: '$' + ot + ' one-time cleanup' + (q.deo !== 'none' ? ' (includes $15 deodorize & sanitize)' : '') };
     }
     var base = PRICING[q.freq][q.dogs];
-    // visits/month: twice a week ~8, weekly ~4, every other week ~2
-    var visits = q.freq === 'twiceweekly' ? 8 : (q.freq === 'weekly' ? 4 : 2);
+    // visits/month: twice a week ~8, weekly ~4, every other week ~2, monthly 1
+    var visits = q.freq === 'twiceweekly' ? 8 : (q.freq === 'weekly' ? 4 : (q.freq === 'monthly' ? 1 : 2));
     var treatments = q.deo === 'every' ? visits : (q.deo === 'eo' ? Math.round(visits / 2) : 0);
     var deoMo = treatments * PRICING.deodorize;
     var total = base + deoMo;
@@ -990,7 +1001,7 @@
       return;
     }
     priceEl.style.fontSize = '';
-    var labels = { twiceweekly:'Your twice-a-week service', weekly:'Your weekly service', biweekly:'Your every-other-week service', onetime:'Your one-time cleanup' };
+    var labels = { twiceweekly:'Your twice-a-week service', weekly:'Your weekly service', biweekly:'Your every-other-week service', monthly:'Your monthly service', onetime:'Your one-time cleanup' };
     labelEl.textContent = labels[q.freq];
     priceEl.innerHTML = '$' + p.total + '<small>' + p.per + '</small>';
     if (q.freq === 'onetime'){
