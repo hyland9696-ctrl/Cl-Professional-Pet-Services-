@@ -1143,7 +1143,7 @@
     box.style.display = 'block';
   }
   function addrLookup(v){
-    if (!GMAPS_KEY){ addrLookupOSM(v); return; }
+    if (!GMAPS_KEY){ addrHide(); return; }
     fetch('https://places.googleapis.com/v1/places:autocomplete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GMAPS_KEY },
@@ -1160,26 +1160,6 @@
             var pp = s.placePrediction;
             return { gid: pp.placeId, label: pp.text ? pp.text.text : '', zip: '' };
           }).filter(function(f){ return f.label; });
-        addrShow();
-      })
-      .catch(function(){ addrLookupOSM(v); });
-  }
-  function addrLine(p){
-    var street = p.housenumber ? (p.housenumber + ' ' + (p.street || p.name || '')) : (p.name || p.street || '');
-    var cityish = p.city || p.town || p.village || p.district || '';
-    var tail = [p.state || '', p.postcode || ''].filter(Boolean).join(' ');
-    return [street, cityish, tail].filter(Boolean).join(', ');
-  }
-  function addrLookupOSM(v){
-    fetch('https://photon.komoot.io/api/?q=' + encodeURIComponent(v) + '&limit=6&lat=38.75&lon=-90.45&lang=en')
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        addrFeats = (d.features || []).filter(function(f){
-          var p = f.properties || {};
-          return p.housenumber && (p.postcode || p.city || p.town);
-        }).slice(0, 5).map(function(f){
-          return { gid: null, label: addrLine(f.properties), zip: String(f.properties.postcode || '') };
-        });
         addrShow();
       })
       .catch(function(){ addrHide(); });
