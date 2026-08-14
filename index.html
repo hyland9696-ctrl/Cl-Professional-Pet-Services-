@@ -36,6 +36,7 @@
     "description": "Locally owned pet waste removal service covering the greater St. Louis metro: St. Charles, St. Louis, Franklin, Jefferson, Warren and Lincoln counties in Missouri, plus Madison, St. Clair and Monroe counties in Illinois.",
     "url": "https://www.clpropetservices.com",
     "telephone": "+1-636-375-4342",
+    "aggregateRating": {"@type": "AggregateRating", "ratingValue": "5.0", "reviewCount": "28"},
     "email": "info@clpropetservices.com",
     "address": {
       "@type": "PostalAddress",
@@ -300,6 +301,24 @@
     .q-success p{font-size:15px;color:#666;line-height:1.7;max-width:480px;margin:0 auto;}
     @media(max-width:720px){.price-panel .pp-price{font-size:34px;}}
 
+    /* Reviews & photos */
+    .rating-badge{display:inline-flex;align-items:center;gap:10px;background:#fff;border:1px solid #e8e8e8;border-radius:14px;padding:10px 18px;margin:0 auto 22px;box-shadow:0 2px 10px rgba(0,0,0,0.05);}
+    .rating-badge .score{font-size:26px;font-weight:800;color:#1a1a1a;}
+    .rating-badge .stars{color:#f5a623;font-size:17px;letter-spacing:2px;}
+    .rating-badge .src{font-size:12.5px;color:#888;line-height:1.4;text-align:left;}
+    .reviews-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;margin-bottom:26px;}
+    .review-card{background:#fff;border:1px solid #ececec;border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px;transition:transform 0.2s,box-shadow 0.25s;}
+    .review-card:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,0.08);}
+    .review-card .stars{color:#f5a623;font-size:14px;letter-spacing:2px;}
+    .review-card p{font-size:14px;color:#444;line-height:1.65;flex:1;}
+    .review-card .who{font-size:13px;font-weight:700;color:#1a1a1a;}
+    .review-card .who span{font-weight:400;color:#999;font-size:12px;}
+    .photo-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:8px;}
+    .photo-strip figure{margin:0;border-radius:14px;overflow:hidden;background:#fff;border:1px solid #ececec;}
+    .photo-strip img{width:100%;height:280px;object-fit:cover;display:block;transition:transform 0.35s ease;}
+    .photo-strip figure:hover img{transform:scale(1.04);}
+    .photo-strip figcaption{font-size:12.5px;color:#777;padding:10px 12px;}
+
     /* FAQ accordion */
     .faq-wrap{margin-bottom:28px;}
     .faq-item{border:1px solid #ececec;border-radius:12px;margin-bottom:10px;overflow:hidden;background:#fff;transition:border-color 0.2s,box-shadow 0.25s;}
@@ -440,6 +459,53 @@
       <div class="zip-sub">Both sides of the river. Don't see your county? Reach out, because routes grow every month.</div>
       <div class="zip-tags">
         <span class="zip-tag">St. Charles County</span><span class="zip-tag">St. Louis County &amp; City</span><span class="zip-tag">Franklin County</span><span class="zip-tag">Jefferson County</span><span class="zip-tag">Warren County</span><span class="zip-tag">Lincoln County</span><span class="zip-tag">Madison County, IL</span><span class="zip-tag">St. Clair County, IL</span><span class="zip-tag">Monroe County, IL</span>
+      </div>
+    </div>
+
+    <div class="why-section" data-reveal style="text-align:center;">
+      <h2 class="section-title">Neighbors are talking</h2>
+      <p class="section-sub">Real reviews from real St. Louis metro yards.</p>
+      <div class="rating-badge">
+        <span class="score">5.0</span>
+        <span class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
+        <span class="src">on Google<br>28 reviews</span>
+      </div>
+      <div class="reviews-grid" style="text-align:left;">
+        <div class="review-card">
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p>"Since hiring CL Professional Pet Services my yard has been so much nicer! My pooper scooper shows up every week, texts when he is on the way and always shuts the gate when he's finished."</p>
+          <div class="who">Rebecca D. <span>&middot; Google review</span></div>
+        </div>
+        <div class="review-card">
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p>"We always get a notification when the scooper is on their way and a photo of the trash bag as proof of the work done. We are so grateful for this service as a family on the go, it's the best value for sanity saved!"</p>
+          <div class="who">Maddi N. <span>&middot; Google review</span></div>
+        </div>
+        <div class="review-card">
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p>"They are always dependable and flexible. I have never been disappointed in the quality of their work and friendliness of the technicians. Their price is also very doable."</p>
+          <div class="who">Mary Ellen W. <span>&middot; Google review</span></div>
+        </div>
+        <div class="review-card">
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p>"They come timely and my yard is super clean when they're done. They text me when they're on their way so I can be sure my dogs are inside, and they're careful to fully shut my finicky gate."</p>
+          <div class="who">Kimberly C. <span>&middot; ScoopFinder review</span></div>
+        </div>
+        <div class="review-card">
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p>"Absolutely amazing service! With a large dog, it's such a relief to have a reliable company take care of the mess. The yard is always left very clean. Highly recommend to any pet owner!"</p>
+          <div class="who">Jacqueline B. <span>&middot; ScoopFinder review</span></div>
+        </div>
+        <div class="review-card">
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p>"So happy with my pet service. The people who service my yard are so animal friendly. My Molly loves the techs!"</p>
+          <div class="who">Ginny S. <span>&middot; Google review</span></div>
+        </div>
+      </div>
+      <div class="photo-strip">
+        <figure><img src="images/team.jpg" alt="CLPPS technician with scooper equipment on a freshly cleaned lawn" loading="lazy"><figcaption>Our crew, out on the routes every day</figcaption></figure>
+        <figure><img src="images/proof1.jpg" alt="Bagged pet waste collected at a gate after a cleanup visit" loading="lazy"><figcaption>Photo proof after every single visit</figcaption></figure>
+        <figure><img src="images/proof2.jpg" alt="Bagged pet waste hauled to the bin after a first cleanup" loading="lazy"><figcaption>First cleanups: we haul it all away</figcaption></figure>
       </div>
     </div>
 
