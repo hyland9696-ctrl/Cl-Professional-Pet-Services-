@@ -67,6 +67,13 @@
     <button onclick="loadLeads(true)">&#8635; Refresh</button>
   </header>
   <div class="wrap">
+    <div id="traffic" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);display:none;">
+      <div style="font-weight:800;font-size:14px;margin-bottom:10px;">&#128202; Site traffic</div>
+      <div class="stats" id="t-nums" style="margin-bottom:10px;"></div>
+      <div id="t-chart" style="display:flex;align-items:flex-end;gap:3px;height:64px;margin-bottom:6px;"></div>
+      <div id="t-chart-label" style="font-size:10.5px;color:#aaa;margin-bottom:10px;">Last 14 days</div>
+      <div id="t-extra" style="font-size:12.5px;color:#555;line-height:1.8;"></div>
+    </div>
     <div class="stats" id="stats"></div>
     <div class="toolbar">
       <input id="search" placeholder="Search name, phone, ZIP&hellip;" oninput="render()">
@@ -111,7 +118,7 @@ var STATUSES = [
   {k:'lost',   label:'Not interested'}
 ];
 var FILTERS = [{k:'all',label:'All'}].concat(STATUSES);
-var leads = [], filter = 'all', KEY = 'clpps-8k3v51';
+var leads = [], views = [], filter = 'all', KEY = 'clpps-8k3v51';
 
 function toast(m){
   var t = document.getElementById('toast');
@@ -136,13 +143,15 @@ function loadLeads(showToast, cb){
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok){ if (cb) cb(false); return; }
-      var remote = d.leads || [];
+      var remote = (d.leads || []).filter(function(l){ return l.type !== 'VIEW'; });
+      views = (d.leads || []).filter(function(l){ return l.type === 'VIEW'; });
       var ids = {};
       leads.forEach(function(l){ ids[l.id] = true; });
       remote.forEach(function(l){ if (!ids[l.id]) leads.push(l); });
       leads.sort(function(a, b){ return String(b.created).localeCompare(String(a.created)); });
       saveLocal();
       render();
+      renderTraffic();
       if (showToast) toast('Up to date ✓');
       if (cb) cb(true);
     })
@@ -315,6 +324,45 @@ function render(){
       '<div class="when">Came in ' + esc(l.created ? new Date(l.created).toLocaleString() : '') + '</div>' +
     '</div>';
   }).join('');
+}
+function renderTraffic(){
+  if (!views.length){ return; }
+  document.getElementById('traffic').style.display = 'block';
+  var now = new Date();
+  var dayKey = function(d){ return d.toISOString().slice(0, 10); };
+  var since = function(days){
+    var cut = new Date(now.getTime() - days * 86400000);
+    return views.filter(function(v){ return new Date(v.created) >= cut; });
+  };
+  var v7 = since(7).length, v30 = since(30).length;
+  var l30 = leads.filter(function(l){ return new Date(l.created) >= new Date(now.getTime() - 30 * 86400000); }).length;
+  var conv = v30 ? Math.round(l30 / v30 * 100) : 0;
+  document.getElementById('t-nums').innerHTML =
+    '<div class="stat"><div class="n">' + v7 + '</div><div class="l">Views 7d</div></div>' +
+    '<div class="stat"><div class="n">' + v30 + '</div><div class="l">Views 30d</div></div>' +
+    '<div class="stat"><div class="n">' + l30 + '</div><div class="l">Leads 30d</div></div>' +
+    '<div class="stat"><div class="n">' + conv + '%</div><div class="l">Convert</div></div>';
+  var days = [], counts = [];
+  for (var i = 13; i >= 0; i--){
+    var d = new Date(now.getTime() - i * 86400000);
+    var k = dayKey(d);
+    days.push(k);
+    counts.push(views.filter(function(v){ return String(v.created).slice(0, 10) === k; }).length);
+  }
+  var max = Math.max.apply(null, counts.concat([1]));
+  document.getElementById('t-chart').innerHTML = counts.map(function(c, i){
+    var h = Math.max(3, Math.round(c / max * 60));
+    return '<div title="' + days[i] + ': ' + c + '" style="flex:1;height:' + h + 'px;background:' + (i === 13 ? '#1D9E75' : '#BFE6D8') + ';border-radius:3px 3px 0 0;"></div>';
+  }).join('');
+  var tally = function(field, label){
+    var m = {};
+    since(30).forEach(function(v){ var k = v[field]; if (k) m[k] = (m[k] || 0) + 1; });
+    var top = Object.keys(m).sort(function(a, b){ return m[b] - m[a]; }).slice(0, 4);
+    if (!top.length) return '';
+    return '<strong>' + label + ':</strong> ' + top.map(function(k){ return esc(k) + ' (' + m[k] + ')'; }).join(' &middot; ') + '<br>';
+  };
+  document.getElementById('t-extra').innerHTML =
+    tally('name', 'Top pages') + tally('zip', 'Visitors came from');
 }
 loadLeads(false);
 </script>

@@ -911,6 +911,28 @@
   var FORM_EMAIL = "info@clpropetservices.com";
   var CRM_ENDPOINT = "https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec";
 
+  function crmView(page){
+    if (!CRM_ENDPOINT) return;
+    try {
+      var key = 'v_' + page;
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+      var ref = '';
+      if (!sessionStorage.getItem('v_ref_sent')){
+        sessionStorage.setItem('v_ref_sent', '1');
+        try { ref = document.referrer ? new URL(document.referrer).hostname.replace(/^www\./,'') : 'direct'; } catch (e) { ref = 'other'; }
+        if (ref.indexOf('clpropetservices') >= 0) ref = '';
+      }
+      fetch(CRM_ENDPOINT, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'lead', lead: {
+          id: 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          created: new Date().toISOString(), type: 'VIEW', name: page, zip: ref
+        } })
+      }).catch(function(){});
+    } catch (e) {}
+  }
+
   function crmCapture(lead){
     if (!CRM_ENDPOINT) return;
     try {
@@ -1344,6 +1366,7 @@
     animateStats();
     var h = (location.hash || '').replace('#', '');
     if (h && document.getElementById('page-' + h)) showPage(h);
+    else crmView('home');
   });
   window.addEventListener('hashchange', function(){
     var h = (location.hash || '').replace('#', '');
@@ -1354,7 +1377,7 @@
   function showPage(id){
     document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
     var target=document.getElementById('page-'+id);
-    if(target){target.classList.add('active');}
+    if(target){target.classList.add('active');crmView(id);}
     document.querySelectorAll('.nav-links button').forEach(function(b){
       var isActive=b.getAttribute('data-page')===id;
       b.classList.toggle('active',isActive);
