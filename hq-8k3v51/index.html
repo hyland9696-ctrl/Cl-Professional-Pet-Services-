@@ -75,6 +75,7 @@
       <div id="t-extra" style="font-size:12.5px;color:#555;line-height:1.8;"></div>
     </div>
     <div class="stats" id="stats"></div>
+    <div id="revenue" style="display:none;background:#0F6E56;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;font-weight:600;"></div>
     <div class="toolbar">
       <input id="search" placeholder="Search name, phone, ZIP&hellip;" oninput="render()">
     </div>
@@ -280,7 +281,26 @@ function visible(){
 function esc(x){
   return String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function renderRevenue(){
+  var box = document.getElementById('revenue');
+  var mo = 0, once = 0;
+  leads.forEach(function(l){
+    if ((l.status || 'new') !== 'closed') return;
+    var m = String(l.price || '').match(/\$\s?(\d+(?:\.\d+)?)/);
+    if (!m) return;
+    var amt = parseFloat(m[1]);
+    if (String(l.price).indexOf('/mo') >= 0) mo += amt; else once += amt;
+  });
+  if (!mo && !once){ box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  var parts = [];
+  if (mo) parts.push('$' + mo + '/mo recurring');
+  if (once) parts.push('$' + once + ' one-time');
+  box.innerHTML = '&#128176; Closed from this site: ' + parts.join(' + ') +
+    (mo ? ' <span style="opacity:0.75;font-weight:400;">(~$' + (mo * 12).toLocaleString() + ' a year)</span>' : '');
+}
 function render(){
+  renderRevenue();
   var counts = {all: leads.length};
   STATUSES.forEach(function(s){ counts[s.k] = leads.filter(function(l){ return (l.status||'new') === s.k; }).length; });
   document.getElementById('stats').innerHTML =
@@ -301,6 +321,15 @@ function render(){
   document.getElementById('list').innerHTML = v.map(function(l){
     var st = l.status || 'new';
     var digits = String(l.phone||'').replace(/[^\d+]/g,'');
+    var ageBadge = '';
+    if (st === 'new' && l.created){
+      var hrs = (Date.now() - new Date(l.created).getTime()) / 3600000;
+      if (hrs >= 24){
+        var days = Math.floor(hrs / 24);
+        ageBadge = '<div style="color:#c0392b;font-size:12px;font-weight:700;margin-top:6px;">&#9200; Waiting ' +
+          (days >= 1 ? days + ' day' + (days > 1 ? 's' : '') : Math.round(hrs) + ' hours') + ' with no call — reach out!</div>';
+      }
+    }
     return '<div class="card s-' + st + '">' +
       '<div class="row1"><div class="who">' + esc(l.name || '(no name)') + '</div>' +
       '<span class="badge ' + (l.type === 'ACTIVATE' ? 'act">WANTS TO START' : (l.type === 'COMMERCIAL' ? 'com">COMMERCIAL' : 'sav">SAVED QUOTE')) + '</span></div>' +
@@ -315,7 +344,7 @@ function render(){
         '<br><span class="price">' + esc(l.price||'') + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(l.honored) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' +
+      '</div>' + ageBadge +
       '<div class="stbtns">' + STATUSES.map(function(s){
         return '<button class="b-' + s.k + (st === s.k ? ' on' : '') + '" onclick="setStatus(\'' + esc(l.id) + '\',\'' + s.k + '\')">' + s.label + '</button>';
       }).join('') + '</div>' +
