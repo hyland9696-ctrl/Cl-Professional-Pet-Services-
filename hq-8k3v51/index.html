@@ -119,7 +119,7 @@ var STATUSES = [
   {k:'lost',   label:'Not interested'}
 ];
 var FILTERS = [{k:'all',label:'All'}].concat(STATUSES);
-var leads = [], views = [], filter = 'all', KEY = 'clpps-8k3v51';
+var leads = [], views = [], qviews = [], filter = 'all', KEY = 'clpps-8k3v51';
 
 function toast(m){
   var t = document.getElementById('toast');
@@ -144,8 +144,9 @@ function loadLeads(showToast, cb){
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok){ if (cb) cb(false); return; }
-      var remote = (d.leads || []).filter(function(l){ return l.type !== 'VIEW'; });
+      var remote = (d.leads || []).filter(function(l){ return l.type !== 'VIEW' && l.type !== 'QVIEW'; });
       views = (d.leads || []).filter(function(l){ return l.type === 'VIEW'; });
+      qviews = (d.leads || []).filter(function(l){ return l.type === 'QVIEW'; });
       var ids = {};
       leads.forEach(function(l){ ids[l.id] = true; });
       remote.forEach(function(l){ if (!ids[l.id]) leads.push(l); });
@@ -165,13 +166,20 @@ function setStatus(id, status){
   render();
   post({action:'update', key:KEY, id:id, status:status}, 'Marked ' + status);
 }
+function fuParse(crmnotes){
+  var m = String(crmnotes || '').match(/^\[FU:(\d{4}-\d{2}-\d{2})\]\s*/);
+  return { date: m ? m[1] : '', text: m ? String(crmnotes).slice(m[0].length) : String(crmnotes || '') };
+}
 function saveNote(id){
   var v = document.getElementById('note-' + id).value;
+  var d = document.getElementById('fu-' + id).value;
+  var combined = (d ? '[FU:' + d + '] ' : '') + v;
   var l = leads.filter(function(x){ return x.id === id; })[0];
-  if (l){ l.crmnotes = v; l.updated = new Date().toISOString(); }
+  if (l){ l.crmnotes = combined; l.updated = new Date().toISOString(); }
   saveLocal();
-  post({action:'update', key:KEY, id:id, notes:v}, 'Note saved ✓');
-  if (!CRM_ENDPOINT) toast('Note saved ✓');
+  render();
+  post({action:'update', key:KEY, id:id, notes:combined}, 'Saved ✓');
+  if (!CRM_ENDPOINT) toast('Saved ✓');
 }
 function post(body, okMsg){
   if (!CRM_ENDPOINT) return;
@@ -318,9 +326,26 @@ function render(){
       (leads.length ? 'Nothing matches this filter.' : 'No leads yet. The moment someone finishes the quote wizard on the website, they show up here.') + '</div>';
     return;
   }
+  var todayK = new Date().toISOString().slice(0, 10);
+  var overdue = function(l){
+    var st = l.status || 'new';
+    if (st === 'closed' || st === 'lost') return false;
+    var fu = fuParse(l.crmnotes).date;
+    return fu && fu <= todayK;
+  };
+  v.sort(function(a, b){ return (overdue(b) ? 1 : 0) - (overdue(a) ? 1 : 0); });
   document.getElementById('list').innerHTML = v.map(function(l){
     var st = l.status || 'new';
     var digits = String(l.phone||'').replace(/[^\d+]/g,'');
+    var fu = fuParse(l.crmnotes);
+    var fuBadge = '';
+    if (fu.date && (l.status || 'new') !== 'closed' && (l.status || 'new') !== 'lost'){
+      if (fu.date <= todayK){
+        fuBadge = '<div style="color:#c0392b;font-size:12px;font-weight:700;margin-top:6px;">&#128276; Follow-up due ' + (fu.date === todayK ? 'TODAY' : fu.date) + '</div>';
+      } else {
+        fuBadge = '<div style="color:#0F6E56;font-size:12px;font-weight:600;margin-top:6px;">&#128197; Follow-up set for ' + fu.date + '</div>';
+      }
+    }
     var ageBadge = '';
     if (st === 'new' && l.created){
       var hrs = (Date.now() - new Date(l.created).getTime()) / 3600000;
@@ -344,12 +369,13 @@ function render(){
         '<br><span class="price">' + esc(l.price||'') + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(l.honored) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' + ageBadge +
+      '</div>' + fuBadge + ageBadge +
       '<div class="stbtns">' + STATUSES.map(function(s){
         return '<button class="b-' + s.k + (st === s.k ? ' on' : '') + '" onclick="setStatus(\'' + esc(l.id) + '\',\'' + s.k + '\')">' + s.label + '</button>';
       }).join('') + '</div>' +
-      '<div class="notes"><textarea id="note-' + esc(l.id) + '" placeholder="Your notes (follow-up date, gate code, price agreed…)">' + esc(l.crmnotes||'') + '</textarea>' +
+      '<div class="notes"><textarea id="note-' + esc(l.id) + '" placeholder="Your notes (gate code, price agreed…)">' + esc(fu.text) + '</textarea>' +
       '<button onclick="saveNote(\'' + esc(l.id) + '\')">Save</button></div>' +
+      '<div style="margin-top:6px;font-size:12px;color:#555;">Follow up on: <input type="date" id="fu-' + esc(l.id) + '" value="' + esc(fu.date) + '" style="border:1px solid #ddd;border-radius:7px;padding:5px 7px;font-family:inherit;font-size:12px;"> <span style="color:#aaa;">(tap Save after picking)</span></div>' +
       '<div class="when">Came in ' + esc(l.created ? new Date(l.created).toLocaleString() : '') + '</div>' +
     '</div>';
   }).join('');
@@ -407,8 +433,15 @@ function renderTraffic(){
     if (!top.length) return '';
     return '<strong>' + label + ':</strong> ' + top.map(function(k){ return esc(k) + ' (' + m[k] + ')'; }).join(' &middot; ') + '<br>';
   };
+  var q30 = qviews.filter(function(v){ return new Date(v.created) >= new Date(now.getTime() - 30 * 86400000); });
+  var funnel = '';
+  if (q30.length){
+    var walked = Math.max(0, q30.length - l30);
+    funnel = '<strong>Quote funnel (30d):</strong> ' + q30.length + ' saw a price &middot; ' + l30 + ' submitted &middot; ' +
+      walked + ' walked away' + (q30.length ? ' (' + Math.round(walked / q30.length * 100) + '%)' : '') + '<br>';
+  }
   document.getElementById('t-extra').innerHTML =
-    tally('name', 'Top pages') + tally('zip', 'Visitors came from');
+    funnel + tally('name', 'Top pages') + tally('zip', 'Visitors came from');
 }
 loadLeads(false);
 </script>

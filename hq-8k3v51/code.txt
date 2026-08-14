@@ -77,3 +77,38 @@ function doPost(e) {
 
   return json_({ok:false});
 }
+
+/**
+ * WEEKLY DIGEST (optional): emails a Monday summary of views, leads and
+ * closes to the business inbox. To turn on: paste this whole updated file
+ * over the old code, save, then in the left sidebar click Triggers (clock
+ * icon) -> Add Trigger -> function weeklyDigest -> time-driven -> week
+ * timer -> Monday 7-8am -> Save.
+ */
+function weeklyDigest() {
+  var sh = sheet_();
+  var rows = sh.getDataRange().getValues();
+  var cut = new Date(Date.now() - 7 * 86400000);
+  var views = 0, qviews = 0, leads = 0, closed = 0, names = [];
+  for (var i = 1; i < rows.length; i++) {
+    var created = new Date(rows[i][HEADERS.indexOf('created')]);
+    var type = rows[i][HEADERS.indexOf('type')];
+    var status = rows[i][HEADERS.indexOf('status')];
+    if (created >= cut) {
+      if (type === 'VIEW') views++;
+      else if (type === 'QVIEW') qviews++;
+      else { leads++; names.push(rows[i][HEADERS.indexOf('name')]); }
+    }
+    if (type !== 'VIEW' && type !== 'QVIEW' && status === 'closed' && created >= cut) closed++;
+  }
+  MailApp.sendEmail({
+    to: 'info@clpropetservices.com',
+    subject: 'CLPPS weekly: ' + leads + ' lead' + (leads === 1 ? '' : 's') + ', ' + views + ' site visits',
+    body: 'Your website, last 7 days:\n\n' +
+      'Site visits: ' + views + '\n' +
+      'Saw a price: ' + qviews + '\n' +
+      'New leads: ' + leads + (names.length ? ' (' + names.join(', ') + ')' : '') + '\n' +
+      'Marked closed: ' + closed + '\n\n' +
+      'Lead tracker: https://www.clpropetservices.com/hq-8k3v51/'
+  });
+}

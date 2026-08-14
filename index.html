@@ -954,7 +954,25 @@
       s.classList.toggle('done', i<n);
     }
     qPrice();
+    if (n === 2) qViewBeacon();
     window.scrollTo({top:0,behavior:'smooth'});
+  }
+  function qViewBeacon(){
+    if (!CRM_ENDPOINT) return;
+    try {
+      if (sessionStorage.getItem('qv_sent')) return;
+      sessionStorage.setItem('qv_sent', '1');
+      var p = qPriceParts();
+      fetch(CRM_ENDPOINT, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'lead', lead: {
+          id: 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          created: new Date().toISOString(), type: 'QVIEW',
+          name: (q.freq || '') + ' / ' + (q.dogs || '') + ' dog(s)',
+          zip: q.zip, price: p.manual ? 'manual' : ('$' + p.total + (p.per || ''))
+        } })
+      }).catch(function(){});
+    } catch (e) {}
   }
   function qCheckZip(){
     var v = (document.getElementById('q-zip').value||'').trim();
