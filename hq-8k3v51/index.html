@@ -354,9 +354,26 @@ function renderTraffic(){
     var h = Math.max(3, Math.round(c / max * 60));
     return '<div title="' + days[i] + ': ' + c + '" style="flex:1;height:' + h + 'px;background:' + (i === 13 ? '#1D9E75' : '#BFE6D8') + ';border-radius:3px 3px 0 0;"></div>';
   }).join('');
+  var srcName = function(h){
+    h = String(h).toLowerCase();
+    if (h.indexOf('facebook') >= 0 || h === 'fb.me' || h.indexOf('fb.com') >= 0) return 'Facebook';
+    if (h.indexOf('instagram') >= 0) return 'Instagram';
+    if (h.indexOf('nextdoor') >= 0) return 'Nextdoor';
+    if (h.indexOf('google') >= 0) return 'Google';
+    if (h.indexOf('bing') >= 0) return 'Bing';
+    if (h.indexOf('tiktok') >= 0) return 'TikTok';
+    if (h.indexOf('yelp') >= 0) return 'Yelp';
+    if (h.indexOf('duckduckgo') >= 0) return 'DuckDuckGo';
+    if (h === 'direct') return 'Typed it in / saved link';
+    return h;
+  };
   var tally = function(field, label){
     var m = {};
-    since(30).forEach(function(v){ var k = v[field]; if (k) m[k] = (m[k] || 0) + 1; });
+    since(30).forEach(function(v){
+      var k = v[field]; if (!k) return;
+      if (field === 'zip') k = srcName(k);
+      m[k] = (m[k] || 0) + 1;
+    });
     var top = Object.keys(m).sort(function(a, b){ return m[b] - m[a]; }).slice(0, 4);
     if (!top.length) return '';
     return '<strong>' + label + ':</strong> ' + top.map(function(k){ return esc(k) + ' (' + m[k] + ')'; }).join(' &middot; ') + '<br>';
