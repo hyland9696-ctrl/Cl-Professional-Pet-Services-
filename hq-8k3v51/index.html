@@ -106,7 +106,7 @@
         </select>
         <input id="m-addr" placeholder="Address" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
       </div>
-      <button class="copybtn" style="margin-top:8px;" onclick="addManual()">Add manual lead</button>
+      <button class="copybtn" id="m-savebtn" style="margin-top:8px;" onclick="addManual()">Add manual lead</button>
     </div>
     <div class="chips" id="chips"></div>
     <div id="list"></div>
@@ -208,9 +208,32 @@ function post(body, okMsg){
     .then(function(d){ toast(d.ok ? okMsg : 'Save failed'); })
     .catch(function(){ toast('Save failed, check connection'); });
 }
+var editing = null;
 function toggleAdd(){
   var p = document.getElementById('addPanel');
-  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  var opening = p.style.display === 'none';
+  p.style.display = opening ? 'block' : 'none';
+  if (!opening){
+    editing = null;
+    document.getElementById('m-savebtn').textContent = 'Add manual lead';
+  }
+}
+function editLead(id){
+  var l = leads.filter(function(x){ return x.id === id; })[0];
+  if (!l) return;
+  editing = l;
+  document.getElementById('m-name').value = l.name || '';
+  document.getElementById('m-phone').value = l.phone || '';
+  document.getElementById('m-email').value = l.email || '';
+  document.getElementById('m-price').value = l.price || '';
+  document.getElementById('m-addr').value = l.address || '';
+  var dogsSel = document.getElementById('m-dogs');
+  dogsSel.value = ['1','2','3','4','5','6+'].indexOf(String(l.dogs)) >= 0 ? String(l.dogs) : '';
+  var svcSel = document.getElementById('m-service');
+  svcSel.value = ['twice a week','weekly','every other week','monthly','one-time','commercial'].indexOf(String(l.service)) >= 0 ? String(l.service) : '';
+  document.getElementById('addPanel').style.display = 'block';
+  document.getElementById('m-savebtn').textContent = 'Save changes';
+  document.getElementById('addPanel').scrollIntoView({behavior:'smooth'});
 }
 function grab(text, keys){
   for (var i = 0; i < keys.length; i++){
@@ -266,6 +289,26 @@ function addManual(){
     address: document.getElementById('m-addr').value.trim(),
     status: 'new', crmnotes: ''
   };
+  if (editing){
+    lead.created = editing.created || lead.created;
+    lead.type = editing.type || 'SAVED';
+    lead.status = editing.status || 'new';
+    lead.crmnotes = editing.crmnotes || '';
+    if (!lead.dogs) lead.dogs = editing.dogs || '';
+    if (!lead.service) lead.service = editing.service || '';
+    ['zip','yard','deodorize','hero','manual','honored','notes'].forEach(function(k){ lead[k] = editing[k] || ''; });
+    var idx = leads.indexOf(editing);
+    if (idx >= 0) leads.splice(idx, 1, lead); else leads.unshift(lead);
+    post({action:'update', key:KEY, id:editing.id, status:'deleted'});
+    post({action:'lead', lead:lead}, 'Lead updated ✓');
+    editing = null;
+    document.getElementById('m-savebtn').textContent = 'Add manual lead';
+    saveLocal(); render();
+    ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr'].forEach(function(i){ document.getElementById(i).value = ''; });
+    document.getElementById('addPanel').style.display = 'none';
+    toast('Lead updated ✓');
+    return;
+  }
   leads.unshift(lead);
   saveLocal(); render();
   post({action:'lead', lead:lead});
@@ -401,7 +444,10 @@ function render(){
       '<div style="margin-top:6px;font-size:12px;color:#555;">Follow up on: <input type="date" id="fu-' + esc(l.id) + '" value="' + esc(fu.date) + '" style="border:1px solid #ddd;border-radius:7px;padding:5px 7px;font-family:inherit;font-size:12px;"> <span style="color:#aaa;">(tap Save after picking)</span></div>' +
       '<div class="when" style="display:flex;justify-content:space-between;align-items:center;">' +
         '<span>Came in ' + esc(l.created ? new Date(l.created).toLocaleString() : '') + '</span>' +
+        '<span>' +
+        '<button onclick="editLead(\'' + esc(l.id) + '\')" style="background:none;border:none;color:#0F6E56;font-size:11.5px;cursor:pointer;font-family:inherit;padding:2px 8px;font-weight:600;">&#9999;&#65039; Edit</button>' +
         '<button onclick="removeLead(\'' + esc(l.id) + '\')" style="background:none;border:none;color:#c0392b;font-size:11.5px;cursor:pointer;font-family:inherit;padding:2px 4px;">&#128465; Remove</button>' +
+        '</span>' +
       '</div>' +
     '</div>';
   }).join('');
