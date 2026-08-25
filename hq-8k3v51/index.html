@@ -98,6 +98,13 @@
         <input id="m-phone" placeholder="Phone" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
         <input id="m-email" placeholder="Email" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
         <input id="m-price" placeholder="Price (e.g. $81/mo)" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+        <select id="m-dogs" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;">
+          <option value="">Dogs?</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6+</option>
+        </select>
+        <select id="m-service" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;">
+          <option value="">Service?</option><option>twice a week</option><option>weekly</option><option>every other week</option><option>monthly</option><option>one-time</option><option>commercial</option>
+        </select>
+        <input id="m-addr" placeholder="Address" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
       </div>
       <button class="copybtn" style="margin-top:8px;" onclick="addManual()">Add manual lead</button>
     </div>
@@ -241,12 +248,15 @@ function addManual(){
     name: name, phone: phone,
     email: document.getElementById('m-email').value.trim(),
     price: document.getElementById('m-price').value.trim(),
+    dogs: document.getElementById('m-dogs').value,
+    service: document.getElementById('m-service').value,
+    address: document.getElementById('m-addr').value.trim(),
     status: 'new', crmnotes: ''
   };
   leads.unshift(lead);
   saveLocal(); render();
   post({action:'lead', lead:lead});
-  ['m-name','m-phone','m-email','m-price'].forEach(function(i){ document.getElementById(i).value = ''; });
+  ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr'].forEach(function(i){ document.getElementById(i).value = ''; });
   toggleAdd();
   toast('Lead added ✓');
 }
