@@ -171,14 +171,55 @@ function loadLeads(showToast, cb){
 }
 function setStatus(id, status){
   var l = leads.filter(function(x){ return x.id === id; })[0];
-  if (l){ l.status = status; l.updated = new Date().toISOString(); }
+  if (!l) return;
+  l.status = status; l.updated = new Date().toISOString();
+  var m = fuParse(l.crmnotes), notesChanged = false, extra = '';
+  if (status !== 'new' && !m.t1){ m.t1 = new Date().toISOString(); notesChanged = true; }
+  if (status === 'called' && !m.date){
+    var d = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+    m.date = d; notesChanged = true;
+    extra = ' · follow-up set for ' + d;
+  }
+  if (notesChanged) l.crmnotes = fuCompose(m);
   saveLocal();
   render();
-  post({action:'update', key:KEY, id:id, status:status}, 'Marked ' + status);
+  renderTraffic();
+  var body = {action:'update', key:KEY, id:id, status:status};
+  if (notesChanged) body.notes = l.crmnotes;
+  post(body, 'Marked ' + status + extra);
+}
+function attemptLead(id){
+  var l = leads.filter(function(x){ return x.id === id; })[0];
+  if (!l) return;
+  var m = fuParse(l.crmnotes);
+  m.att = (m.att || 0) + 1;
+  m.attDate = new Date().toISOString().slice(0, 10);
+  if (!m.t1) m.t1 = new Date().toISOString();
+  l.crmnotes = fuCompose(m);
+  l.updated = new Date().toISOString();
+  saveLocal();
+  render();
+  renderTraffic();
+  post({action:'update', key:KEY, id:id, notes:l.crmnotes}, 'Attempt #' + m.att + ' logged');
 }
 function fuParse(crmnotes){
-  var m = String(crmnotes || '').match(/^\[FU:(\d{4}-\d{2}-\d{2})\]\s*/);
-  return { date: m ? m[1] : '', text: m ? String(crmnotes).slice(m[0].length) : String(crmnotes || '') };
+  var s = String(crmnotes || '');
+  var m = { date: '', att: 0, attDate: '', t1: '', text: '' };
+  var re = /^\[(FU|ATT|T1):([^\]]*)\]\s*/;
+  var hit;
+  while ((hit = s.match(re))){
+    if (hit[1] === 'FU') m.date = hit[2];
+    else if (hit[1] === 'ATT'){ var p = hit[2].split('@'); m.att = parseInt(p[0], 10) || 0; m.attDate = p[1] || ''; }
+    else m.t1 = hit[2];
+    s = s.slice(hit[0].length);
+  }
+  m.text = s;
+  return m;
+}
+function fuCompose(m){
+  return (m.date ? '[FU:' + m.date + '] ' : '') +
+         (m.att ? '[ATT:' + m.att + '@' + m.attDate + '] ' : '') +
+         (m.t1 ? '[T1:' + m.t1 + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -193,7 +234,10 @@ function removeLead(id){
 function saveNote(id){
   var v = document.getElementById('note-' + id).value;
   var d = document.getElementById('fu-' + id).value;
-  var combined = (d ? '[FU:' + d + '] ' : '') + v;
+  var lx = leads.filter(function(x){ return x.id === id; })[0];
+  var keep = fuParse(lx ? lx.crmnotes : '');
+  keep.date = d; keep.text = v;
+  var combined = fuCompose(keep);
   var l = leads.filter(function(x){ return x.id === id; })[0];
   if (l){ l.crmnotes = combined; l.updated = new Date().toISOString(); }
   saveLocal();
@@ -404,6 +448,14 @@ function render(){
     var st = l.status || 'new';
     var digits = String(l.phone||'').replace(/[^\d+]/g,'');
     var fu = fuParse(l.crmnotes);
+    var digits2 = String(l.phone || '').replace(/[^\d+]/g, '');
+    var firstName = String(l.name || '').trim().split(' ')[0] || 'there';
+    var shortPrice = String(l.price || '').split(',')[0];
+    var smsBody = 'Hi ' + firstName + ", it's Corey with CL Professional Pet Services - just got your request" +
+      (shortPrice && shortPrice.indexOf('$') === 0 ? ' (' + shortPrice + ')' : '') + ". When's a good time to talk?";
+    var smsBtn = digits2 ? '<a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(smsBody).replace(/'/g, '%27') + '"' +
+      ' style="display:inline-block;background:#1D9E75;color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:700;text-decoration:none;">&#128172; Text them</a>' : '';
+    var attLine = fu.att ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#9742;&#65039; ' + fu.att + ' contact attempt' + (fu.att > 1 ? 's' : '') + ' &middot; last ' + esc(fu.attDate) + '</div>' : '';
     var fuBadge = '';
     if (fu.date && (l.status || 'new') !== 'closed' && (l.status || 'new') !== 'lost'){
       if (fu.date <= todayK){
@@ -435,10 +487,12 @@ function render(){
         '<br><span class="price">' + esc(l.price||'') + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(l.honored) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' + fuBadge + ageBadge +
+      '</div>' + attLine + fuBadge + ageBadge +
       '<div class="stbtns">' + STATUSES.map(function(s){
         return '<button class="b-' + s.k + (st === s.k ? ' on' : '') + '" onclick="setStatus(\'' + esc(l.id) + '\',\'' + s.k + '\')">' + s.label + '</button>';
-      }).join('') + '</div>' +
+      }).join('') +
+      '<button onclick="attemptLead(\'' + esc(l.id) + '\')" style="border-color:#1D9E75;color:#0F6E56;font-weight:700;">&#9742;&#65039; +1 attempt</button>' +
+      smsBtn + '</div>' +
       '<div class="notes"><textarea id="note-' + esc(l.id) + '" placeholder="Your notes (gate code, price agreed…)">' + esc(fu.text) + '</textarea>' +
       '<button onclick="saveNote(\'' + esc(l.id) + '\')">Save</button></div>' +
       '<div style="margin-top:6px;font-size:12px;color:#555;">Follow up on: <input type="date" id="fu-' + esc(l.id) + '" value="' + esc(fu.date) + '" style="border:1px solid #ddd;border-radius:7px;padding:5px 7px;font-family:inherit;font-size:12px;"> <span style="color:#aaa;">(tap Save after picking)</span></div>' +
@@ -512,8 +566,21 @@ function renderTraffic(){
     funnel = '<strong>Quote funnel (30d):</strong> ' + q30.length + ' saw a price &middot; ' + l30 + ' submitted &middot; ' +
       walked + ' walked away' + (q30.length ? ' (' + Math.round(walked / q30.length * 100) + '%)' : '') + '<br>';
   }
+  var mins = leads.map(function(l){
+    var m2 = fuParse(l.crmnotes);
+    if (!m2.t1 || !l.created) return null;
+    var mm = (new Date(m2.t1) - new Date(l.created)) / 60000;
+    return mm >= 0 ? mm : null;
+  }).filter(function(x){ return x != null; }).sort(function(a, b){ return a - b; });
+  var speed = '';
+  if (mins.length){
+    var med = mins[Math.floor(mins.length / 2)];
+    var label2 = med < 90 ? Math.round(med) + ' min' : (med / 60).toFixed(1) + ' hrs';
+    var col = med <= 60 ? '#0F6E56' : (med <= 240 ? '#b8860b' : '#c0392b');
+    speed = '<strong>Speed to lead:</strong> <span style="color:' + col + ';font-weight:700;">' + label2 + '</span> median to first contact (under 1 hour wins the customer)<br>';
+  }
   document.getElementById('t-extra').innerHTML =
-    funnel + tally('name', 'Top pages') + tally('zip', 'Visitors came from');
+    speed + funnel + tally('name', 'Top pages') + tally('zip', 'Visitors came from');
 }
 loadLeads(false);
 </script>

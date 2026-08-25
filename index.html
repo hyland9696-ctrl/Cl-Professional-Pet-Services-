@@ -1138,6 +1138,7 @@
     var notes = document.getElementById('cf-notes').value.trim();
     var payload = {
       _cc: BIZ_EMAIL,
+      _autoresponse: 'We received your property details and will reach out personally within one business day to talk through a plan. Want to talk now? Call (636) 375-4342. \u2014 CL Professional Pet Services',
       _subject: '🏢 COMMERCIAL INQUIRY: ' + (prop || name) + ' (' + ptype + ')',
       Type: 'COMMERCIAL SERVICE INQUIRY: no pricing quoted, call back personally',
       Property_Name: prop,
@@ -1200,6 +1201,7 @@
     }
     var payload = {
       _cc: BIZ_EMAIL,
+      _autoresponse: 'We received your confidential inquiry and will get back to you within two business days. Everything you shared stays private. \u2014 CL Professional Pet Services',
       _subject: '\ud83e\udd1d ACQUISITION INQUIRY: ' + (document.getElementById('sf-biz').value.trim() || name),
       Type: 'BUSINESS ACQUISITION INQUIRY (confidential)',
       Owner_Name: name,
@@ -1338,6 +1340,9 @@
     var priceStr = p.manual ? 'custom, to be quoted' : p.agree;
     var payload = {
       _cc: BIZ_EMAIL,
+      _autoresponse: activate
+        ? 'Welcome to CL Professional Pet Services! Your service activation is in. Within one business day you\u2019ll receive a separate email inviting you to your Sweep&Go client account \u2014 that\u2019s your home base, where you can see your visit schedule, get on-the-way and job-done notifications with photo proof, pay invoices and manage your card on file, and update your gate code or pet details anytime. Questions before then? Call or text (636) 375-4342.'
+        : 'Your quote is saved and we\u2019ll honor it for a full 6 months. Whenever you\u2019re ready, come back to clpropetservices.com to activate, or call/text (636) 375-4342 and mention your saved quote. \u2014 CL Professional Pet Services',
       _subject: (activate ? '\u2705 ACTIVATE SERVICE: ' : '\ud83d\udcbe SAVED QUOTE (6 mo): ') + name + (p.manual ? ' (manual review)' : ' at $' + p.total + p.per),
       Status: activate ? 'ACTIVATED: accepted Terms of Service, wants to start service' : 'SAVED QUOTE: not activating yet; honor price for 6 months',
       Name: name,
