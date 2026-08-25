@@ -151,7 +151,10 @@ function loadLeads(showToast, cb){
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok){ if (cb) cb(false); return; }
-      var remote = (d.leads || []).filter(function(l){ return l.type !== 'VIEW' && l.type !== 'QVIEW'; });
+      var remote = (d.leads || []).filter(function(l){ return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.status !== 'deleted'; });
+      var deadIds = {};
+      (d.leads || []).forEach(function(l){ if (l.status === 'deleted') deadIds[l.id] = true; });
+      leads = leads.filter(function(l){ return !deadIds[l.id]; });
       views = (d.leads || []).filter(function(l){ return l.type === 'VIEW'; });
       qviews = (d.leads || []).filter(function(l){ return l.type === 'QVIEW'; });
       var ids = {};
@@ -176,6 +179,16 @@ function setStatus(id, status){
 function fuParse(crmnotes){
   var m = String(crmnotes || '').match(/^\[FU:(\d{4}-\d{2}-\d{2})\]\s*/);
   return { date: m ? m[1] : '', text: m ? String(crmnotes).slice(m[0].length) : String(crmnotes || '') };
+}
+function removeLead(id){
+  var l = leads.filter(function(x){ return x.id === id; })[0];
+  if (!l) return;
+  if (!confirm('Remove ' + (l.name || 'this lead') + ' from the tracker? This cannot be undone.')) return;
+  leads = leads.filter(function(x){ return x.id !== id; });
+  saveLocal();
+  render();
+  post({action:'update', key:KEY, id:id, status:'deleted'}, 'Lead removed');
+  if (!CRM_ENDPOINT) toast('Lead removed');
 }
 function saveNote(id){
   var v = document.getElementById('note-' + id).value;
@@ -386,7 +399,10 @@ function render(){
       '<div class="notes"><textarea id="note-' + esc(l.id) + '" placeholder="Your notes (gate code, price agreed…)">' + esc(fu.text) + '</textarea>' +
       '<button onclick="saveNote(\'' + esc(l.id) + '\')">Save</button></div>' +
       '<div style="margin-top:6px;font-size:12px;color:#555;">Follow up on: <input type="date" id="fu-' + esc(l.id) + '" value="' + esc(fu.date) + '" style="border:1px solid #ddd;border-radius:7px;padding:5px 7px;font-family:inherit;font-size:12px;"> <span style="color:#aaa;">(tap Save after picking)</span></div>' +
-      '<div class="when">Came in ' + esc(l.created ? new Date(l.created).toLocaleString() : '') + '</div>' +
+      '<div class="when" style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span>Came in ' + esc(l.created ? new Date(l.created).toLocaleString() : '') + '</span>' +
+        '<button onclick="removeLead(\'' + esc(l.id) + '\')" style="background:none;border:none;color:#c0392b;font-size:11.5px;cursor:pointer;font-family:inherit;padding:2px 4px;">&#128465; Remove</button>' +
+      '</div>' +
     '</div>';
   }).join('');
 }
