@@ -205,13 +205,14 @@ function attemptLead(id){
 }
 function fuParse(crmnotes){
   var s = String(crmnotes || '');
-  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', text: '' };
-  var re = /^\[(FU|ATT|T1|CD):([^\]]*)\]\s*/;
+  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', text: '' };
+  var re = /^\[(FU|ATT|T1|CD|SD):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
     else if (hit[1] === 'ATT'){ var p = hit[2].split('@'); m.att = parseInt(p[0], 10) || 0; m.attDate = p[1] || ''; }
     else if (hit[1] === 'CD') m.cd = hit[2];
+    else if (hit[1] === 'SD') m.sd = hit[2];
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -222,7 +223,8 @@ function fuCompose(m){
   return (m.date ? '[FU:' + m.date + '] ' : '') +
          (m.att ? '[ATT:' + m.att + '@' + m.attDate + '] ' : '') +
          (m.t1 ? '[T1:' + m.t1 + '] ' : '') +
-         (m.cd ? '[CD:' + m.cd + '] ' : '') + (m.text || '');
+         (m.cd ? '[CD:' + m.cd + '] ' : '') +
+         (m.sd ? '[SD:' + m.sd + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -233,6 +235,30 @@ function removeLead(id){
   render();
   post({action:'update', key:KEY, id:id, status:'deleted'}, 'Lead removed');
   if (!CRM_ENDPOINT) toast('Lead removed');
+}
+function niceDate(iso){
+  var p = String(iso).split('-');
+  var d = new Date(parseInt(p[0],10), parseInt(p[1],10)-1, parseInt(p[2],10));
+  return d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+}
+function schedText(id){
+  var l = leads.filter(function(x){ return x.id === id; })[0];
+  if (!l) return;
+  var dv = document.getElementById('sd-' + id).value;
+  if (!dv){ toast('Pick the visit date first'); return; }
+  var m = fuParse(l.crmnotes);
+  m.sd = dv;
+  l.crmnotes = fuCompose(m);
+  l.updated = new Date().toISOString();
+  saveLocal();
+  render();
+  post({action:'update', key:KEY, id:id, notes:l.crmnotes}, 'Visit date saved');
+  var digits = String(l.phone || '').replace(/[^\d+]/g, '');
+  if (!digits){ toast('No phone number on this lead'); return; }
+  var first = String(l.name || '').trim().split(' ')[0] || 'there';
+  var body = 'Hi ' + first + ", it's Corey with CL Professional Pet Services - great news, you're on the schedule! Your first visit is " + niceDate(dv) +
+    ". No need to be home, just make sure the gate's unlocked. You'll get a text when we're on the way and photo confirmation when the job's done. See you then!";
+  window.location.href = 'sms:' + digits + '?&body=' + encodeURIComponent(body).replace(/'/g, '%27');
 }
 function saveNote(id){
   var v = document.getElementById('note-' + id).value;
@@ -483,6 +509,7 @@ function render(){
     var smsBtn = digits2 ? '<a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(smsBody).replace(/'/g, '%27') + '"' +
       ' style="display:inline-block;background:#1D9E75;color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:700;text-decoration:none;">&#128172; Text them</a>' : '';
     var attLine = fu.att ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#9742;&#65039; ' + fu.att + ' contact attempt' + (fu.att > 1 ? 's' : '') + ' &middot; last ' + esc(fu.attDate) + '</div>' : '';
+    var sdBadge = fu.sd ? '<div style="color:#0F6E56;font-size:12px;font-weight:700;margin-top:6px;">&#128197; Scheduled: ' + esc(niceDate(fu.sd)) + '</div>' : '';
     var fuBadge = '';
     if (fu.date && (l.status || 'new') !== 'closed' && (l.status || 'new') !== 'lost'){
       if (fu.date <= todayK){
@@ -514,7 +541,7 @@ function render(){
         '<br><span class="price">' + esc(l.price||'') + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(l.honored) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' + attLine + fuBadge + ageBadge +
+      '</div>' + sdBadge + attLine + fuBadge + ageBadge +
       '<div class="stbtns">' + STATUSES.map(function(s){
         return '<button class="b-' + s.k + (st === s.k ? ' on' : '') + '" onclick="setStatus(\'' + esc(l.id) + '\',\'' + s.k + '\')">' + s.label + '</button>';
       }).join('') +
@@ -523,6 +550,8 @@ function render(){
       '<div class="notes"><textarea id="note-' + esc(l.id) + '" placeholder="Your notes (gate code, price agreed…)">' + esc(fu.text) + '</textarea>' +
       '<button onclick="saveNote(\'' + esc(l.id) + '\')">Save</button></div>' +
       '<div style="margin-top:6px;font-size:12px;color:#555;">Follow up on: <input type="date" id="fu-' + esc(l.id) + '" value="' + esc(fu.date) + '" style="border:1px solid #ddd;border-radius:7px;padding:5px 7px;font-family:inherit;font-size:12px;"> <span style="color:#aaa;">(tap Save after picking)</span></div>' +
+      '<div style="margin-top:8px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">First visit: <input type="date" id="sd-' + esc(l.id) + '" value="' + esc(fu.sd) + '" style="border:1px solid #ddd;border-radius:7px;padding:5px 7px;font-family:inherit;font-size:12px;">' +
+      '<button onclick="schedText(\'' + esc(l.id) + '\')" style="background:#0F6E56;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#128197; Text them the date</button></div>' +
       '<div class="when" style="display:flex;justify-content:space-between;align-items:center;">' +
         '<span>Came in ' + esc(l.created ? new Date(l.created).toLocaleString() : '') + '</span>' +
         '<span>' +
