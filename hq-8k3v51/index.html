@@ -566,21 +566,8 @@ function renderTraffic(){
     funnel = '<strong>Quote funnel (30d):</strong> ' + q30.length + ' saw a price &middot; ' + l30 + ' submitted &middot; ' +
       walked + ' walked away' + (q30.length ? ' (' + Math.round(walked / q30.length * 100) + '%)' : '') + '<br>';
   }
-  var mins = leads.map(function(l){
-    var m2 = fuParse(l.crmnotes);
-    if (!m2.t1 || !l.created) return null;
-    var mm = (new Date(m2.t1) - new Date(l.created)) / 60000;
-    return mm >= 0 ? mm : null;
-  }).filter(function(x){ return x != null; }).sort(function(a, b){ return a - b; });
-  var speed = '';
-  if (mins.length){
-    var med = mins[Math.floor(mins.length / 2)];
-    var label2 = med < 90 ? Math.round(med) + ' min' : (med / 60).toFixed(1) + ' hrs';
-    var col = med <= 60 ? '#0F6E56' : (med <= 240 ? '#b8860b' : '#c0392b');
-    speed = '<strong>Speed to lead:</strong> <span style="color:' + col + ';font-weight:700;">' + label2 + '</span> median to first contact (under 1 hour wins the customer)<br>';
-  }
   document.getElementById('t-extra').innerHTML =
-    speed + funnel + tally('name', 'Top pages') + tally('zip', 'Visitors came from');
+    funnel + tally('name', 'Top pages') + tally('zip', 'Visitors came from');
 }
 loadLeads(false);
 </script>
