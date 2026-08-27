@@ -585,15 +585,21 @@ function renderTraffic(){
   if (!views.length){ return; }
   document.getElementById('traffic').style.display = 'block';
   var now = new Date();
-  var dayKey = function(d){ return d.toISOString().slice(0, 10); };
+  var pad2 = function(x){ return (x < 10 ? '0' : '') + x; };
+  var dayKey = function(d){ return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); };
   var since = function(days){
     var cut = new Date(now.getTime() - days * 86400000);
     return views.filter(function(v){ return new Date(v.created) >= cut; });
   };
+  var todayK2 = dayKey(now);
+  var vToday = views.filter(function(v){ return dayKey(new Date(v.created)) === todayK2; }).length;
   var v7 = since(7).length, v30 = since(30).length;
   var l30 = leads.filter(function(l){ return new Date(l.created) >= new Date(now.getTime() - 30 * 86400000); }).length;
   var conv = v30 ? Math.round(l30 / v30 * 100) : 0;
-  document.getElementById('t-nums').innerHTML =
+  var tn = document.getElementById('t-nums');
+  tn.style.gridTemplateColumns = 'repeat(5,1fr)';
+  tn.innerHTML =
+    '<div class="stat"><div class="n" style="color:#1D9E75">' + vToday + '</div><div class="l">Today</div></div>' +
     '<div class="stat"><div class="n">' + v7 + '</div><div class="l">Views 7d</div></div>' +
     '<div class="stat"><div class="n">' + v30 + '</div><div class="l">Views 30d</div></div>' +
     '<div class="stat"><div class="n">' + l30 + '</div><div class="l">Leads 30d</div></div>' +
@@ -603,7 +609,7 @@ function renderTraffic(){
     var d = new Date(now.getTime() - i * 86400000);
     var k = dayKey(d);
     days.push(k);
-    counts.push(views.filter(function(v){ return String(v.created).slice(0, 10) === k; }).length);
+    counts.push(views.filter(function(v){ return dayKey(new Date(v.created)) === k; }).length);
   }
   var max = Math.max.apply(null, counts.concat([1]));
   document.getElementById('t-chart').innerHTML = counts.map(function(c, i){

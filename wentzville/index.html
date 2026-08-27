@@ -86,5 +86,17 @@ ul.svc li::before{content:'\2714';position:absolute;left:2px;color:#1D9E75;font-
   </div>
 </div>
 <div class="foot">&copy; 2026 CL Professional Pet Services LLC &middot; St. Peters, MO &middot; <a href="/">Home</a><a href="/#services">Services</a><a href="/#quote">Get a Quote</a></div>
+<script>
+(function(){try{
+var pg='city-wentzville';
+if(sessionStorage.getItem('v_'+pg))return;
+sessionStorage.setItem('v_'+pg,'1');
+var ref='';
+if(!sessionStorage.getItem('v_ref_sent')){sessionStorage.setItem('v_ref_sent','1');
+try{ref=document.referrer?new URL(document.referrer).hostname.replace(/^www\./,''):'direct';}catch(e){ref='other';}
+if(ref.indexOf('clpropetservices')>=0)ref='';}
+fetch('https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec',{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'lead',lead:{id:'v'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),created:new Date().toISOString(),type:'VIEW',name:pg,zip:ref}})}).catch(function(){});
+}catch(e){}})();
+</script>
 </body>
 </html>
