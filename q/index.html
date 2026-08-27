@@ -128,7 +128,9 @@ var QP = {};
     document.getElementById('q-price').innerHTML = '$' + amt + (once ? '' : '<small>/mo</small>');
     document.getElementById('q-sub').textContent = once
       ? 'Flat rate. No hidden fees, haul-away included.'
-      : 'First invoice $' + (amt + 40) + ', which includes your one-time $40 initial clean.';
+      : (P.ic === 'w'
+          ? 'Your one-time $40 initial clean fee is WAIVED - your first invoice is just $' + amt + '.'
+          : 'First invoice $' + (amt + 40) + ', which includes your one-time $40 initial clean.');
   } else {
     document.getElementById('q-price').textContent = 'Custom';
     document.getElementById('q-sub').textContent = 'We price larger properties personally. The number below gets you a fast answer.';
@@ -137,6 +139,8 @@ var QP = {};
   if (P.d)  rows += '<div class="dline"><span>Dogs</span><span>' + P.d + '</span></div>';
   if (P.sv) rows += '<div class="dline"><span>Schedule</span><span>' + svc + '</span></div>';
   if (P.deo) rows += '<div class="dline"><span>Deodorize &amp; sanitize</span><span>' + P.deo + '</span></div>';
+  if (P.ic === 'w' && !once) rows += '<div class="dline"><span>Initial clean fee</span><span style="color:#1D9E75;">Waived &#10004;</span></div>';
+  else if (!once && !isNaN(amt)) rows += '<div class="dline"><span>Initial clean (first invoice)</span><span>$40 one-time</span></div>';
   if (P.a)  rows += '<div class="dline"><span>Service address</span><span>' + P.a + '</span></div>';
   document.getElementById('q-details').innerHTML = rows;
   if (P.u){
@@ -164,6 +168,7 @@ function authorizeQuote(){
     Type: 'AUTHORIZED VIA EMAILED QUOTE - accepted TOS and price, wants on the schedule',
     Name: QP.n || '', Email: QP.e || '', Phone: QP.ph || '',
     Service: QP.sv || '', Dogs: QP.d || '', Price: priceStr,
+    Initial_Clean: QP.t === 'once' ? 'n/a (one-time job)' : (QP.ic === 'w' ? 'WAIVED' : '\u002440 on first invoice (standard)'),
     TOS_Accepted: 'YES at ' + new Date().toISOString(),
     Lead_Ref: QP.id || ''
   };

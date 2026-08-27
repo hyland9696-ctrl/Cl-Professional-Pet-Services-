@@ -104,6 +104,10 @@
         <select id="m-service" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;">
           <option value="">Service?</option><option>twice a week</option><option>weekly</option><option>every other week</option><option>monthly</option><option>one-time</option><option>commercial</option>
         </select>
+        <select id="m-ic" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;grid-column:1 / -1;">
+          <option value="">$40 initial clean on first invoice (standard)</option>
+          <option value="w">Initial clean fee WAIVED</option>
+        </select>
         <input id="m-addr" placeholder="Address" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
       </div>
       <button class="copybtn" id="m-savebtn" style="margin-top:8px;" onclick="addManual()">Add manual lead</button>
@@ -209,8 +213,8 @@ function attemptLead(id){
 }
 function fuParse(crmnotes){
   var s = String(crmnotes || '');
-  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', text: '' };
-  var re = /^\[(FU|ATT|T1|CD|SD|QS):([^\]]*)\]\s*/;
+  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', text: '' };
+  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -218,6 +222,7 @@ function fuParse(crmnotes){
     else if (hit[1] === 'CD') m.cd = hit[2];
     else if (hit[1] === 'SD') m.sd = hit[2];
     else if (hit[1] === 'QS') m.qs = hit[2];
+    else if (hit[1] === 'IC') m.ic = hit[2];
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -230,7 +235,8 @@ function fuCompose(m){
          (m.t1 ? '[T1:' + m.t1 + '] ' : '') +
          (m.cd ? '[CD:' + m.cd + '] ' : '') +
          (m.sd ? '[SD:' + m.sd + '] ' : '') +
-         (m.qs ? '[QS:' + m.qs + '] ' : '') + (m.text || '');
+         (m.qs ? '[QS:' + m.qs + '] ' : '') +
+         (m.ic ? '[IC:' + m.ic + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -297,6 +303,7 @@ function quoteLink(l){
   parts.push('t=' + (once ? 'once' : 'mo'));
   if (l.deodorize && l.deodorize !== 'no' && l.deodorize !== '') parts.push('deo=' + encodeURIComponent('Included'));
   parts.push('u=' + until);
+  if (fuParse(l.crmnotes).ic === 'w') parts.push('ic=w');
   parts.push('id=' + encodeURIComponent(l.id));
   if (l.email) parts.push('e=' + encodeURIComponent(l.email));
   if (l.phone) parts.push('ph=' + encodeURIComponent(l.phone));
@@ -380,6 +387,7 @@ function editLead(id){
   document.getElementById('m-addr').value = l.address || '';
   var dogsSel = document.getElementById('m-dogs');
   dogsSel.value = ['1','2','3','4','5','6+'].indexOf(String(l.dogs)) >= 0 ? String(l.dogs) : '';
+  document.getElementById('m-ic').value = fuParse(l.crmnotes).ic === 'w' ? 'w' : '';
   var svcSel = document.getElementById('m-service');
   svcSel.value = ['twice a week','weekly','every other week','monthly','one-time','commercial'].indexOf(String(l.service)) >= 0 ? String(l.service) : '';
   document.getElementById('addPanel').style.display = 'block';
@@ -438,13 +446,15 @@ function addManual(){
     dogs: document.getElementById('m-dogs').value,
     service: document.getElementById('m-service').value,
     address: document.getElementById('m-addr').value.trim(),
-    status: 'new', crmnotes: ''
+    status: 'new', crmnotes: (document.getElementById('m-ic').value === 'w' ? '[IC:w] ' : '')
   };
   if (editing){
     lead.created = editing.created || lead.created;
     lead.type = editing.type || 'SAVED';
     lead.status = editing.status || 'new';
-    lead.crmnotes = editing.crmnotes || '';
+    var em2 = fuParse(editing.crmnotes || '');
+    em2.ic = document.getElementById('m-ic').value === 'w' ? 'w' : '';
+    lead.crmnotes = fuCompose(em2);
     if (!lead.dogs) lead.dogs = editing.dogs || '';
     if (!lead.service) lead.service = editing.service || '';
     ['zip','yard','deodorize','hero','manual','honored','notes'].forEach(function(k){ lead[k] = editing[k] || ''; });
@@ -455,7 +465,7 @@ function addManual(){
     editing = null;
     document.getElementById('m-savebtn').textContent = 'Add manual lead';
     saveLocal(); render();
-    ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr'].forEach(function(i){ document.getElementById(i).value = ''; });
+    ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr','m-ic'].forEach(function(i){ document.getElementById(i).value = ''; });
     document.getElementById('addPanel').style.display = 'none';
     toast('Lead updated ✓');
     return;
@@ -463,7 +473,7 @@ function addManual(){
   leads.unshift(lead);
   saveLocal(); render();
   post({action:'lead', lead:lead});
-  ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr'].forEach(function(i){ document.getElementById(i).value = ''; });
+  ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr','m-ic'].forEach(function(i){ document.getElementById(i).value = ''; });
   toggleAdd();
   toast('Lead added ✓');
 }
@@ -593,6 +603,7 @@ function render(){
     var smsBtn = digits2 ? '<a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(smsBody).replace(/'/g, '%27') + '"' +
       ' style="display:inline-block;background:#1D9E75;color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:700;text-decoration:none;">&#128172; Text them</a>' : '';
     var attLine = fu.att ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#9742;&#65039; ' + fu.att + ' contact attempt' + (fu.att > 1 ? 's' : '') + ' &middot; last ' + esc(fu.attDate) + '</div>' : '';
+    var icChip = fu.ic === 'w' ? '<div style="color:#5E35B1;font-size:12px;font-weight:700;margin-top:6px;">&#128142; Initial clean fee: WAIVED</div>' : '';
     var azBadge = auths[l.id]
       ? '<div style="background:#E1F5EE;color:#0F6E56;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;margin-top:8px;">&#9989; AUTHORIZED the quoted price on ' + esc(auths[l.id]) +
         ((l.status || 'new') !== 'closed' ? ' &mdash; add them in Sweep&amp;Go, send the start date, and mark Closed!' : '') + '</div>'
@@ -629,7 +640,7 @@ function render(){
         '<br><span class="price">' + esc(l.price||'') + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(l.honored) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' + azBadge + sdBadge + attLine + fuBadge + ageBadge +
+      '</div>' + icChip + azBadge + sdBadge + attLine + fuBadge + ageBadge +
       '<div class="stbtns">' + STATUSES.map(function(s){
         return '<button class="b-' + s.k + (st === s.k ? ' on' : '') + '" onclick="setStatus(\'' + esc(l.id) + '\',\'' + s.k + '\')">' + s.label + '</button>';
       }).join('') +
