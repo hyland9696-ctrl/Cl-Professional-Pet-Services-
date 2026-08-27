@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Your Quote | CL Professional Pet Services</title>
+<link rel="icon" type="image/png" href="/images/logo.png">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;background:#f4f6f5;line-height:1.6;}
+.top{background:#fff;border-bottom:1px solid #e8e8e8;padding:14px 20px;display:flex;align-items:center;gap:10px;}
+.top img{width:42px;height:42px;object-fit:contain;}
+.top b{font-size:14px;display:block;}
+.top small{font-size:11px;color:#888;}
+.wrap{max-width:560px;margin:0 auto;padding:28px 18px 60px;}
+.card{background:#fff;border-radius:18px;box-shadow:0 6px 28px rgba(0,0,0,0.08);overflow:hidden;}
+.head{background:linear-gradient(135deg,#1D9E75,#0F6E56);color:#fff;padding:26px 24px;text-align:center;}
+.head .eyebrow{font-size:11.5px;letter-spacing:2px;text-transform:uppercase;opacity:0.85;font-weight:700;}
+.head h1{font-size:24px;margin:6px 0 2px;}
+.head .for{font-size:14px;opacity:0.92;}
+.pricebox{text-align:center;padding:26px 24px 8px;}
+.pricebox .amt{font-size:52px;font-weight:800;color:#0F6E56;line-height:1;}
+.pricebox .amt small{font-size:20px;font-weight:600;color:#666;}
+.pricebox .sub{font-size:13.5px;color:#777;margin-top:8px;}
+.details{padding:16px 24px 6px;}
+.dline{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f1f1f1;font-size:14.5px;}
+.dline span:first-child{color:#777;}
+.dline span:last-child{font-weight:700;text-align:right;}
+.inc{padding:16px 24px;}
+.inc h3{font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;}
+.inc li{list-style:none;padding:6px 0 6px 26px;position:relative;font-size:14px;color:#444;}
+.inc li::before{content:'\2714';position:absolute;left:2px;color:#1D9E75;font-weight:700;}
+.honor{margin:6px 24px 18px;background:#FDF3DC;border:1px solid #eedfae;border-radius:12px;padding:12px 15px;font-size:13.5px;color:#7a5c00;text-align:center;}
+.ctas{padding:0 24px 26px;display:flex;flex-direction:column;gap:10px;}
+.cta{display:block;text-align:center;background:#1D9E75;color:#fff;text-decoration:none;font-weight:800;font-size:16px;padding:15px;border-radius:12px;}
+.cta.alt{background:#fff;color:#0F6E56;border:2px solid #1D9E75;}
+.fine{font-size:12px;color:#999;text-align:center;padding:0 24px 22px;line-height:1.6;}
+.trust{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:20px;font-size:12.5px;color:#666;text-align:center;}
+.trust span{background:#fff;border:1px solid #e8e8e8;border-radius:20px;padding:7px 14px;}
+.foot{text-align:center;font-size:12px;color:#999;margin-top:26px;}
+.foot a{color:#0F6E56;}
+</style>
+</head>
+<body>
+<div class="top">
+  <img src="/images/logo.png" alt="CL Professional Pet Services logo">
+  <div><b>CL Professional Pet Services</b><small>Pet Waste Management &middot; St. Peters, MO</small></div>
+</div>
+<div class="wrap">
+  <div class="card">
+    <div class="head">
+      <div class="eyebrow">Your personalized quote</div>
+      <h1 id="q-title">Pet Waste Removal</h1>
+      <div class="for" id="q-for"></div>
+    </div>
+    <div class="pricebox">
+      <div class="amt" id="q-price">$--</div>
+      <div class="sub" id="q-sub"></div>
+    </div>
+    <div class="details" id="q-details"></div>
+    <div class="inc">
+      <h3>Every visit includes</h3>
+      <li>Full-yard sweep, every corner</li>
+      <li>Waste bagged &amp; hauled away with us</li>
+      <li>Gate latched &amp; double-checked</li>
+      <li>Photo confirmation when the job is done</li>
+      <li>On-the-way text so your pups can head inside</li>
+    </div>
+    <div class="honor" id="q-honor">&#128274; This price is locked in for you for 6 months.</div>
+    <div class="ctas">
+      <a class="cta" href="tel:+16363754342">&#128222; Call or text to start: (636) 375-4342</a>
+      <a class="cta alt" href="/#quote">Activate online</a>
+    </div>
+    <div class="fine">Licensed &amp; insured &middot; Month-to-month, no contracts, cancel anytime &middot; Discounts for military, veterans &amp; first responders (mention it when you call!)</div>
+  </div>
+  <div class="trust">
+    <span>&#11088; 5.0 on Google &middot; 28 reviews</span>
+    <span>&#128021; Locally owned, St. Peters MO</span>
+  </div>
+  <div class="foot">CL Professional Pet Services LLC &middot; <a href="/">clpropetservices.com</a> &middot; info@clpropetservices.com</div>
+</div>
+<script>
+(function(){
+  var P = {};
+  location.hash.replace(/^#/, '').split('&').forEach(function(kv){
+    var i = kv.indexOf('=');
+    if (i > 0) P[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1).replace(/\+/g, ' '));
+  });
+  var svcNames = { twiceweekly:'Twice-a-week service', weekly:'Weekly service', biweekly:'Every-other-week service',
+                   monthly:'Monthly service', onetime:'One-time cleanup',
+                   'twice a week':'Twice-a-week service', 'every other week':'Every-other-week service',
+                   'one-time':'One-time cleanup', commercial:'Commercial service' };
+  if (P.n) document.getElementById('q-for').textContent = 'Prepared for ' + P.n;
+  var svc = svcNames[(P.sv || '').toLowerCase()] || (P.sv ? P.sv : 'Service quote');
+  document.getElementById('q-title').textContent = svc;
+  var amt = parseFloat(P.p);
+  var once = (P.t === 'once') || /one/.test((P.sv || '').toLowerCase());
+  if (!isNaN(amt)){
+    document.getElementById('q-price').innerHTML = '$' + amt + (once ? '' : '<small>/mo</small>');
+    document.getElementById('q-sub').textContent = once
+      ? 'Flat rate. No hidden fees, haul-away included.'
+      : 'First invoice $' + (amt + 40) + ', which includes your one-time $40 initial clean.';
+  } else {
+    document.getElementById('q-price').textContent = 'Custom';
+    document.getElementById('q-sub').textContent = 'We price larger properties personally. The number below gets you a fast answer.';
+  }
+  var rows = '';
+  if (P.d)  rows += '<div class="dline"><span>Dogs</span><span>' + P.d + '</span></div>';
+  if (P.sv) rows += '<div class="dline"><span>Schedule</span><span>' + svc + '</span></div>';
+  if (P.deo) rows += '<div class="dline"><span>Deodorize &amp; sanitize</span><span>' + P.deo + '</span></div>';
+  if (P.a)  rows += '<div class="dline"><span>Service address</span><span>' + P.a + '</span></div>';
+  document.getElementById('q-details').innerHTML = rows;
+  if (P.u){
+    var pr = P.u.split('-');
+    var du = new Date(parseInt(pr[0],10), parseInt(pr[1],10)-1, parseInt(pr[2],10));
+    document.getElementById('q-honor').innerHTML = '&#128274; This price is locked in for you until <strong>' +
+      du.toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' }) + '</strong>.';
+  }
+})();
+</script>
+</body>
+</html>
