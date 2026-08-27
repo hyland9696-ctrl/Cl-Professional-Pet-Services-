@@ -68,10 +68,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
       <li>On-the-way text so your pups can head inside</li>
     </div>
     <div class="honor" id="q-honor">&#128274; This price is locked in for you for 6 months.</div>
-    <div class="ctas">
-      <a class="cta" href="tel:+16363754342">&#128222; Call or text to start: (636) 375-4342</a>
-      <a class="cta alt" href="/#quote">Activate online</a>
+    <div class="ctas" id="az-area">
+      <label style="display:flex;gap:10px;font-size:13.5px;color:#555;align-items:flex-start;text-align:left;cursor:pointer;">
+        <input type="checkbox" id="az-tos" style="margin-top:3px;width:18px;height:18px;flex-shrink:0;">
+        <span>I've reviewed my quote and agree to the <a href="#" onclick="document.getElementById('tosd').open=true;return false;">Terms of Service</a> below. I authorize CL Professional Pet Services to start service at this price.</span>
+      </label>
+      <button class="cta" id="az-btn" onclick="authorizeQuote()" style="border:none;cursor:pointer;font-family:inherit;width:100%;">&#9989; Authorize &amp; Get On the Schedule</button>
+      <div id="az-err" style="color:#c0392b;font-size:13px;text-align:center;min-height:0;"></div>
+      <div style="text-align:center;font-size:13.5px;color:#666;margin-top:4px;">Questions first? We'd love to talk.</div>
+      <div style="display:flex;gap:10px;">
+        <a class="cta alt" style="flex:1;" href="tel:+16363885069">&#128222; Call</a>
+        <a class="cta alt" style="flex:1;" href="sms:6363885069">&#128172; Text</a>
+      </div>
+      <div style="text-align:center;font-size:12.5px;color:#888;">Jesse Duncan &middot; Operations Manager &middot; (636) 388-5069</div>
     </div>
+    <div id="az-done" style="display:none;padding:10px 24px 30px;text-align:center;">
+      <div style="font-size:46px;">&#127881;</div>
+      <h2 style="font-size:21px;margin:8px 0 10px;color:#0F6E56;">You're authorized and on our list!</h2>
+      <p style="font-size:14.5px;color:#555;line-height:1.7;">We'll add you to the schedule now. <strong>Be on the lookout for an email with your start date and your Sweep&amp;Go account login</strong> &mdash; that's your home base for visit notifications, photo confirmations, and billing. A confirmation email is on its way to you as well.</p>
+      <p style="font-size:13px;color:#888;margin-top:12px;">Questions in the meantime? Jesse Duncan, Operations Manager &middot; <a href="tel:+16363885069" style="color:#0F6E56;font-weight:700;">(636) 388-5069</a></p>
+    </div>
+    <details id="tosd" style="margin:0 24px 22px;font-size:12.5px;color:#666;">
+      <summary style="cursor:pointer;font-weight:700;color:#0F6E56;">Terms of Service (summary)</summary>
+      <ul style="padding:8px 0 0 18px;line-height:1.75;">
+        <li>Service is month-to-month. No contracts, cancel anytime.</li>
+        <li>For recurring service, your first invoice includes a one-time $40 initial clean.</li>
+        <li>Billing is monthly. A $10 late fee applies after a 30-day grace period.</li>
+        <li>Your quoted price is honored for 6 months from the quote date.</li>
+        <li>Every visit: full-yard sweep, waste hauled away, gate latched, photo confirmation.</li>
+        <li>Governed by Missouri law. Full terms provided at service start.</li>
+      </ul>
+    </details>
     <div class="fine">Licensed &amp; insured &middot; Month-to-month, no contracts, cancel anytime &middot; Discounts for military, veterans &amp; first responders (mention it when you call!)</div>
   </div>
   <div class="trust">
@@ -81,8 +108,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
   <div class="foot">CL Professional Pet Services LLC &middot; <a href="/">clpropetservices.com</a> &middot; info@clpropetservices.com</div>
 </div>
 <script>
+var QP = {};
 (function(){
-  var P = {};
+  var P = QP;
   location.hash.replace(/^#/, '').split('&').forEach(function(kv){
     var i = kv.indexOf('=');
     if (i > 0) P[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1).replace(/\+/g, ' '));
@@ -118,6 +146,55 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
       du.toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' }) + '</strong>.';
   }
 })();
+
+function authorizeQuote(){
+  var err = document.getElementById('az-err');
+  err.textContent = '';
+  if (!document.getElementById('az-tos').checked){
+    err.textContent = 'Please check the box to agree to the Terms of Service first.';
+    return;
+  }
+  var btn = document.getElementById('az-btn');
+  btn.disabled = true; btn.textContent = 'Authorizing\u2026';
+  var priceStr = document.getElementById('q-price').textContent + (QP.t === 'once' ? ' one-time' : '');
+  var payload = {
+    _subject: '\u2705 QUOTE AUTHORIZED: ' + (QP.n || 'Customer') + ' at ' + priceStr,
+    _cc: 'info@clpropetservices.com',
+    _autoresponse: "You're on the schedule! Thanks for authorizing your quote with CL Professional Pet Services. We're adding you to the route now - be on the lookout for an email with your start date and your Sweep&Go account login, where you'll see visit notifications, photo confirmations, and billing. Questions? Call or text Jesse Duncan, Operations Manager: (636) 388-5069.",
+    Type: 'AUTHORIZED VIA EMAILED QUOTE - accepted TOS and price, wants on the schedule',
+    Name: QP.n || '', Email: QP.e || '', Phone: QP.ph || '',
+    Service: QP.sv || '', Dogs: QP.d || '', Price: priceStr,
+    TOS_Accepted: 'YES at ' + new Date().toISOString(),
+    Lead_Ref: QP.id || ''
+  };
+  var done = function(){
+    document.getElementById('az-area').style.display = 'none';
+    document.getElementById('tosd').style.display = 'none';
+    document.getElementById('az-done').style.display = 'block';
+    window.scrollTo({top:0, behavior:'smooth'});
+  };
+  try {
+    fetch('https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec', {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({ action:'lead', lead: {
+        id: 'az' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+        created: new Date().toISOString(), type: 'AUTH',
+        name: QP.n || '', zip: QP.id || '', price: priceStr, service: QP.sv || '', dogs: QP.d || '',
+        email: QP.e || '', phone: QP.ph || ''
+      } })
+    }).catch(function(){});
+  } catch (e) {}
+  fetch('https://formsubmit.co/ajax/clpropetservices@gmail.com', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then(function(r){ return r.json(); }).then(done)
+    .catch(function(){
+      done();
+      window.location.href = 'mailto:info@clpropetservices.com?subject=' + encodeURIComponent('Quote authorized - ' + (QP.n || '')) +
+        '&body=' + encodeURIComponent('I authorize my quote of ' + priceStr + '. - ' + (QP.n || ''));
+    });
+}
 </script>
 </body>
 </html>

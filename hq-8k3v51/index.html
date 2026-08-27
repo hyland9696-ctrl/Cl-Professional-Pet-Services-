@@ -126,7 +126,7 @@ var STATUSES = [
   {k:'lost',   label:'Not interested'}
 ];
 var FILTERS = [{k:'all',label:'All'}].concat(STATUSES);
-var leads = [], views = [], qviews = [], filter = 'all', KEY = 'clpps-8k3v51';
+var leads = [], views = [], qviews = [], auths = {}, filter = 'all', KEY = 'clpps-8k3v51';
 
 function toast(m){
   var t = document.getElementById('toast');
@@ -151,7 +151,11 @@ function loadLeads(showToast, cb){
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok){ if (cb) cb(false); return; }
-      var remote = (d.leads || []).filter(function(l){ return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.status !== 'deleted'; });
+      var remote = (d.leads || []).filter(function(l){ return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.type !== 'AUTH' && l.status !== 'deleted'; });
+      auths = {};
+      (d.leads || []).forEach(function(l){
+        if (l.type === 'AUTH' && l.zip) auths[l.zip] = String(l.created || '').slice(0, 10);
+      });
       var deadIds = {};
       (d.leads || []).forEach(function(l){ if (l.status === 'deleted') deadIds[l.id] = true; });
       leads = leads.filter(function(l){ return !deadIds[l.id]; });
@@ -293,12 +297,15 @@ function quoteLink(l){
   parts.push('t=' + (once ? 'once' : 'mo'));
   if (l.deodorize && l.deodorize !== 'no' && l.deodorize !== '') parts.push('deo=' + encodeURIComponent('Included'));
   parts.push('u=' + until);
+  parts.push('id=' + encodeURIComponent(l.id));
+  if (l.email) parts.push('e=' + encodeURIComponent(l.email));
+  if (l.phone) parts.push('ph=' + encodeURIComponent(l.phone));
   return 'https://www.clpropetservices.com/q/#' + parts.join('&');
 }
 function quoteMsg(l, link){
   var first = String(l.name || '').trim().split(' ')[0] || 'there';
   return 'Hi ' + first + ", thanks for reaching out to CL Professional Pet Services! Your personalized quote is ready - take a look here: " + link +
-    " That price is locked in for you for 6 months. Questions or ready to get on the schedule? Just reply here or call/text (636) 375-4342.";
+    " If the price looks good, you can authorize right on that page and we'll get you on the schedule. That price is locked in for you for 6 months. Questions? Just reply here or call/text me at (636) 388-5069.";
 }
 function markQuoteSent(id, silent){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -329,7 +336,7 @@ function quoteEmail(id){
   var subject = 'Your CL Professional Pet Services quote' + (m ? ' - ' + m[0] : '');
   markQuoteSent(id, true);
   window.location.href = 'mailto:' + encodeURIComponent(em) + '?subject=' + encodeURIComponent(subject) +
-    '&body=' + encodeURIComponent(quoteMsg(l, quoteLink(l)) + '\n\nCorey\nCL Professional Pet Services\n(636) 375-4342\nclpropetservices.com');
+    '&body=' + encodeURIComponent(quoteMsg(l, quoteLink(l)) + '\n\nJesse Duncan\nOperations Manager\nCL Professional Pet Services\n(636) 388-5069\nclpropetservices.com');
 }
 function saveNote(id){
   var v = document.getElementById('note-' + id).value;
@@ -567,7 +574,13 @@ function render(){
     var fu = fuParse(l.crmnotes).date;
     return fu && fu <= todayK;
   };
-  v.sort(function(a, b){ return (overdue(b) ? 1 : 0) - (overdue(a) ? 1 : 0); });
+  var azPending = function(l){
+    var st = l.status || 'new';
+    return auths[l.id] && st !== 'closed' && st !== 'lost';
+  };
+  v.sort(function(a, b){
+    return ((azPending(b) ? 2 : 0) + (overdue(b) ? 1 : 0)) - ((azPending(a) ? 2 : 0) + (overdue(a) ? 1 : 0));
+  });
   document.getElementById('list').innerHTML = v.map(function(l){
     var st = l.status || 'new';
     var digits = String(l.phone||'').replace(/[^\d+]/g,'');
@@ -580,6 +593,10 @@ function render(){
     var smsBtn = digits2 ? '<a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(smsBody).replace(/'/g, '%27') + '"' +
       ' style="display:inline-block;background:#1D9E75;color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:700;text-decoration:none;">&#128172; Text them</a>' : '';
     var attLine = fu.att ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#9742;&#65039; ' + fu.att + ' contact attempt' + (fu.att > 1 ? 's' : '') + ' &middot; last ' + esc(fu.attDate) + '</div>' : '';
+    var azBadge = auths[l.id]
+      ? '<div style="background:#E1F5EE;color:#0F6E56;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;margin-top:8px;">&#9989; AUTHORIZED the quoted price on ' + esc(auths[l.id]) +
+        ((l.status || 'new') !== 'closed' ? ' &mdash; add them in Sweep&amp;Go, send the start date, and mark Closed!' : '') + '</div>'
+      : '';
     var sdBadge = fu.sd ? '<div style="color:#0F6E56;font-size:12px;font-weight:700;margin-top:6px;">&#128197; Scheduled: ' + esc(niceDate(fu.sd)) + '</div>' : '';
     var fuBadge = '';
     if (fu.date && (l.status || 'new') !== 'closed' && (l.status || 'new') !== 'lost'){
@@ -612,7 +629,7 @@ function render(){
         '<br><span class="price">' + esc(l.price||'') + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(l.honored) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' + sdBadge + attLine + fuBadge + ageBadge +
+      '</div>' + azBadge + sdBadge + attLine + fuBadge + ageBadge +
       '<div class="stbtns">' + STATUSES.map(function(s){
         return '<button class="b-' + s.k + (st === s.k ? ' on' : '') + '" onclick="setStatus(\'' + esc(l.id) + '\',\'' + s.k + '\')">' + s.label + '</button>';
       }).join('') +
