@@ -29,6 +29,37 @@ function sheet_() {
   return sh;
 }
 
+var NOTIFY_TO = 'clpropetservices@gmail.com';
+var NOTIFY_CC = 'info@clpropetservices.com';
+
+function notifyLead_(l) {
+  var t = String(l.type || '');
+  if (t === 'VIEW' || t === 'QVIEW') return;  // analytics pings, no email
+  var subject, intro;
+  if (t === 'AUTH') {
+    subject = '\u2705 QUOTE AUTHORIZED: ' + (l.name || 'Customer') + (l.price ? ' at ' + l.price : '');
+    intro = 'This customer AUTHORIZED their emailed quote and accepted the Terms of Service. Add them in Sweep&Go and send their start date!';
+  } else if (t === 'COMMERCIAL') {
+    subject = '\ud83c\udfe2 NEW COMMERCIAL LEAD: ' + (l.name || '');
+    intro = 'New commercial inquiry from the website. No pricing quoted; call back personally.';
+  } else if (t === 'ACTIVATE') {
+    subject = '\ud83d\udd25 NEW LEAD (wants to start!): ' + (l.name || '') + (l.price ? ' - ' + String(l.price).split(',')[0] : '');
+    intro = 'This lead activated through the website quote wizard and accepted the Terms of Service.';
+  } else {
+    subject = '\ud83d\udc3e NEW LEAD: ' + (l.name || '') + (l.price ? ' - ' + String(l.price).split(',')[0] : '');
+    intro = 'New lead captured.';
+  }
+  var lines = [intro, ''];
+  var fields = [['Name','name'],['Phone','phone'],['Email','email'],['Address','address'],['ZIP','zip'],
+                ['Service','service'],['Dogs','dogs'],['Yard','yard'],['Deodorize','deodorize'],
+                ['Hero discount','hero'],['Price','price'],['Manual review','manual'],
+                ['Quote honored until','honored'],['Customer notes','notes']];
+  fields.forEach(function(f){ if (l[f[1]]) lines.push(f[0] + ': ' + l[f[1]]); });
+  lines.push('');
+  lines.push('Lead tracker: https://www.clpropetservices.com/hq-8k3v51/');
+  MailApp.sendEmail({ to: NOTIFY_TO, cc: NOTIFY_CC, subject: subject, body: lines.join('\n') });
+}
+
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
@@ -60,11 +91,12 @@ function doPost(e) {
     var l = body.lead;
     var sh = sheet_();
     sh.appendRow(HEADERS.map(function(h){
-      if (h === 'status') return 'new';
-      if (h === 'crmnotes') return '';
+      if (h === 'status') return (h === 'status' && l.status) ? String(l.status) : 'new';
+      if (h === 'crmnotes') return l.crmnotes != null ? String(l.crmnotes) : '';
       if (h === 'updated') return new Date().toISOString();
       return l[h] != null ? String(l[h]) : '';
     }));
+    try { notifyLead_(l); } catch (e) {}
     return json_({ok:true});
   }
 
