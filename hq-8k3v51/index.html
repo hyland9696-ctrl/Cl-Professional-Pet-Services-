@@ -69,6 +69,7 @@
     <button onclick="loadLeads(true)">&#8635; Refresh</button>
   </header>
   <div class="wrap">
+    <div id="offline" style="display:none;background:#FDF3DC;border:1px solid #e6c96a;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#7a5c00;"></div>
     <div id="traffic" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);display:none;">
       <div style="font-weight:800;font-size:14px;margin-bottom:10px;">&#128202; Site traffic</div>
       <div class="stats" id="t-nums" style="margin-bottom:10px;"></div>
@@ -144,12 +145,23 @@ function toast(m){
 function saveLocal(){
   try { localStorage.setItem('clpps_leads', JSON.stringify(leads)); } catch (e) {}
 }
+function saveStatsCache(){
+  try { localStorage.setItem('clpps_stats', JSON.stringify({ views: views, qviews: qviews, auths: auths, ts: new Date().toISOString() })); } catch (e) {}
+}
 function loadLocal(){
   try { leads = JSON.parse(localStorage.getItem('clpps_leads') || '[]'); } catch (e) { leads = []; }
+  try {
+    var c = JSON.parse(localStorage.getItem('clpps_stats') || 'null');
+    if (c){ views = c.views || []; qviews = c.qviews || []; auths = c.auths || {}; statsTs = c.ts || ''; }
+  } catch (e) {}
 }
-function loadLeads(showToast, cb){
-  loadLocal();
-  render();
+var statsTs = '';
+function loadLeads(showToast, cb, isRetry){
+  if (!isRetry){
+    loadLocal();
+    render();
+    renderTraffic();
+  }
   if (!CRM_ENDPOINT){
     if (showToast) toast('List refreshed');
     if (cb) cb(true);
@@ -159,6 +171,7 @@ function loadLeads(showToast, cb){
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok){ if (cb) cb(false); return; }
+      document.getElementById('offline').style.display = 'none';
       var remote = (d.leads || []).filter(function(l){ return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.type !== 'AUTH' && l.status !== 'deleted'; });
       auths = {};
       (d.leads || []).forEach(function(l){
@@ -182,12 +195,21 @@ function loadLeads(showToast, cb){
       leads = merged;
       leads.sort(function(a, b){ return String(b.created).localeCompare(String(a.created)); });
       saveLocal();
+      saveStatsCache();
       render();
       renderTraffic();
       if (showToast) toast('Up to date ✓');
       if (cb) cb(true);
     })
-    .catch(function(){ toast('Could not reach the database'); if (cb) cb(false); });
+    .catch(function(){
+      var ob = document.getElementById('offline');
+      ob.style.display = 'block';
+      ob.innerHTML = '&#9888;&#65039; Can\u2019t reach the database right now' +
+        (statsTs ? ' &mdash; showing your last synced copy from ' + new Date(statsTs).toLocaleString() : '') +
+        '. Retrying automatically\u2026 <a href="#" onclick="loadLeads(true);return false;" style="color:#7a5c00;font-weight:700;">retry now</a>';
+      if (!isRetry) setTimeout(function(){ loadLeads(false, null, true); }, 4000);
+      if (cb) cb(false);
+    });
 }
 function setStatus(id, status){
   var l = leads.filter(function(x){ return x.id === id; })[0];
