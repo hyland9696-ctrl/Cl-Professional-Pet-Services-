@@ -551,24 +551,39 @@ function esc(x){
   return String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function parsePrice(l){
+  // amount: first number in the price field, $ optional
+  var m = String(l.price || '').match(/(\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  var amt = parseFloat(m[1]);
+  // recurring vs one-time: explicit /mo wins, then the service type, then default recurring
+  var p = String(l.price || '').toLowerCase();
+  var sv = String(l.service || '').toLowerCase();
+  var isMo;
+  if (p.indexOf('/mo') >= 0 || p.indexOf('month') >= 0) isMo = true;
+  else if (p.indexOf('one-time') >= 0 || p.indexOf('one time') >= 0 || p.indexOf('onetime') >= 0) isMo = false;
+  else if (sv.indexOf('one') >= 0) isMo = false;
+  else isMo = true;
+  return { amt: amt, isMo: isMo };
+}
 function renderRevenue(){
   var box = document.getElementById('revenue');
-  var mo = 0, once = 0, byMonth = {};
+  var mo = 0, once = 0, byMonth = {}, items = [], noPrice = [];
   leads.forEach(function(l){
     if ((l.status || 'new') !== 'closed') return;
-    var m = String(l.price || '').match(/\$\s?(\d+(?:\.\d+)?)/);
-    if (!m) return;
-    var amt = parseFloat(m[1]);
-    var isMo = String(l.price).indexOf('/mo') >= 0;
+    var pp = parsePrice(l);
+    if (!pp){ noPrice.push(l); return; }
+    var amt = pp.amt, isMo = pp.isMo;
     var when = fuParse(l.crmnotes).cd || String(l.created || '').slice(0, 10) || '';
     var key = when.slice(0, 7);
     if (key){
       if (!byMonth[key]) byMonth[key] = { mo: 0, once: 0 };
       byMonth[key][isMo ? 'mo' : 'once'] += amt;
     }
+    items.push({ name: l.name || '(no name)', amt: amt, isMo: isMo, key: key });
     if (isMo) mo += amt; else once += amt;
   });
-  if (!mo && !once){ box.style.display = 'none'; return; }
+  if (!mo && !once && !noPrice.length){ box.style.display = 'none'; return; }
   box.style.display = 'block';
   var year = new Date().getFullYear();
   var ytdMo = 0, ytdOnce = 0;
@@ -582,15 +597,32 @@ function renderRevenue(){
     return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-weight:400;font-size:12.5px;opacity:0.95;">' +
       '<span>' + MONTH_NAMES[mn] + ' ' + y + '</span><span>' + bits.join(' &middot; ') + '</span></div>';
   }).join('');
+  var itemRows = items.sort(function(a, b){ return String(b.key).localeCompare(String(a.key)); }).map(function(it){
+    return '<div style="display:flex;justify-content:space-between;font-weight:400;font-size:12px;opacity:0.92;padding:2px 0;">' +
+      '<span>' + esc(it.name) + ' <span style="opacity:0.6;">(' + (it.key ? MONTH_NAMES[parseInt(it.key.slice(5, 7), 10) - 1] + ' ' + it.key.slice(0, 4) : '?') + ')</span></span>' +
+      '<span>$' + it.amt + (it.isMo ? '/mo' : ' one-time') + '</span></div>';
+  }).join('');
+  var warnRows = noPrice.map(function(l){
+    return '<div style="font-weight:400;font-size:12px;color:#ffd9a0;padding:2px 0;">&#9888;&#65039; ' + esc(l.name || '(no name)') + ' is closed but has NO price - not counted. Fix with Edit.</div>';
+  }).join('');
+  box.style.cursor = 'pointer';
+  box.onclick = function(){
+    var d = document.getElementById('rev-detail');
+    if (d) d.style.display = d.style.display === 'none' ? 'block' : 'none';
+  };
   box.innerHTML =
-    '<div style="font-size:14px;">&#128176; Revenue closed from this site</div>' +
+    '<div style="font-size:14px;">&#128176; Revenue closed from this site <span style="float:right;font-weight:400;font-size:11px;opacity:0.7;">tap for the math &#9660;</span></div>' +
     '<div style="font-size:19px;margin:4px 0 2px;">$' + mo.toLocaleString() + '/mo current MRR' +
       ' <span style="opacity:0.75;font-weight:400;font-size:12.5px;">(~$' + (mo * 12).toLocaleString() + ' a year)</span></div>' +
     (once ? '<div style="font-weight:400;font-size:12.5px;opacity:0.9;">plus $' + once.toLocaleString() + ' in one-time jobs all-time</div>' : '') +
     '<div style="border-top:1px solid rgba(255,255,255,0.25);margin:8px 0 4px;"></div>' + rows +
     '<div style="border-top:1px solid rgba(255,255,255,0.25);margin:6px 0 4px;"></div>' +
     '<div style="display:flex;justify-content:space-between;font-size:13px;"><span>YTD ' + year + '</span>' +
-      '<span>+$' + ytdMo.toLocaleString() + '/mo MRR added' + (ytdOnce ? ' &middot; $' + ytdOnce.toLocaleString() + ' one-time' : '') + '</span></div>';
+      '<span>+$' + ytdMo.toLocaleString() + '/mo MRR added' + (ytdOnce ? ' &middot; $' + ytdOnce.toLocaleString() + ' one-time' : '') + '</span></div>' +
+    '<div id="rev-detail" style="display:none;border-top:1px solid rgba(255,255,255,0.25);margin-top:6px;padding-top:5px;">' +
+      '<div style="font-size:11.5px;opacity:0.8;font-weight:400;margin-bottom:3px;">Every closed lead being counted:</div>' +
+      itemRows + warnRows +
+    '</div>';
 }
 function render(){
   renderRevenue();
