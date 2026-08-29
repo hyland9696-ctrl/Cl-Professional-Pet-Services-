@@ -104,7 +104,8 @@ else{var r2=ref.toLowerCase();
 if(r2.indexOf('google')>=0)sc='Google (organic)';else if(r2.indexOf('facebook')>=0||r2.indexOf('instagram')>=0||r2==='fb.me')sc='Meta (organic)';
 else if(r2.indexOf('nextdoor')>=0)sc='Nextdoor';else if(r2==='direct'||!r2)sc='Direct';else sc=r2;}
 try{sessionStorage.setItem('lead_src',sc);}catch(e){}}
-fetch('https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec',{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'lead',lead:{id:'v'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),created:new Date().toISOString(),type:'VIEW',name:pg,zip:ref}})}).catch(function(){});
+var sid=sessionStorage.getItem('v_sid');if(!sid){sid=Date.now().toString(36).slice(-4)+Math.random().toString(36).slice(2,8);sessionStorage.setItem('v_sid',sid);}
+fetch('https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec',{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'lead',lead:{id:'v'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),created:new Date().toISOString(),type:'VIEW',name:pg,zip:ref,yard:sid,service:sessionStorage.getItem('lead_src')||''}})}).catch(function(){});
 }catch(e){}})();
 </script>
 </body>

@@ -260,8 +260,8 @@ function attemptLead(id){
 }
 function fuParse(crmnotes){
   var s = String(crmnotes || '');
-  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', text: '' };
-  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC|SRC):([^\]]*)\]\s*/;
+  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', text: '' };
+  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC|SRC|SID):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -271,6 +271,7 @@ function fuParse(crmnotes){
     else if (hit[1] === 'QS') m.qs = hit[2];
     else if (hit[1] === 'IC') m.ic = hit[2];
     else if (hit[1] === 'SRC') m.src = hit[2];
+    else if (hit[1] === 'SID') m.sid = hit[2];
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -285,7 +286,8 @@ function fuCompose(m){
          (m.sd ? '[SD:' + m.sd + '] ' : '') +
          (m.qs ? '[QS:' + m.qs + '] ' : '') +
          (m.ic ? '[IC:' + m.ic + '] ' : '') +
-         (m.src ? '[SRC:' + m.src + '] ' : '') + (m.text || '');
+         (m.src ? '[SRC:' + m.src + '] ' : '') +
+         (m.sid ? '[SID:' + m.sid + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -950,7 +952,75 @@ function renderDetail(){
       (dayLeads.length ? '<div style="font-size:11.5px;color:#0F6E56;margin-top:1px;">Leads: ' + dayLeads.map(function(l){ return esc(l.name || '?'); }).join(', ') + '</div>' : '') +
       '</div>';
   }
-  document.getElementById('t-detail').innerHTML = funnel +
+  // Where visitors landed, by source: the referrer only rides on the FIRST
+  // page view of a visit, so any view carrying one is that visit's first click.
+  var pgName = function(n){
+    n = String(n || '?');
+    if (n === 'home') return 'Home';
+    if (n === 'quote') return 'Quote page';
+    if (n.indexOf('city-') === 0) return n.slice(5).replace(/-/g, ' ') + ' page';
+    return n;
+  };
+  var landBySrc = {};
+  v30.forEach(function(v){
+    if (!v.zip) return;
+    var s = v.service || srcName2(v.zip);
+    if (!landBySrc[s]) landBySrc[s] = {};
+    landBySrc[s][v.name || '?'] = (landBySrc[s][v.name || '?'] || 0) + 1;
+  });
+  var landKeys = Object.keys(landBySrc).sort(function(a, b){
+    var t = function(o){ var n = 0; Object.keys(o).forEach(function(k){ n += o[k]; }); return n; };
+    return t(landBySrc[b]) - t(landBySrc[a]);
+  });
+  var landRows = landKeys.map(function(s){
+    var o = landBySrc[s];
+    var total = 0; Object.keys(o).forEach(function(k){ total += o[k]; });
+    return '<div style="font-size:12px;color:#555;padding:3px 0;border-bottom:1px solid #f7f7f7;">' +
+      '<strong>' + esc(s) + '</strong> <span style="color:#999;">(' + total + ' visit' + (total === 1 ? '' : 's') + ') first clicked into:</span> ' +
+      Object.keys(o).sort(function(a, b){ return o[b] - o[a]; })
+        .map(function(p){ return esc(pgName(p)) + ' (' + o[p] + ')'; }).join(' &middot; ') + '</div>';
+  }).join('');
+  var landing = landRows
+    ? '<div style="font-weight:800;font-size:13px;margin:14px 0 4px;">&#128205; Where each source lands first, last 30 days</div>' + landRows
+    : '';
+
+  // Visitor journeys: views stamped with a visit id chain into a path
+  var sess = {};
+  v30.forEach(function(v){
+    if (!v.yard) return;
+    if (!sess[v.yard]) sess[v.yard] = { vs: [], q: null, lead: null };
+    sess[v.yard].vs.push(v);
+  });
+  qviews.filter(in30).forEach(function(q){
+    if (q.yard && sess[q.yard]) sess[q.yard].q = q;
+  });
+  leads.forEach(function(l){
+    var sid = fuParse(l.crmnotes).sid;
+    if (sid && sess[sid]) sess[sid].lead = l;
+  });
+  var sKeys = Object.keys(sess);
+  sKeys.forEach(function(k){ sess[k].vs.sort(function(a, b){ return String(a.created).localeCompare(String(b.created)); }); });
+  sKeys.sort(function(a, b){ return String(sess[b].vs[0].created).localeCompare(String(sess[a].vs[0].created)); });
+  var jRows = sKeys.slice(0, 30).map(function(k){
+    var s = sess[k];
+    var first = s.vs[0];
+    var src = first.service || '';
+    if (!src){ var rv = s.vs.filter(function(v){ return v.zip; })[0]; src = rv ? srcName2(rv.zip) : 'Direct'; }
+    var path = s.vs.map(function(v){ return esc(pgName(v.name)); });
+    if (s.q) path.push('<span style="color:#8a6d1a;">&#128178; saw ' + esc(s.q.price || 'a price') + '</span>');
+    if (s.lead) path.push('<span style="color:#1D9E75;font-weight:700;">&#9989; became a lead' + (s.lead.name ? ': ' + esc(s.lead.name) : '') + '</span>');
+    var when = new Date(first.created).toLocaleDateString('en-US', { month:'short', day:'numeric' }) +
+      ' ' + new Date(first.created).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+    return '<div style="font-size:12px;color:#555;padding:5px 0;border-bottom:1px solid #f7f7f7;">' +
+      '<span style="color:#999;">' + when + '</span> &middot; <strong>' + esc(src) + '</strong><br>' +
+      path.join(' <span style="color:#bbb;">&rarr;</span> ') + '</div>';
+  }).join('');
+  var journeys = jRows
+    ? '<div style="font-weight:800;font-size:13px;margin:14px 0 4px;">&#129517; Visitor journeys, newest first</div>' +
+      '<div style="font-size:11px;color:#aaa;margin-bottom:4px;">Each line is one visit: where they came from and every page they touched, in order.</div>' + jRows
+    : '';
+
+  document.getElementById('t-detail').innerHTML = funnel + landing + journeys +
     '<div style="font-weight:800;font-size:13px;margin:14px 0 4px;">&#128197; Day by day, last 14 days</div>' +
     (dayRows || '<div style="font-size:12px;color:#999;">No activity recorded yet.</div>');
 }

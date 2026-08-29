@@ -1009,6 +1009,13 @@
     } catch (e) { return ''; }
   }
 
+  function vSid(){
+    try {
+      var s = sessionStorage.getItem('v_sid');
+      if (!s){ s = Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 8); sessionStorage.setItem('v_sid', s); }
+      return s;
+    } catch (e) { return ''; }
+  }
   function crmView(page){
     if (!CRM_ENDPOINT) return;
     try {
@@ -1025,7 +1032,8 @@
         method: 'POST', headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ action: 'lead', lead: {
           id: 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-          created: new Date().toISOString(), type: 'VIEW', name: page, zip: ref
+          created: new Date().toISOString(), type: 'VIEW', name: page, zip: ref,
+          yard: vSid(), service: leadSource() || ''
         } })
       }).catch(function(){});
     } catch (e) {}
@@ -1066,7 +1074,8 @@
           id: 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           created: new Date().toISOString(), type: 'QVIEW',
           name: (q.freq || '') + ' / ' + (q.dogs || '') + ' dog(s)',
-          zip: q.zip, price: p.manual ? 'manual' : ('$' + p.total + (p.per || ''))
+          zip: q.zip, price: p.manual ? 'manual' : ('$' + p.total + (p.per || '')),
+          yard: vSid(), service: leadSource() || ''
         } })
       }).catch(function(){});
     } catch (e) {}
@@ -1186,7 +1195,7 @@
     crmCapture({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       created: new Date().toISOString(),
-      crmnotes: leadSource() ? '[SRC:' + leadSource() + '] ' : '',
+      crmnotes: '[SID:' + vSid() + '] ' + (leadSource() ? '[SRC:' + leadSource() + '] ' : ''),
       type: 'COMMERCIAL',
       name: name + (prop ? ' — ' + prop : ''),
       phone: phone,
@@ -1401,7 +1410,7 @@
     crmCapture({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       created: new Date().toISOString(),
-      crmnotes: leadSource() ? '[SRC:' + leadSource() + '] ' : '',
+      crmnotes: '[SID:' + vSid() + '] ' + (leadSource() ? '[SRC:' + leadSource() + '] ' : ''),
       type: activate ? 'ACTIVATE' : 'SAVED',
       name: name,
       phone: phone,
