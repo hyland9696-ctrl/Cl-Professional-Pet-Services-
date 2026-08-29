@@ -568,31 +568,36 @@ function parsePrice(l){
 }
 function renderRevenue(){
   var box = document.getElementById('revenue');
-  var mo = 0, once = 0, byMonth = {}, items = [], noPrice = [];
+  var mo = 0, once = 0, fees = 0, byMonth = {}, items = [], noPrice = [];
   leads.forEach(function(l){
     if ((l.status || 'new') !== 'closed') return;
     var pp = parsePrice(l);
     if (!pp){ noPrice.push(l); return; }
     var amt = pp.amt, isMo = pp.isMo;
-    var when = fuParse(l.crmnotes).cd || String(l.created || '').slice(0, 10) || '';
+    var fu2 = fuParse(l.crmnotes);
+    var fee = (isMo && fu2.ic !== 'w') ? 40 : 0;  // $40 initial clean on recurring, unless waived
+    var when = fu2.cd || String(l.created || '').slice(0, 10) || '';
     var key = when.slice(0, 7);
     if (key){
-      if (!byMonth[key]) byMonth[key] = { mo: 0, once: 0 };
+      if (!byMonth[key]) byMonth[key] = { mo: 0, once: 0, fee: 0 };
       byMonth[key][isMo ? 'mo' : 'once'] += amt;
+      byMonth[key].fee += fee;
     }
-    items.push({ name: l.name || '(no name)', amt: amt, isMo: isMo, key: key });
+    items.push({ name: l.name || '(no name)', amt: amt, isMo: isMo, key: key, fee: fee, waived: isMo && fu2.ic === 'w' });
     if (isMo) mo += amt; else once += amt;
+    fees += fee;
   });
   if (!mo && !once && !noPrice.length){ box.style.display = 'none'; return; }
   box.style.display = 'block';
   var year = new Date().getFullYear();
-  var ytdMo = 0, ytdOnce = 0;
+  var ytdMo = 0, ytdOnce = 0, ytdFee = 0;
   var rows = Object.keys(byMonth).sort().reverse().map(function(k){
     var y = parseInt(k.slice(0, 4), 10), mn = parseInt(k.slice(5, 7), 10) - 1;
     var v = byMonth[k];
-    if (y === year){ ytdMo += v.mo; ytdOnce += v.once; }
+    if (y === year){ ytdMo += v.mo; ytdOnce += v.once; ytdFee += v.fee; }
     var bits = [];
     if (v.mo) bits.push('+$' + v.mo + '/mo MRR');
+    if (v.fee) bits.push('$' + v.fee + ' initial cleans');
     if (v.once) bits.push('$' + v.once + ' one-time');
     return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-weight:400;font-size:12.5px;opacity:0.95;">' +
       '<span>' + MONTH_NAMES[mn] + ' ' + y + '</span><span>' + bits.join(' &middot; ') + '</span></div>';
@@ -600,7 +605,8 @@ function renderRevenue(){
   var itemRows = items.sort(function(a, b){ return String(b.key).localeCompare(String(a.key)); }).map(function(it){
     return '<div style="display:flex;justify-content:space-between;font-weight:400;font-size:12px;opacity:0.92;padding:2px 0;">' +
       '<span>' + esc(it.name) + ' <span style="opacity:0.6;">(' + (it.key ? MONTH_NAMES[parseInt(it.key.slice(5, 7), 10) - 1] + ' ' + it.key.slice(0, 4) : '?') + ')</span></span>' +
-      '<span>$' + it.amt + (it.isMo ? '/mo' : ' one-time') + '</span></div>';
+      '<span>$' + it.amt + (it.isMo ? '/mo' : ' one-time') +
+      (it.fee ? ' <span style="opacity:0.75;">+ $40 initial</span>' : (it.waived ? ' <span style="opacity:0.6;">(initial waived)</span>' : '')) + '</span></div>';
   }).join('');
   var warnRows = noPrice.map(function(l){
     return '<div style="font-weight:400;font-size:12px;color:#ffd9a0;padding:2px 0;">&#9888;&#65039; ' + esc(l.name || '(no name)') + ' is closed but has NO price - not counted. Fix with Edit.</div>';
@@ -614,11 +620,15 @@ function renderRevenue(){
     '<div style="font-size:14px;">&#128176; Revenue closed from this site <span style="float:right;font-weight:400;font-size:11px;opacity:0.7;">tap for the math &#9660;</span></div>' +
     '<div style="font-size:19px;margin:4px 0 2px;">$' + mo.toLocaleString() + '/mo current MRR' +
       ' <span style="opacity:0.75;font-weight:400;font-size:12.5px;">(~$' + (mo * 12).toLocaleString() + ' a year)</span></div>' +
-    (once ? '<div style="font-weight:400;font-size:12.5px;opacity:0.9;">plus $' + once.toLocaleString() + ' in one-time jobs all-time</div>' : '') +
+    ((once || fees) ? '<div style="font-weight:400;font-size:12.5px;opacity:0.9;">plus ' +
+      [fees ? '$' + fees.toLocaleString() + ' in initial cleans' : '', once ? '$' + once.toLocaleString() + ' in one-time jobs' : '']
+        .filter(Boolean).join(' and ') + ' all-time</div>' : '') +
     '<div style="border-top:1px solid rgba(255,255,255,0.25);margin:8px 0 4px;"></div>' + rows +
     '<div style="border-top:1px solid rgba(255,255,255,0.25);margin:6px 0 4px;"></div>' +
     '<div style="display:flex;justify-content:space-between;font-size:13px;"><span>YTD ' + year + '</span>' +
-      '<span>+$' + ytdMo.toLocaleString() + '/mo MRR added' + (ytdOnce ? ' &middot; $' + ytdOnce.toLocaleString() + ' one-time' : '') + '</span></div>' +
+      '<span>+$' + ytdMo.toLocaleString() + '/mo MRR added' +
+      (ytdFee ? ' &middot; $' + ytdFee.toLocaleString() + ' initial cleans' : '') +
+      (ytdOnce ? ' &middot; $' + ytdOnce.toLocaleString() + ' one-time' : '') + '</span></div>' +
     '<div id="rev-detail" style="display:none;border-top:1px solid rgba(255,255,255,0.25);margin-top:6px;padding-top:5px;">' +
       '<div style="font-size:11.5px;opacity:0.8;font-weight:400;margin-bottom:3px;">Every closed lead being counted:</div>' +
       itemRows + warnRows +
