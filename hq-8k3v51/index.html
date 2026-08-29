@@ -73,6 +73,8 @@
       <div id="t-chart" style="display:flex;align-items:flex-end;gap:3px;height:64px;margin-bottom:6px;"></div>
       <div id="t-chart-label" style="font-size:10.5px;color:#aaa;margin-bottom:10px;">Last 14 days</div>
       <div id="t-extra" style="font-size:12.5px;color:#555;line-height:1.8;"></div>
+      <div style="font-size:11px;color:#aaa;margin-top:8px;">Tap any number or chart bar for the full breakdown &#9660;</div>
+      <div id="t-detail" style="display:none;border-top:1px solid #eee;margin-top:10px;padding-top:10px;"></div>
     </div>
     <div class="stats" id="stats"></div>
     <div id="revenue" style="display:none;background:#0F6E56;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;font-weight:600;"></div>
@@ -684,6 +686,8 @@ function renderTraffic(){
   var conv = v30 ? Math.round(l30 / v30 * 100) : 0;
   var tn = document.getElementById('t-nums');
   tn.style.gridTemplateColumns = 'repeat(5,1fr)';
+  tn.style.cursor = 'pointer';
+  tn.onclick = function(){ toggleDetail(); };
   tn.innerHTML =
     '<div class="stat"><div class="n" style="color:#1D9E75">' + vToday + '</div><div class="l">Today</div></div>' +
     '<div class="stat"><div class="n">' + v7 + '</div><div class="l">Views 7d</div></div>' +
@@ -700,7 +704,7 @@ function renderTraffic(){
   var max = Math.max.apply(null, counts.concat([1]));
   document.getElementById('t-chart').innerHTML = counts.map(function(c, i){
     var h = Math.max(3, Math.round(c / max * 60));
-    return '<div title="' + days[i] + ': ' + c + '" style="flex:1;height:' + h + 'px;background:' + (i === 13 ? '#1D9E75' : '#BFE6D8') + ';border-radius:3px 3px 0 0;"></div>';
+    return '<div onclick="showDayDetail(\'' + days[i] + '\')" title="' + days[i] + ': ' + c + '" style="flex:1;height:' + h + 'px;background:' + (i === 13 ? '#1D9E75' : '#BFE6D8') + ';border-radius:3px 3px 0 0;cursor:pointer;"></div>';
   }).join('');
   var srcName = function(h){
     h = String(h).toLowerCase();
@@ -735,6 +739,98 @@ function renderTraffic(){
   }
   document.getElementById('t-extra').innerHTML =
     funnel + tally('name', 'Top pages') + tally('zip', 'Visitors came from');
+}
+function gDayKey(d){
+  var p2 = function(x){ return (x < 10 ? '0' : '') + x; };
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+}
+function toggleDetail(force){
+  var box = document.getElementById('t-detail');
+  var opening = force === true || box.style.display === 'none';
+  box.style.display = opening ? 'block' : 'none';
+  if (opening) renderDetail();
+}
+function showDayDetail(k){
+  toggleDetail(true);
+  var row = document.getElementById('day-' + k);
+  if (row){
+    row.style.background = '#f0fdf8';
+    row.scrollIntoView({ behavior:'smooth', block:'center' });
+    setTimeout(function(){ row.style.background = ''; }, 1800);
+  }
+}
+function renderDetail(){
+  var now = new Date();
+  var cut30 = new Date(now.getTime() - 30 * 86400000);
+  var in30 = function(x){ return new Date(x.created) >= cut30; };
+  var v30 = views.filter(in30);
+  var quotePage30 = v30.filter(function(v){ return v.name === 'quote'; }).length;
+  var priced30 = qviews.filter(in30).length;
+  var leads30 = leads.filter(in30);
+  var won30 = leads.filter(function(l){
+    if ((l.status || 'new') !== 'closed') return false;
+    var cd = fuParse(l.crmnotes).cd || String(l.created || '').slice(0, 10);
+    return cd && new Date(cd) >= cut30;
+  }).length;
+  var steps = [
+    ['Site visits (page views)', v30.length],
+    ['Opened the quote page', quotePage30],
+    ['Got a price shown', priced30],
+    ['Submitted (became a lead)', leads30.length],
+    ['Marked closed / won', won30]
+  ];
+  var base = Math.max(steps[0][1], 1);
+  var funnel = '<div style="font-weight:800;font-size:13px;margin-bottom:8px;">&#128200; Funnel, last 30 days</div>' +
+    steps.map(function(st, i){
+      var pct = Math.round(st[1] / base * 100);
+      var stepPct = i > 0 && steps[i-1][1] > 0 ? Math.round(st[1] / steps[i-1][1] * 100) + '% of previous' : '';
+      return '<div style="margin-bottom:7px;">' +
+        '<div style="display:flex;justify-content:space-between;font-size:12px;color:#555;"><span>' + st[0] + '</span><span style="font-weight:800;color:#1a1a1a;">' + st[1] +
+        (stepPct ? ' <span style="color:#999;font-weight:400;">(' + stepPct + ')</span>' : '') + '</span></div>' +
+        '<div style="height:9px;background:#f0f0f0;border-radius:5px;overflow:hidden;"><div style="height:100%;width:' + Math.max(pct, st[1] ? 3 : 0) + '%;background:' + ['#BFE6D8','#8ED4B8','#5DC49B','#1D9E75','#0F6E56'][i] + ';"></div></div></div>';
+    }).join('');
+
+  var srcName2 = function(h){
+    h = String(h).toLowerCase();
+    if (h.indexOf('facebook') >= 0 || h === 'fb.me') return 'Facebook';
+    if (h.indexOf('instagram') >= 0) return 'Instagram';
+    if (h.indexOf('nextdoor') >= 0) return 'Nextdoor';
+    if (h.indexOf('google') >= 0) return 'Google';
+    if (h.indexOf('bing') >= 0) return 'Bing';
+    if (h === 'direct') return 'direct';
+    return h;
+  };
+  var dayRows = '';
+  for (var i = 0; i < 14; i++){
+    var d = new Date(now.getTime() - i * 86400000);
+    var k = gDayKey(d);
+    var dayViews = views.filter(function(v){ return gDayKey(new Date(v.created)) === k; });
+    var dayLeads = leads.filter(function(l){ return gDayKey(new Date(l.created)) === k; });
+    var dayPriced = qviews.filter(function(q){ return gDayKey(new Date(q.created)) === k; }).length;
+    if (!dayViews.length && !dayLeads.length && !dayPriced) continue;
+    var pages = {}, srcs = {};
+    dayViews.forEach(function(v){
+      pages[v.name || '?'] = (pages[v.name || '?'] || 0) + 1;
+      if (v.zip) srcs[srcName2(v.zip)] = (srcs[srcName2(v.zip)] || 0) + 1;
+    });
+    var pageStr = Object.keys(pages).sort(function(a,b){ return pages[b]-pages[a]; })
+      .map(function(p){ return esc(p) + ' (' + pages[p] + ')'; }).join(' &middot; ');
+    var srcStr = Object.keys(srcs).sort(function(a,b){ return srcs[b]-srcs[a]; })
+      .map(function(p){ return esc(p) + ' (' + srcs[p] + ')'; }).join(' &middot; ');
+    var label = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    dayRows += '<div id="day-' + k + '" style="padding:8px 6px;border-radius:8px;transition:background 0.5s;border-bottom:1px solid #f4f4f4;">' +
+      '<div style="display:flex;justify-content:space-between;font-size:12.5px;"><strong>' + label + (i === 0 ? ' (today)' : '') + '</strong>' +
+      '<span style="font-weight:700;">' + dayViews.length + ' view' + (dayViews.length === 1 ? '' : 's') +
+      (dayPriced ? ' &middot; ' + dayPriced + ' priced' : '') +
+      (dayLeads.length ? ' &middot; <span style="color:#1D9E75;">' + dayLeads.length + ' lead' + (dayLeads.length === 1 ? '' : 's') + '</span>' : '') + '</span></div>' +
+      (pageStr ? '<div style="font-size:11.5px;color:#777;margin-top:2px;">Pages: ' + pageStr + '</div>' : '') +
+      (srcStr ? '<div style="font-size:11.5px;color:#999;margin-top:1px;">From: ' + srcStr + '</div>' : '') +
+      (dayLeads.length ? '<div style="font-size:11.5px;color:#0F6E56;margin-top:1px;">Leads: ' + dayLeads.map(function(l){ return esc(l.name || '?'); }).join(', ') + '</div>' : '') +
+      '</div>';
+  }
+  document.getElementById('t-detail').innerHTML = funnel +
+    '<div style="font-weight:800;font-size:13px;margin:14px 0 4px;">&#128197; Day by day, last 14 days</div>' +
+    (dayRows || '<div style="font-size:12px;color:#999;">No activity recorded yet.</div>');
 }
 loadLeads(false);
 </script>
