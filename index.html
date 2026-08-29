@@ -980,6 +980,35 @@
   var BIZ_EMAIL = "info@clpropetservices.com";  /* business inbox, CC'd on every lead */
   var CRM_ENDPOINT = "https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec";
 
+  function leadSource(){
+    try {
+      var cached = sessionStorage.getItem('lead_src');
+      if (cached) return cached;
+      var q2 = location.search;
+      var get = function(k){ var m = q2.match(new RegExp('[?&]' + k + '=([^&]*)')); return m ? decodeURIComponent(m[1]) : ''; };
+      var src = '';
+      if (get('gclid')) src = 'Google Ads';
+      else if (get('fbclid')) src = 'Meta Ads';
+      else if (get('utm_source')){
+        var u = get('utm_source').toLowerCase();
+        if (u.indexOf('face') >= 0 || u === 'fb' || u.indexOf('meta') >= 0 || u.indexOf('insta') >= 0) src = 'Meta Ads';
+        else if (u.indexOf('goog') >= 0) src = 'Google Ads';
+        else src = get('utm_source');
+      } else {
+        var r = '';
+        try { r = document.referrer ? new URL(document.referrer).hostname.toLowerCase().replace(/^www\./, '') : ''; } catch (e) {}
+        if (r.indexOf('google') >= 0) src = 'Google (organic)';
+        else if (r.indexOf('facebook') >= 0 || r.indexOf('instagram') >= 0 || r === 'fb.me') src = 'Meta (organic)';
+        else if (r.indexOf('nextdoor') >= 0) src = 'Nextdoor';
+        else if (r.indexOf('bing') >= 0 || r.indexOf('duckduckgo') >= 0) src = 'Other search';
+        else if (r && r.indexOf('clpropetservices') < 0) src = r;
+        else src = 'Direct';
+      }
+      sessionStorage.setItem('lead_src', src);
+      return src;
+    } catch (e) { return ''; }
+  }
+
   function crmView(page){
     if (!CRM_ENDPOINT) return;
     try {
@@ -1157,6 +1186,7 @@
     crmCapture({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       created: new Date().toISOString(),
+      crmnotes: leadSource() ? '[SRC:' + leadSource() + '] ' : '',
       type: 'COMMERCIAL',
       name: name + (prop ? ' — ' + prop : ''),
       phone: phone,
@@ -1365,11 +1395,13 @@
       Quoted_Price: priceStr,
       Quote_Honored_Until: new Date(Date.now() + 183*24*3600*1000).toDateString(),
       TOS_Accepted: activate ? 'YES at ' + new Date().toISOString() : 'not yet (quote saved only)',
-      Notes: document.getElementById('qf2-notes').value.trim()
+      Notes: document.getElementById('qf2-notes').value.trim(),
+      Lead_Source: leadSource() || 'unknown'
     };
     crmCapture({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       created: new Date().toISOString(),
+      crmnotes: leadSource() ? '[SRC:' + leadSource() + '] ' : '',
       type: activate ? 'ACTIVATE' : 'SAVED',
       name: name,
       phone: phone,
@@ -1457,6 +1489,7 @@
     for (var i = 0; i < all.length; i++) revealObs.observe(all[i]);
   }
   document.addEventListener('DOMContentLoaded', function(){
+    leadSource();
     setupReveal();
     animateStats();
     var h = (location.hash || '').replace('#', '');

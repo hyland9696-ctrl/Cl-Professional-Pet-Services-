@@ -109,6 +109,17 @@
         <select id="m-service" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;">
           <option value="">Service?</option><option>twice a week</option><option>weekly</option><option>every other week</option><option>monthly</option><option>one-time</option><option>commercial</option>
         </select>
+        <select id="m-src" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;grid-column:1 / -1;">
+          <option value="">How did they find us? (source)</option>
+          <option value="Google Ads">Google Ads</option>
+          <option value="Meta Ads">Meta / Facebook Ads</option>
+          <option value="Google (organic)">Google search (organic)</option>
+          <option value="Meta (organic)">Facebook / Instagram page</option>
+          <option value="Referral">Referral / word of mouth</option>
+          <option value="Nextdoor">Nextdoor</option>
+          <option value="Yard sign">Yard sign / truck / flyer</option>
+          <option value="Other">Other</option>
+        </select>
         <select id="m-ic" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;grid-column:1 / -1;">
           <option value="">$40 initial clean on first invoice (standard)</option>
           <option value="w">Initial clean fee WAIVED</option>
@@ -247,8 +258,8 @@ function attemptLead(id){
 }
 function fuParse(crmnotes){
   var s = String(crmnotes || '');
-  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', text: '' };
-  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC):([^\]]*)\]\s*/;
+  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', text: '' };
+  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC|SRC):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -257,6 +268,7 @@ function fuParse(crmnotes){
     else if (hit[1] === 'SD') m.sd = hit[2];
     else if (hit[1] === 'QS') m.qs = hit[2];
     else if (hit[1] === 'IC') m.ic = hit[2];
+    else if (hit[1] === 'SRC') m.src = hit[2];
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -270,7 +282,8 @@ function fuCompose(m){
          (m.cd ? '[CD:' + m.cd + '] ' : '') +
          (m.sd ? '[SD:' + m.sd + '] ' : '') +
          (m.qs ? '[QS:' + m.qs + '] ' : '') +
-         (m.ic ? '[IC:' + m.ic + '] ' : '') + (m.text || '');
+         (m.ic ? '[IC:' + m.ic + '] ' : '') +
+         (m.src ? '[SRC:' + m.src + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -422,6 +435,9 @@ function editLead(id){
   var dogsSel = document.getElementById('m-dogs');
   dogsSel.value = ['1','2','3','4','5','6+'].indexOf(String(l.dogs)) >= 0 ? String(l.dogs) : '';
   document.getElementById('m-ic').value = fuParse(l.crmnotes).ic === 'w' ? 'w' : '';
+  var srcSel = document.getElementById('m-src'), srcVal = fuParse(l.crmnotes).src;
+  srcSel.value = srcVal;
+  if (srcSel.value !== srcVal) srcSel.value = '';  // stamp not in the list (e.g. a raw hostname): leave dropdown blank, blank preserves it on save
   var svcSel = document.getElementById('m-service');
   svcSel.value = ['twice a week','weekly','every other week','monthly','one-time','commercial'].indexOf(String(l.service)) >= 0 ? String(l.service) : '';
   document.getElementById('addPanel').style.display = 'block';
@@ -480,7 +496,8 @@ function addManual(){
     dogs: document.getElementById('m-dogs').value,
     service: document.getElementById('m-service').value,
     address: document.getElementById('m-addr').value.trim(),
-    status: 'new', crmnotes: (document.getElementById('m-ic').value === 'w' ? '[IC:w] ' : '')
+    status: 'new', crmnotes: (document.getElementById('m-ic').value === 'w' ? '[IC:w] ' : '') +
+      (document.getElementById('m-src').value ? '[SRC:' + document.getElementById('m-src').value + '] ' : '')
   };
   if (editing){
     lead.created = editing.created || lead.created;
@@ -488,6 +505,7 @@ function addManual(){
     lead.status = editing.status || 'new';
     var em2 = fuParse(editing.crmnotes || '');
     em2.ic = document.getElementById('m-ic').value === 'w' ? 'w' : '';
+    if (document.getElementById('m-src').value) em2.src = document.getElementById('m-src').value;  // blank keeps the existing source
     lead.crmnotes = fuCompose(em2);
     if (!lead.dogs) lead.dogs = editing.dogs || '';
     if (!lead.service) lead.service = editing.service || '';
@@ -499,7 +517,7 @@ function addManual(){
     editing = null;
     document.getElementById('m-savebtn').textContent = 'Add manual lead';
     saveLocal(); render();
-    ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr','m-ic'].forEach(function(i){ document.getElementById(i).value = ''; });
+    ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr','m-ic','m-src'].forEach(function(i){ document.getElementById(i).value = ''; });
     document.getElementById('addPanel').style.display = 'none';
     toast('Lead updated ✓');
     return;
@@ -507,7 +525,7 @@ function addManual(){
   leads.unshift(lead);
   saveLocal(); render();
   post({action:'lead', lead:lead});
-  ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr','m-ic'].forEach(function(i){ document.getElementById(i).value = ''; });
+  ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr','m-ic','m-src'].forEach(function(i){ document.getElementById(i).value = ''; });
   toggleAdd();
   toast('Lead added ✓');
 }
@@ -568,9 +586,14 @@ function parsePrice(l){
 }
 function renderRevenue(){
   var box = document.getElementById('revenue');
-  var mo = 0, once = 0, fees = 0, byMonth = {}, items = [], noPrice = [];
+  var mo = 0, once = 0, fees = 0, byMonth = {}, items = [], noPrice = [], bySrc = {};
+  var srcOf = function(l){ return fuParse(l.crmnotes).src || 'Unknown'; };
   leads.forEach(function(l){
+    var sk = srcOf(l);
+    if (!bySrc[sk]) bySrc[sk] = { leads: 0, closed: 0, mo: 0, once: 0, fee: 0 };
+    bySrc[sk].leads++;
     if ((l.status || 'new') !== 'closed') return;
+    bySrc[sk].closed++;
     var pp = parsePrice(l);
     if (!pp){ noPrice.push(l); return; }
     var amt = pp.amt, isMo = pp.isMo;
@@ -586,6 +609,8 @@ function renderRevenue(){
     items.push({ name: l.name || '(no name)', amt: amt, isMo: isMo, key: key, fee: fee, waived: isMo && fu2.ic === 'w' });
     if (isMo) mo += amt; else once += amt;
     fees += fee;
+    bySrc[sk][isMo ? 'mo' : 'once'] += amt;
+    bySrc[sk].fee += fee;
   });
   if (!mo && !once && !noPrice.length){ box.style.display = 'none'; return; }
   box.style.display = 'block';
@@ -608,6 +633,22 @@ function renderRevenue(){
       '<span>$' + it.amt + (it.isMo ? '/mo' : ' one-time') +
       (it.fee ? ' <span style="opacity:0.75;">+ $40 initial</span>' : (it.waived ? ' <span style="opacity:0.6;">(initial waived)</span>' : '')) + '</span></div>';
   }).join('');
+  var srcKeys = Object.keys(bySrc).sort(function(a, b){
+    return (bySrc[b].mo * 12 + bySrc[b].fee + bySrc[b].once) - (bySrc[a].mo * 12 + bySrc[a].fee + bySrc[a].once) || bySrc[b].leads - bySrc[a].leads;
+  });
+  var haveSrc = srcKeys.some(function(k){ return k !== 'Unknown'; });
+  var srcRows = !haveSrc ? '' :
+    '<div style="font-size:11.5px;opacity:0.8;font-weight:400;margin:8px 0 3px;border-top:1px solid rgba(255,255,255,0.25);padding-top:6px;">Return by lead source (is the ad money working?):</div>' +
+    srcKeys.map(function(k){
+      var s = bySrc[k];
+      var money = [];
+      if (s.mo) money.push('$' + s.mo.toLocaleString() + '/mo');
+      if (s.fee) money.push('$' + s.fee.toLocaleString() + ' initials');
+      if (s.once) money.push('$' + s.once.toLocaleString() + ' one-time');
+      return '<div style="display:flex;justify-content:space-between;font-weight:400;font-size:12px;opacity:0.92;padding:2px 0;">' +
+        '<span>&#128227; ' + esc(k) + ' <span style="opacity:0.6;">(' + s.leads + ' lead' + (s.leads === 1 ? '' : 's') + ', ' + s.closed + ' closed)</span></span>' +
+        '<span>' + (money.length ? money.join(' &middot; ') : '&mdash;') + '</span></div>';
+    }).join('');
   var warnRows = noPrice.map(function(l){
     return '<div style="font-weight:400;font-size:12px;color:#ffd9a0;padding:2px 0;">&#9888;&#65039; ' + esc(l.name || '(no name)') + ' is closed but has NO price - not counted. Fix with Edit.</div>';
   }).join('');
@@ -631,7 +672,7 @@ function renderRevenue(){
       (ytdOnce ? ' &middot; $' + ytdOnce.toLocaleString() + ' one-time' : '') + '</span></div>' +
     '<div id="rev-detail" style="display:none;border-top:1px solid rgba(255,255,255,0.25);margin-top:6px;padding-top:5px;">' +
       '<div style="font-size:11.5px;opacity:0.8;font-weight:400;margin-bottom:3px;">Every closed lead being counted:</div>' +
-      itemRows + warnRows +
+      itemRows + srcRows + warnRows +
     '</div>';
 }
 function render(){
@@ -680,6 +721,7 @@ function render(){
       ' style="display:inline-block;background:#1D9E75;color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:700;text-decoration:none;">&#128172; Text them</a>' : '';
     var attLine = fu.att ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#9742;&#65039; ' + fu.att + ' contact attempt' + (fu.att > 1 ? 's' : '') + ' &middot; last ' + esc(fu.attDate) + '</div>' : '';
     var icChip = fu.ic === 'w' ? '<div style="color:#5E35B1;font-size:12px;font-weight:700;margin-top:6px;">&#128142; Initial clean fee: WAIVED</div>' : '';
+    var srcChip = fu.src ? '<div style="color:#8a6d1a;font-size:12px;font-weight:600;margin-top:6px;">&#128227; Source: ' + esc(fu.src) + '</div>' : '';
     var azBadge = auths[l.id]
       ? '<div style="background:#E1F5EE;color:#0F6E56;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;margin-top:8px;">&#9989; AUTHORIZED the quoted price on ' + esc(auths[l.id]) +
         ((l.status || 'new') !== 'closed' ? ' &mdash; add them in Sweep&amp;Go, send the start date, and mark Closed!' : '') + '</div>'
@@ -720,7 +762,7 @@ function render(){
         '<br><span class="price">' + esc(l.price||'') + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(l.honored) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' + icChip + azBadge + sdBadge + attLine + fuBadge + ageBadge +
+      '</div>' + srcChip + icChip + azBadge + sdBadge + attLine + fuBadge + ageBadge +
       '<div class="stbtns">' + STATUSES.map(function(s){
         return '<button class="b-' + s.k + (st === s.k ? ' on' : '') + '" onclick="setStatus(\'' + esc(l.id) + '\',\'' + s.k + '\')">' + s.label + '</button>';
       }).join('') +
