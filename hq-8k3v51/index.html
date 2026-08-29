@@ -38,6 +38,8 @@
   .badge.act{background:#E1F5EE;color:#0F6E56;}
   .badge.sav{background:#FDF3DC;color:#9a6d00;}
   .badge.com{background:#EDE7F6;color:#5E35B1;}
+  .badge.cls{background:#0F6E56;color:#fff;}
+  .badge.lst{background:#eee;color:#888;}
   .meta{font-size:13px;color:#555;margin-top:6px;line-height:1.75;}
   .meta a{color:#0F6E56;font-weight:600;text-decoration:none;}
   .price{font-size:15px;font-weight:800;color:#0F6E56;}
@@ -164,12 +166,20 @@ function loadLeads(showToast, cb){
       });
       var deadIds = {};
       (d.leads || []).forEach(function(l){ if (l.status === 'deleted') deadIds[l.id] = true; });
-      leads = leads.filter(function(l){ return !deadIds[l.id]; });
-      views = (d.leads || []).filter(function(l){ return l.type === 'VIEW'; });
-      qviews = (d.leads || []).filter(function(l){ return l.type === 'QVIEW'; });
-      var ids = {};
-      leads.forEach(function(l){ ids[l.id] = true; });
-      remote.forEach(function(l){ if (!ids[l.id]) leads.push(l); });
+      // The sheet is the source of truth: take remote rows (deduped by id,
+      // newest wins), keep only local rows the sheet has never seen, and
+      // re-push those so every device converges.
+      var seen = {};
+      var merged = [];
+      remote.forEach(function(l){ if (!seen[l.id]){ seen[l.id] = true; merged.push(l); } });
+      leads.forEach(function(l){
+        if (!seen[l.id] && !deadIds[l.id]){
+          seen[l.id] = true;
+          merged.push(l);
+          post({action:'lead', lead:l});
+        }
+      });
+      leads = merged;
       leads.sort(function(a, b){ return String(b.created).localeCompare(String(a.created)); });
       saveLocal();
       render();
@@ -630,7 +640,11 @@ function render(){
     }
     return '<div class="card s-' + st + '">' +
       '<div class="row1"><div class="who">' + esc(l.name || '(no name)') + '</div>' +
-      '<span class="badge ' + (l.type === 'ACTIVATE' ? 'act">WANTS TO START' : (l.type === 'COMMERCIAL' ? 'com">COMMERCIAL' : 'sav">SAVED QUOTE')) + '</span></div>' +
+      '<span class="badge ' + (st === 'closed'
+          ? 'cls">&#10003; CLOSED &middot; ON SCHEDULE'
+          : (st === 'lost'
+            ? 'lst">PASSED'
+            : (l.type === 'ACTIVATE' ? 'act">WANTS TO START' : (l.type === 'COMMERCIAL' ? 'com">COMMERCIAL' : 'sav">SAVED QUOTE')))) + '</span></div>' +
       '<div class="meta">' +
         (l.phone ? '&#128222; <a href="tel:' + esc(digits) + '">' + esc(l.phone) + '</a><br>' : '') +
         (l.email ? '&#9993;&#65039; <a href="mailto:' + esc(l.email) + '">' + esc(l.email) + '</a><br>' : '') +
