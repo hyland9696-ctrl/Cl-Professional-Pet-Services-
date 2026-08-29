@@ -184,6 +184,8 @@ function loadLeads(showToast, cb, isRetry){
       if (!d.ok){ if (cb) cb(false); return; }
       document.getElementById('offline').style.display = 'none';
       var remote = (d.leads || []).filter(function(l){ return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.type !== 'AUTH' && l.status !== 'deleted'; });
+      views = (d.leads || []).filter(function(l){ return l.type === 'VIEW'; });
+      qviews = (d.leads || []).filter(function(l){ return l.type === 'QVIEW'; });
       auths = {};
       (d.leads || []).forEach(function(l){
         if (l.type === 'AUTH' && l.zip) auths[l.zip] = String(l.created || '').slice(0, 10);
