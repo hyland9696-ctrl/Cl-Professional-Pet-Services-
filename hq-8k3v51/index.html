@@ -454,9 +454,11 @@ function schedEmail(id){
     '&body=' + encodeURIComponent(r.body + '\n\nCorey\nCL Professional Pet Services\n(636) 375-4342\nclpropetservices.com');
 }
 function quoteLink(l){
-  var m = String(l.price || '').match(/\$\s?(\d+(?:\.\d+)?)/);
-  var amt = m ? m[1] : '';
-  var once = String(l.price || '').indexOf('/mo') < 0;
+  // Read the price the same way the revenue math does, so "80" works as well
+  // as "$80/mo" and the service type decides recurring vs one-time.
+  var pp = parsePrice(l);
+  var amt = pp ? String(pp.amt) : '';
+  var once = pp ? !pp.isMo : true;
   var until = new Date(Date.now() + 183 * 86400000).toISOString().slice(0, 10);
   var parts = [];
   if (l.name) parts.push('n=' + encodeURIComponent(String(l.name).split(' — ')[0]));
@@ -501,9 +503,8 @@ function quoteEmail(id){
   if (!l) return;
   var em = String(l.email || '').trim();
   if (!em){ toast('No email address on this lead - add one with Edit'); return; }
-  if (!String(l.price || '').match(/\$/)){ toast('Add a price with Edit first'); return; }
-  var m = String(l.price).match(/\$\s?\d+(?:\.\d+)?(\/mo)?/);
-  var subject = 'Your CL Professional Pet Services quote' + (m ? ' - ' + m[0] : '');
+  if (!parsePrice(l)){ toast('Add a price with Edit first'); return; }
+  var subject = 'Your CL Professional Pet Services quote - ' + priceLabel(l);
   markQuoteSent(id, true);
   window.location.href = 'mailto:' + encodeURIComponent(em) + '?subject=' + encodeURIComponent(subject) +
     '&body=' + encodeURIComponent(quoteMsg(l, quoteLink(l)) + '\n\nJesse Duncan\nOperations Manager\nCL Professional Pet Services\n(636) 388-5069\nclpropetservices.com');
@@ -703,6 +704,11 @@ function parsePrice(l){
   else isMo = true;
   return { amt: amt, isMo: isMo };
 }
+function priceLabel(l){
+  var pp = parsePrice(l);
+  if (!pp) return '';
+  return '$' + pp.amt + (pp.isMo ? '/mo' : ' one-time');
+}
 function renderRevenue(){
   var box = document.getElementById('revenue');
   var mo = 0, once = 0, fees = 0, byMonth = {}, items = [], noPrice = [], bySrc = {};
@@ -835,8 +841,9 @@ function render(){
     var digits2 = String(l.phone || '').replace(/[^\d+]/g, '');
     var firstName = String(l.name || '').trim().split(' ')[0] || 'there';
     var shortPrice = String(l.price || '').split(',')[0];
+    if (shortPrice.indexOf('$') < 0) shortPrice = priceLabel(l);
     var smsBody = 'Hi ' + firstName + ", it's Corey with CL Professional Pet Services - just got your request" +
-      (shortPrice && shortPrice.indexOf('$') === 0 ? ' (' + shortPrice + ')' : '') + ". When's a good time to talk?";
+      (shortPrice ? ' (' + shortPrice + ')' : '') + ". When's a good time to talk?";
     var smsBtn = digits2 ? '<a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(smsBody).replace(/'/g, '%27') + '"' +
       ' style="display:inline-block;background:#1D9E75;color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:700;text-decoration:none;">&#128172; Text them</a>' : '';
     var attLine = fu.att ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#9742;&#65039; ' + fu.att + ' contact attempt' + (fu.att > 1 ? 's' : '') + ' &middot; last ' + esc(fu.attDate) + '</div>' : '';
@@ -879,7 +886,7 @@ function render(){
         (l.deodorize && l.deodorize !== 'no' ? ' &middot; deodorize' : '') +
         (l.hero && l.hero !== 'no' ? '<br>&#127894; Hero discount claimed' : '') +
         (l.manual === 'YES' ? '<br>&#9888;&#65039; Needs manual pricing' : '') +
-        '<br><span class="price">' + esc(l.price||'') + '</span>' +
+        '<br><span class="price">' + esc(String(l.price || '').indexOf('$') >= 0 ? l.price : (priceLabel(l) || l.price || '')) + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(l.honored) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
       '</div>' + srcChip + icChip + azBadge + sdBadge + attLine + fuBadge + ageBadge +
