@@ -842,6 +842,11 @@ function renderROI(){
         '<div style="font-size:19px;font-weight:800;color:#0F6E56;">' + money(t.year1) + '</div>' +
         '<div style="font-size:10.5px;color:#aaa;">first-year value</div></div>' +
     '</div>' +
+    (totalSpend > 0
+      ? '<div style="background:' + (overall >= 1 ? '#0F6E56' : '#C0392B') + ';color:#fff;border-radius:10px;padding:9px 12px;margin-bottom:8px;font-size:13px;font-weight:700;">' +
+          money(totalSpend) + ' of advertising &rarr; <span style="font-size:16px;">' + overall.toFixed(1) + '&times;</span> back' +
+          ' <span style="font-weight:400;opacity:.85;font-size:11.5px;">($' + overall.toFixed(2) + ' for every $1 spent, everything combined)</span></div>'
+      : '') +
     (earnedBits.length
       ? '<div style="font-size:11.5px;color:#777;margin-bottom:8px;">' + esc(monthLabel(roiMonth)) + ' closed: ' + earnedBits.join(' &middot; ') +
         ' &mdash; ' + t.closed + ' customer' + (t.closed === 1 ? '' : 's') + '</div>'
@@ -898,6 +903,14 @@ function renderROI(){
     ? '<div style="margin-top:12px;padding-top:9px;border-top:1px solid #eee;">' +
         '<div style="font-size:11px;color:#999;margin-bottom:4px;">Came in without ad spend &mdash; free revenue</div>' + freeRows + '</div>'
     : '';
+  // Untagged money can't be credited to a channel — say so, and say what to do.
+  var untagged = mb.by['Not tagged'] || { closed: 0, year1: 0 };
+  var nudge = (untagged.closed && totalSpend > 0)
+    ? '<div style="background:#F2F6FF;border-radius:9px;padding:9px 11px;margin-top:10px;font-size:12px;color:#2a4a7a;line-height:1.5;">' +
+        '&#128204; ' + untagged.closed + ' closed customer' + (untagged.closed === 1 ? '' : 's') + ' worth ' + money(untagged.year1) +
+        ' ' + (untagged.closed === 1 ? 'has' : 'have') + ' no source on record, so that money isn’t credited to any channel above. ' +
+        'Tap &#9999;&#65039; Edit on those leads and pick where they came from &mdash; the bars fill in right away.</div>'
+    : '';
 
   // Where the next dollar goes
   var verdict = '';
@@ -937,7 +950,7 @@ function renderROI(){
   box.innerHTML =
     '<div style="font-weight:800;font-size:14px;margin-bottom:7px;">&#128181; Ad spend &rarr; what came back</div>' +
     '<div class="chips" style="margin-bottom:2px;">' + picker + '</div>' +
-    headline + paid + freeBlock + verdict +
+    headline + paid + freeBlock + nudge + verdict +
     '<div style="margin-top:11px;">' +
       '<button class="copybtn" onclick="toggleSpendForm()">&#9998; ' + (totalSpend ? 'Update' : 'Enter') + ' ' + esc(monthLabel(roiMonth)) + ' ad spend</button>' +
     '</div>' + form +
