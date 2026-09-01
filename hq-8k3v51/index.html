@@ -197,7 +197,9 @@ function loadLeads(showToast, cb, isRetry){
       spends = {};
       (d.leads || []).forEach(function(l){
         if (l.type !== 'SPEND' || !l.zip || !l.name) return;
-        var k = l.zip + '|' + l.name;
+        var mk = normMonth(l.zip);   // Sheets may have turned "2026-08" into a date
+        if (!mk) return;
+        var k = mk + '|' + l.name;
         if (!spends[k] || String(l.created) > String(spends[k].created)){
           spends[k] = { amt: parseFloat(String(l.price).replace(/[^0-9.]/g, '')) || 0, created: l.created };
         }
@@ -723,27 +725,74 @@ function monthKeyOf(d){
   var p2 = function(x){ return (x < 10 ? '0' : '') + x; };
   return d.getFullYear() + '-' + p2(d.getMonth() + 1);
 }
+/* Google Sheets turns a bare "2026-08" into a real date, so it can come back
+   as a full timestamp. Everything gets squeezed back to YYYY-MM on the way in. */
+function normMonth(v){
+  var s = String(v == null ? '' : v).replace(/^m:/, '');
+  var m = s.match(/^(\d{4})-(\d{1,2})/);
+  if (m) return m[1] + '-' + (m[2].length === 1 ? '0' + m[2] : m[2]);
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? '' : monthKeyOf(d);
+}
 function monthLabel(k){
-  return MONTH_NAMES[parseInt(k.slice(5, 7), 10) - 1] + ' ' + k.slice(0, 4);
+  var i = parseInt(k.slice(5, 7), 10) - 1;
+  return (MONTH_NAMES[i] || '?') + ' ' + k.slice(0, 4);
 }
-function money(n){
-  return '$' + Math.round(n).toLocaleString();
+function money(n){ return '$' + Math.round(n).toLocaleString(); }
+
+/* Every closed deal in a month, split by where the lead came from. */
+function monthBreakdown(mk){
+  var by = {}, totals = { mrr: 0, fees: 0, once: 0, leads: 0, closed: 0 };
+  var bucket = function(s){
+    if (!by[s]) by[s] = { src: s, leads: 0, closed: 0, mrr: 0, fees: 0, once: 0 };
+    return by[s];
+  };
+  CHANNELS.forEach(function(c){ bucket(c.k); });   // paid channels always listed
+  leads.forEach(function(l){
+    var fu = fuParse(l.crmnotes);
+    var src = fu.src || 'Not tagged';
+    if (String(l.created || '').slice(0, 7) === mk){ bucket(src).leads++; totals.leads++; }
+    if ((l.status || 'new') !== 'closed') return;
+    var cd = fu.cd || String(l.created || '').slice(0, 10);
+    if (String(cd).slice(0, 7) !== mk) return;
+    var b = bucket(src);
+    b.closed++; totals.closed++;
+    var pp = parsePrice(l);
+    if (!pp) return;
+    if (pp.isMo){
+      b.mrr += pp.amt; totals.mrr += pp.amt;
+      if (fu.ic !== 'w'){ b.fees += 40; totals.fees += 40; }
+    } else {
+      b.once += pp.amt; totals.once += pp.amt;
+    }
+  });
+  Object.keys(by).forEach(function(k){ by[k].year1 = by[k].mrr * 12 + by[k].fees + by[k].once; });
+  totals.year1 = totals.mrr * 12 + totals.fees + totals.once;
+  return { by: by, totals: totals };
 }
+function spendFor(mk, ch){ return (spends[mk + '|' + ch] || {}).amt || 0; }
 function saveSpend(){
-  var m = document.getElementById('sp-month').value;
-  var ch = document.getElementById('sp-channel').value;
-  var amt = parseFloat(String(document.getElementById('sp-amt').value).replace(/[^0-9.]/g, ''));
-  if (!m){ toast('Pick which month this spend was for'); return; }
-  if (isNaN(amt) || amt < 0){ toast('Enter the amount spent'); return; }
-  spends[m + '|' + ch] = { amt: amt, created: new Date().toISOString() };
+  var mk = roiMonth, saved = [];
+  CHANNELS.forEach(function(c){
+    var el = document.getElementById('sp-' + c.k.replace(/\W/g, ''));
+    if (!el) return;
+    var raw = String(el.value).trim();
+    if (raw === '') return;
+    var amt = parseFloat(raw.replace(/[^0-9.]/g, ''));
+    if (isNaN(amt) || amt < 0) return;
+    spends[mk + '|' + c.k] = { amt: amt, created: new Date().toISOString() };
+    saved.push(c.label + ' ' + money(amt));
+    post({ action: 'lead', lead: {
+      id: 'sp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      created: new Date().toISOString(), type: 'SPEND',
+      name: c.k, zip: 'm:' + mk, price: String(amt), status: 'spend', crmnotes: ''
+    } });
+  });
+  if (!saved.length){ toast('Enter an amount for at least one channel'); return; }
   saveStatsCache();
-  roiMonth = m;
+  document.getElementById('sp-form').style.display = 'none';
   renderROI();
-  post({ action: 'lead', lead: {
-    id: 'sp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    created: new Date().toISOString(), type: 'SPEND',
-    name: ch, zip: m, price: String(amt), status: 'spend', crmnotes: ''
-  } }, money(amt) + ' saved for ' + ch + ', ' + monthLabel(m));
+  toast(monthLabel(mk) + ': ' + saved.join(', '));
 }
 function toggleSpendForm(){
   var f = document.getElementById('sp-form');
@@ -756,129 +805,143 @@ function renderROI(){
   var thisMonth = monthKeyOf(new Date());
   var monthSet = {};
   monthSet[thisMonth] = true;
-  Object.keys(spends).forEach(function(k){ monthSet[k.split('|')[0]] = true; });
+  Object.keys(spends).forEach(function(k){
+    var mk = normMonth(k.split('|')[0]);
+    if (mk) monthSet[mk] = true;
+  });
   leads.forEach(function(l){
     var cd = fuParse(l.crmnotes).cd || String(l.created || '').slice(0, 10);
-    if (cd) monthSet[cd.slice(0, 7)] = true;
+    var mk = normMonth(cd);
+    if (mk) monthSet[mk] = true;
   });
-  var months = Object.keys(monthSet).sort().reverse();
+  var months = Object.keys(monthSet).sort().reverse().slice(0, 6);
   if (!roiMonth || months.indexOf(roiMonth) < 0) roiMonth = months[0];
 
-  var anySpend = CHANNELS.some(function(c){ return (spends[roiMonth + '|' + c.k] || {}).amt > 0; });
+  var mb = monthBreakdown(roiMonth);
+  var totalSpend = CHANNELS.reduce(function(s, c){ return s + spendFor(roiMonth, c.k); }, 0);
 
-  // Per channel: what we spent, what it brought in.
-  var rows = CHANNELS.map(function(c){
-    var spend = (spends[roiMonth + '|' + c.k] || {}).amt || 0;
-    var leadsIn = leads.filter(function(l){
-      return fuParse(l.crmnotes).src === c.k && String(l.created || '').slice(0, 7) === roiMonth;
-    });
-    var closedIn = leads.filter(function(l){
-      if ((l.status || 'new') !== 'closed' || fuParse(l.crmnotes).src !== c.k) return false;
-      var cd = fuParse(l.crmnotes).cd || String(l.created || '').slice(0, 10);
-      return cd.slice(0, 7) === roiMonth;
-    });
-    var mrr = 0, once = 0, fees = 0;
-    closedIn.forEach(function(l){
-      var pp = parsePrice(l);
-      if (!pp) return;
-      if (pp.isMo){ mrr += pp.amt; if (fuParse(l.crmnotes).ic !== 'w') fees += 40; }
-      else once += pp.amt;
-    });
-    var year1 = mrr * 12 + fees + once;
-    return { c: c, spend: spend, leads: leadsIn.length, closed: closedIn.length,
-             mrr: mrr, year1: year1, fees: fees, once: once };
-  });
-
-  var scale = Math.max.apply(null, rows.map(function(r){ return Math.max(r.spend, r.year1); }).concat([1]));
-  var monthOpts = months.map(function(m){
-    return '<option value="' + m + '"' + (m === roiMonth ? ' selected' : '') + '>' + monthLabel(m) + (m === thisMonth ? ' (this month)' : '') + '</option>';
+  var picker = months.map(function(m){
+    return '<button class="chip' + (m === roiMonth ? ' on' : '') + '" onclick="setRoiMonth(\'' + m + '\')">' +
+      monthLabel(m) + (m === thisMonth ? ' &middot; now' : '') + '</button>';
   }).join('');
 
-  var body = rows.map(function(r){
-    var pct = function(v){ return Math.max(v > 0 ? 2 : 0, Math.round(v / scale * 100)); };
-    var mult = r.spend > 0 ? r.year1 / r.spend : 0;
-    var good = mult >= 1;
-    var multTxt = r.spend > 0
+  // Headline: what the whole month did, tying out to the revenue panel above.
+  var t = mb.totals;
+  var earnedBits = [];
+  if (t.mrr) earnedBits.push('+' + money(t.mrr) + '/mo recurring');
+  if (t.fees) earnedBits.push(money(t.fees) + ' initial cleans');
+  if (t.once) earnedBits.push(money(t.once) + ' one-time');
+  var overall = totalSpend > 0 ? t.year1 / totalSpend : 0;
+  var headline =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#eee;border-radius:10px;overflow:hidden;margin:10px 0 4px;">' +
+      '<div style="background:#fff;padding:9px 11px;">' +
+        '<div style="font-size:10.5px;color:#999;letter-spacing:.04em;">SPENT ON ADS</div>' +
+        '<div style="font-size:19px;font-weight:800;">' + money(totalSpend) + '</div></div>' +
+      '<div style="background:#fff;padding:9px 11px;">' +
+        '<div style="font-size:10.5px;color:#999;letter-spacing:.04em;">CLOSED THIS MONTH</div>' +
+        '<div style="font-size:19px;font-weight:800;color:#0F6E56;">' + money(t.year1) + '</div>' +
+        '<div style="font-size:10.5px;color:#aaa;">first-year value</div></div>' +
+    '</div>' +
+    (earnedBits.length
+      ? '<div style="font-size:11.5px;color:#777;margin-bottom:8px;">' + esc(monthLabel(roiMonth)) + ' closed: ' + earnedBits.join(' &middot; ') +
+        ' &mdash; ' + t.closed + ' customer' + (t.closed === 1 ? '' : 's') + '</div>'
+      : '<div style="font-size:11.5px;color:#777;margin-bottom:8px;">Nothing closed in ' + esc(monthLabel(roiMonth)) + ' yet.</div>');
+
+  // Paid channels: spend vs return
+  var scale = Math.max.apply(null, CHANNELS.map(function(c){
+    return Math.max(spendFor(roiMonth, c.k), (mb.by[c.k] || {}).year1 || 0);
+  }).concat([1]));
+  var paid = CHANNELS.map(function(c){
+    var r = mb.by[c.k], spend = spendFor(roiMonth, c.k);
+    var pct = function(v){ return Math.max(v > 0 ? 3 : 0, Math.round(v / scale * 100)); };
+    var mult = spend > 0 ? r.year1 / spend : 0;
+    var verdictTxt = spend > 0
       ? (r.year1 > 0
-          ? '<span style="color:' + (good ? '#0F6E56' : '#c0392b') + ';font-weight:800;">' + mult.toFixed(1) + '&times;</span> back in year one'
-          : '<span style="color:#c0392b;font-weight:800;">nothing closed yet</span>')
-      : '<span style="color:#aaa;">no spend entered</span>';
-    var stats = [];
-    if (r.spend > 0 && r.leads) stats.push(money(r.spend / r.leads) + ' per lead');
-    if (r.spend > 0 && r.closed) stats.push(money(r.spend / r.closed) + ' per customer');
-    if (r.spend > 0 && r.mrr) stats.push('pays for itself in ' + (r.spend / r.mrr).toFixed(1) + ' mo');
-    return '<div style="padding:11px 0;border-bottom:1px solid #f2f2f2;">' +
+          ? '<span style="color:' + (mult >= 1 ? '#0F6E56' : '#c0392b') + ';font-weight:800;">' + mult.toFixed(1) + '&times;</span>'
+          : '<span style="color:#c0392b;font-weight:700;font-size:11.5px;">nothing closed yet</span>')
+      : '<span style="color:#bbb;font-weight:600;font-size:11.5px;">no spend entered</span>';
+    var bits = [r.leads + ' lead' + (r.leads === 1 ? '' : 's'), r.closed + ' closed'];
+    if (spend > 0 && r.leads) bits.push(money(spend / r.leads) + '/lead');
+    if (spend > 0 && r.closed) bits.push(money(spend / r.closed) + '/customer');
+    if (spend > 0 && r.mrr) bits.push('pays back in ' + (spend / r.mrr).toFixed(1) + ' mo');
+    return '<div style="padding:10px 0;border-top:1px solid #f2f2f2;">' +
       '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">' +
-        '<strong style="font-size:13.5px;">' + esc(r.c.label) + '</strong>' +
-        '<span style="font-size:12px;color:#666;">' + multTxt + '</span>' +
-      '</div>' +
-      '<div style="font-size:11.5px;color:#888;margin:3px 0 6px;">' +
-        r.leads + ' lead' + (r.leads === 1 ? '' : 's') + ' &middot; ' + r.closed + ' closed' +
-        (stats.length ? ' &middot; ' + stats.join(' &middot; ') : '') + '</div>' +
+        '<strong style="font-size:13.5px;">' + esc(c.label) + '</strong>' + verdictTxt + '</div>' +
+      '<div style="font-size:11.5px;color:#888;margin:2px 0 6px;">' + bits.join(' &middot; ') + '</div>' +
       '<div style="display:flex;align-items:center;gap:7px;margin-bottom:3px;">' +
-        '<span style="font-size:10.5px;color:#999;width:38px;">spent</span>' +
-        '<div style="flex:1;height:14px;background:#f3f3f3;border-radius:4px;overflow:hidden;">' +
-          '<div style="height:100%;width:' + pct(r.spend) + '%;background:#B9C4C0;"></div></div>' +
-        '<span style="font-size:11.5px;font-weight:700;width:58px;text-align:right;">' + money(r.spend) + '</span>' +
-      '</div>' +
+        '<span style="font-size:10.5px;color:#aaa;width:34px;">spent</span>' +
+        '<div style="flex:1;height:13px;background:#f4f4f4;border-radius:4px;overflow:hidden;">' +
+          '<div style="height:100%;width:' + pct(spend) + '%;background:#B9C4C0;"></div></div>' +
+        '<span style="font-size:11.5px;font-weight:700;width:56px;text-align:right;">' + money(spend) + '</span></div>' +
       '<div style="display:flex;align-items:center;gap:7px;">' +
-        '<span style="font-size:10.5px;color:#999;width:38px;">back</span>' +
-        '<div style="flex:1;height:14px;background:#f3f3f3;border-radius:4px;overflow:hidden;">' +
-          '<div style="height:100%;width:' + pct(r.year1) + '%;background:' + (r.year1 >= r.spend && r.year1 > 0 ? '#1D9E75' : '#E2A03F') + ';"></div></div>' +
-        '<span style="font-size:11.5px;font-weight:700;width:58px;text-align:right;color:#0F6E56;">' + money(r.year1) + '</span>' +
-      '</div>' +
-      (r.mrr ? '<div style="font-size:11px;color:#999;margin-top:4px;padding-left:45px;">' +
-        money(r.mrr) + '/mo recurring &times; 12' +
-        (r.fees ? ' + ' + money(r.fees) + ' initial cleans' : '') +
-        (r.once ? ' + ' + money(r.once) + ' one-time' : '') + '</div>' : '') +
+        '<span style="font-size:10.5px;color:#aaa;width:34px;">back</span>' +
+        '<div style="flex:1;height:13px;background:#f4f4f4;border-radius:4px;overflow:hidden;">' +
+          '<div style="height:100%;width:' + pct(r.year1) + '%;background:' + (r.year1 >= spend && r.year1 > 0 ? '#1D9E75' : '#E2A03F') + ';"></div></div>' +
+        '<span style="font-size:11.5px;font-weight:700;width:56px;text-align:right;color:#0F6E56;">' + money(r.year1) + '</span></div>' +
     '</div>';
   }).join('');
 
-  // Where should the next dollar go?
+  // Everything that closed without ad money behind it
+  var freeRows = Object.keys(mb.by)
+    .filter(function(k){
+      return !CHANNELS.some(function(c){ return c.k === k; }) && (mb.by[k].year1 > 0 || mb.by[k].leads > 0);
+    })
+    .sort(function(a, b){ return mb.by[b].year1 - mb.by[a].year1; })
+    .map(function(k){
+      var r = mb.by[k];
+      return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#666;padding:3px 0;">' +
+        '<span>' + esc(k === 'Not tagged' ? 'Not tagged (phone-ins, older leads)' : k) +
+          ' <span style="color:#aaa;">' + r.leads + ' lead' + (r.leads === 1 ? '' : 's') + ', ' + r.closed + ' closed</span></span>' +
+        '<span style="font-weight:700;color:' + (r.year1 ? '#0F6E56' : '#bbb') + ';">' + money(r.year1) + '</span></div>';
+    }).join('');
+  var freeBlock = freeRows
+    ? '<div style="margin-top:12px;padding-top:9px;border-top:1px solid #eee;">' +
+        '<div style="font-size:11px;color:#999;margin-bottom:4px;">Came in without ad spend &mdash; free revenue</div>' + freeRows + '</div>'
+    : '';
+
+  // Where the next dollar goes
   var verdict = '';
-  var ranked = rows.filter(function(r){ return r.spend > 0; })
-                   .sort(function(a, b){ return (b.year1 / b.spend) - (a.year1 / a.spend); });
-  if (ranked.length === 2 && ranked[0].year1 > 0){
-    var w = ranked[0], lo = ranked[1];
-    var perDollar = function(r){ return '$' + (r.year1 / r.spend).toFixed(2); };
-    verdict = '<div style="background:#E6F2ED;border-radius:9px;padding:9px 11px;margin-top:10px;font-size:12.5px;color:#0F6E56;font-weight:700;">' +
-      '&#127919; ' + esc(w.c.label) + ' is returning ' + perDollar(w) + ' for every $1 spent' +
-      (lo.year1 > 0 ? ', vs ' + perDollar(lo) + ' from ' + esc(lo.c.label) : ', while ' + esc(lo.c.label) + ' hasn’t closed anyone this month') +
-      '. Next advertising dollar goes to ' + esc(w.c.label) + '.</div>';
-  } else if (ranked.length && ranked[0].year1 === 0){
-    verdict = '<div style="background:#FDF3DC;border-radius:9px;padding:9px 11px;margin-top:10px;font-size:12.5px;color:#7a5c00;font-weight:600;">' +
-      '&#9888;&#65039; ' + money(ranked.reduce(function(s, r){ return s + r.spend; }, 0)) +
-      ' spent this month with nothing closed yet. Leads take time to close &mdash; check back, or look at whether the leads are being followed up fast enough.</div>';
+  var withSpend = CHANNELS.map(function(c){ return { c: c, spend: spendFor(roiMonth, c.k), year1: mb.by[c.k].year1 }; })
+                          .filter(function(r){ return r.spend > 0; });
+  if (withSpend.length){
+    var ranked = withSpend.slice().sort(function(a, b){ return (b.year1 / b.spend) - (a.year1 / a.spend); });
+    var per = function(r){ return '$' + (r.year1 / r.spend).toFixed(2); };
+    if (ranked[0].year1 > 0){
+      var w = ranked[0], lo = ranked[1];
+      verdict = '<div style="background:#E6F2ED;border-radius:9px;padding:9px 11px;margin-top:11px;font-size:12.5px;color:#0F6E56;font-weight:700;line-height:1.5;">' +
+        '&#127919; ' + esc(w.c.label) + ' returned ' + per(w) + ' for every $1 spent' +
+        (lo ? (lo.year1 > 0 ? ', vs ' + per(lo) + ' from ' + esc(lo.c.label) : ', while ' + esc(lo.c.label) + ' closed nobody') : '') +
+        '. Next advertising dollar goes to ' + esc(w.c.label) + '.</div>';
+    } else {
+      verdict = '<div style="background:#FDF3DC;border-radius:9px;padding:9px 11px;margin-top:11px;font-size:12.5px;color:#7a5c00;font-weight:600;line-height:1.5;">' +
+        '&#9888;&#65039; ' + money(totalSpend) + ' spent in ' + esc(monthLabel(roiMonth)) +
+        ' and no ad-sourced customer closed' + (t.closed ? ' &mdash; the ' + t.closed + ' that did close came from elsewhere' : ' yet') +
+        '. Leads can take weeks to close, so check next month too.</div>';
+    }
   }
 
-  var savedFor = CHANNELS.map(function(c){
-    var s = spends[roiMonth + '|' + c.k];
-    return s ? esc(c.label) + ' ' + money(s.amt) : null;
-  }).filter(Boolean).join(' &middot; ');
+  var form = '<div id="sp-form" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid #eee;">' +
+    '<div style="font-size:12.5px;font-weight:700;margin-bottom:7px;">What did we spend in ' + esc(monthLabel(roiMonth)) + '?</div>' +
+    CHANNELS.map(function(c){
+      var cur = spendFor(roiMonth, c.k);
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">' +
+        '<label for="sp-' + c.k.replace(/\W/g, '') + '" style="font-size:12.5px;flex:1;">' + esc(c.label) + '</label>' +
+        '<span style="color:#999;font-size:13px;">$</span>' +
+        '<input id="sp-' + c.k.replace(/\W/g, '') + '" type="text" inputmode="decimal" placeholder="0" value="' + (cur || '') +
+          '" style="width:92px;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;text-align:right;"></div>';
+    }).join('') +
+    '<button class="copybtn" style="margin-top:3px;background:#1D9E75;color:#fff;border-color:#1D9E75;" onclick="saveSpend()">Save ' + esc(monthLabel(roiMonth)) + ' spend</button>' +
+    '<div style="font-size:11px;color:#aaa;margin-top:6px;">Leave a box empty to leave that channel unchanged. Saving again replaces the old number.</div>' +
+  '</div>';
 
   box.innerHTML =
-    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:2px;">' +
-      '<div style="font-weight:800;font-size:14px;">&#128181; Ad spend &rarr; what came back</div>' +
-      '<select onchange="setRoiMonth(this.value)" style="border:1px solid #ddd;border-radius:8px;padding:5px 7px;font-family:inherit;font-size:12px;background:#fff;">' + monthOpts + '</select>' +
-    '</div>' +
-    '<div style="font-size:11px;color:#aaa;margin-bottom:8px;">Counts leads that came in this month, and revenue from deals closed this month. "Back" is the first 12 months of a customer.</div>' +
-    (anySpend ? body + verdict
-      : '<div style="font-size:12.5px;color:#777;padding:10px 0;">Enter what you spent on ads this month and this turns into cost per lead, cost per customer, and how many dollars came back for each one spent.</div>') +
-    '<div style="margin-top:10px;">' +
-      '<button class="copybtn" onclick="toggleSpendForm()">&#9998; ' + (anySpend ? 'Update ad spend' : 'Enter ad spend') + '</button>' +
-      (savedFor ? '<span style="font-size:11.5px;color:#999;margin-left:8px;">Saved: ' + savedFor + '</span>' : '') +
-    '</div>' +
-    '<div id="sp-form" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid #eee;">' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
-        '<input type="month" id="sp-month" value="' + roiMonth + '" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">' +
-        '<select id="sp-channel" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;font-family:inherit;">' +
-          CHANNELS.map(function(c){ return '<option value="' + c.k + '">' + c.label + '</option>'; }).join('') +
-        '</select>' +
-        '<input id="sp-amt" type="text" inputmode="decimal" placeholder="Amount spent, e.g. 300" value="300" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">' +
-      '</div>' +
-      '<button class="copybtn" style="margin-top:8px;background:#1D9E75;color:#fff;border-color:#1D9E75;" onclick="saveSpend()">Save this month’s spend</button>' +
-      '<div style="font-size:11px;color:#aaa;margin-top:6px;">Save each channel separately. Entering the same month and channel again just replaces the old number.</div>' +
-    '</div>';
+    '<div style="font-weight:800;font-size:14px;margin-bottom:7px;">&#128181; Ad spend &rarr; what came back</div>' +
+    '<div class="chips" style="margin-bottom:2px;">' + picker + '</div>' +
+    headline + paid + freeBlock + verdict +
+    '<div style="margin-top:11px;">' +
+      '<button class="copybtn" onclick="toggleSpendForm()">&#9998; ' + (totalSpend ? 'Update' : 'Enter') + ' ' + esc(monthLabel(roiMonth)) + ' ad spend</button>' +
+    '</div>' + form +
+    '<div style="font-size:10.5px;color:#bbb;margin-top:8px;line-height:1.5;">Leads counted by the month they came in; revenue by the month the deal closed. "Back" values a customer at their first 12 months, so it can be compared against one month of ad spend.</div>';
 }
 function priceLabel(l){
   var pp = parsePrice(l);
