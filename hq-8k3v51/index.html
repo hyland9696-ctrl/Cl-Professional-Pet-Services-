@@ -733,7 +733,11 @@ function parsePrice(l){
 }
 /* ---------- Review requests ---------- */
 var REVIEW_WAIT_DAYS = 14;   // ask once they've had a couple of visits, not the day after
-function reviewLink(){ return (config.review_link || {}).value || ''; }
+var DEFAULT_REVIEW_LINK = 'https://g.page/r/CY5zKebjSgrdEBM/review';
+function reviewLink(){
+  var c = config.review_link;
+  return c ? (c.value || '') : DEFAULT_REVIEW_LINK;   // saved value wins, even if blanked on purpose
+}
 function saveReviewLink(){
   var v = String(document.getElementById('rv-link').value || '').trim();
   if (v && !/^https?:\/\//i.test(v)){ toast('Paste the full link, starting with https://'); return; }
