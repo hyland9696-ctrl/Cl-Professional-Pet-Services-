@@ -82,6 +82,7 @@
     </div>
     <div class="stats" id="stats"></div>
     <div id="revenue" style="display:none;background:#0F6E56;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;font-weight:600;"></div>
+    <div id="roi" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div class="toolbar">
       <input id="search" placeholder="Search name, phone, ZIP&hellip;" oninput="render()">
     </div>
@@ -147,7 +148,9 @@ var STATUSES = [
   {k:'lost',   label:'Not interested'}
 ];
 var FILTERS = [{k:'all',label:'All'}].concat(STATUSES);
-var leads = [], views = [], qviews = [], auths = {}, filter = 'all', KEY = 'clpps-8k3v51';
+var leads = [], views = [], qviews = [], auths = {}, spends = {}, filter = 'all', KEY = 'clpps-8k3v51';
+var CHANNELS = [{ k: 'Meta Ads', label: 'Meta / Facebook' }, { k: 'Google Ads', label: 'Google Ads' }];
+var roiMonth = '';
 
 function toast(m){
   var t = document.getElementById('toast');
@@ -158,13 +161,13 @@ function saveLocal(){
   try { localStorage.setItem('clpps_leads', JSON.stringify(leads)); } catch (e) {}
 }
 function saveStatsCache(){
-  try { localStorage.setItem('clpps_stats', JSON.stringify({ views: views, qviews: qviews, auths: auths, ts: new Date().toISOString() })); } catch (e) {}
+  try { localStorage.setItem('clpps_stats', JSON.stringify({ views: views, qviews: qviews, auths: auths, spends: spends, ts: new Date().toISOString() })); } catch (e) {}
 }
 function loadLocal(){
   try { leads = JSON.parse(localStorage.getItem('clpps_leads') || '[]'); } catch (e) { leads = []; }
   try {
     var c = JSON.parse(localStorage.getItem('clpps_stats') || 'null');
-    if (c){ views = c.views || []; qviews = c.qviews || []; auths = c.auths || {}; statsTs = c.ts || ''; }
+    if (c){ views = c.views || []; qviews = c.qviews || []; auths = c.auths || {}; spends = c.spends || {}; statsTs = c.ts || ''; }
   } catch (e) {}
 }
 var statsTs = '';
@@ -185,9 +188,20 @@ function loadLeads(showToast, cb, isRetry){
       if (!d.ok){ if (cb) cb(false); return; }
       remoteLoaded = true;
       document.getElementById('offline').style.display = 'none';
-      var remote = (d.leads || []).filter(function(l){ return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.type !== 'AUTH' && l.status !== 'deleted'; });
+      var remote = (d.leads || []).filter(function(l){
+        return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.type !== 'AUTH' && l.type !== 'SPEND' && l.status !== 'deleted';
+      });
       views = (d.leads || []).filter(function(l){ return l.type === 'VIEW'; });
       qviews = (d.leads || []).filter(function(l){ return l.type === 'QVIEW'; });
+      // Ad spend: one row per save, newest row per month+channel wins.
+      spends = {};
+      (d.leads || []).forEach(function(l){
+        if (l.type !== 'SPEND' || !l.zip || !l.name) return;
+        var k = l.zip + '|' + l.name;
+        if (!spends[k] || String(l.created) > String(spends[k].created)){
+          spends[k] = { amt: parseFloat(String(l.price).replace(/[^0-9.]/g, '')) || 0, created: l.created };
+        }
+      });
       auths = {};
       (d.leads || []).forEach(function(l){
         if (l.type === 'AUTH' && l.zip) auths[l.zip] = String(l.created || '').slice(0, 10);
@@ -704,6 +718,168 @@ function parsePrice(l){
   else isMo = true;
   return { amt: amt, isMo: isMo };
 }
+/* ---------- Ad spend vs what came back ---------- */
+function monthKeyOf(d){
+  var p2 = function(x){ return (x < 10 ? '0' : '') + x; };
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1);
+}
+function monthLabel(k){
+  return MONTH_NAMES[parseInt(k.slice(5, 7), 10) - 1] + ' ' + k.slice(0, 4);
+}
+function money(n){
+  return '$' + Math.round(n).toLocaleString();
+}
+function saveSpend(){
+  var m = document.getElementById('sp-month').value;
+  var ch = document.getElementById('sp-channel').value;
+  var amt = parseFloat(String(document.getElementById('sp-amt').value).replace(/[^0-9.]/g, ''));
+  if (!m){ toast('Pick which month this spend was for'); return; }
+  if (isNaN(amt) || amt < 0){ toast('Enter the amount spent'); return; }
+  spends[m + '|' + ch] = { amt: amt, created: new Date().toISOString() };
+  saveStatsCache();
+  roiMonth = m;
+  renderROI();
+  post({ action: 'lead', lead: {
+    id: 'sp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    created: new Date().toISOString(), type: 'SPEND',
+    name: ch, zip: m, price: String(amt), status: 'spend', crmnotes: ''
+  } }, money(amt) + ' saved for ' + ch + ', ' + monthLabel(m));
+}
+function toggleSpendForm(){
+  var f = document.getElementById('sp-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+function setRoiMonth(v){ roiMonth = v; renderROI(); }
+function renderROI(){
+  var box = document.getElementById('roi');
+  if (!box) return;
+  var thisMonth = monthKeyOf(new Date());
+  var monthSet = {};
+  monthSet[thisMonth] = true;
+  Object.keys(spends).forEach(function(k){ monthSet[k.split('|')[0]] = true; });
+  leads.forEach(function(l){
+    var cd = fuParse(l.crmnotes).cd || String(l.created || '').slice(0, 10);
+    if (cd) monthSet[cd.slice(0, 7)] = true;
+  });
+  var months = Object.keys(monthSet).sort().reverse();
+  if (!roiMonth || months.indexOf(roiMonth) < 0) roiMonth = months[0];
+
+  var anySpend = CHANNELS.some(function(c){ return (spends[roiMonth + '|' + c.k] || {}).amt > 0; });
+
+  // Per channel: what we spent, what it brought in.
+  var rows = CHANNELS.map(function(c){
+    var spend = (spends[roiMonth + '|' + c.k] || {}).amt || 0;
+    var leadsIn = leads.filter(function(l){
+      return fuParse(l.crmnotes).src === c.k && String(l.created || '').slice(0, 7) === roiMonth;
+    });
+    var closedIn = leads.filter(function(l){
+      if ((l.status || 'new') !== 'closed' || fuParse(l.crmnotes).src !== c.k) return false;
+      var cd = fuParse(l.crmnotes).cd || String(l.created || '').slice(0, 10);
+      return cd.slice(0, 7) === roiMonth;
+    });
+    var mrr = 0, once = 0, fees = 0;
+    closedIn.forEach(function(l){
+      var pp = parsePrice(l);
+      if (!pp) return;
+      if (pp.isMo){ mrr += pp.amt; if (fuParse(l.crmnotes).ic !== 'w') fees += 40; }
+      else once += pp.amt;
+    });
+    var year1 = mrr * 12 + fees + once;
+    return { c: c, spend: spend, leads: leadsIn.length, closed: closedIn.length,
+             mrr: mrr, year1: year1, fees: fees, once: once };
+  });
+
+  var scale = Math.max.apply(null, rows.map(function(r){ return Math.max(r.spend, r.year1); }).concat([1]));
+  var monthOpts = months.map(function(m){
+    return '<option value="' + m + '"' + (m === roiMonth ? ' selected' : '') + '>' + monthLabel(m) + (m === thisMonth ? ' (this month)' : '') + '</option>';
+  }).join('');
+
+  var body = rows.map(function(r){
+    var pct = function(v){ return Math.max(v > 0 ? 2 : 0, Math.round(v / scale * 100)); };
+    var mult = r.spend > 0 ? r.year1 / r.spend : 0;
+    var good = mult >= 1;
+    var multTxt = r.spend > 0
+      ? (r.year1 > 0
+          ? '<span style="color:' + (good ? '#0F6E56' : '#c0392b') + ';font-weight:800;">' + mult.toFixed(1) + '&times;</span> back in year one'
+          : '<span style="color:#c0392b;font-weight:800;">nothing closed yet</span>')
+      : '<span style="color:#aaa;">no spend entered</span>';
+    var stats = [];
+    if (r.spend > 0 && r.leads) stats.push(money(r.spend / r.leads) + ' per lead');
+    if (r.spend > 0 && r.closed) stats.push(money(r.spend / r.closed) + ' per customer');
+    if (r.spend > 0 && r.mrr) stats.push('pays for itself in ' + (r.spend / r.mrr).toFixed(1) + ' mo');
+    return '<div style="padding:11px 0;border-bottom:1px solid #f2f2f2;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">' +
+        '<strong style="font-size:13.5px;">' + esc(r.c.label) + '</strong>' +
+        '<span style="font-size:12px;color:#666;">' + multTxt + '</span>' +
+      '</div>' +
+      '<div style="font-size:11.5px;color:#888;margin:3px 0 6px;">' +
+        r.leads + ' lead' + (r.leads === 1 ? '' : 's') + ' &middot; ' + r.closed + ' closed' +
+        (stats.length ? ' &middot; ' + stats.join(' &middot; ') : '') + '</div>' +
+      '<div style="display:flex;align-items:center;gap:7px;margin-bottom:3px;">' +
+        '<span style="font-size:10.5px;color:#999;width:38px;">spent</span>' +
+        '<div style="flex:1;height:14px;background:#f3f3f3;border-radius:4px;overflow:hidden;">' +
+          '<div style="height:100%;width:' + pct(r.spend) + '%;background:#B9C4C0;"></div></div>' +
+        '<span style="font-size:11.5px;font-weight:700;width:58px;text-align:right;">' + money(r.spend) + '</span>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:7px;">' +
+        '<span style="font-size:10.5px;color:#999;width:38px;">back</span>' +
+        '<div style="flex:1;height:14px;background:#f3f3f3;border-radius:4px;overflow:hidden;">' +
+          '<div style="height:100%;width:' + pct(r.year1) + '%;background:' + (r.year1 >= r.spend && r.year1 > 0 ? '#1D9E75' : '#E2A03F') + ';"></div></div>' +
+        '<span style="font-size:11.5px;font-weight:700;width:58px;text-align:right;color:#0F6E56;">' + money(r.year1) + '</span>' +
+      '</div>' +
+      (r.mrr ? '<div style="font-size:11px;color:#999;margin-top:4px;padding-left:45px;">' +
+        money(r.mrr) + '/mo recurring &times; 12' +
+        (r.fees ? ' + ' + money(r.fees) + ' initial cleans' : '') +
+        (r.once ? ' + ' + money(r.once) + ' one-time' : '') + '</div>' : '') +
+    '</div>';
+  }).join('');
+
+  // Where should the next dollar go?
+  var verdict = '';
+  var ranked = rows.filter(function(r){ return r.spend > 0; })
+                   .sort(function(a, b){ return (b.year1 / b.spend) - (a.year1 / a.spend); });
+  if (ranked.length === 2 && ranked[0].year1 > 0){
+    var w = ranked[0], lo = ranked[1];
+    var perDollar = function(r){ return '$' + (r.year1 / r.spend).toFixed(2); };
+    verdict = '<div style="background:#E6F2ED;border-radius:9px;padding:9px 11px;margin-top:10px;font-size:12.5px;color:#0F6E56;font-weight:700;">' +
+      '&#127919; ' + esc(w.c.label) + ' is returning ' + perDollar(w) + ' for every $1 spent' +
+      (lo.year1 > 0 ? ', vs ' + perDollar(lo) + ' from ' + esc(lo.c.label) : ', while ' + esc(lo.c.label) + ' hasn’t closed anyone this month') +
+      '. Next advertising dollar goes to ' + esc(w.c.label) + '.</div>';
+  } else if (ranked.length && ranked[0].year1 === 0){
+    verdict = '<div style="background:#FDF3DC;border-radius:9px;padding:9px 11px;margin-top:10px;font-size:12.5px;color:#7a5c00;font-weight:600;">' +
+      '&#9888;&#65039; ' + money(ranked.reduce(function(s, r){ return s + r.spend; }, 0)) +
+      ' spent this month with nothing closed yet. Leads take time to close &mdash; check back, or look at whether the leads are being followed up fast enough.</div>';
+  }
+
+  var savedFor = CHANNELS.map(function(c){
+    var s = spends[roiMonth + '|' + c.k];
+    return s ? esc(c.label) + ' ' + money(s.amt) : null;
+  }).filter(Boolean).join(' &middot; ');
+
+  box.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:2px;">' +
+      '<div style="font-weight:800;font-size:14px;">&#128181; Ad spend &rarr; what came back</div>' +
+      '<select onchange="setRoiMonth(this.value)" style="border:1px solid #ddd;border-radius:8px;padding:5px 7px;font-family:inherit;font-size:12px;background:#fff;">' + monthOpts + '</select>' +
+    '</div>' +
+    '<div style="font-size:11px;color:#aaa;margin-bottom:8px;">Counts leads that came in this month, and revenue from deals closed this month. "Back" is the first 12 months of a customer.</div>' +
+    (anySpend ? body + verdict
+      : '<div style="font-size:12.5px;color:#777;padding:10px 0;">Enter what you spent on ads this month and this turns into cost per lead, cost per customer, and how many dollars came back for each one spent.</div>') +
+    '<div style="margin-top:10px;">' +
+      '<button class="copybtn" onclick="toggleSpendForm()">&#9998; ' + (anySpend ? 'Update ad spend' : 'Enter ad spend') + '</button>' +
+      (savedFor ? '<span style="font-size:11.5px;color:#999;margin-left:8px;">Saved: ' + savedFor + '</span>' : '') +
+    '</div>' +
+    '<div id="sp-form" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid #eee;">' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+        '<input type="month" id="sp-month" value="' + roiMonth + '" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">' +
+        '<select id="sp-channel" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;font-family:inherit;">' +
+          CHANNELS.map(function(c){ return '<option value="' + c.k + '">' + c.label + '</option>'; }).join('') +
+        '</select>' +
+        '<input id="sp-amt" type="text" inputmode="decimal" placeholder="Amount spent, e.g. 300" value="300" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">' +
+      '</div>' +
+      '<button class="copybtn" style="margin-top:8px;background:#1D9E75;color:#fff;border-color:#1D9E75;" onclick="saveSpend()">Save this month’s spend</button>' +
+      '<div style="font-size:11px;color:#aaa;margin-top:6px;">Save each channel separately. Entering the same month and channel again just replaces the old number.</div>' +
+    '</div>';
+}
 function priceLabel(l){
   var pp = parsePrice(l);
   if (!pp) return '';
@@ -802,6 +978,7 @@ function renderRevenue(){
 }
 function render(){
   renderRevenue();
+  renderROI();
   renderAlerts();
   var counts = {all: leads.length};
   STATUSES.forEach(function(s){ counts[s.k] = leads.filter(function(l){ return (l.status||'new') === s.k; }).length; });
