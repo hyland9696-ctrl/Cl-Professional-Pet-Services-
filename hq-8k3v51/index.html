@@ -655,10 +655,10 @@ function addManual(){
     if (!lead.dogs) lead.dogs = editing.dogs || '';
     if (!lead.service) lead.service = editing.service || '';
     ['zip','yard','deodorize','hero','manual','honored','notes'].forEach(function(k){ lead[k] = editing[k] || ''; });
+    lead.id = editing.id;
     var idx = leads.indexOf(editing);
     markSeen(SEEN_L, lead.id);
     if (idx >= 0) leads.splice(idx, 1, lead); else leads.unshift(lead);
-    post({action:'update', key:KEY, id:editing.id, status:'deleted'});
     post({action:'lead', lead:lead}, 'Lead updated ✓');
     editing = null;
     document.getElementById('m-savebtn').textContent = 'Add manual lead';
@@ -1186,6 +1186,21 @@ function renderRevenue(){
         '<span>&#128227; ' + esc(k) + ' <span style="opacity:0.6;">(' + s.leads + ' lead' + (s.leads === 1 ? '' : 's') + ', ' + s.closed + ' closed)</span></span>' +
         '<span>' + (money.length ? money.join(' &middot; ') : '&mdash;') + '</span></div>';
     }).join('');
+  // Two rows for one customer would silently double the revenue — say so.
+  var seenKey = {}, dupes = [];
+  leads.forEach(function(l){
+    if ((l.status || 'new') !== 'closed') return;
+    var phone = String(l.phone || '').replace(/\D/g, '');
+    var key = phone.length >= 10 ? 'p' + phone.slice(-10)
+            : 'n' + String(l.name || '').trim().toLowerCase();
+    if (key === 'n') return;
+    if (seenKey[key]){ if (dupes.indexOf(seenKey[key]) < 0) dupes.push(seenKey[key]); }
+    else seenKey[key] = l.name || '(no name)';
+  });
+  var dupeRows = dupes.map(function(n){
+    return '<div style="font-weight:400;font-size:12px;color:#ffd9a0;padding:2px 0;">&#9888;&#65039; ' +
+      esc(n) + ' is closed more than once &mdash; counted twice. Remove the extra with &#128465;.</div>';
+  }).join('');
   var warnRows = noPrice.map(function(l){
     return '<div style="font-weight:400;font-size:12px;color:#ffd9a0;padding:2px 0;">&#9888;&#65039; ' + esc(l.name || '(no name)') + ' is closed but has NO price - not counted. Fix with Edit.</div>';
   }).join('');
@@ -1209,7 +1224,7 @@ function renderRevenue(){
       (ytdOnce ? ' &middot; $' + ytdOnce.toLocaleString() + ' one-time' : '') + '</span></div>' +
     '<div id="rev-detail" style="display:none;border-top:1px solid rgba(255,255,255,0.25);margin-top:6px;padding-top:5px;">' +
       '<div style="font-size:11.5px;opacity:0.8;font-weight:400;margin-bottom:3px;">Every closed lead being counted:</div>' +
-      itemRows + srcRows + warnRows +
+      itemRows + srcRows + dupeRows + warnRows +
     '</div>';
 }
 function render(){
