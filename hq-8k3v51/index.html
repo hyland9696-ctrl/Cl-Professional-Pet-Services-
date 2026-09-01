@@ -731,6 +731,57 @@ function parsePrice(l){
   else isMo = true;
   return { amt: amt, isMo: isMo };
 }
+/* Same customer entered twice (usually an old edit that copied a record).
+   Grouped by name, and only when the phone numbers agree or one is missing,
+   so two different people who share a name are never merged. */
+function dupeGroups(){
+  var by = {};
+  leads.forEach(function(l){
+    var n = String(l.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!n) return;
+    (by[n] = by[n] || []).push(l);
+  });
+  var out = [];
+  Object.keys(by).forEach(function(n){
+    var g = by[n];
+    if (g.length < 2) return;
+    var phones = g.map(function(l){ return String(l.phone || '').replace(/\D/g, '').slice(-10); })
+                  .filter(function(x){ return x.length === 10; });
+    var uniq = phones.filter(function(p, i){ return phones.indexOf(p) === i; });
+    if (uniq.length > 1) return;   // different phone numbers: different people
+    g.sort(function(a, b){ return dupeScore(b) - dupeScore(a); });
+    out.push(g);
+  });
+  return out;
+}
+function dupeScore(l){
+  var n = 0;
+  ['phone','email','address','zip','service','dogs','price','notes'].forEach(function(k){ if (l[k]) n++; });
+  var m = fuParse(l.crmnotes);
+  ['src','cd','sd','qs','rv','date'].forEach(function(k){ if (m[k]) n += 2; });
+  if (m.text) n++;
+  if ((l.status || 'new') === 'closed') n++;
+  return n * 1000 + (Date.parse(l.updated || l.created || 0) || 0) / 1e10;
+}
+function cleanDupes(){
+  var groups = dupeGroups();
+  if (!groups.length){ toast('No duplicates found'); return; }
+  var removing = [];
+  groups.forEach(function(g){ g.slice(1).forEach(function(l){ removing.push(l); }); });
+  var lines = groups.map(function(g){
+    return '\u2022 ' + (g[0].name || '(no name)') + ': keeping 1, removing ' + (g.length - 1);
+  }).join('\n');
+  if (!confirm('Remove ' + removing.length + ' duplicate record' + (removing.length === 1 ? '' : 's') + '?\n\n' +
+      lines + '\n\nThe most complete copy of each customer is kept. This cannot be undone.')) return;
+  var ids = {};
+  removing.forEach(function(l){ ids[l.id] = true; });
+  leads = leads.filter(function(l){ return !ids[l.id]; });
+  saveLocal();
+  render();
+  renderTraffic();
+  Object.keys(ids).forEach(function(id){ post({ action: 'update', key: KEY, id: id, status: 'deleted' }); });
+  toast(removing.length + ' duplicate' + (removing.length === 1 ? '' : 's') + ' removed');
+}
 /* ---------- Review requests ---------- */
 var REVIEW_WAIT_DAYS = 14;   // ask once they've had a couple of visits, not the day after
 var DEFAULT_REVIEW_LINK = 'https://g.page/r/CY5zKebjSgrdEBM/review';
@@ -1186,21 +1237,19 @@ function renderRevenue(){
         '<span>&#128227; ' + esc(k) + ' <span style="opacity:0.6;">(' + s.leads + ' lead' + (s.leads === 1 ? '' : 's') + ', ' + s.closed + ' closed)</span></span>' +
         '<span>' + (money.length ? money.join(' &middot; ') : '&mdash;') + '</span></div>';
     }).join('');
-  // Two rows for one customer would silently double the revenue — say so.
-  var seenKey = {}, dupes = [];
-  leads.forEach(function(l){
-    if ((l.status || 'new') !== 'closed') return;
-    var phone = String(l.phone || '').replace(/\D/g, '');
-    var key = phone.length >= 10 ? 'p' + phone.slice(-10)
-            : 'n' + String(l.name || '').trim().toLowerCase();
-    if (key === 'n') return;
-    if (seenKey[key]){ if (dupes.indexOf(seenKey[key]) < 0) dupes.push(seenKey[key]); }
-    else seenKey[key] = l.name || '(no name)';
-  });
-  var dupeRows = dupes.map(function(n){
-    return '<div style="font-weight:400;font-size:12px;color:#ffd9a0;padding:2px 0;">&#9888;&#65039; ' +
-      esc(n) + ' is closed more than once &mdash; counted twice. Remove the extra with &#128465;.</div>';
-  }).join('');
+  // Two rows for one customer silently double the revenue — surface it and offer the fix.
+  var groups = dupeGroups();
+  var dupeRows = groups.length
+    ? groups.map(function(g){
+        var extra = g.slice(1).reduce(function(sum, l){
+          var pp = parsePrice(l); return sum + (pp && pp.isMo ? pp.amt : 0);
+        }, 0);
+        return '<div style="font-weight:400;font-size:12px;color:#ffd9a0;padding:2px 0;">&#9888;&#65039; ' +
+          esc(g[0].name || '(no name)') + ' appears ' + g.length + ' times' +
+          (extra ? ' &mdash; inflating MRR by ' + money(extra) + '/mo' : '') + '.</div>';
+      }).join('') +
+      '<div style="margin-top:7px;"><button onclick="cleanDupes()" style="background:#fff;color:#0F6E56;border:none;border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;">&#129529; Remove the duplicates</button></div>'
+    : '';
   var warnRows = noPrice.map(function(l){
     return '<div style="font-weight:400;font-size:12px;color:#ffd9a0;padding:2px 0;">&#9888;&#65039; ' + esc(l.name || '(no name)') + ' is closed but has NO price - not counted. Fix with Edit.</div>';
   }).join('');
