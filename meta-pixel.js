@@ -34,3 +34,12 @@ window.clppsTrack = function(event, params){
     fbq('track', event, params || {});
   } catch (e) {}
 };
+
+/* For our own non-standard events (like a saved quote). Kept separate from
+   the standard events above so it never counts as a Lead conversion. */
+window.clppsTrackCustom = function(event, params){
+  try {
+    if (!META_PIXEL_ID || !window.fbq) return;
+    fbq('trackCustom', event, params || {});
+  } catch (e) {}
+};

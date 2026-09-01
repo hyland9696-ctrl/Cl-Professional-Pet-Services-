@@ -1197,9 +1197,6 @@
       Waste_Stations: stations,
       Notes: notes
     };
-    if (window.clppsTrack) clppsTrack('Lead', {
-      content_name: 'Commercial inquiry', content_category: ptype, currency: 'USD'
-    });
     crmCapture({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       created: new Date().toISOString(),
@@ -1227,6 +1224,9 @@
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify(payload)
     }).then(function(r){ return r.json(); }).then(function(){
+      // A commercial callback request is an inquiry, not an activation, so it
+      // is reported as Contact and never as a Lead conversion.
+      if (window.clppsTrack) clppsTrack('Contact', { content_name: 'Commercial inquiry', content_category: ptype });
       document.getElementById('c-form-area').style.display = 'none';
       document.getElementById('c-success').classList.add('show');
     }).catch(function(){
@@ -1373,6 +1373,7 @@
       addrConfirm(f.zip);
     }
   }
+  var leadTracked = false;   // Meta Lead fires at most once per visitor
   function qSubmit(activate){
     var err = document.getElementById('q-formerr');
     err.className = 'zip-msg'; err.textContent = '';
@@ -1415,10 +1416,6 @@
       Notes: document.getElementById('qf2-notes').value.trim(),
       Lead_Source: leadSource() || 'unknown'
     };
-    if (window.clppsTrack) clppsTrack('Lead', {
-      content_name: activate ? 'Wants to start service' : 'Saved quote',
-      content_category: q.freq, value: p.manual ? 0 : p.total, currency: 'USD'
-    });
     crmCapture({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       created: new Date().toISOString(),
@@ -1446,6 +1443,22 @@
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify(payload)
     }).then(function(r){ return r.json(); }).then(function(){
+      // Meta's Lead event means one thing only: a confirmed activation.
+      // It fires here — after the submit succeeded — and never on a saved
+      // quote, a price view, or a failed send. Once per visitor, at most.
+      if (activate){
+        if (!leadTracked){
+          leadTracked = true;
+          if (window.clppsTrack) clppsTrack('Lead', {
+            content_name: 'Activated service', content_category: q.freq,
+            value: p.manual ? 0 : p.total, currency: 'USD'
+          });
+        }
+      } else if (window.clppsTrackCustom){
+        clppsTrackCustom('SavedQuote', {
+          content_category: q.freq, value: p.manual ? 0 : p.total, currency: 'USD'
+        });
+      }
       document.getElementById('q-form-area').style.display = 'none';
       var icon = document.getElementById('q-success-icon');
       var title = document.getElementById('q-success-title');
