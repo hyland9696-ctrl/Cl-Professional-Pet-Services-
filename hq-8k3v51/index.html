@@ -70,6 +70,7 @@
   </header>
   <div class="wrap">
     <div id="offline" style="display:none;background:#FDF3DC;border:1px solid #e6c96a;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#7a5c00;"></div>
+    <div id="alerts" style="display:none;margin-bottom:12px;"></div>
     <div id="traffic" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);display:none;">
       <div style="font-weight:800;font-size:14px;margin-bottom:10px;">&#128202; Site traffic</div>
       <div class="stats" id="t-nums" style="margin-bottom:10px;"></div>
@@ -182,6 +183,7 @@ function loadLeads(showToast, cb, isRetry){
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok){ if (cb) cb(false); return; }
+      remoteLoaded = true;
       document.getElementById('offline').style.display = 'none';
       var remote = (d.leads || []).filter(function(l){ return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.type !== 'AUTH' && l.status !== 'deleted'; });
       views = (d.leads || []).filter(function(l){ return l.type === 'VIEW'; });
@@ -223,6 +225,116 @@ function loadLeads(showToast, cb, isRetry){
       if (!isRetry) setTimeout(function(){ loadLeads(false, null, true); }, 4000);
       if (cb) cb(false);
     });
+}
+/* ---- New-activity notifications on the page itself ---- */
+var SEEN_A = 'clpps_seen_auth', SEEN_L = 'clpps_seen_lead';
+var alertCount = 0, alertsPrimed = false, remoteLoaded = false;
+function getSeen(k){ try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return []; } }
+function setSeen(k, arr){ try { localStorage.setItem(k, JSON.stringify(arr.slice(-800))); } catch (e) {} }
+function markSeen(k, id){ var s = getSeen(k) || []; if (s.indexOf(id) < 0){ s.push(id); setSeen(k, s); } }
+function dingDing(){
+  try {
+    var C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return;
+    var ctx = new C(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine'; o.frequency.setValueAtTime(880, ctx.currentTime);
+    o.frequency.setValueAtTime(1320, ctx.currentTime + 0.13);
+    g.gain.setValueAtTime(0.001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+    o.start(); o.stop(ctx.currentTime + 0.46);
+  } catch (e) {}
+  try { if (navigator.vibrate) navigator.vibrate([90, 60, 90]); } catch (e) {}
+}
+function renderAlerts(){
+  var box = document.getElementById('alerts');
+  if (!box) return;
+  var sa = getSeen(SEEN_A), sl = getSeen(SEEN_L);
+  if (sa === null || sl === null){
+    // First time on this device: wait for the real data to land before deciding
+    // what counts as "already seen", otherwise everything looks brand new.
+    if (!remoteLoaded){ box.style.display = 'none'; return; }
+    setSeen(SEEN_A, Object.keys(auths));
+    setSeen(SEEN_L, leads.map(function(l){ return l.id; }));
+    box.style.display = 'none';
+    document.title = 'Lead Tracker';
+    alertsPrimed = true;
+    return;
+  }
+  var newAuth = Object.keys(auths).filter(function(id){ return sa.indexOf(id) < 0; });
+  var newLead = leads.filter(function(l){
+    return sl.indexOf(l.id) < 0 && !auths[l.id] && (l.status || 'new') === 'new';
+  });
+  var total = newAuth.length + newLead.length;
+  if (!total){
+    box.style.display = 'none';
+    document.title = 'Lead Tracker';
+    alertCount = 0; alertsPrimed = true;
+    return;
+  }
+  var nameOf = function(id){
+    var l = leads.filter(function(x){ return x.id === id; })[0];
+    return l ? (l.name || '(no name)') : 'A customer';
+  };
+  var priceOf = function(id){
+    var l = leads.filter(function(x){ return x.id === id; })[0];
+    return l && l.price ? String(l.price).split(',')[0] : '';
+  };
+  var authRows = newAuth.map(function(id){
+    var p = priceOf(id);
+    return '<div onclick="jumpToLead(\'' + esc(id) + '\')" style="background:rgba(255,255,255,0.16);border-radius:10px;padding:10px 12px;margin-top:8px;cursor:pointer;">' +
+      '<div style="font-size:14.5px;font-weight:800;">&#9989; ' + esc(nameOf(id)) + ' ACCEPTED their quote' + (p ? ' &mdash; ' + esc(p) : '') + '</div>' +
+      '<div style="font-size:12px;font-weight:400;opacity:0.92;margin-top:2px;">Signed the Terms on ' + esc(auths[id]) +
+      '. Add them in Sweep&amp;Go, send their start date, then mark them Closed. <u>Tap to open</u></div></div>';
+  }).join('');
+  var leadRows = newLead.map(function(l){
+    var p = l.price ? String(l.price).split(',')[0] : '';
+    return '<div onclick="jumpToLead(\'' + esc(l.id) + '\')" style="background:rgba(255,255,255,0.16);border-radius:10px;padding:9px 12px;margin-top:8px;cursor:pointer;">' +
+      '<div style="font-size:13.5px;font-weight:700;">&#128062; New lead: ' + esc(l.name || '(no name)') + (p ? ' &mdash; ' + esc(p) : '') + '</div>' +
+      '<div style="font-size:12px;font-weight:400;opacity:0.92;margin-top:2px;">' +
+      esc(l.service || '') + (l.dogs ? ' &middot; ' + esc(l.dogs) + ' dog(s)' : '') + ' &middot; came in ' +
+      esc(l.created ? new Date(l.created).toLocaleString() : '') + '. <u>Tap to open</u></div></div>';
+  }).join('');
+  var bg = newAuth.length ? 'linear-gradient(135deg,#0F6E56,#1D9E75)' : '#1a6fd4';
+  box.style.display = 'block';
+  box.innerHTML =
+    '<div style="background:' + bg + ';color:#fff;border-radius:14px;padding:13px 15px;box-shadow:0 3px 12px rgba(15,110,86,0.3);">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<div style="font-size:15px;font-weight:800;">' +
+          (newAuth.length ? '&#127881; ' + newAuth.length + ' quote' + (newAuth.length > 1 ? 's' : '') + ' ACCEPTED' : '') +
+          (newAuth.length && newLead.length ? ' &middot; ' : '') +
+          (newLead.length ? newLead.length + ' new lead' + (newLead.length > 1 ? 's' : '') : '') +
+        '</div>' +
+        '<button onclick="dismissAlerts()" style="background:rgba(255,255,255,0.22);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Got it</button>' +
+      '</div>' + authRows + leadRows +
+    '</div>';
+  document.title = '(' + total + ') Lead Tracker';
+  if (alertsPrimed && total > alertCount) dingDing();
+  alertCount = total;
+  alertsPrimed = true;
+}
+function dismissAlerts(){
+  var sa = getSeen(SEEN_A) || [], sl = getSeen(SEEN_L) || [];
+  Object.keys(auths).forEach(function(id){ if (sa.indexOf(id) < 0) sa.push(id); });
+  leads.forEach(function(l){ if (sl.indexOf(l.id) < 0) sl.push(l.id); });
+  setSeen(SEEN_A, sa); setSeen(SEEN_L, sl);
+  renderAlerts();
+}
+function jumpToLead(id){
+  markSeen(SEEN_A, id); markSeen(SEEN_L, id);
+  filter = 'all';
+  var s = document.getElementById('search');
+  if (s) s.value = '';
+  render();
+  renderAlerts();
+  var card = document.getElementById('card-' + id);
+  if (card){
+    card.scrollIntoView({ behavior:'smooth', block:'center' });
+    var old = card.style.boxShadow;
+    card.style.boxShadow = '0 0 0 3px #1D9E75';
+    setTimeout(function(){ card.style.boxShadow = old; }, 2500);
+  }
 }
 function setStatus(id, status){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -480,6 +592,7 @@ function addFromPaste(){
     status: 'new', crmnotes: ''
   };
   if (!lead.name && !lead.phone){ toast("Couldn't find a name or phone in that text"); return; }
+  markSeen(SEEN_L, lead.id);
   leads.unshift(lead);
   saveLocal(); render();
   post({action:'lead', lead:lead});
@@ -515,6 +628,7 @@ function addManual(){
     if (!lead.service) lead.service = editing.service || '';
     ['zip','yard','deodorize','hero','manual','honored','notes'].forEach(function(k){ lead[k] = editing[k] || ''; });
     var idx = leads.indexOf(editing);
+    markSeen(SEEN_L, lead.id);
     if (idx >= 0) leads.splice(idx, 1, lead); else leads.unshift(lead);
     post({action:'update', key:KEY, id:editing.id, status:'deleted'});
     post({action:'lead', lead:lead}, 'Lead updated ✓');
@@ -526,6 +640,7 @@ function addManual(){
     toast('Lead updated ✓');
     return;
   }
+  markSeen(SEEN_L, lead.id);
   leads.unshift(lead);
   saveLocal(); render();
   post({action:'lead', lead:lead});
@@ -681,6 +796,7 @@ function renderRevenue(){
 }
 function render(){
   renderRevenue();
+  renderAlerts();
   var counts = {all: leads.length};
   STATUSES.forEach(function(s){ counts[s.k] = leads.filter(function(l){ return (l.status||'new') === s.k; }).length; });
   document.getElementById('stats').innerHTML =
@@ -748,7 +864,7 @@ function render(){
           (days >= 1 ? days + ' day' + (days > 1 ? 's' : '') : Math.round(hrs) + ' hours') + ' with no call — reach out!</div>';
       }
     }
-    return '<div class="card s-' + st + '">' +
+    return '<div class="card s-' + st + '" id="card-' + esc(l.id) + '">' +
       '<div class="row1"><div class="who">' + esc(l.name || '(no name)') + '</div>' +
       '<span class="badge ' + (st === 'closed'
           ? 'cls">&#10003; CLOSED &middot; ON SCHEDULE'
@@ -1025,6 +1141,12 @@ function renderDetail(){
     (dayRows || '<div style="font-size:12px;color:#999;">No activity recorded yet.</div>');
 }
 loadLeads(false);
+// Keep the page live: quietly re-check the database every 60 seconds, and again
+// the moment the tab comes back into view, so an acceptance shows up on its own.
+setInterval(function(){ loadLeads(false, null, true); }, 60000);
+document.addEventListener('visibilitychange', function(){
+  if (!document.hidden) loadLeads(false, null, true);
+});
 </script>
 </body>
 </html>
