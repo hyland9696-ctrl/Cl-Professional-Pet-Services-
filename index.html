@@ -365,6 +365,7 @@
     input:focus,select:focus,textarea:focus{outline:3px solid #1D9E75;outline-offset:1px;}
     .nav-links button[aria-current="page"]{color:#0F6E56;font-weight:600;}
   </style>
+  <script src="/meta-pixel.js"></script>
 </head>
 <body>
 <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -1068,6 +1069,10 @@
       if (sessionStorage.getItem('qv_sent')) return;
       sessionStorage.setItem('qv_sent', '1');
       var p = qPriceParts();
+      if (window.clppsTrack) clppsTrack('ViewContent', {
+        content_name: 'Saw their price', content_category: q.freq,
+        value: p.manual ? 0 : p.total, currency: 'USD'
+      });
       fetch(CRM_ENDPOINT, {
         method: 'POST', headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ action: 'lead', lead: {
@@ -1192,6 +1197,9 @@
       Waste_Stations: stations,
       Notes: notes
     };
+    if (window.clppsTrack) clppsTrack('Lead', {
+      content_name: 'Commercial inquiry', content_category: ptype, currency: 'USD'
+    });
     crmCapture({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       created: new Date().toISOString(),
@@ -1407,6 +1415,10 @@
       Notes: document.getElementById('qf2-notes').value.trim(),
       Lead_Source: leadSource() || 'unknown'
     };
+    if (window.clppsTrack) clppsTrack('Lead', {
+      content_name: activate ? 'Wants to start service' : 'Saved quote',
+      content_category: q.freq, value: p.manual ? 0 : p.total, currency: 'USD'
+    });
     crmCapture({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       created: new Date().toISOString(),
