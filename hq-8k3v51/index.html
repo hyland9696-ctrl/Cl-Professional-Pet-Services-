@@ -88,6 +88,7 @@
       <input id="search" placeholder="Search name, phone, ZIP&hellip;" oninput="render()">
     </div>
     <div class="toolbar">
+      <button class="copybtn" onclick="togglePQ()" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">&#128222; Phone quote</button>
       <button class="copybtn" onclick="toggleAdd()">&#10133; Add lead</button>
       <button class="copybtn" onclick="exportCsv()">&#11015;&#65039; Download CSV</button>
       <button class="copybtn" onclick="copyEmails()">Copy emails</button>
@@ -131,6 +132,69 @@
       </div>
       <button class="copybtn" id="m-savebtn" style="margin-top:8px;" onclick="addManual()">Add manual lead</button>
     </div>
+    <div id="pqPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-weight:800;font-size:15px;">&#128222; Price it on the phone</div>
+        <button onclick="togglePQ()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
+      </div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px;">Ask in this order. The price updates as you go.</div>
+
+      <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">1. ZIP code</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+        <input id="pq-zip" inputmode="numeric" maxlength="5" placeholder="63376" oninput="pqCalc()" style="width:110px;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:15px;font-family:inherit;letter-spacing:.05em;">
+        <span id="pq-tier" style="font-size:12.5px;color:#888;"></span>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">2. How many dogs?</div>
+      <div class="chips" id="pq-dogs" style="margin-bottom:10px;">
+        <button class="chip on" onclick="pqSet('dogs','1',this)">1</button><button class="chip" onclick="pqSet('dogs','2',this)">2</button><button class="chip" onclick="pqSet('dogs','3',this)">3</button><button class="chip" onclick="pqSet('dogs','4',this)">4</button><button class="chip" onclick="pqSet('dogs','5',this)">5+ custom</button>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">3. How often?</div>
+      <div class="chips" id="pq-freq" style="margin-bottom:10px;">
+        <button class="chip on" onclick="pqSet('freq','weekly',this)">Weekly</button><button class="chip" onclick="pqSet('freq','biweekly',this)">Every other week</button><button class="chip" onclick="pqSet('freq','onetime',this)">One-time cleanup</button>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">4. Deodorize &amp; sanitize? ($15 a treatment)</div>
+      <div class="chips" id="pq-deo" style="margin-bottom:10px;">
+        <button class="chip on" onclick="pqSet('deo','none',this)">No</button><button class="chip" onclick="pqSet('deo','every',this)">Every visit</button><button class="chip" onclick="pqSet('deo','eo',this)">Every other visit</button>
+      </div>
+
+      <div id="pq-icrow" style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">5. $40 initial clean on the first invoice</div>
+      <div class="chips" id="pq-ic" style="margin-bottom:12px;">
+        <button class="chip on" onclick="pqSet('ic','',this)">Standard</button><button class="chip" onclick="pqSet('ic','w',this)">Waive it</button>
+      </div>
+
+      <div id="pq-price" style="background:#0F6E56;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;"></div>
+      <div id="pq-customrow" style="display:none;margin:-4px 0 12px;">
+        <input id="pq-custom" placeholder="Agreed price, e.g. $130/mo (leave blank to quote later)" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#555;margin:0 0 6px;">If they want it &mdash; take their details</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <input id="pq-name" placeholder="Name" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">
+        <input id="pq-phone" placeholder="Phone" inputmode="tel" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">
+        <input id="pq-email" placeholder="Email (for the quote link)" inputmode="email" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">
+        <input id="pq-addr" placeholder="Service address" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">
+        <select id="pq-src" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;font-family:inherit;grid-column:1 / -1;">
+          <option value="">How did they hear about us?</option>
+          <option value="Google Ads">Google Ads</option>
+          <option value="Meta Ads">Meta / Facebook Ads</option>
+          <option value="Google (organic)">Google search</option>
+          <option value="Meta (organic)">Facebook / Instagram page</option>
+          <option value="Referral">Referral / word of mouth</option>
+          <option value="Nextdoor">Nextdoor</option>
+          <option value="Yard sign">Yard sign / truck / flyer</option>
+          <option value="Other">Other</option>
+        </select>
+        <input id="pq-notes" placeholder="Notes (gate code, dog names, best time)" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+        <button onclick="pqSubmit('activate')" style="background:#1D9E75;color:#fff;border:none;border-radius:9px;padding:11px 14px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit;">&#9989; They want to start</button>
+        <button onclick="pqSubmit('saved')" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:9px;padding:10px 14px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;">&#128190; Save the quote</button>
+      </div>
+      <div style="font-size:11px;color:#aaa;margin-top:8px;">Either button adds them to the leads below. Just pricing? Close this and nothing is saved.</div>
+    </div>
     <div class="chips" id="chips"></div>
     <div id="list"></div>
     <p style="font-size:11.5px;color:#aaa;margin-top:16px;line-height:1.6;">Quotes from the website flow in automatically and everything is stored permanently in the "CLPPS Leads" spreadsheet in your Google Drive. Download the CSV anytime for campaigns or backups.</p>
@@ -139,6 +203,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/pricing.js"></script>
 <script>
 var CRM_ENDPOINT = "https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec";
 
@@ -781,6 +846,109 @@ function cleanDupes(){
   renderTraffic();
   Object.keys(ids).forEach(function(id){ post({ action: 'update', key: KEY, id: id, status: 'deleted' }); });
   toast(removing.length + ' duplicate' + (removing.length === 1 ? '' : 's') + ' removed');
+}
+
+/* ---------- Phone quote (in-page pricing + lead capture) ---------- */
+var pq = { dogs:'1', freq:'weekly', deo:'none', ic:'' };
+function togglePQ(){
+  var p = document.getElementById('pqPanel');
+  var opening = p.style.display === 'none';
+  p.style.display = opening ? 'block' : 'none';
+  if (opening){ pqCalc(); p.scrollIntoView({ behavior:'smooth', block:'start' }); document.getElementById('pq-zip').focus(); }
+}
+function pqSet(key, val, el){
+  pq[key] = val;
+  var kids = el.parentElement.querySelectorAll('.chip');
+  for (var i = 0; i < kids.length; i++) kids[i].classList.remove('on');
+  el.classList.add('on');
+  pqCalc();
+}
+function pqQuote(){
+  var zip = String(document.getElementById('pq-zip').value || '').trim();
+  return clppsQuote({ zip: zip, dogs: pq.dogs, freq: pq.freq, deo: pq.deo, waiveInitial: pq.ic === 'w' });
+}
+function pqCalc(){
+  var zip = String(document.getElementById('pq-zip').value || '').trim();
+  var tierEl = document.getElementById('pq-tier');
+  var box = document.getElementById('pq-price');
+  var isOnce = pq.freq === 'onetime';
+  document.getElementById('pq-icrow').style.display = isOnce ? 'none' : '';
+  document.getElementById('pq-ic').style.display = isOnce ? 'none' : '';
+
+  if (!/^\d{5}$/.test(zip)){
+    tierEl.innerHTML = '<span style="color:#bbb;">enter 5 digits</span>';
+  } else {
+    var t = clppsZipTier(zip), listed = !!CLPPS_PRICING.zips[zip], inArea = clppsInArea(zip);
+    tierEl.innerHTML = '<strong style="color:#0F6E56;">' + t + '</strong> tier &middot; &times;' + CLPPS_PRICING.tiers[t].toFixed(2) +
+      (!listed ? ' <span style="color:#a96410;">(not on the list, priced as Value)</span>' : '') +
+      (!inArea ? ' <span style="color:#c0392b;">&middot; outside our normal area</span>' : '');
+  }
+  var r = pqQuote();
+  document.getElementById('pq-customrow').style.display = r.manual ? 'block' : 'none';
+  if (r.manual){
+    box.innerHTML = '<div style="font-size:13px;opacity:.85;">5+ dogs</div><div style="font-size:20px;font-weight:800;">Custom quote &mdash; price it by hand</div>' +
+      '<div style="font-size:12px;opacity:.85;margin-top:3px;">For reference, 4 dogs here would be $' +
+      clppsQuote({ zip: zip, dogs: 4, freq: pq.freq === 'onetime' ? 'weekly' : pq.freq }).service + (pq.freq === 'biweekly' ? '/mo every other week' : '/mo weekly') + '.</div>';
+    return;
+  }
+  var lines = [];
+  if (r.freq === 'onetime'){
+    lines.push('$' + CLPPS_PRICING.onetime + ' flat, any number of dogs, no ZIP tier');
+    if (r.deoAmt) lines.push('+ $' + r.deoAmt + ' deodorize');
+  } else {
+    var m = '$' + r.base + ' base &times; ' + r.mult.toFixed(2) + (r.freq === 'biweekly' ? ' &times; 0.82' : '') +
+            ' = $' + (r.base * r.mult * (r.freq === 'biweekly' ? 0.82 : 1)).toFixed(2) + ' &rarr; <strong>$' + r.service + '</strong>';
+    lines.push(m);
+    if (r.deoMo) lines.push('+ $' + r.deoMo + '/mo deodorize (' + r.treatments + ' &times; $15)');
+    lines.push(r.initial ? 'First invoice <strong>$' + r.first + '</strong> (includes $40 initial clean)' : 'Initial clean <strong>waived</strong> &mdash; first invoice $' + r.first);
+  }
+  var label = r.freq === 'weekly' ? 'Weekly' : (r.freq === 'biweekly' ? 'Every other week' : 'One-time cleanup');
+  box.innerHTML = '<div style="font-size:12.5px;opacity:.85;">' + label + ' &middot; ' + r.dogs + ' dog' + (r.dogs > 1 ? 's' : '') + (r.freq !== 'onetime' ? ' &middot; ' + r.tier + ' ZIP' : '') + '</div>' +
+    '<div style="font-size:30px;font-weight:800;line-height:1.1;margin:2px 0 4px;">$' + r.total + '<span style="font-size:15px;font-weight:600;opacity:.85;">' + (r.per || ' one-time') + '</span></div>' +
+    '<div style="font-size:12px;opacity:.9;line-height:1.6;">' + lines.join('<br>') + '</div>';
+}
+function pqSubmit(kind){
+  var name = document.getElementById('pq-name').value.trim();
+  var phone = document.getElementById('pq-phone').value.trim();
+  if (!name && !phone){ toast('Add at least a name or phone'); return; }
+  var zip = String(document.getElementById('pq-zip').value || '').trim();
+  var r = pqQuote();
+  var custom = String((document.getElementById('pq-custom') || {}).value || '').trim();
+  var price, manual = 'no';
+  if (r.manual){ price = custom || 'custom, to be quoted'; manual = custom ? 'no' : 'YES'; }
+  else price = '$' + r.total + (r.per ? '/mo' : ' one-time');
+  var svc = pq.freq === 'biweekly' ? 'every other week' : (pq.freq === 'onetime' ? 'one-time' : 'weekly');
+  var deoTxt = pq.deo === 'none' ? 'no' : (pq.deo === 'every' ? 'every visit ($15/treatment)' : 'every other visit ($15/treatment)');
+  var src = document.getElementById('pq-src').value;
+  var tierNote = pq.freq === 'onetime' ? 'Phone quote' : 'Phone quote \u00b7 ' + r.tier + ' ZIP tier (\u00d7' + r.mult.toFixed(2) + ')';
+  var lead = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    created: new Date().toISOString(),
+    type: kind === 'activate' ? 'ACTIVATE' : 'SAVED',
+    name: name, phone: phone,
+    email: document.getElementById('pq-email').value.trim(),
+    address: document.getElementById('pq-addr').value.trim(),
+    zip: zip,
+    service: svc,
+    dogs: pq.dogs === '5' ? '5+' : pq.dogs,
+    yard: 'up to 1/4 acre',
+    deodorize: deoTxt,
+    hero: 'no',
+    price: price,
+    manual: manual,
+    honored: new Date(Date.now() + 183 * 86400000).toDateString(),
+    notes: document.getElementById('pq-notes').value.trim(),
+    status: 'new',
+    crmnotes: (src ? '[SRC:' + src + '] ' : '') + (pq.ic === 'w' && pq.freq !== 'onetime' ? '[IC:w] ' : '') + tierNote
+  };
+  markSeen(SEEN_L, lead.id);
+  leads.unshift(lead);
+  saveLocal(); render();
+  post({ action:'lead', lead: lead }, (kind === 'activate' ? 'Added \u2014 wants to start!' : 'Quote saved') + ' \u00b7 ' + price);
+  ['pq-name','pq-phone','pq-email','pq-addr','pq-notes','pq-src','pq-zip'].forEach(function(i){ document.getElementById(i).value = ''; });
+  if (document.getElementById('pq-custom')) document.getElementById('pq-custom').value = '';
+  document.getElementById('pqPanel').style.display = 'none';
+  jumpToLead(lead.id);
 }
 /* ---------- Review requests ---------- */
 var REVIEW_WAIT_DAYS = 14;   // ask once they've had a couple of visits, not the day after

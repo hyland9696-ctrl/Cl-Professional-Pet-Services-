@@ -366,6 +366,7 @@
     input:focus,select:focus,textarea:focus{outline:3px solid #1D9E75;outline-offset:1px;}
     .nav-links button[aria-current="page"]{color:#0F6E56;font-weight:600;}
   </style>
+  <script src="/pricing.js"></script>
   <script src="/meta-pixel.js"></script>
 </head>
 <body>
@@ -830,10 +831,8 @@
         <div class="q-sub">Pick what fits your pack and watch your price update below.</div>
         <div class="q-label">How often?</div>
         <div class="opt-grid" id="q-freq">
-          <button class="opt-card" data-v="twiceweekly" onclick="qSet('freq','twiceweekly',this)"><div class="oc-big">Twice a Week</div><div class="oc-sub">Spotless, always</div></button>
           <button class="opt-card sel" data-v="weekly" onclick="qSet('freq','weekly',this)"><div class="oc-big">Weekly</div><div class="oc-sub">Most popular, always clean</div></button>
           <button class="opt-card" data-v="biweekly" onclick="qSet('freq','biweekly',this)"><div class="oc-big">Every Other Week</div><div class="oc-sub">Visits every two weeks</div></button>
-          <button class="opt-card" data-v="monthly" onclick="qSet('freq','monthly',this)"><div class="oc-big">Monthly</div><div class="oc-sub">One visit a month</div></button>
           <button class="opt-card" data-v="onetime" onclick="qSet('freq','onetime',this)"><div class="oc-big">One-Time</div><div class="oc-sub">Single deep cleanup</div></button>
         </div>
         <div class="q-label">How many dogs?</div>
@@ -842,8 +841,7 @@
           <button class="opt-card" data-v="2" onclick="qSet('dogs','2',this)"><div class="oc-big">2</div><div class="oc-sub">dogs</div></button>
           <button class="opt-card" data-v="3" onclick="qSet('dogs','3',this)"><div class="oc-big">3</div><div class="oc-sub">dogs</div></button>
           <button class="opt-card" data-v="4" onclick="qSet('dogs','4',this)"><div class="oc-big">4</div><div class="oc-sub">dogs</div></button>
-          <button class="opt-card" data-v="5" onclick="qSet('dogs','5',this)"><div class="oc-big">5</div><div class="oc-sub">dogs</div></button>
-          <button class="opt-card" data-v="6" onclick="qSet('dogs','6',this)"><div class="oc-big">6+</div><div class="oc-sub">custom quote</div></button>
+          <button class="opt-card" data-v="5" onclick="qSet('dogs','5',this)"><div class="oc-big">5+</div><div class="oc-sub">custom quote</div></button>
         </div>
         <div class="q-label">Yard size</div>
         <div class="opt-grid" id="q-yard">
@@ -938,7 +936,7 @@
       <h2 style="font-size:24px;margin-bottom:6px;">Terms of Service</h2>
       <p style="font-size:12px;color:#999;margin-bottom:18px;">CL Professional Pet Services LLC &middot; St. Peters, Missouri</p>
       <div style="font-size:14px;color:#444;line-height:1.75;display:flex;flex-direction:column;gap:12px;">
-        <p><strong>1. Services.</strong> CL Professional Pet Services LLC ("CLPPS") provides pet waste removal at the service address you provide, on the schedule you select (twice a week, weekly, every other week, monthly, or one-time). Every visit includes a full-yard sweep, waste haul-away, and securing your gate before we leave.</p>
+        <p><strong>1. Services.</strong> CL Professional Pet Services LLC ("CLPPS") provides pet waste removal at the service address you provide, on the schedule you select (weekly, every other week, or one-time). Every visit includes a full-yard sweep, waste haul-away, and securing your gate before we leave.</p>
         <p><strong>2. Quotes &amp; pricing.</strong> Quotes are honored for 6 months from the date issued and assume a serviceable yard of up to &frac14; acre. Lot size may be verified against county records; if your yard is materially larger, we will contact you to agree on adjusted pricing before service begins. New recurring clients are charged a one-time $40 initial clean on the first invoice. There are no hidden fees.</p>
         <p><strong>3. Billing.</strong> Recurring service is billed monthly through our billing system using the payment method you place on file via a secure link. A late fee of $10 per month applies to invoices remaining unpaid 30 days after the due date.</p>
         <p><strong>4. No contracts.</strong> Service is month-to-month. You may cancel at any time with no cancellation fee.</p>
@@ -965,19 +963,9 @@
 
 <script>
   /* ===== Instant quote wizard ===== */
-  /* OFFICIAL CLPPS PRICING (Aug 2026, Updated_Pricing.pdf — owner: Jesse Duncan) */
-  var PRICING = {
-    twiceweekly: {1: 146, 2: 162, 3: 176, 4: 190, 5: 206},  // per month (2x the weekly rate)
-    weekly:   {1: 73, 2: 81, 3: 88,  4: 95,  5: 103},  // per month
-    biweekly: {1: 86, 2: 95, 3: 104, 4: 112, 5: 121},  // per month (every other week costs MORE — intentional)
-    monthly:  {1: 65, 2: 70, 3: 75,  4: 80,  5: 85},   // per month, one visit ($65 + $5/extra dog)
-    onetime:  75,           // flat, any dog count; no initial clean fee
-    initialClean: 40,       // one-time, added to first invoice for new recurring clients
-    deodorize: 15           // per treatment
-  };
-  /* Metro ZIP prefixes: 630/631/633 = MO (St. Charles, St. Louis Co+City, Franklin,
-     Jefferson, Warren, Lincoln), 620/622 = IL Metro East (Madison, St. Clair, Monroe) */
-  var SERVICE_ZIP_PREFIXES = ["630","631","633","620","622"];
+  /* All prices, ZIP tiers and the service area live in /pricing.js (CLPPS_PRICING).
+     Weekly = base × ZIP tier; every other week = that × 0.82; one-time flat, no tier. */
+  var PRICING = CLPPS_PRICING;
   var FORM_EMAIL = "clpropetservices@gmail.com"; /* notification inbox (FormSubmit endpoint) */
   var BIZ_EMAIL = "info@clpropetservices.com";  /* business inbox, CC'd on every lead */
   var CRM_ENDPOINT = "https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec";
@@ -1092,7 +1080,7 @@
     msg.className = 'zip-msg';
     if(!/^\d{5}$/.test(v)){ msg.classList.add('bad'); msg.innerHTML = 'Please enter a 5-digit ZIP code.'; return; }
     q.zip = v;
-    var inArea = SERVICE_ZIP_PREFIXES.indexOf(v.substring(0,3)) >= 0;
+    var inArea = clppsInArea(v);
     if (inArea){
       msg.classList.add('ok');
       msg.innerHTML = '&#10004; Great news, we serve your area! Taking you to step 2&hellip;';
@@ -1107,37 +1095,14 @@
     var kids = el.parentElement.querySelectorAll('.opt-card');
     for (var i=0;i<kids.length;i++) kids[i].classList.remove('sel');
     el.classList.add('sel');
-    if (key === 'freq'){
-      var eoCard = document.querySelector('#q-deo-grid .opt-card[data-v="eo"]');
-      eoCard.style.display = (val === 'monthly') ? 'none' : '';
-      if (val === 'monthly' && q.deo === 'eo'){
-        q.deo = 'none';
-        var deoCards = document.querySelectorAll('#q-deo-grid .opt-card');
-        for (var j=0;j<deoCards.length;j++) deoCards[j].classList.toggle('sel', deoCards[j].getAttribute('data-v') === 'none');
-      }
-    }
     qPrice();
   }
   function qPriceParts(){
-    // Manual-review paths: yards over 1/4 acre, or 6+ dogs
-    if (q.yard === 'large' || q.dogs === '6'){
+    // Manual-review paths: yards over 1/4 acre, or 5+ dogs
+    if (q.yard === 'large' || q.dogs === '5'){
       return { manual: true };
     }
-    if (q.freq === 'onetime'){
-      var ot = PRICING.onetime + (q.deo !== 'none' ? PRICING.deodorize : 0);
-      return { manual: false, total: ot, per: '', first: ot, deoAmt: q.deo !== 'none' ? PRICING.deodorize : 0,
-               agree: '$' + ot + ' one-time cleanup' + (q.deo !== 'none' ? ' (includes $15 deodorize & sanitize)' : '') };
-    }
-    var base = PRICING[q.freq][q.dogs];
-    // visits/month: twice a week ~8, weekly ~4, every other week ~2, monthly 1
-    var visits = q.freq === 'twiceweekly' ? 8 : (q.freq === 'weekly' ? 4 : (q.freq === 'monthly' ? 1 : 2));
-    var treatments = q.deo === 'every' ? visits : (q.deo === 'eo' ? Math.round(visits / 2) : 0);
-    var deoMo = treatments * PRICING.deodorize;
-    var total = base + deoMo;
-    var first = total + PRICING.initialClean;
-    var agree = '$' + total + '/mo' + (deoMo ? ' (includes ' + treatments + ' deodorize treatments at $15 each)' : '') +
-                ', with a first invoice of $' + first + ' including the one-time $' + PRICING.initialClean + ' initial clean';
-    return { manual: false, total: total, per: '/mo', first: first, deoMo: deoMo, treatments: treatments, agree: agree };
+    return clppsQuote({ zip: q.zip, dogs: q.dogs, freq: q.freq, deo: q.deo });
   }
   function qPrice(){
     var p = qPriceParts();
@@ -1149,12 +1114,12 @@
       labelEl.textContent = 'Custom quote';
       priceEl.innerHTML = "We'll price it personally";
       priceEl.style.fontSize = '30px';
-      noteEl.textContent = (q.dogs === '6' ? '6+ dogs' : 'Larger yards') + ' get a hand-built quote. Continue and we\u2019ll contact you within one business day.';
+      noteEl.textContent = (q.dogs === '5' ? '5+ dogs' : 'Larger yards') + ' get a hand-built quote. Continue and we\u2019ll contact you within one business day.';
       agreeEl.textContent = 'a custom quote (CLPPS will contact me with personal pricing)';
       return;
     }
     priceEl.style.fontSize = '';
-    var labels = { twiceweekly:'Your twice-a-week service', weekly:'Your weekly service', biweekly:'Your every-other-week service', monthly:'Your monthly service', onetime:'Your one-time cleanup' };
+    var labels = { weekly:'Your weekly service', biweekly:'Your every-other-week service', onetime:'Your one-time cleanup' };
     labelEl.textContent = labels[q.freq];
     priceEl.innerHTML = '$' + p.total + '<small>' + p.per + '</small>';
     if (q.freq === 'onetime'){
@@ -1403,8 +1368,9 @@
         ? ('YES, matched map lookup' + (addrPickedZip && q.zip && addrPickedZip !== q.zip ? ' (NOTE: address ZIP ' + addrPickedZip + ' differs from step-1 ZIP ' + q.zip + ')' : ''))
         : 'no, typed manually — double-check before first visit',
       ZIP: q.zip,
-      Service: q.freq === 'biweekly' ? 'every other week' : (q.freq === 'twiceweekly' ? 'twice a week' : q.freq),
-      Dogs: q.dogs === '6' ? '6+ (manual pricing)' : q.dogs,
+      Service: q.freq === 'biweekly' ? 'every other week' : (q.freq === 'onetime' ? 'one-time' : q.freq),
+      Pricing_Tier: q.freq === 'onetime' ? 'n/a (flat rate)' : clppsZipTier(q.zip),
+      Dogs: q.dogs === '5' ? '5+ (manual pricing)' : q.dogs,
       Yard_Size: q.yard === 'large' ? 'OVER 1/4 acre (manual review)' : 'up to 1/4 acre',
       Deodorize: q.deo === 'none' ? 'no' : (q.deo === 'every' ? 'every visit ($15/treatment)' : 'every other visit ($15/treatment)'),
       Manual_Review: p.manual ? 'YES' : 'no',
