@@ -88,6 +88,7 @@
       <input id="search" placeholder="Search name, phone, ZIP&hellip;" oninput="render()">
     </div>
     <div class="toolbar">
+      <button class="copybtn" onclick="toggleBrief()">&#128203; Daily brief</button>
       <button class="copybtn" onclick="togglePQ()" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">&#128222; Phone quote</button>
       <button class="copybtn" onclick="toggleAdd()">&#10133; Add lead</button>
       <button class="copybtn" onclick="exportCsv()">&#11015;&#65039; Download CSV</button>
@@ -132,6 +133,19 @@
       </div>
       <button class="copybtn" id="m-savebtn" style="margin-top:8px;" onclick="addManual()">Add manual lead</button>
     </div>
+    <div id="briefPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-weight:800;font-size:15px;">&#128203; Daily brief</div>
+        <button onclick="toggleBrief()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
+      </div>
+      <div id="brief-body" style="background:#F7F9F8;border:1px solid #E4EBE7;border-radius:10px;padding:12px 13px;font-size:13px;line-height:1.65;color:#2B3A34;white-space:pre-wrap;font-family:inherit;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+        <button onclick="briefCopy()" style="background:#1D9E75;color:#fff;border:none;border-radius:9px;padding:10px 13px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">&#128203; Copy</button>
+        <button onclick="briefEmail()" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:9px;padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">&#9993;&#65039; Email it</button>
+        <button onclick="briefText()" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:9px;padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">&#128172; Text it</button>
+      </div>
+      <div style="font-size:11px;color:#aaa;margin-top:7px;">Built from the numbers on this page right now.</div>
+    </div>
     <div id="pqPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <div style="font-weight:800;font-size:15px;">&#128222; Price it on the phone</div>
@@ -152,7 +166,7 @@
 
       <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">3. How often?</div>
       <div class="chips" id="pq-freq" style="margin-bottom:10px;">
-        <button class="chip on" onclick="pqSet('freq','weekly',this)">Weekly</button><button class="chip" onclick="pqSet('freq','biweekly',this)">Every other week</button><button class="chip" onclick="pqSet('freq','onetime',this)">One-time cleanup</button>
+        <button class="chip" onclick="pqSet('freq','twiceweekly',this)">Twice a week</button><button class="chip on" onclick="pqSet('freq','weekly',this)">Weekly</button><button class="chip" onclick="pqSet('freq','biweekly',this)">Every other week</button><button class="chip" onclick="pqSet('freq','monthly',this)">Monthly</button><button class="chip" onclick="pqSet('freq','onetime',this)">One-time cleanup</button>
       </div>
 
       <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">4. Deodorize &amp; sanitize? ($15 a treatment)</div>
@@ -848,6 +862,130 @@ function cleanDupes(){
   toast(removing.length + ' duplicate' + (removing.length === 1 ? '' : 's') + ' removed');
 }
 
+
+/* ---------- Daily brief ---------- */
+function toggleBrief(){
+  var p = document.getElementById('briefPanel');
+  var opening = p.style.display === 'none';
+  p.style.display = opening ? 'block' : 'none';
+  if (opening){ renderBrief(); p.scrollIntoView({ behavior:'smooth', block:'start' }); }
+}
+function briefText_(){
+  var now = new Date();
+  var todayK = gDayKey(now);
+  var day = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+  var sameDay = function(x){ return x && gDayKey(new Date(x)) === todayK; };
+  var live = leads.filter(function(l){ return (l.status || 'new') !== 'deleted'; });
+
+  var newToday = live.filter(function(l){ return sameDay(l.created); });
+  var uncontacted = live.filter(function(l){ return (l.status || 'new') === 'new'; });
+  var stale = uncontacted.filter(function(l){
+    // already listed above as an acceptance, don't repeat them here
+    return !auths[l.id] && l.created && (Date.now() - new Date(l.created).getTime()) / 3600000 >= 24;
+  });
+  var authPending = live.filter(function(l){
+    var st = l.status || 'new';
+    return auths[l.id] && st !== 'closed' && st !== 'lost';
+  });
+  var fuDue = live.filter(function(l){
+    var st = l.status || 'new';
+    if (st === 'closed' || st === 'lost') return false;
+    var d = fuParse(l.crmnotes).date;
+    return d && d <= new Date().toISOString().slice(0, 10);
+  });
+  var closedToday = live.filter(function(l){
+    if ((l.status || 'new') !== 'closed') return false;
+    var cd = fuParse(l.crmnotes).cd;
+    return cd === new Date().toISOString().slice(0, 10);
+  });
+  var startingSoon = live.filter(function(l){
+    var sd = fuParse(l.crmnotes).sd;
+    if (!sd) return false;
+    var days = (new Date(sd + 'T12:00:00') - now) / 86400000;
+    return days >= -0.5 && days <= 7;
+  }).sort(function(a, b){ return fuParse(a.crmnotes).sd.localeCompare(fuParse(b.crmnotes).sd); });
+  var revDue = live.filter(reviewDue);
+
+  var vToday = views.filter(function(v){ return gDayKey(new Date(v.created)) === todayK; }).length;
+  var cut7 = new Date(now.getTime() - 7 * 86400000);
+  var v7 = views.filter(function(v){ return new Date(v.created) >= cut7; }).length;
+  var l7 = live.filter(function(l){ return new Date(l.created) >= cut7; }).length;
+
+  var mk = monthKeyOf(now);
+  var mb = monthBreakdown(mk);
+  var spend = CHANNELS.reduce(function(a, c){ return a + spendFor(mk, c.k); }, 0);
+
+  var nm = function(l){ return (l.name || '(no name)') + (l.price ? ' \u2014 ' + String(l.price).split(',')[0] : ''); };
+  var list = function(arr, f){ return arr.slice(0, 6).map(function(l){ return '  \u2022 ' + (f ? f(l) : nm(l)); }).join('\n') + (arr.length > 6 ? '\n  \u2022 +' + (arr.length - 6) + ' more' : ''); };
+
+  var L = [];
+  L.push('CLPPS DAILY BRIEF \u2014 ' + day);
+  L.push('');
+  L.push('NEEDS ATTENTION');
+  if (authPending.length){
+    L.push('\u2705 ' + authPending.length + ' accepted their quote and still need to be set up:');
+    L.push(list(authPending));
+  }
+  if (stale.length){
+    L.push('\u23f0 ' + stale.length + ' lead' + (stale.length === 1 ? '' : 's') + ' waiting over 24h with no contact:');
+    L.push(list(stale));
+  }
+  if (fuDue.length){
+    L.push('\ud83d\udd14 ' + fuDue.length + ' follow-up' + (fuDue.length === 1 ? '' : 's') + ' due:');
+    L.push(list(fuDue));
+  }
+  if (revDue.length) L.push('\u2b50 ' + revDue.length + ' customer' + (revDue.length === 1 ? '' : 's') + ' ready to be asked for a review');
+  if (!authPending.length && !stale.length && !fuDue.length && !revDue.length) L.push('  Nothing outstanding \u2014 all clear.');
+
+  L.push('');
+  L.push('TODAY');
+  L.push('  New leads: ' + newToday.length + (newToday.length ? '\n' + list(newToday) : ''));
+  L.push('  Closed today: ' + closedToday.length + (closedToday.length ? '\n' + list(closedToday) : ''));
+  L.push('  Website visits: ' + vToday);
+
+  if (startingSoon.length){
+    L.push('');
+    L.push('FIRST VISITS THIS WEEK');
+    L.push(list(startingSoon, function(l){ return niceDate(fuParse(l.crmnotes).sd) + ' \u2014 ' + (l.name || '(no name)'); }));
+  }
+
+  L.push('');
+  L.push('PIPELINE');
+  L.push('  Open leads: ' + live.filter(function(l){ var st = l.status || 'new'; return st === 'new' || st === 'called'; }).length +
+         '  (new ' + uncontacted.length + ', called ' + live.filter(function(l){ return l.status === 'called'; }).length + ')');
+  L.push('  Last 7 days: ' + l7 + ' lead' + (l7 === 1 ? '' : 's') + ' from ' + v7 + ' website visits');
+
+  L.push('');
+  L.push(monthLabel(mk).toUpperCase() + ' SO FAR');
+  L.push('  Closed: ' + mb.totals.closed + ' customer' + (mb.totals.closed === 1 ? '' : 's'));
+  if (mb.totals.mrr) L.push('  New recurring: +' + money(mb.totals.mrr) + '/mo');
+  if (mb.totals.fees) L.push('  Initial cleans: ' + money(mb.totals.fees));
+  if (mb.totals.once) L.push('  One-time jobs: ' + money(mb.totals.once));
+  L.push('  First-year value closed: ' + money(mb.totals.year1));
+  if (spend > 0){
+    L.push('  Ad spend: ' + money(spend) + ' \u2192 ' + (mb.totals.year1 / spend).toFixed(1) + '\u00d7 back');
+    CHANNELS.forEach(function(c){
+      var sp = spendFor(mk, c.k), r = mb.by[c.k];
+      if (sp) L.push('    ' + c.label + ': ' + money(sp) + ' \u2192 ' + (r.year1 ? money(r.year1) + ' (' + r.closed + ' closed)' : 'nothing closed yet'));
+    });
+  }
+  return L.join('\n');
+}
+function renderBrief(){ document.getElementById('brief-body').textContent = briefText_(); }
+function briefCopy(){
+  var t = briefText_();
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(function(){ toast('Brief copied'); }, function(){ prompt('Copy this:', t); });
+  } else prompt('Copy this:', t);
+}
+function briefEmail(){
+  var d = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  window.location.href = 'mailto:?subject=' + encodeURIComponent('CLPPS daily brief \u2014 ' + d) +
+    '&body=' + encodeURIComponent(briefText_());
+}
+function briefText(){
+  window.location.href = 'sms:?&body=' + encodeURIComponent(briefText_()).replace(/'/g, '%27');
+}
 /* ---------- Phone quote (in-page pricing + lead capture) ---------- */
 var pq = { dogs:'1', freq:'weekly', deo:'none', ic:'' };
 function togglePQ(){
@@ -858,6 +996,11 @@ function togglePQ(){
 }
 function pqSet(key, val, el){
   pq[key] = val;
+  if (key === 'freq' && val === 'monthly' && pq.deo === 'eo'){
+    pq.deo = 'none';
+    var dc = document.querySelectorAll('#pq-deo .chip');
+    for (var k = 0; k < dc.length; k++) dc[k].classList.toggle('on', k === 0);
+  }
   var kids = el.parentElement.querySelectorAll('.chip');
   for (var i = 0; i < kids.length; i++) kids[i].classList.remove('on');
   el.classList.add('on');
@@ -874,6 +1017,8 @@ function pqCalc(){
   var isOnce = pq.freq === 'onetime';
   document.getElementById('pq-icrow').style.display = isOnce ? 'none' : '';
   document.getElementById('pq-ic').style.display = isOnce ? 'none' : '';
+  var eoChip = document.querySelectorAll('#pq-deo .chip')[2];
+  if (eoChip) eoChip.style.display = (pq.freq === 'monthly') ? 'none' : '';
 
   if (!/^\d{5}$/.test(zip)){
     tierEl.innerHTML = '<span style="color:#bbb;">enter 5 digits</span>';
@@ -888,7 +1033,7 @@ function pqCalc(){
   if (r.manual){
     box.innerHTML = '<div style="font-size:13px;opacity:.85;">5+ dogs</div><div style="font-size:20px;font-weight:800;">Custom quote &mdash; price it by hand</div>' +
       '<div style="font-size:12px;opacity:.85;margin-top:3px;">For reference, 4 dogs here would be $' +
-      clppsQuote({ zip: zip, dogs: 4, freq: pq.freq === 'onetime' ? 'weekly' : pq.freq }).service + (pq.freq === 'biweekly' ? '/mo every other week' : '/mo weekly') + '.</div>';
+      clppsQuote({ zip: zip, dogs: 4, freq: pq.freq === 'onetime' ? 'weekly' : pq.freq }).service + '/mo on this plan.</div>';
     return;
   }
   var lines = [];
@@ -896,13 +1041,19 @@ function pqCalc(){
     lines.push('$' + CLPPS_PRICING.onetime + ' flat, any number of dogs, no ZIP tier');
     if (r.deoAmt) lines.push('+ $' + r.deoAmt + ' deodorize');
   } else {
-    var m = '$' + r.base + ' base &times; ' + r.mult.toFixed(2) + (r.freq === 'biweekly' ? ' &times; 0.82' : '') +
-            ' = $' + (r.base * r.mult * (r.freq === 'biweekly' ? 0.82 : 1)).toFixed(2) + ' &rarr; <strong>$' + r.service + '</strong>';
-    lines.push(m);
+    if (r.freq === 'twiceweekly'){
+      lines.push('$' + r.base + ' base &times; ' + r.mult.toFixed(2) + ' = $' + (r.base * r.mult).toFixed(2) +
+                 ' &rarr; $' + (r.service / 2) + ' weekly, &times;2 &rarr; <strong>$' + r.service + '</strong>');
+    } else {
+      lines.push('$' + r.base + ' base &times; ' + r.mult.toFixed(2) + (r.freq === 'biweekly' ? ' &times; 0.82' : '') +
+                 ' = $' + (r.base * r.mult * (r.freq === 'biweekly' ? 0.82 : 1)).toFixed(2) +
+                 ' &rarr; <strong>$' + r.service + '</strong>' + (r.freq === 'monthly' ? ' (one visit a month)' : ''));
+    }
     if (r.deoMo) lines.push('+ $' + r.deoMo + '/mo deodorize (' + r.treatments + ' &times; $15)');
     lines.push(r.initial ? 'First invoice <strong>$' + r.first + '</strong> (includes $40 initial clean)' : 'Initial clean <strong>waived</strong> &mdash; first invoice $' + r.first);
   }
-  var label = r.freq === 'weekly' ? 'Weekly' : (r.freq === 'biweekly' ? 'Every other week' : 'One-time cleanup');
+  var PQ_LABELS = { twiceweekly:'Twice a week', weekly:'Weekly', biweekly:'Every other week', monthly:'Monthly', onetime:'One-time cleanup' };
+  var label = PQ_LABELS[r.freq];
   box.innerHTML = '<div style="font-size:12.5px;opacity:.85;">' + label + ' &middot; ' + r.dogs + ' dog' + (r.dogs > 1 ? 's' : '') + (r.freq !== 'onetime' ? ' &middot; ' + r.tier + ' ZIP' : '') + '</div>' +
     '<div style="font-size:30px;font-weight:800;line-height:1.1;margin:2px 0 4px;">$' + r.total + '<span style="font-size:15px;font-weight:600;opacity:.85;">' + (r.per || ' one-time') + '</span></div>' +
     '<div style="font-size:12px;opacity:.9;line-height:1.6;">' + lines.join('<br>') + '</div>';
@@ -917,7 +1068,8 @@ function pqSubmit(kind){
   var price, manual = 'no';
   if (r.manual){ price = custom || 'custom, to be quoted'; manual = custom ? 'no' : 'YES'; }
   else price = '$' + r.total + (r.per ? '/mo' : ' one-time');
-  var svc = pq.freq === 'biweekly' ? 'every other week' : (pq.freq === 'onetime' ? 'one-time' : 'weekly');
+  var PQ_SVC = { twiceweekly:'twice a week', weekly:'weekly', biweekly:'every other week', monthly:'monthly', onetime:'one-time' };
+  var svc = PQ_SVC[pq.freq];
   var deoTxt = pq.deo === 'none' ? 'no' : (pq.deo === 'every' ? 'every visit ($15/treatment)' : 'every other visit ($15/treatment)');
   var src = document.getElementById('pq-src').value;
   var tierNote = pq.freq === 'onetime' ? 'Phone quote' : 'Phone quote \u00b7 ' + r.tier + ' ZIP tier (\u00d7' + r.mult.toFixed(2) + ')';

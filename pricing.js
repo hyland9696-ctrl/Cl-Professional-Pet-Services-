@@ -5,13 +5,16 @@
 
    Recurring:   weekly = base[dogs] × ZIP multiplier
                 every other week = base[dogs] × ZIP multiplier × 0.82
-                both rounded to the nearest whole dollar
+                twice a week = the weekly price × 2
+                monthly (one visit) = monthlyBase[dogs] × ZIP multiplier
+                all rounded to the nearest whole dollar
    One-time:    flat $75, ZIP multiplier NOT applied
    Unlisted ZIP (inside the service area): priced as Value
    ============================================================ */
 
 var CLPPS_PRICING = {
   base: { 1: 85, 2: 91, 3: 97, 4: 103 },     // weekly, $/month, Standard tier
+  monthlyBase: { 1: 65, 2: 70, 3: 75, 4: 80 }, // one visit a month, Standard tier ($65 + $5/dog)
   tiers: { Value: 0.90, Core: 0.95, Standard: 1.00, Premium: 1.10 },
   eowFactor: 0.82,
   onetime: 75,          // flat, any dog count, no multiplier
@@ -43,7 +46,7 @@ function clppsInArea(zip){
 }
 function clppsRound(v){ return Math.round(v + 1e-9); }
 
-/* opts: { zip, dogs (1-4, or 5 = custom), freq: 'weekly'|'biweekly'|'onetime',
+/* opts: { zip, dogs (1-4, or 5 = custom), freq: 'twiceweekly'|'weekly'|'biweekly'|'monthly'|'onetime',
            deo: 'none'|'every'|'eo', waiveInitial: bool }
    Returns the full breakdown, or { manual:true, reason } for custom quotes. */
 function clppsQuote(opts){
@@ -65,10 +68,23 @@ function clppsQuote(opts){
   if (dogs > P.maxDogs){
     return { manual:true, reason:'5+ dogs', tier:tier, mult:mult, dogs:dogs, freq:freq };
   }
-  var base = P.base[dogs];
-  var raw = base * mult * (freq === 'biweekly' ? P.eowFactor : 1);
-  var service = clppsRound(raw);
-  var visits = freq === 'biweekly' ? 2 : 4;
+  var base, raw, service, visits;
+  if (freq === 'monthly'){
+    base = P.monthlyBase[dogs];
+    raw = base * mult;
+    service = clppsRound(raw);
+    visits = 1;
+  } else if (freq === 'twiceweekly'){
+    base = P.base[dogs];
+    raw = base * mult;
+    service = clppsRound(raw) * 2;          // the customer's weekly price, doubled
+    visits = 8;
+  } else {
+    base = P.base[dogs];
+    raw = base * mult * (freq === 'biweekly' ? P.eowFactor : 1);
+    service = clppsRound(raw);
+    visits = freq === 'biweekly' ? 2 : 4;
+  }
   var treatments = deo === 'every' ? visits : (deo === 'eo' ? Math.round(visits / 2) : 0);
   var deoMo = treatments * P.deodorize;
   var total = service + deoMo;
