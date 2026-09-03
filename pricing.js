@@ -5,10 +5,11 @@
 
    Recurring:   weekly = base[dogs] × ZIP multiplier
                 every other week = base[dogs] × ZIP multiplier × 0.82
-                twice a week = the weekly price × 2
+                twice a week = the weekly price × 1.80 (double, less 10%)
                 monthly (one visit) = monthlyBase[dogs] × ZIP multiplier
                 all rounded to the nearest whole dollar
-   One-time:    flat $75, ZIP multiplier NOT applied
+   One-time:    $75 for the first 30 minutes, +$20 per extra 15 minutes.
+                ZIP multiplier NOT applied.
    Unlisted ZIP (inside the service area): priced as Value
    ============================================================ */
 
@@ -17,7 +18,12 @@ var CLPPS_PRICING = {
   monthlyBase: { 1: 65, 2: 70, 3: 75, 4: 80 }, // one visit a month, Standard tier ($65 + $5/dog)
   tiers: { Value: 0.90, Core: 0.95, Standard: 1.00, Premium: 1.10 },
   eowFactor: 0.82,
-  onetime: 75,          // flat, any dog count, no multiplier
+  twiceWeeklyFactor: 1.80,   // weekly x2, less the 10% multi-visit discount
+  roundTwiceWeekly: true,    // false = keep the exact cents (e.g. $163.80)
+  onetime: 75,          // first 30 minutes, any dog count, no ZIP multiplier
+  onetimeMinutes: 30,   // what the $75 covers
+  onetimeBlock: 15,     // each additional block, in minutes
+  onetimeBlockPrice: 20,
   initialClean: 40,     // one-time, first invoice, recurring customers only
   deodorize: 15,        // per treatment
   maxDogs: 4,           // 5+ is a custom quote
@@ -46,8 +52,17 @@ function clppsInArea(zip){
 }
 function clppsRound(v){ return Math.round(v + 1e-9); }
 
+/* One-time labour price for a given number of minutes on site. */
+function clppsOnetime(minutes){
+  var P = CLPPS_PRICING;
+  var m = parseInt(minutes, 10);
+  if (!m || m < P.onetimeMinutes) m = P.onetimeMinutes;
+  var extra = Math.ceil((m - P.onetimeMinutes) / P.onetimeBlock);
+  return { minutes: m, blocks: extra, price: P.onetime + extra * P.onetimeBlockPrice };
+}
+
 /* opts: { zip, dogs (1-4, or 5 = custom), freq: 'twiceweekly'|'weekly'|'biweekly'|'monthly'|'onetime',
-           deo: 'none'|'every'|'eo', waiveInitial: bool }
+           deo: 'none'|'every'|'eo', waiveInitial: bool, minutes: one-time job length }
    Returns the full breakdown, or { manual:true, reason } for custom quotes. */
 function clppsQuote(opts){
   var P = CLPPS_PRICING;
@@ -58,12 +73,18 @@ function clppsQuote(opts){
   var mult = P.tiers[tier];
 
   if (freq === 'onetime'){
+    var job = clppsOnetime(opts.minutes);
     var deoOnce = deo !== 'none' ? P.deodorize : 0;
-    var ot = P.onetime + deoOnce;
+    var ot = job.price + deoOnce;
     return { manual:false, freq:freq, tier:tier, mult:1, dogs:dogs,
-             base:P.onetime, service:P.onetime, deoAmt:deoOnce, deoMo:deoOnce, treatments: deoOnce ? 1 : 0,
+             base:P.onetime, service:job.price, minutes:job.minutes, blocks:job.blocks,
+             deoAmt:deoOnce, deoMo:deoOnce, treatments: deoOnce ? 1 : 0,
              total:ot, per:'', first:ot, initial:0,
-             agree:'$' + ot + ' one-time cleanup' + (deoOnce ? ' (includes $15 deodorize & sanitize)' : '') };
+             agree:'$' + ot + ' one-time cleanup' +
+               (job.blocks ? ' (' + job.minutes + " minutes: $" + P.onetime + ' for the first ' + P.onetimeMinutes +
+                             ' plus ' + job.blocks + ' \u00d7 $' + P.onetimeBlockPrice + ')'
+                           : ' (up to ' + P.onetimeMinutes + ' minutes on site)') +
+               (deoOnce ? ' (includes $15 deodorize & sanitize)' : '') };
   }
   if (dogs > P.maxDogs){
     return { manual:true, reason:'5+ dogs', tier:tier, mult:mult, dogs:dogs, freq:freq };
@@ -77,7 +98,9 @@ function clppsQuote(opts){
   } else if (freq === 'twiceweekly'){
     base = P.base[dogs];
     raw = base * mult;
-    service = clppsRound(raw) * 2;          // the customer's weekly price, doubled
+    var wk = clppsRound(raw);               // the customer's own weekly price
+    var tw = wk * P.twiceWeeklyFactor;      // double it, less the 10% discount
+    service = P.roundTwiceWeekly ? clppsRound(tw) : Math.round(tw * 100) / 100;
     visits = 8;
   } else {
     base = P.base[dogs];

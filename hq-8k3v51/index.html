@@ -174,6 +174,12 @@
         <button class="chip on" onclick="pqSet('deo','none',this)">No</button><button class="chip" onclick="pqSet('deo','every',this)">Every visit</button><button class="chip" onclick="pqSet('deo','eo',this)">Every other visit</button>
       </div>
 
+      <div id="pq-minrow" style="display:none;">
+        <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">Time on site &mdash; $75 covers 30 min, then $20 per extra 15</div>
+        <div class="chips" id="pq-min" style="margin-bottom:10px;">
+          <button class="chip on" onclick="pqSet('min','30',this)">30 min</button><button class="chip" onclick="pqSet('min','45',this)">45</button><button class="chip" onclick="pqSet('min','60',this)">1 hr</button><button class="chip" onclick="pqSet('min','75',this)">1h 15</button><button class="chip" onclick="pqSet('min','90',this)">1h 30</button><button class="chip" onclick="pqSet('min','120',this)">2 hr</button><button class="chip" onclick="pqSet('min','150',this)">2h 30</button><button class="chip" onclick="pqSet('min','180',this)">3 hr</button>
+        </div>
+      </div>
       <div id="pq-icrow" style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">5. $40 initial clean on the first invoice</div>
       <div class="chips" id="pq-ic" style="margin-bottom:12px;">
         <button class="chip on" onclick="pqSet('ic','',this)">Standard</button><button class="chip" onclick="pqSet('ic','w',this)">Waive it</button>
@@ -987,7 +993,7 @@ function briefText(){
   window.location.href = 'sms:?&body=' + encodeURIComponent(briefText_()).replace(/'/g, '%27');
 }
 /* ---------- Phone quote (in-page pricing + lead capture) ---------- */
-var pq = { dogs:'1', freq:'weekly', deo:'none', ic:'' };
+var pq = { dogs:'1', freq:'weekly', deo:'none', ic:'', min:'30' };
 function togglePQ(){
   var p = document.getElementById('pqPanel');
   var opening = p.style.display === 'none';
@@ -1008,7 +1014,7 @@ function pqSet(key, val, el){
 }
 function pqQuote(){
   var zip = String(document.getElementById('pq-zip').value || '').trim();
-  return clppsQuote({ zip: zip, dogs: pq.dogs, freq: pq.freq, deo: pq.deo, waiveInitial: pq.ic === 'w' });
+  return clppsQuote({ zip: zip, dogs: pq.dogs, freq: pq.freq, deo: pq.deo, waiveInitial: pq.ic === 'w', minutes: pq.min });
 }
 function pqCalc(){
   var zip = String(document.getElementById('pq-zip').value || '').trim();
@@ -1017,6 +1023,7 @@ function pqCalc(){
   var isOnce = pq.freq === 'onetime';
   document.getElementById('pq-icrow').style.display = isOnce ? 'none' : '';
   document.getElementById('pq-ic').style.display = isOnce ? 'none' : '';
+  document.getElementById('pq-minrow').style.display = isOnce ? 'block' : 'none';
   var eoChip = document.querySelectorAll('#pq-deo .chip')[2];
   if (eoChip) eoChip.style.display = (pq.freq === 'monthly') ? 'none' : '';
 
@@ -1038,12 +1045,16 @@ function pqCalc(){
   }
   var lines = [];
   if (r.freq === 'onetime'){
-    lines.push('$' + CLPPS_PRICING.onetime + ' flat, any number of dogs, no ZIP tier');
+    lines.push(r.blocks
+      ? '$' + CLPPS_PRICING.onetime + ' for the first 30 min + ' + r.blocks + ' &times; $' + CLPPS_PRICING.onetimeBlockPrice + ' = <strong>$' + r.service + '</strong>'
+      : '$' + CLPPS_PRICING.onetime + ' covers the first 30 minutes');
+    lines.push('Any number of dogs, no ZIP tier');
     if (r.deoAmt) lines.push('+ $' + r.deoAmt + ' deodorize');
   } else {
     if (r.freq === 'twiceweekly'){
-      lines.push('$' + r.base + ' base &times; ' + r.mult.toFixed(2) + ' = $' + (r.base * r.mult).toFixed(2) +
-                 ' &rarr; $' + (r.service / 2) + ' weekly, &times;2 &rarr; <strong>$' + r.service + '</strong>');
+      var wkPrice = clppsRound(r.base * r.mult);
+      lines.push('$' + r.base + ' base &times; ' + r.mult.toFixed(2) + ' = $' + wkPrice + ' weekly' +
+                 ', &times;' + CLPPS_PRICING.twiceWeeklyFactor.toFixed(2) + ' (double, less 10%) &rarr; <strong>$' + r.service + '</strong>');
     } else {
       lines.push('$' + r.base + ' base &times; ' + r.mult.toFixed(2) + (r.freq === 'biweekly' ? ' &times; 0.82' : '') +
                  ' = $' + (r.base * r.mult * (r.freq === 'biweekly' ? 0.82 : 1)).toFixed(2) +
@@ -1054,7 +1065,7 @@ function pqCalc(){
   }
   var PQ_LABELS = { twiceweekly:'Twice a week', weekly:'Weekly', biweekly:'Every other week', monthly:'Monthly', onetime:'One-time cleanup' };
   var label = PQ_LABELS[r.freq];
-  box.innerHTML = '<div style="font-size:12.5px;opacity:.85;">' + label + ' &middot; ' + r.dogs + ' dog' + (r.dogs > 1 ? 's' : '') + (r.freq !== 'onetime' ? ' &middot; ' + r.tier + ' ZIP' : '') + '</div>' +
+  box.innerHTML = '<div style="font-size:12.5px;opacity:.85;">' + label + ' &middot; ' + r.dogs + ' dog' + (r.dogs > 1 ? 's' : '') + (r.freq !== 'onetime' ? ' &middot; ' + r.tier + ' ZIP' : ' &middot; ' + r.minutes + ' min') + '</div>' +
     '<div style="font-size:30px;font-weight:800;line-height:1.1;margin:2px 0 4px;">$' + r.total + '<span style="font-size:15px;font-weight:600;opacity:.85;">' + (r.per || ' one-time') + '</span></div>' +
     '<div style="font-size:12px;opacity:.9;line-height:1.6;">' + lines.join('<br>') + '</div>';
 }
@@ -1072,7 +1083,9 @@ function pqSubmit(kind){
   var svc = PQ_SVC[pq.freq];
   var deoTxt = pq.deo === 'none' ? 'no' : (pq.deo === 'every' ? 'every visit ($15/treatment)' : 'every other visit ($15/treatment)');
   var src = document.getElementById('pq-src').value;
-  var tierNote = pq.freq === 'onetime' ? 'Phone quote' : 'Phone quote \u00b7 ' + r.tier + ' ZIP tier (\u00d7' + r.mult.toFixed(2) + ')';
+  var tierNote = pq.freq === 'onetime'
+    ? 'Phone quote \u00b7 ' + r.minutes + ' min on site'
+    : 'Phone quote \u00b7 ' + r.tier + ' ZIP tier (\u00d7' + r.mult.toFixed(2) + ')';
   var lead = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
     created: new Date().toISOString(),

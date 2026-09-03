@@ -835,7 +835,7 @@
           <button class="opt-card sel" data-v="weekly" onclick="qSet('freq','weekly',this)"><div class="oc-big">Weekly</div><div class="oc-sub">Most popular, always clean</div></button>
           <button class="opt-card" data-v="biweekly" onclick="qSet('freq','biweekly',this)"><div class="oc-big">Every Other Week</div><div class="oc-sub">Visits every two weeks</div></button>
           <button class="opt-card" data-v="monthly" onclick="qSet('freq','monthly',this)"><div class="oc-big">Monthly</div><div class="oc-sub">One visit a month</div></button>
-          <button class="opt-card" data-v="onetime" onclick="qSet('freq','onetime',this)"><div class="oc-big">One-Time</div><div class="oc-sub">Single deep cleanup</div></button>
+          <button class="opt-card" data-v="onetime" onclick="qSet('freq','onetime',this)"><div class="oc-big">One-Time</div><div class="oc-sub">From $75, priced by time</div></button>
         </div>
         <div class="q-label">How many dogs?</div>
         <div class="opt-grid" id="q-dogs">
@@ -1134,9 +1134,12 @@
     priceEl.style.fontSize = '';
     var labels = { twiceweekly:'Your twice-a-week service', weekly:'Your weekly service', biweekly:'Your every-other-week service', monthly:'Your monthly service', onetime:'Your one-time cleanup' };
     labelEl.textContent = labels[q.freq];
-    priceEl.innerHTML = '$' + p.total + '<small>' + p.per + '</small>';
+    priceEl.innerHTML = (q.freq === 'onetime' ? 'from $' : '$') + p.total + '<small>' + p.per + '</small>';
     if (q.freq === 'onetime'){
-      noteEl.textContent = 'Flat rate, any number of dogs.' + (p.deoAmt ? ' Includes $15 deodorize & sanitize.' : '') + ' Haul-away included, no other fees.';
+      noteEl.textContent = '$' + PRICING.onetime + ' covers the first ' + PRICING.onetimeMinutes +
+        ' minutes on site, then $' + PRICING.onetimeBlockPrice + ' per extra ' + PRICING.onetimeBlock +
+        ' minutes if the yard needs longer. Any number of dogs.' +
+        (p.deoAmt ? ' Includes $15 deodorize & sanitize.' : '') + ' Haul-away included.';
     } else {
       noteEl.textContent = (p.deoMo ? 'Includes ' + p.treatments + '\u00d7 $15 deodorize/mo. ' : '') + 'First invoice $' + p.first + ', which includes your one-time $' + PRICING.initialClean + ' initial clean. Haul-away always included.';
     }
