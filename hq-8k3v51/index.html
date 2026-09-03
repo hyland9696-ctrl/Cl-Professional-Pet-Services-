@@ -88,6 +88,7 @@
       <input id="search" placeholder="Search name, phone, ZIP&hellip;" oninput="render()">
     </div>
     <div class="toolbar">
+      <button class="copybtn" onclick="toggleAsk()" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">&#128172; Ask</button>
       <button class="copybtn" onclick="toggleBrief()">&#128203; Daily brief</button>
       <button class="copybtn" onclick="togglePQ()" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">&#128222; Phone quote</button>
       <button class="copybtn" onclick="toggleAdd()">&#10133; Add lead</button>
@@ -132,6 +133,19 @@
         <input id="m-addr" placeholder="Address" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
       </div>
       <button class="copybtn" id="m-savebtn" style="margin-top:8px;" onclick="addManual()">Add manual lead</button>
+    </div>
+    <div id="askPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+        <div style="font-weight:800;font-size:15px;">&#128172; Ask about the business</div>
+        <button onclick="toggleAsk()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
+      </div>
+      <div style="font-size:11.5px;color:#999;margin-bottom:9px;">Answers come straight from your own leads, revenue and pricing &mdash; so the numbers are exact.</div>
+      <div id="ask-log" style="max-height:340px;overflow-y:auto;padding:2px;"></div>
+      <div class="chips" id="ask-sugg" style="margin:8px 0 6px;"></div>
+      <div style="display:flex;gap:7px;">
+        <input id="ask-input" placeholder="Ask anything&hellip;" onkeydown="if(event.key==='Enter')askSend()" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:9px;font-size:14px;font-family:inherit;">
+        <button onclick="askSend()" style="background:#1D9E75;color:#fff;border:none;border-radius:9px;padding:10px 15px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Ask</button>
+      </div>
     </div>
     <div id="briefPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -869,6 +883,235 @@ function cleanDupes(){
 }
 
 
+
+/* ---------- Ask: answers business questions from the live data ---------- */
+var ASK_SUGGESTIONS = [
+  'How are we doing this month?',
+  'Which ads are working?',
+  'Who do I need to call?',
+  'What is 2 dogs weekly in 63304?',
+  'How many leads this week?',
+  'Who accepted their quote?'
+];
+function toggleAsk(){
+  var p = document.getElementById('askPanel');
+  var opening = p.style.display === 'none';
+  p.style.display = opening ? 'block' : 'none';
+  if (opening){
+    if (!document.getElementById('ask-log').children.length){
+      askPush('bot', 'Ask me about leads, revenue, ad spend, who needs calling, or what a job should cost. Tap a question below or type your own.');
+      askSuggest();
+    }
+    p.scrollIntoView({ behavior:'smooth', block:'start' });
+    document.getElementById('ask-input').focus();
+  }
+}
+function askSuggest(){
+  document.getElementById('ask-sugg').innerHTML = ASK_SUGGESTIONS.map(function(q){
+    return '<button class="chip" onclick="askSend(\'' + q.replace(/'/g, "\\'") + '\')">' + esc(q) + '</button>';
+  }).join('');
+}
+function askPush(who, html){
+  var log = document.getElementById('ask-log');
+  var mine = who === 'me';
+  var d = document.createElement('div');
+  d.style.cssText = 'display:flex;justify-content:' + (mine ? 'flex-end' : 'flex-start') + ';margin-bottom:7px;';
+  d.innerHTML = '<div style="max-width:86%;background:' + (mine ? '#0F6E56' : '#F1F5F3') + ';color:' + (mine ? '#fff' : '#22302B') +
+    ';border-radius:12px;padding:9px 12px;font-size:13.5px;line-height:1.6;white-space:pre-wrap;">' + html + '</div>';
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+function askSend(preset){
+  var el = document.getElementById('ask-input');
+  var qq = String(preset || el.value || '').trim();
+  if (!qq) return;
+  askPush('me', esc(qq));
+  el.value = '';
+  var ans = askAnswer(qq);
+  setTimeout(function(){ askPush('bot', ans); }, 120);
+}
+
+function askData(){
+  var live = leads.filter(function(l){ return (l.status || 'new') !== 'deleted'; });
+  var now = new Date();
+  return {
+    live: live, now: now,
+    since: function(days){ var c = new Date(now.getTime() - days * 86400000); return live.filter(function(l){ return new Date(l.created) >= c; }); },
+    viewsSince: function(days){ var c = new Date(now.getTime() - days * 86400000); return views.filter(function(v){ return new Date(v.created) >= c; }); }
+  };
+}
+function askMoney(n){ return money(n); }
+function askList(arr, f){
+  if (!arr.length) return '';
+  return '\n' + arr.slice(0, 8).map(function(l){ return '  • ' + (f ? f(l) : (l.name || '(no name)') + (l.price ? ' — ' + String(l.price).split(',')[0] : '')); }).join('\n') +
+    (arr.length > 8 ? '\n  • +' + (arr.length - 8) + ' more' : '');
+}
+function askAnswer(qRaw){
+  var q = String(qRaw).toLowerCase();
+  var D = askData(), live = D.live, now = D.now;
+  var has = function(){ for (var i = 0; i < arguments.length; i++) if (q.indexOf(arguments[i]) >= 0) return true; return false; };
+  // whole-word match: "leads" contains "ad", so short tokens need boundaries
+  var word = function(){
+    for (var i = 0; i < arguments.length; i++){
+      var t = arguments[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (new RegExp('(^|[^a-z])' + t + '($|[^a-z])').test(q)) return true;
+    }
+    return false;
+  };
+  var mk = monthKeyOf(now);
+
+  /* --- a price question: "2 dogs weekly in 63304" --- */
+  var zipM = q.match(/\b(\d{5})\b/);
+  var dogM = q.match(/(\d+)\s*dog/);
+  var priceWord = has('price', 'cost', 'charge', 'quote', 'how much for', 'how much is', 'what is', 'whats', "what's");
+  if (zipM || (dogM && priceWord)){
+    if (!zipM) return 'Which ZIP code? Prices change with the ZIP tier, so I need that to give you a number.';
+    var zip = zipM[1];
+    var dogs = dogM ? parseInt(dogM[1], 10) : 1;
+    var tier = clppsZipTier(zip);
+    var listed = !!CLPPS_PRICING.zips[zip];
+    if (has('one time', 'one-time', 'onetime', 'cleanup', 'clean up')){
+      return 'One-time cleanup is $' + CLPPS_PRICING.onetime + ' for the first ' + CLPPS_PRICING.onetimeMinutes +
+        ' minutes, then $' + CLPPS_PRICING.onetimeBlockPrice + ' per extra ' + CLPPS_PRICING.onetimeBlock +
+        ' minutes. No ZIP tier on one-time jobs.\n\n30 min $75 · 45 min $95 · 1 hr $115 · 1½ hr $155 · 2 hr $195';
+    }
+    if (dogs > CLPPS_PRICING.maxDogs) return dogs + ' dogs is a custom quote — price it by hand. For reference, 4 dogs in ' + zip + ' (' + tier + ') is ' + askMoney(clppsQuote({zip:zip,dogs:4,freq:'weekly'}).service) + '/mo weekly.';
+    var one = function(f){ return clppsQuote({ zip: zip, dogs: dogs, freq: f }).service; };
+    var only = has('twice') ? 'twiceweekly' : (has('every other', 'biweekly', 'bi-weekly', 'eow') ? 'biweekly' : (has('monthly', 'once a month') ? 'monthly' : null));
+    var head = dogs + ' dog' + (dogs > 1 ? 's' : '') + ' in ' + zip + ' (' + tier + ' tier, ×' + CLPPS_PRICING.tiers[tier].toFixed(2) + ')' +
+               (listed ? '' : ' — not on the ZIP list, so priced as Value');
+    if (only){
+      var lbl = { twiceweekly:'Twice a week', biweekly:'Every other week', monthly:'Monthly' }[only];
+      return head + '\n\n' + lbl + ': ' + askMoney(one(only)) + '/mo\nFirst invoice ' + askMoney(one(only) + CLPPS_PRICING.initialClean) + ' with the $40 initial clean.';
+    }
+    return head + '\n\nTwice a week: ' + askMoney(one('twiceweekly')) + '/mo\nWeekly: ' + askMoney(one('weekly')) +
+      '/mo\nEvery other week: ' + askMoney(one('biweekly')) + '/mo\nMonthly: ' + askMoney(one('monthly')) +
+      '/mo\n\nAdd $40 on the first invoice for the initial clean.';
+  }
+
+  /* --- ads / return on spend --- */
+  if (word('ad', 'ads', 'roi', 'meta', 'facebook') || has('advertis', 'google ads', 'spend', 'ad spend')){
+    var mb = monthBreakdown(mk);
+    var totalSpend = CHANNELS.reduce(function(a, c){ return a + spendFor(mk, c.k); }, 0);
+    if (!totalSpend) return 'No ad spend entered for ' + monthLabel(mk) + ' yet. Open the green "Ad spend" panel and put in what was spent, then I can tell you the return.';
+    var out = monthLabel(mk) + ': ' + askMoney(totalSpend) + ' spent on ads, ' + askMoney(mb.totals.year1) + ' of first-year value closed — ' +
+      (mb.totals.year1 / totalSpend).toFixed(1) + '× back.\n';
+    CHANNELS.forEach(function(c){
+      var sp = spendFor(mk, c.k), r = mb.by[c.k];
+      if (!sp) return;
+      out += '\n' + c.label + ': ' + askMoney(sp) + ' → ' + (r.year1 ? askMoney(r.year1) + ' (' + r.leads + ' leads, ' + r.closed + ' closed, $' + (r.year1 / sp).toFixed(2) + ' back per $1)' : 'nothing closed yet');
+    });
+    var ranked = CHANNELS.map(function(c){ return { c: c, sp: spendFor(mk, c.k), y: mb.by[c.k].year1 }; })
+                         .filter(function(r){ return r.sp > 0; })
+                         .sort(function(a, b){ return (b.y / b.sp) - (a.y / a.sp); });
+    if (ranked.length && ranked[0].y > 0) out += '\n\nPut the next dollar into ' + ranked[0].c.label + '.';
+    var untag = mb.by['Not tagged'];
+    if (untag && untag.closed) out += '\n\nNote: ' + untag.closed + ' closed customer' + (untag.closed === 1 ? '' : 's') + ' worth ' + askMoney(untag.year1) + ' have no source recorded, so they are not credited to any channel.';
+    return out;
+  }
+
+  /* --- who needs action --- */
+  if (has('call', 'contact', 'reach out', 'chase', 'follow up', 'follow-up', 'todo', 'to do', 'need to do', 'action')){
+    var uncontacted = live.filter(function(l){ return (l.status || 'new') === 'new' && !auths[l.id]; });
+    var fuDue = live.filter(function(l){
+      var st = l.status || 'new';
+      if (st === 'closed' || st === 'lost') return false;
+      var d = fuParse(l.crmnotes).date;
+      return d && d <= new Date().toISOString().slice(0, 10);
+    });
+    var authP = live.filter(function(l){ var st = l.status || 'new'; return auths[l.id] && st !== 'closed' && st !== 'lost'; });
+    if (!uncontacted.length && !fuDue.length && !authP.length) return 'Nothing outstanding — every lead has been contacted and no follow-ups are due.';
+    var o = '';
+    if (authP.length) o += '✅ ' + authP.length + ' accepted their quote and still need setting up:' + askList(authP) + '\n\n';
+    if (uncontacted.length) o += '☎️ ' + uncontacted.length + ' not contacted yet:' + askList(uncontacted) + '\n\n';
+    if (fuDue.length) o += '🔔 ' + fuDue.length + ' follow-up' + (fuDue.length === 1 ? '' : 's') + ' due:' + askList(fuDue);
+    return o.trim();
+  }
+
+  /* --- accepted quotes --- */
+  if (has('accept', 'authoriz', 'signed', 'said yes')){
+    var az = live.filter(function(l){ return auths[l.id]; });
+    if (!az.length) return 'Nobody has accepted an emailed quote yet.';
+    return az.length + ' accepted their quote:' + askList(az, function(l){
+      return (l.name || '(no name)') + ' — ' + (l.price || '') + ' · ' + auths[l.id] + ((l.status || 'new') === 'closed' ? ' (set up)' : ' ← still needs setting up');
+    });
+  }
+
+  /* --- reviews --- */
+  if (has('review', 'rating', 'stars')){
+    var due = live.filter(reviewDue);
+    var asked = live.filter(function(l){ var r = fuParse(l.crmnotes).rv; return r && r !== 'skip'; }).length;
+    return (due.length ? due.length + ' customer' + (due.length === 1 ? '' : 's') + ' ready to be asked for a review:' + askList(due) + '\n\n'
+                       : 'Nobody is due for a review request right now.\n\n') +
+           asked + ' asked so far. The ⭐ panel has the message written, one tap to send.';
+  }
+
+  /* --- revenue / money --- */
+  if (has('money', 'revenue', 'mrr', 'made', 'earn', 'income', 'sales', 'how are we doing', 'how we doing', 'doing this month', 'profit')){
+    var mb2 = monthBreakdown(mk);
+    var mrrAll = 0, feesAll = 0, onceAll = 0;
+    live.forEach(function(l){
+      if ((l.status || 'new') !== 'closed') return;
+      var pp = parsePrice(l); if (!pp) return;
+      if (pp.isMo){ mrrAll += pp.amt; if (fuParse(l.crmnotes).ic !== 'w') feesAll += 40; } else onceAll += pp.amt;
+    });
+    var sp2 = CHANNELS.reduce(function(a, c){ return a + spendFor(mk, c.k); }, 0);
+    var o2 = monthLabel(mk) + ' so far:\n  ' + mb2.totals.closed + ' closed' +
+      (mb2.totals.mrr ? '\n  +' + askMoney(mb2.totals.mrr) + '/mo recurring' : '') +
+      (mb2.totals.fees ? '\n  ' + askMoney(mb2.totals.fees) + ' initial cleans' : '') +
+      (mb2.totals.once ? '\n  ' + askMoney(mb2.totals.once) + ' one-time' : '') +
+      '\n  ' + askMoney(mb2.totals.year1) + ' first-year value';
+    if (sp2) o2 += '\n  ' + askMoney(sp2) + ' ad spend → ' + (mb2.totals.year1 / sp2).toFixed(1) + '× back';
+    o2 += '\n\nAll time: ' + askMoney(mrrAll) + '/mo recurring (' + askMoney(mrrAll * 12) + ' a year)' +
+      (feesAll ? ', ' + askMoney(feesAll) + ' in initial cleans' : '') + (onceAll ? ', ' + askMoney(onceAll) + ' one-time' : '') + '.';
+    return o2;
+  }
+
+  /* --- traffic --- */
+  if (has('visit', 'traffic', 'website', 'views', 'conversion', 'convert')){
+    var v30 = D.viewsSince(30).length, v7 = D.viewsSince(7).length;
+    var todayK = gDayKey(now);
+    var vT = views.filter(function(v){ return gDayKey(new Date(v.created)) === todayK; }).length;
+    var l30 = D.since(30).length;
+    return 'Website: ' + vT + ' visit' + (vT === 1 ? '' : 's') + ' today, ' + v7 + ' this week, ' + v30 + ' in the last 30 days.\n' +
+      l30 + ' lead' + (l30 === 1 ? '' : 's') + ' from those 30 days' + (v30 ? ' — ' + Math.round(l30 / v30 * 100) + '% of visits turn into a lead.' : '.');
+  }
+
+  /* --- lead counts --- */
+  if (has('lead', 'how many', 'new', 'week', 'month', 'today', 'pipeline', 'customer')){
+    var days = has('today') ? 1 : (has('week') ? 7 : (has('year', 'ytd') ? 365 : 30));
+    var period = days === 1 ? 'today' : (days === 7 ? 'in the last 7 days' : (days === 365 ? 'this year' : 'in the last 30 days'));
+    var got = days === 1 ? live.filter(function(l){ return gDayKey(new Date(l.created)) === gDayKey(now); }) : D.since(days);
+    var closed = got.filter(function(l){ return (l.status || 'new') === 'closed'; }).length;
+    var openN = live.filter(function(l){ var st = l.status || 'new'; return st === 'new' || st === 'called'; }).length;
+    return got.length + ' lead' + (got.length === 1 ? '' : 's') + ' ' + period + ', ' + closed + ' of them closed.' +
+      askList(got) + '\n\nOpen right now: ' + openN + ' (' + live.filter(function(l){ return (l.status||'new')==='new'; }).length + ' new, ' +
+      live.filter(function(l){ return l.status === 'called'; }).length + ' called). ' +
+      live.filter(function(l){ return l.status === 'closed'; }).length + ' customers all time.';
+  }
+
+  /* --- a person by name --- */
+  var words = qRaw.replace(/[?.,!]/g, '').split(/\s+/).filter(function(w){ return w.length > 2; });
+  for (var i = 0; i < words.length; i++){
+    var hit = live.filter(function(l){ return String(l.name || '').toLowerCase().indexOf(words[i].toLowerCase()) >= 0; });
+    if (hit.length){
+      return hit.slice(0, 3).map(function(l){
+        var f = fuParse(l.crmnotes);
+        return (l.name || '(no name)') + ' — ' + (l.status || 'new') +
+          (l.price ? '\n  Price: ' + l.price : '') +
+          (l.service ? '\n  Service: ' + l.service + (l.dogs ? ', ' + l.dogs + ' dog(s)' : '') : '') +
+          (l.phone ? '\n  Phone: ' + l.phone : '') +
+          (l.address ? '\n  Address: ' + l.address : '') +
+          (f.src ? '\n  Came from: ' + f.src : '') +
+          (f.sd ? '\n  First visit: ' + niceDate(f.sd) : '') +
+          (auths[l.id] ? '\n  Accepted their quote ' + auths[l.id] : '') +
+          (f.text ? '\n  Notes: ' + f.text : '');
+      }).join('\n\n');
+    }
+  }
+
+  return "I can answer things like:\n  • How are we doing this month?\n  • Which ads are working?\n  • Who do I need to call?\n  • How many leads this week?\n  • What is 3 dogs weekly in 63376?\n  • How's the website traffic?\n  • Or just type a customer's name.";
+}
 /* ---------- Daily brief ---------- */
 function toggleBrief(){
   var p = document.getElementById('briefPanel');
