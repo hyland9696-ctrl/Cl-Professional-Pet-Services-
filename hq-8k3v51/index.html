@@ -139,7 +139,22 @@
         <div style="font-weight:800;font-size:15px;">&#128172; Ask about the business</div>
         <button onclick="toggleAsk()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
       </div>
-      <div style="font-size:11.5px;color:#999;margin-bottom:9px;">Answers come straight from your own leads, revenue and pricing &mdash; so the numbers are exact.</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+        <button id="gpt-toggle" onclick="gptToggle()" style="border:1px solid #ddd;background:#fff;color:#666;border-radius:20px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;"></button>
+        <button onclick="gptSettings()" style="background:none;border:none;color:#0F6E56;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;">&#9881;&#65039; Key</button>
+        <span id="gpt-note" style="font-size:11.5px;color:#999;"></span>
+      </div>
+      <div id="gpt-panel" style="display:none;background:#F7F9F8;border:1px solid #E4EBE7;border-radius:10px;padding:11px 12px;margin-bottom:9px;">
+        <div style="font-size:12.5px;font-weight:700;margin-bottom:5px;">Connect your own OpenAI key</div>
+        <div style="font-size:11.5px;color:#777;line-height:1.6;margin-bottom:8px;">Get one at <strong>platform.openai.com &rarr; API keys</strong>. It is saved <strong>only in this browser on this device</strong> &mdash; it never goes into the website or anywhere anyone else can read it. Set a monthly spend limit on the key while you are there.</div>
+        <input id="gpt-key" type="password" placeholder="sk-&hellip;" autocomplete="off" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;margin-bottom:7px;">
+        <input id="gpt-model" placeholder="gpt-4o-mini" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;margin-bottom:8px;">
+        <div style="display:flex;gap:7px;flex-wrap:wrap;">
+          <button onclick="gptSave()" style="background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:9px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Save key</button>
+          <button onclick="gptClear()" style="background:#fff;color:#c0392b;border:1px solid #e0b4ad;border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Remove key</button>
+        </div>
+        <div style="font-size:11px;color:#aaa;margin-top:7px;line-height:1.55;">Questions are sent to OpenAI with a summary of your leads and figures &mdash; names, services, prices and dates. Phone numbers, emails and addresses are never sent.</div>
+      </div>
       <div id="ask-log" style="max-height:340px;overflow-y:auto;padding:2px;"></div>
       <div class="chips" id="ask-sugg" style="margin:8px 0 6px;"></div>
       <div style="display:flex;gap:7px;">
@@ -884,6 +899,117 @@ function cleanDupes(){
 
 
 
+
+/* ---------- Optional: answer through the owner's own OpenAI key ----------
+   The key lives in this browser's localStorage only. It is never written into
+   the site, the repository, or the shared spreadsheet, so nobody else can read
+   it. With no key saved, everything falls back to the built-in answers. */
+var GPT_KEY_STORE = 'clpps_openai_key', GPT_MODEL_STORE = 'clpps_openai_model', GPT_ON_STORE = 'clpps_openai_on';
+function gptKey(){ try { return localStorage.getItem(GPT_KEY_STORE) || ''; } catch (e) { return ''; } }
+function gptModel(){ try { return localStorage.getItem(GPT_MODEL_STORE) || 'gpt-4o-mini'; } catch (e) { return 'gpt-4o-mini'; } }
+function gptEnabled(){ try { return gptKey() && localStorage.getItem(GPT_ON_STORE) !== 'off'; } catch (e) { return false; } }
+function gptSettings(){
+  var p = document.getElementById('gpt-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  if (p.style.display === 'block'){
+    document.getElementById('gpt-key').value = gptKey();
+    document.getElementById('gpt-model').value = gptModel();
+  }
+}
+function gptSave(){
+  var k = String(document.getElementById('gpt-key').value || '').trim();
+  var m = String(document.getElementById('gpt-model').value || '').trim() || 'gpt-4o-mini';
+  if (k && k.indexOf('sk-') !== 0){ toast('That does not look like an OpenAI key'); return; }
+  try {
+    if (k) localStorage.setItem(GPT_KEY_STORE, k); else localStorage.removeItem(GPT_KEY_STORE);
+    localStorage.setItem(GPT_MODEL_STORE, m);
+    localStorage.setItem(GPT_ON_STORE, k ? 'on' : 'off');
+  } catch (e) { toast('This browser will not let me save the key'); return; }
+  document.getElementById('gpt-panel').style.display = 'none';
+  gptPaint();
+  toast(k ? 'Key saved on this device' : 'Key removed');
+}
+function gptClear(){
+  try { localStorage.removeItem(GPT_KEY_STORE); localStorage.setItem(GPT_ON_STORE, 'off'); } catch (e) {}
+  document.getElementById('gpt-key').value = '';
+  document.getElementById('gpt-panel').style.display = 'none';
+  gptPaint();
+  toast('Key removed from this device');
+}
+function gptToggle(){
+  if (!gptKey()){ gptSettings(); return; }
+  try { localStorage.setItem(GPT_ON_STORE, gptEnabled() ? 'off' : 'on'); } catch (e) {}
+  gptPaint();
+}
+function gptPaint(){
+  var b = document.getElementById('gpt-toggle'), n = document.getElementById('gpt-note');
+  if (!b) return;
+  var on = gptEnabled();
+  b.innerHTML = on ? '&#129302; ChatGPT ON' : '&#129302; ChatGPT off';
+  b.style.background = on ? '#0F6E56' : '#fff';
+  b.style.color = on ? '#fff' : '#666';
+  b.style.borderColor = on ? '#0F6E56' : '#ddd';
+  n.textContent = on ? 'Using ' + gptModel() + ' with your data'
+                     : (gptKey() ? 'Key saved — tap to switch on' : 'Instant built-in answers');
+}
+/* A compact picture of the business for the model. No contact details. */
+function gptContext(){
+  var live = leads.filter(function(l){ return (l.status || 'new') !== 'deleted'; });
+  var now = new Date(), mk = monthKeyOf(now);
+  var mb = monthBreakdown(mk);
+  var spendLines = CHANNELS.map(function(c){
+    var sp = spendFor(mk, c.k), r = mb.by[c.k];
+    return c.label + ': spent $' + sp + ', ' + r.leads + ' leads, ' + r.closed + ' closed, $' + r.year1 + ' first-year value';
+  }).join('\n');
+  var rows = live.slice(0, 120).map(function(l){
+    var f = fuParse(l.crmnotes);
+    return [l.name || '(no name)', l.status || 'new', l.service || '', (l.dogs || '') + ' dogs', l.price || 'no price',
+            l.zip || '', f.src ? 'from ' + f.src : 'source unknown',
+            'created ' + String(l.created || '').slice(0, 10),
+            f.cd ? 'closed ' + f.cd : '', f.sd ? 'first visit ' + f.sd : '',
+            auths[l.id] ? 'ACCEPTED QUOTE ' + auths[l.id] : '',
+            f.date ? 'follow up ' + f.date : '', f.text ? 'notes: ' + f.text : ''
+           ].filter(Boolean).join(' | ');
+  }).join('\n');
+  var v30 = views.filter(function(v){ return new Date(v.created) >= new Date(now - 30 * 86400000); }).length;
+  return 'You are the business assistant for CL Professional Pet Services (CLPPS), a pet waste removal company in St. Peters, Missouri serving the greater St. Louis metro. Owner: Corey Casey. Operations Manager: Jesse Duncan, (636) 388-5069. Main line (636) 375-4342.\n\n' +
+    'PRICING RULES\n' +
+    'Weekly per month = base by dog count x ZIP tier multiplier, rounded to the dollar. Base: 1 dog $85, 2 $91, 3 $97, 4 $103. 5+ dogs is a custom quote.\n' +
+    'Tiers: Value 0.90, Core 0.95, Standard 1.00, Premium 1.10. A ZIP not on the list is priced as Value.\n' +
+    'Every other week = weekly x 0.82. Twice a week = weekly x 1.80. Monthly (one visit) = base 1 dog $65, 2 $70, 3 $75, 4 $80, x the tier.\n' +
+    'One-time cleanup = $75 for the first 30 minutes then $20 per extra 15 minutes, with no ZIP multiplier.\n' +
+    'Initial clean $40 on the first invoice for recurring customers, sometimes waived. Deodorize $15 per treatment.\n\n' +
+    'TODAY IS ' + now.toDateString() + '\n\n' +
+    'THIS MONTH (' + monthLabel(mk) + ')\n' +
+    mb.totals.closed + ' closed, $' + mb.totals.mrr + '/mo new recurring, $' + mb.totals.fees + ' initial cleans, $' +
+    mb.totals.once + ' one-time, $' + mb.totals.year1 + ' first-year value.\n' + spendLines + '\n\n' +
+    'WEBSITE: ' + v30 + ' visits in the last 30 days.\n\n' +
+    'LEADS (' + live.length + ' total; contact details deliberately excluded)\n' + rows + '\n\n' +
+    'Answer the question using only this data. Be brief and specific, use real names and dollar figures, and say plainly when the data does not cover something. Do not invent numbers.';
+}
+function gptAsk(question, onDone){
+  var key = gptKey();
+  fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({
+      model: gptModel(),
+      messages: [ { role: 'system', content: gptContext() }, { role: 'user', content: question } ],
+      temperature: 0.2
+    })
+  }).then(function(r){
+    return r.json().then(function(d){ return { ok: r.ok, d: d }; });
+  }).then(function(res){
+    if (!res.ok || !res.d.choices || !res.d.choices[0]){
+      var msg = (res.d && res.d.error && res.d.error.message) || 'OpenAI did not answer';
+      onDone(null, msg);
+      return;
+    }
+    onDone(res.d.choices[0].message.content.trim(), null);
+  }).catch(function(e){
+    onDone(null, (e && e.message) || 'Could not reach OpenAI');
+  });
+}
 /* ---------- Ask: answers business questions from the live data ---------- */
 var ASK_SUGGESTIONS = [
   'How are we doing this month?',
@@ -898,6 +1024,7 @@ function toggleAsk(){
   var opening = p.style.display === 'none';
   p.style.display = opening ? 'block' : 'none';
   if (opening){
+    gptPaint();
     if (!document.getElementById('ask-log').children.length){
       askPush('bot', 'Ask me about leads, revenue, ad spend, who needs calling, or what a job should cost. Tap a question below or type your own.');
       askSuggest();
@@ -927,6 +1054,20 @@ function askSend(preset){
   if (!qq) return;
   askPush('me', esc(qq));
   el.value = '';
+  if (gptEnabled()){
+    var log = document.getElementById('ask-log');
+    askPush('bot', '<span id="gpt-wait" style="opacity:.6;">Thinking\u2026</span>');
+    var bubble = log.lastChild;
+    gptAsk(qq, function(answer, err){
+      if (answer){ bubble.querySelector('div').innerHTML = esc(answer); }
+      else {
+        bubble.querySelector('div').innerHTML = '<span style="color:#a9640f;">ChatGPT could not answer: ' + esc(err) +
+          '</span>\n\nHere is the built-in answer instead:\n\n' + askAnswer(qq);
+      }
+      log.scrollTop = log.scrollHeight;
+    });
+    return;
+  }
   var ans = askAnswer(qq);
   setTimeout(function(){ askPush('bot', ans); }, 120);
 }
