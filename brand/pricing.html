@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>CLPPS Pricing Reference</title>
+<style>
+  @page { size: letter; margin: 0.55in; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#EEF2F0;color:#16221E;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.6;font-size:14px}
+  .sheet{max-width:7.5in;margin:0 auto;background:#fff;padding:34px 38px 46px}
+  .head{border-bottom:3px solid #0F6E56;padding-bottom:14px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+  h1{font-size:27px;letter-spacing:-.02em;line-height:1.1}
+  .sub{color:#5A6B65;font-size:13.5px;margin-top:3px}
+  .stamp{font-size:12px;color:#7E8D87;text-align:right;line-height:1.5}
+  h2{font-size:18px;margin:26px 0 4px;color:#0F6E56;letter-spacing:-.01em}
+  h2:first-of-type{margin-top:0}
+  .lead{color:#5A6B65;font-size:13px;margin-bottom:10px}
+  table{border-collapse:collapse;width:100%;margin-bottom:8px;font-variant-numeric:tabular-nums}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid #E3EAE6;font-size:13.5px}
+  thead th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:#7E8D87;border-bottom:1.5px solid #CBD8D2}
+  tbody th{font-weight:600;white-space:nowrap}
+  td strong{color:#0F6E56}
+  .rule{background:#F2F7F4;border-left:4px solid #1D9E75;border-radius:0 9px 9px 0;padding:12px 15px;margin-bottom:10px}
+  .rule b{color:#0F6E56}
+  .rule code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:#fff;padding:1px 5px;border-radius:4px;border:1px solid #DCE7E2}
+  .tierhead{display:flex;justify-content:space-between;align-items:baseline;margin-top:16px;border-top:1px solid #E3EAE6;padding-top:12px}
+  .tierhead h3{font-size:16px}
+  .mult{color:#0F6E56;font-size:14px;font-weight:700}
+  .cnt{font-size:12px;color:#7E8D87}
+  .tnote{font-size:12.5px;color:#5A6B65;margin:1px 0 7px}
+  .zips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px}
+  .zip{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:#F2F7F4;border:1px solid #DCE7E2;border-radius:5px;padding:3px 7px}
+  ol,ul{padding-left:20px}
+  li{margin-bottom:9px}
+  .math{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:#3A4A44}
+  .fi{font-size:12.5px;color:#7E8D87}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:0 26px}
+  .foot{margin-top:28px;padding-top:13px;border-top:1px solid #E3EAE6;font-size:12px;color:#7E8D87;line-height:1.65}
+  .noprint{background:#FDF3DC;border:1px solid #E6C96A;border-radius:9px;padding:11px 14px;font-size:13px;color:#7a5c00;margin-bottom:18px}
+  @media print{ body{background:#fff} .sheet{max-width:none;padding:0} .noprint{display:none} h2{break-after:avoid} table,.rule,li{break-inside:avoid} }
+</style></head>
+<body><div class="sheet">
+
+<div class="noprint"><strong>To save as a PDF:</strong> print this page and choose &ldquo;Save as PDF&rdquo; as the destination. On a phone: share &rarr; Print &rarr; pinch out on the preview &rarr; share &rarr; Save to Files.</div>
+
+<div class="head">
+  <div>
+    <h1>Pricing Reference</h1>
+    <div class="sub">CL Professional Pet Services &middot; every rate, rule and ZIP tier</div>
+  </div>
+  <div class="stamp">Generated September 3, 2026<br>from the live pricing file</div>
+</div>
+
+<h2>How a price is worked out</h2>
+<div class="rule"><b>1. Start with the weekly base rate</b> for the number of dogs.<br>
+1 dog <code>$85</code> &middot; 2 dogs <code>$91</code> &middot; 3 dogs <code>$97</code> &middot; 4 dogs <code>$103</code> &middot; 5 or more is a custom quote.</div>
+<div class="rule"><b>2. Multiply by the customer&rsquo;s ZIP tier.</b>
+Value <code>&times;0.90</code> &middot; Core <code>&times;0.95</code> &middot; Standard <code>&times;1.00</code> &middot; Premium <code>&times;1.10</code>.
+A ZIP that is not on the list is priced as <b>Value</b>.</div>
+<div class="rule"><b>3. Adjust for the plan.</b><br>
+Weekly = that figure. &nbsp; Every other week = <code>&times;0.82</code>. &nbsp; Twice a week = the weekly price <code>&times;1.80</code> (double, less the 10% discount).<br>
+Monthly is its own base &mdash; 1 dog <code>$65</code>, 2 <code>$70</code>, 3 <code>$75</code>, 4 <code>$80</code> &mdash; then the same ZIP tier.</div>
+<div class="rule"><b>4. Round to the nearest whole dollar.</b> Every quoted price is a whole number.</div>
+<div class="rule"><b>5. One-time cleanups ignore the ZIP tier</b> and are priced by time on site instead.</div>
+
+<h2>Worked examples</h2>
+<ol><li><strong>2 dogs, weekly, ZIP 63304</strong> (Premium)<br><span class="math">$91 &times; 1.10 = $100.10 &rarr; <strong>$100</strong></span><br><span class="fi">First invoice $140 with the $40 initial clean.</span></li><li><strong>3 dogs, every other week, ZIP 63031</strong> (Value)<br><span class="math">$97 &times; 0.90 &times; 0.82 = $71.59 &rarr; <strong>$72</strong></span><br><span class="fi">First invoice $112 with the $40 initial clean.</span></li><li><strong>1 dog, twice a week, ZIP 63376</strong> (Standard)<br><span class="math">$85 &times; 1.00 = $85 weekly, &times;1.80 = $153.00 &rarr; <strong>$153</strong></span><br><span class="fi">First invoice $193 with the $40 initial clean.</span></li></ol>
+
+<h2>Every price, by tier</h2>
+<p class="lead">Dollars per month. Add $40 to the first invoice for the initial clean unless it is waived.</p>
+<h3 style="font-size:15px;margin:16px 0 5px;">Value <span class="mult">&times;0.90</span></h3><table><thead><tr><th>Plan</th><th>1 dog</th><th>2 dogs</th><th>3 dogs</th><th>4 dogs</th></tr></thead><tbody><tr><th scope="row">Twice a week</th><td><strong>$139</strong></td><td><strong>$148</strong></td><td><strong>$157</strong></td><td><strong>$167</strong></td></tr><tr><th scope="row">Weekly</th><td><strong>$77</strong></td><td><strong>$82</strong></td><td><strong>$87</strong></td><td><strong>$93</strong></td></tr><tr><th scope="row">Every other week</th><td><strong>$63</strong></td><td><strong>$67</strong></td><td><strong>$72</strong></td><td><strong>$76</strong></td></tr><tr><th scope="row">Monthly (1 visit)</th><td><strong>$59</strong></td><td><strong>$63</strong></td><td><strong>$68</strong></td><td><strong>$72</strong></td></tr></tbody></table><h3 style="font-size:15px;margin:16px 0 5px;">Core <span class="mult">&times;0.95</span></h3><table><thead><tr><th>Plan</th><th>1 dog</th><th>2 dogs</th><th>3 dogs</th><th>4 dogs</th></tr></thead><tbody><tr><th scope="row">Twice a week</th><td><strong>$146</strong></td><td><strong>$155</strong></td><td><strong>$166</strong></td><td><strong>$176</strong></td></tr><tr><th scope="row">Weekly</th><td><strong>$81</strong></td><td><strong>$86</strong></td><td><strong>$92</strong></td><td><strong>$98</strong></td></tr><tr><th scope="row">Every other week</th><td><strong>$66</strong></td><td><strong>$71</strong></td><td><strong>$76</strong></td><td><strong>$80</strong></td></tr><tr><th scope="row">Monthly (1 visit)</th><td><strong>$62</strong></td><td><strong>$67</strong></td><td><strong>$71</strong></td><td><strong>$76</strong></td></tr></tbody></table><h3 style="font-size:15px;margin:16px 0 5px;">Standard <span class="mult">&times;1.00</span></h3><table><thead><tr><th>Plan</th><th>1 dog</th><th>2 dogs</th><th>3 dogs</th><th>4 dogs</th></tr></thead><tbody><tr><th scope="row">Twice a week</th><td><strong>$153</strong></td><td><strong>$164</strong></td><td><strong>$175</strong></td><td><strong>$185</strong></td></tr><tr><th scope="row">Weekly</th><td><strong>$85</strong></td><td><strong>$91</strong></td><td><strong>$97</strong></td><td><strong>$103</strong></td></tr><tr><th scope="row">Every other week</th><td><strong>$70</strong></td><td><strong>$75</strong></td><td><strong>$80</strong></td><td><strong>$84</strong></td></tr><tr><th scope="row">Monthly (1 visit)</th><td><strong>$65</strong></td><td><strong>$70</strong></td><td><strong>$75</strong></td><td><strong>$80</strong></td></tr></tbody></table><h3 style="font-size:15px;margin:16px 0 5px;">Premium <span class="mult">&times;1.10</span></h3><table><thead><tr><th>Plan</th><th>1 dog</th><th>2 dogs</th><th>3 dogs</th><th>4 dogs</th></tr></thead><tbody><tr><th scope="row">Twice a week</th><td><strong>$169</strong></td><td><strong>$180</strong></td><td><strong>$193</strong></td><td><strong>$203</strong></td></tr><tr><th scope="row">Weekly</th><td><strong>$94</strong></td><td><strong>$100</strong></td><td><strong>$107</strong></td><td><strong>$113</strong></td></tr><tr><th scope="row">Every other week</th><td><strong>$77</strong></td><td><strong>$82</strong></td><td><strong>$87</strong></td><td><strong>$93</strong></td></tr><tr><th scope="row">Monthly (1 visit)</th><td><strong>$72</strong></td><td><strong>$77</strong></td><td><strong>$83</strong></td><td><strong>$88</strong></td></tr></tbody></table>
+<h2>One-time cleanups</h2>
+<p class="lead">$75 covers the first 30 minutes on site, then $20 for every extra 15 minutes. Any number of dogs. No ZIP tier. Part blocks round up &mdash; 35 minutes bills as 45.</p>
+<table style="max-width:340px"><thead><tr><th>Time on site</th><th>Price</th></tr></thead><tbody><tr><th scope="row">30 min</th><td><strong>$75</strong></td></tr><tr><th scope="row">45 min</th><td><strong>$95</strong></td></tr><tr><th scope="row">1 hr</th><td><strong>$115</strong></td></tr><tr><th scope="row">1 hr 15 min</th><td><strong>$135</strong></td></tr><tr><th scope="row">1 hr 30 min</th><td><strong>$155</strong></td></tr><tr><th scope="row">1 hr 45 min</th><td><strong>$175</strong></td></tr><tr><th scope="row">2 hr</th><td><strong>$195</strong></td></tr><tr><th scope="row">2 hr 30 min</th><td><strong>$235</strong></td></tr><tr><th scope="row">3 hr</th><td><strong>$275</strong></td></tr></tbody></table>
+
+<h2>Add-ons and fees</h2>
+<table><tbody>
+<tr><th scope="row">Initial clean</th><td>$40, once, on the first invoice for a new recurring customer. Can be waived per customer.</td></tr>
+<tr><th scope="row">Deodorize &amp; sanitize</th><td>$15 per treatment. Every visit or every other visit; on a weekly plan every visit is 4 &times; $15 = $60 a month.</td></tr>
+<tr><th scope="row">5 or more dogs</th><td>Custom quote, priced by hand.</td></tr>
+<tr><th scope="row">Yard over &frac14; acre</th><td>Custom quote, priced by hand.</td></tr>
+</tbody></table>
+
+<h2>ZIP code tiers</h2>
+<p class="lead">36 ZIP codes assigned. Anything not listed here is charged at the <strong>Value</strong> rate. We only run routes in ZIPs starting 630, 631, 633, 620, 622 &mdash; anything else is told we have no route yet.</p>
+<div class="tierhead"><h3>Value <span class="mult">&times;0.90</span></h3><span class="cnt">4 ZIPs</span></div><p class="tnote">Lower-cost ZIPs. Also the default for any ZIP not on this list.</p><div class="zips"><span class="zip">62002</span><span class="zip">62040</span><span class="zip">63031</span><span class="zip">63033</span></div><div class="tierhead"><h3>Core <span class="mult">&times;0.95</span></h3><span class="cnt">5 ZIPs</span></div><p class="tnote">Slightly below standard.</p><div class="zips"><span class="zip">62010</span><span class="zip">62095</span><span class="zip">62220</span><span class="zip">62234</span><span class="zip">63010</span></div><div class="tierhead"><h3>Standard <span class="mult">&times;1.00</span></h3><span class="cnt">17 ZIPs</span></div><p class="tnote">The base rate. No adjustment.</p><div class="zips"><span class="zip">62026</span><span class="zip">62034</span><span class="zip">62062</span><span class="zip">62269</span><span class="zip">63011</span><span class="zip">63021</span><span class="zip">63028</span><span class="zip">63034</span><span class="zip">63069</span><span class="zip">63084</span><span class="zip">63090</span><span class="zip">63301</span><span class="zip">63303</span><span class="zip">63366</span><span class="zip">63368</span><span class="zip">63376</span><span class="zip">63383</span></div><div class="tierhead"><h3>Premium <span class="mult">&times;1.10</span></h3><span class="cnt">10 ZIPs</span></div><p class="tnote">Higher-cost ZIPs.</p><div class="zips"><span class="zip">62025</span><span class="zip">62035</span><span class="zip">62236</span><span class="zip">62249</span><span class="zip">62294</span><span class="zip">63017</span><span class="zip">63304</span><span class="zip">63367</span><span class="zip">63379</span><span class="zip">63385</span></div>
+<div class="foot">
+<strong>Where this lives.</strong> Every figure above comes from one file on the website, <code>pricing.js</code>. The public quote wizard and the phone-quote panel in the lead tracker both read it, so they can never disagree with each other. Change a number there and both update together.<br><br>
+<strong>This sheet was generated from that file</strong> on September 3, 2026, so it matches exactly what the website was quoting on that date. If prices change, ask for a fresh copy rather than editing this one.<br><br>
+CL Professional Pet Services &middot; (636) 375-4342 &middot; clpropetservices.com
+</div>
+
+</div></body></html>
