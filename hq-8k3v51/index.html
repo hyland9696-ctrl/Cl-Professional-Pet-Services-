@@ -2234,16 +2234,6 @@ function renderDetail(){
     ['Marked closed / won', won30]
   ];
   var base = Math.max(steps[0][1], 1);
-  var funnel = '<div style="font-weight:800;font-size:13px;margin-bottom:8px;">&#128200; Funnel, last 30 days</div>' +
-    steps.map(function(st, i){
-      var pct = Math.round(st[1] / base * 100);
-      var stepPct = i > 0 && steps[i-1][1] > 0 ? Math.round(st[1] / steps[i-1][1] * 100) + '% of previous' : '';
-      return '<div style="margin-bottom:7px;">' +
-        '<div style="display:flex;justify-content:space-between;font-size:12px;color:#555;"><span>' + st[0] + '</span><span style="font-weight:800;color:#1a1a1a;">' + st[1] +
-        (stepPct ? ' <span style="color:#999;font-weight:400;">(' + stepPct + ')</span>' : '') + '</span></div>' +
-        '<div style="height:9px;background:#f0f0f0;border-radius:5px;overflow:hidden;"><div style="height:100%;width:' + Math.max(pct, st[1] ? 3 : 0) + '%;background:' + ['#BFE6D8','#8ED4B8','#5DC49B','#1D9E75','#0F6E56'][i] + ';"></div></div></div>';
-    }).join('');
-
   var srcName2 = function(h){
     h = String(h).toLowerCase();
     if (h.indexOf('facebook') >= 0 || h === 'fb.me') return 'Facebook';
@@ -2254,14 +2244,45 @@ function renderDetail(){
     if (h === 'direct') return 'direct';
     return h;
   };
+  // Which source produced a price view. Newer price views carry the source
+  // themselves; older ones are matched back to their visit's first page view.
+  var sidSource = {};
+  views.forEach(function(v){
+    if (!v.yard || sidSource[v.yard]) return;
+    var sc = v.service || (v.zip ? srcName2(v.zip) : '');
+    if (sc) sidSource[v.yard] = sc;
+  });
+  var qvSource = function(qv){
+    return qv.service || (qv.yard && sidSource[qv.yard]) || 'Unknown';
+  };
+  var tallySources = function(list){
+    var m = {};
+    list.forEach(function(x){ var k = qvSource(x); m[k] = (m[k] || 0) + 1; });
+    return Object.keys(m).sort(function(a, b){ return m[b] - m[a]; })
+      .map(function(k){ return esc(k) + ' (' + m[k] + ')'; }).join(' &middot; ');
+  };
+  var funnel = '<div style="font-weight:800;font-size:13px;margin-bottom:8px;">&#128200; Funnel, last 30 days</div>' +
+    steps.map(function(st, i){
+      var pct = Math.round(st[1] / base * 100);
+      var stepPct = i > 0 && steps[i-1][1] > 0 ? Math.round(st[1] / steps[i-1][1] * 100) + '% of previous' : '';
+      return '<div style="margin-bottom:7px;">' +
+        '<div style="display:flex;justify-content:space-between;font-size:12px;color:#555;"><span>' + st[0] + '</span><span style="font-weight:800;color:#1a1a1a;">' + st[1] +
+        (stepPct ? ' <span style="color:#999;font-weight:400;">(' + stepPct + ')</span>' : '') + '</span></div>' +
+        '<div style="height:9px;background:#f0f0f0;border-radius:5px;overflow:hidden;"><div style="height:100%;width:' + Math.max(pct, st[1] ? 3 : 0) + '%;background:' + ['#BFE6D8','#8ED4B8','#5DC49B','#1D9E75','#0F6E56'][i] + ';"></div></div>' +
+        (i === 2 && st[1] ? '<div style="font-size:11px;color:#8a6d1a;margin-top:3px;">from ' + tallySources(qviews.filter(in30)) + '</div>' : '') +
+        '</div>';
+    }).join('');
+
   var dayRows = '';
   for (var i = 0; i < 14; i++){
     var d = new Date(now.getTime() - i * 86400000);
     var k = gDayKey(d);
     var dayViews = views.filter(function(v){ return gDayKey(new Date(v.created)) === k; });
     var dayLeads = leads.filter(function(l){ return gDayKey(new Date(l.created)) === k; });
-    var dayPriced = qviews.filter(function(q){ return gDayKey(new Date(q.created)) === k; }).length;
+    var dayPricedList = qviews.filter(function(q){ return gDayKey(new Date(q.created)) === k; });
+    var dayPriced = dayPricedList.length;
     if (!dayViews.length && !dayLeads.length && !dayPriced) continue;
+    var pricedStr = dayPriced ? tallySources(dayPricedList) : '';
     var pages = {}, srcs = {};
     dayViews.forEach(function(v){
       pages[v.name || '?'] = (pages[v.name || '?'] || 0) + 1;
@@ -2279,6 +2300,7 @@ function renderDetail(){
       (dayLeads.length ? ' &middot; <span style="color:#1D9E75;">' + dayLeads.length + ' lead' + (dayLeads.length === 1 ? '' : 's') + '</span>' : '') + '</span></div>' +
       (pageStr ? '<div style="font-size:11.5px;color:#777;margin-top:2px;">Pages: ' + pageStr + '</div>' : '') +
       (srcStr ? '<div style="font-size:11.5px;color:#999;margin-top:1px;">From: ' + srcStr + '</div>' : '') +
+      (pricedStr ? '<div style="font-size:11.5px;color:#8a6d1a;margin-top:1px;">&#128178; Saw a price, from: ' + pricedStr + '</div>' : '') +
       (dayLeads.length ? '<div style="font-size:11.5px;color:#0F6E56;margin-top:1px;">Leads: ' + dayLeads.map(function(l){ return esc(l.name || '?'); }).join(', ') + '</div>' : '') +
       '</div>';
   }
