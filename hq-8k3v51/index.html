@@ -279,6 +279,7 @@ var STATUSES = [
   {k:'lost',   label:'Not interested'}
 ];
 var FILTERS = [{k:'all',label:'All'}].concat(STATUSES);
+var TRAFFIC_DAYS = 400;   // ~13 months of traffic history
 var leads = [], views = [], qviews = [], waitlist = [], outarea = [], auths = {}, spends = {}, config = {}, filter = 'all', KEY = 'clpps-8k3v51';
 var CHANNELS = [{ k: 'Meta Ads', label: 'Meta / Facebook' }, { k: 'Google Ads', label: 'Google Ads' }];
 var roiMonth = '';
@@ -313,7 +314,10 @@ function loadLeads(showToast, cb, isRetry){
     if (cb) cb(true);
     return;
   }
-  fetch(CRM_ENDPOINT + '?action=list&key=' + encodeURIComponent(KEY))
+  // Ask for a bounded window of traffic rows. Leads always come back in full;
+  // this only trims old page views, which otherwise grow without limit and
+  // get re-downloaded every minute by the auto-refresh.
+  fetch(CRM_ENDPOINT + '?action=list&key=' + encodeURIComponent(KEY) + '&days=' + TRAFFIC_DAYS)
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok){ if (cb) cb(false); return; }
@@ -1474,7 +1478,7 @@ function renderQR(){
   }).join('');
   box.innerHTML =
     '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px;">' +
-      stat(today, 'today') + stat(since(7), 'last 7 days') + stat(since(30), 'last 30 days') + stat(scans.length, 'all time') +
+      stat(today, 'today') + stat(since(7), 'last 7 days') + stat(since(30), 'last 30 days') + stat(scans.length, 'total') +
     '</div>' +
     '<div style="background:#F2F7F4;border-left:3px solid #1D9E75;border-radius:0 9px 9px 0;padding:9px 11px;font-size:12.5px;margin-bottom:10px;">' +
       '<strong>' + mine.length + '</strong> lead' + (mine.length === 1 ? '' : 's') + ' came off the signs' +
@@ -1483,6 +1487,7 @@ function renderQR(){
     '</div>' +
     qrCityTable(scans, mine) +
     '<div style="font-weight:700;font-size:12.5px;margin-bottom:2px;">Most recent scans</div>' + rows +
+    '<div style="font-size:11px;color:#bbb;margin-top:8px;">Traffic history is kept for about 13 months.</div>' +
     (scans.length > 25 ? '<div style="font-size:11.5px;color:#aaa;margin-top:8px;">' + (scans.length - 25) + ' older scans not shown.</div>' : '');
 }
 function toggleBrief(){

@@ -1,3 +1,12 @@
+/**
+ * CLPPS Lead Tracker backend — paste this whole file into a new project at
+ * script.google.com, then Deploy → New deployment → Web app →
+ * Execute as: Me → Access: Anyone. Nothing needs to be edited.
+ *
+ * On its first use it automatically creates a spreadsheet named
+ * "CLPPS Leads" in your Google Drive and stores everything there.
+ */
+
 var PIN = 'clpps-8k3v51';   // built-in key the tracker page sends automatically
 
 var HEADERS = ['id','created','type','name','phone','email','address','zip','service',
@@ -25,7 +34,9 @@ var NOTIFY_CC = 'info@clpropetservices.com';
 
 function notifyLead_(l) {
   var t = String(l.type || '');
-  if (t === 'VIEW' || t === 'QVIEW') return;  // analytics pings, no email
+  // Analytics pings, no email. OUTAREA fires every time somebody types a ZIP
+  // we do not cover, so mailing it would bury the real leads.
+  if (t === 'VIEW' || t === 'QVIEW' || t === 'OUTAREA') return;
   var subject, intro;
   if (t === 'AUTH') {
     subject = '\u2705 QUOTE AUTHORIZED: ' + (l.name || 'Customer') + (l.price ? ' at ' + l.price : '');
@@ -33,6 +44,10 @@ function notifyLead_(l) {
   } else if (t === 'COMMERCIAL') {
     subject = '\ud83c\udfe2 NEW COMMERCIAL LEAD: ' + (l.name || '');
     intro = 'New commercial inquiry from the website. No pricing quoted; call back personally.';
+  } else if (t === 'WAITLIST') {
+    subject = '\ud83d\udccd OUT OF AREA: ' + (l.name || '') + ' wants service in ' + (l.address || l.zip || '');
+    intro = 'Somebody outside our routes asked us to come to them. They were promised a personal call back, ' +
+            'so ring them even if the answer is not yet. Their ZIP and what they told us is below.';
   } else if (t === 'ACTIVATE') {
     subject = '\ud83d\udd25 NEW LEAD (wants to start!): ' + (l.name || '') + (l.price ? ' - ' + String(l.price).split(',')[0] : '');
     intro = 'This lead activated through the website quote wizard and accepted the Terms of Service.';
@@ -62,14 +77,26 @@ function doGet(e) {
     if (p.key !== PIN) return json_({ok:false, error:'bad pin'});
     var sh = sheet_();
     var rows = sh.getDataRange().getValues();
-    var leads = [];
+    // Every site visit is a row, so the analytics rows outgrow the real leads
+    // by a wide margin. The tracker asks for a window (?days=) and we only
+    // send analytics inside it; leads and settings are always sent in full.
+    // No days= means everything, so an older tracker page still works.
+    var days = parseInt(p.days, 10);
+    var cut = days > 0 ? Date.now() - days * 86400000 : 0;
+    var BULK = { VIEW:1, QVIEW:1, OUTAREA:1 };
+    var iType = HEADERS.indexOf('type'), iCreated = HEADERS.indexOf('created');
+    var leads = [], skipped = 0;
     for (var i = 1; i < rows.length; i++) {
+      if (cut && BULK[String(rows[i][iType])]) {
+        var when = new Date(rows[i][iCreated]).getTime();
+        if (when && when < cut) { skipped++; continue; }
+      }
       var o = {};
       for (var j = 0; j < HEADERS.length; j++) o[HEADERS[j]] = rows[i][j];
       leads.push(o);
     }
     leads.reverse(); // newest first
-    return json_({ok:true, leads:leads});
+    return json_({ok:true, leads:leads, windowDays: days > 0 ? days : null, olderRowsSkipped: skipped});
   }
   return json_({ok:true, service:'CLPPS lead tracker'});
 }
@@ -122,6 +149,7 @@ function weeklyDigest() {
   var rows = sh.getDataRange().getValues();
   var cut = new Date(Date.now() - 7 * 86400000);
   var views = 0, qviews = 0, leads = 0, closed = 0, names = [];
+  var outAsked = 0, outLooked = 0;   // people we cannot serve yet
   for (var i = 1; i < rows.length; i++) {
     var created = new Date(rows[i][HEADERS.indexOf('created')]);
     var type = rows[i][HEADERS.indexOf('type')];
@@ -129,9 +157,13 @@ function weeklyDigest() {
     if (created >= cut) {
       if (type === 'VIEW') views++;
       else if (type === 'QVIEW') qviews++;
+      else if (type === 'OUTAREA') outLooked++;
+      else if (type === 'WAITLIST') outAsked++;
+      else if (type === 'AUTH' || type === 'SPEND' || type === 'CONFIG') { /* not leads */ }
       else { leads++; names.push(rows[i][HEADERS.indexOf('name')]); }
     }
-    if (type !== 'VIEW' && type !== 'QVIEW' && status === 'closed' && created >= cut) closed++;
+    if (type !== 'VIEW' && type !== 'QVIEW' && type !== 'OUTAREA' && type !== 'WAITLIST' &&
+        status === 'closed' && created >= cut) closed++;
   }
   MailApp.sendEmail({
     to: 'info@clpropetservices.com',
@@ -140,7 +172,11 @@ function weeklyDigest() {
       'Site visits: ' + views + '\n' +
       'Saw a price: ' + qviews + '\n' +
       'New leads: ' + leads + (names.length ? ' (' + names.join(', ') + ')' : '') + '\n' +
-      'Marked closed: ' + closed + '\n\n' +
+      'Marked closed: ' + closed + '\n' +
+      (outAsked || outLooked
+        ? 'Outside our routes: ' + outAsked + ' asked us to come to them' +
+          (outLooked ? ', ' + outLooked + ' more just checked a ZIP' : '') + '\n'
+        : '') + '\n' +
       'Lead tracker: https://www.clpropetservices.com/hq-8k3v51/'
   });
 }
