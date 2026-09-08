@@ -6,7 +6,8 @@
    Recurring:   weekly = base[dogs] × ZIP multiplier
                 every other week = base[dogs] × ZIP multiplier × 0.82
                 twice a week = the weekly price × 1.80 (double, less 10%)
-                monthly (one visit) = monthlyBase[dogs] × ZIP multiplier
+                monthly (one visit) = monthlyBase[dogs] × ZIP multiplier,
+                  but never below the base — the ZIP can raise it, never cut it
                 all rounded to the nearest whole dollar
    One-time:    $75 for the first 30 minutes, +$20 per extra 15 minutes.
                 ZIP multiplier NOT applied.
@@ -19,6 +20,7 @@ var CLPPS_PRICING = {
   tiers: { Value: 0.90, Core: 0.95, Standard: 1.00, Premium: 1.10 },
   eowFactor: 0.82,
   twiceWeeklyFactor: 1.80,   // weekly x2, less the 10% multi-visit discount
+  monthlyTierRaisesOnly: true,  // a cheaper ZIP must not discount the single-visit plan
   roundTwiceWeekly: true,    // false = keep the exact cents (e.g. $163.80)
   onetime: 75,          // first 30 minutes, any dog count, no ZIP multiplier
   onetimeMinutes: 30,   // what the $75 covers
@@ -92,7 +94,9 @@ function clppsQuote(opts){
   var base, raw, service, visits;
   if (freq === 'monthly'){
     base = P.monthlyBase[dogs];
-    raw = base * mult;
+    // One visit a month is already the least profitable plan per trip, so a
+    // Value or Core ZIP must not drag it below the base price.
+    raw = base * (P.monthlyTierRaisesOnly ? Math.max(mult, 1) : mult);
     service = clppsRound(raw);
     visits = 1;
   } else if (freq === 'twiceweekly'){
