@@ -834,7 +834,7 @@
         <div class="opt-grid" id="q-freq">
           <button class="opt-card" data-v="twiceweekly" onclick="qSet('freq','twiceweekly',this)"><div class="oc-big">Twice a Week</div><div class="oc-sub">Spotless, always</div></button>
           <button class="opt-card sel" data-v="weekly" onclick="qSet('freq','weekly',this)"><div class="oc-big">Weekly</div><div class="oc-sub">Most popular, always clean</div></button>
-          <button class="opt-card" data-v="biweekly" onclick="qSet('freq','biweekly',this)"><div class="oc-big">Every Other Week</div><div class="oc-sub">Visits every two weeks</div></button>
+          <button class="opt-card" data-v="biweekly" onclick="qSet('freq','biweekly',this)"><div class="oc-big">Every Other Week</div><div class="oc-sub">Fewer visits, bigger job each time</div></button>
           <button class="opt-card" data-v="onetime" onclick="qSet('freq','onetime',this)"><div class="oc-big">One-Time</div><div class="oc-sub">From $75, priced by time</div></button>
         </div>
         <div class="q-label">How many dogs?</div>
@@ -1100,7 +1100,13 @@
         ' minutes if the yard needs longer. Any number of dogs.' +
         (p.deoAmt ? ' Includes $15 deodorize & sanitize.' : '') + ' Haul-away included.';
     } else {
-      noteEl.textContent = (p.deoMo ? 'Includes ' + p.treatments + '\u00d7 $15 deodorize/mo. ' : '') + 'First invoice $' + p.first + ', which includes your one-time $' + PRICING.initialClean + ' initial clean. Haul-away always included.';
+      // Every other week costs more per month than weekly, on purpose. Say so,
+      // or the price reads like a mistake on the site right at the moment
+      // somebody decides whether to submit.
+      var eowNote = (q.freq === 'biweekly')
+        ? 'Two visits a month. Waste piles up twice as much between them, so each visit is a bigger job \u2014 that\u2019s why weekly costs less per month. '
+        : '';
+      noteEl.textContent = eowNote + (p.deoMo ? 'Includes ' + p.treatments + '\u00d7 $15 deodorize/mo. ' : '') + 'First invoice $' + p.first + ', which includes your one-time $' + PRICING.initialClean + ' initial clean. Haul-away always included.';
     }
     agreeEl.textContent = p.agree;
   }
