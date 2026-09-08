@@ -1302,8 +1302,15 @@ function askAnswer(qRaw){
    to, so it tags the visit "Yard sign QR" and hands off to the wizard.
    Those visits arrive here as ordinary VIEW rows carrying that source. */
 var QR_SRC = 'Yard sign QR', SEEN_QR = 'clpps_seen_qr';
+/* Signs printed before the per-city codes just say "Yard sign QR"; the new
+   ones say "Yard sign QR (St. Peters)". Match both. */
+function isQrSrc(v){ return String(v || '').indexOf(QR_SRC) === 0; }
+function qrCityOf(v){
+  var m = String(v || '').match(/\(([^)]+)\)\s*$/);
+  return m ? m[1] : 'Not tagged by city';
+}
 function qrScans(){
-  return views.filter(function(v){ return String(v.service || '') === QR_SRC; })
+  return views.filter(function(v){ return isQrSrc(v.service); })
               .sort(function(a, b){ return new Date(b.created) - new Date(a.created); });
 }
 /* A scan is "the same person" if it shares the visit id the site stamps. */
@@ -1313,8 +1320,38 @@ function qrLeads(){
   return leads.filter(function(l){
     if ((l.status || 'new') === 'deleted') return false;
     var f = fuParse(l.crmnotes);
-    return String(l.source || '') === QR_SRC || f.src === QR_SRC || (f.sid && sids[f.sid]);
+    return isQrSrc(l.source) || isQrSrc(f.src) || (f.sid && sids[f.sid]);
   });
+}
+/* Which towns are actually producing scans. Only worth drawing once the
+   per-city codes are in the ground, so it hides itself until then. */
+function qrCityTable(scans, mine){
+  var by = {}, leadBy = {};
+  scans.forEach(function(v){ var c = qrCityOf(v.service); by[c] = (by[c] || 0) + 1; });
+  mine.forEach(function(l){
+    var f = fuParse(l.crmnotes);
+    var c = qrCityOf(isQrSrc(l.source) ? l.source : f.src);
+    leadBy[c] = (leadBy[c] || 0) + 1;
+  });
+  var cities = Object.keys(by).filter(function(c){ return c !== 'Not tagged by city'; });
+  if (!cities.length) return '';
+  cities.sort(function(a, b){ return by[b] - by[a]; });
+  if (by['Not tagged by city']) cities.push('Not tagged by city');
+  var top = by[cities[0]];
+  var rows = cities.map(function(c){
+    var n = by[c], lds = leadBy[c] || 0;
+    var pct = top ? Math.round(n / top * 100) : 0;
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;">' +
+      '<div style="width:104px;flex:none;font-size:12.5px;' +
+        (c === 'Not tagged by city' ? 'color:#999;' : 'font-weight:600;') + '">' + esc(c) + '</div>' +
+      '<div style="flex:1;background:#F0F4F2;border-radius:5px;height:15px;overflow:hidden;">' +
+        '<div style="width:' + Math.max(pct, 4) + '%;background:#1D9E75;height:100%;"></div></div>' +
+      '<div style="width:88px;flex:none;text-align:right;font-size:12px;color:#555;">' +
+        n + ' scan' + (n === 1 ? '' : 's') + (lds ? ' &middot; ' + lds + ' lead' + (lds === 1 ? '' : 's') : '') +
+      '</div></div>';
+  }).join('');
+  return '<div style="font-weight:700;font-size:12.5px;margin:4px 0 4px;">By city</div>' + rows +
+    '<div style="height:10px;"></div>';
 }
 function toggleQR(){
   var p = document.getElementById('qrPanel');
@@ -1349,9 +1386,10 @@ function renderQR(){
       '<div style="font-size:11px;color:#777;margin-top:2px;">' + l + '</div></div>';
   };
   var rows = scans.slice(0, 25).map(function(v){
-    var d = new Date(v.created);
+    var d = new Date(v.created), c = qrCityOf(v.service);
     return '<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid #f0f0f0;">' +
-      '<span>&#128241; Sign scan</span><span style="color:#777;">' + esc(d.toLocaleString()) + '</span></div>';
+      '<span>&#128241; ' + esc(c === 'Not tagged by city' ? 'Sign scan' : c) + '</span>' +
+      '<span style="color:#777;">' + esc(d.toLocaleString()) + '</span></div>';
   }).join('');
   box.innerHTML =
     '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px;">' +
@@ -1362,6 +1400,7 @@ function renderQR(){
       (closed.length ? ', <strong>' + closed.length + '</strong> of them closed' : '') + '.' +
       (scans.length ? ' That is ' + Math.round(mine.length / scans.length * 100) + '% of scans turning into a lead.' : '') +
     '</div>' +
+    qrCityTable(scans, mine) +
     '<div style="font-weight:700;font-size:12.5px;margin-bottom:2px;">Most recent scans</div>' + rows +
     (scans.length > 25 ? '<div style="font-size:11.5px;color:#aaa;margin-top:8px;">' + (scans.length - 25) + ' older scans not shown.</div>' : '');
 }
