@@ -413,7 +413,7 @@
         </div>
       </div>
       <div class="hero-img">
-        <img src="images/hero.jpg" alt="CL Professional Pet Services yard sign in a freshly cleaned lawn while a technician works in the background" />
+        <picture><source type="image/webp" srcset="images/hero-800.webp 800w, images/hero.webp 1200w" sizes="(max-width: 760px) 92vw, 583px"><img src="images/hero.jpg" width="1200" height="1600" alt="CL Professional Pet Services yard sign in a freshly cleaned lawn while a technician works in the background" /></picture>
       </div>
     </div>
 
@@ -508,9 +508,9 @@
         </div>
       </div>
       <div class="photo-strip">
-        <figure><img src="images/team.jpg" alt="CLPPS technician with scooper equipment on a freshly cleaned lawn" loading="lazy"><figcaption>Our crew, out on the routes every day</figcaption></figure>
-        <figure><img src="images/proof1.jpg" alt="Bagged pet waste collected at a gate after a cleanup visit" loading="lazy"><figcaption>Photo proof after every single visit</figcaption></figure>
-        <figure><img src="images/proof2.jpg" alt="Bagged pet waste hauled to the bin after a first cleanup" loading="lazy"><figcaption>First cleanups: we haul it all away</figcaption></figure>
+        <figure><picture><source srcset="images/team.webp" type="image/webp"><img src="images/team.jpg" width="768" height="1024" loading="lazy" alt="CLPPS technician with scooper equipment on a freshly cleaned lawn"></picture><figcaption>Our crew, out on the routes every day</figcaption></figure>
+        <figure><picture><source srcset="images/proof1.webp" type="image/webp"><img src="images/proof1.jpg" width="800" height="1092" loading="lazy" alt="Bagged pet waste collected at a gate after a cleanup visit"></picture><figcaption>Photo proof after every single visit</figcaption></figure>
+        <figure><picture><source srcset="images/proof2.webp" type="image/webp"><img src="images/proof2.jpg" width="800" height="1077" loading="lazy" alt="Bagged pet waste hauled to the bin after a first cleanup"></picture><figcaption>First cleanups: we haul it all away</figcaption></figure>
       </div>
     </div>
 
@@ -824,6 +824,46 @@
           <button class="btn-primary" onclick="qCheckZip()">Check My Area</button>
         </div>
         <div class="zip-msg" id="q-zipmsg" role="status"></div>
+
+        <!-- Out-of-area waitlist. We would rather know exactly who wants us and
+             where than send them away with a phone number - that list is how we
+             decide which ZIP to open next. -->
+        <div id="q-wait" style="display:none;margin-top:14px;background:#F7F9F8;border:1px solid #DCE6E1;border-radius:12px;padding:16px;">
+          <div style="font-weight:800;font-size:16px;margin-bottom:4px;">We&rsquo;re not on your street <em>yet</em> &mdash; let&rsquo;s change that.</div>
+          <p style="font-size:14px;color:#4E5F59;margin:0 0 12px;line-height:1.6;">
+            We open new ZIP codes based on where people ask us to go, and right now that means you.
+            Leave your details and <strong>we&rsquo;ll reach out to you personally</strong> to talk it through &mdash;
+            if there&rsquo;s enough interest around you, yours could be the next route we run.
+          </p>
+          <div class="form-grid">
+            <div class="form-field"><label for="qw-name">Name</label><input id="qw-name" type="text" autocomplete="name" /></div>
+            <div class="form-field"><label for="qw-phone">Phone</label><input id="qw-phone" type="tel" autocomplete="tel" /></div>
+          </div>
+          <div class="form-field"><label for="qw-email">Email</label><input id="qw-email" type="email" autocomplete="email" /></div>
+          <div class="form-grid">
+            <div class="form-field"><label for="qw-city">Town or neighborhood</label><input id="qw-city" type="text" autocomplete="address-level2" /></div>
+            <div class="form-field"><label for="qw-dogs">How many dogs?</label><input id="qw-dogs" type="text" inputmode="numeric" /></div>
+          </div>
+          <div class="form-field">
+            <label for="qw-story">Tell us about your situation &mdash; we actually read these</label>
+            <textarea id="qw-story" placeholder="How big is the yard, how often would you want us, anyone else nearby who&rsquo;d sign up, whatever helps."></textarea>
+          </div>
+          <div class="zip-msg" id="q-waiterr" role="status"></div>
+          <button class="submit-btn" onclick="qWaitSubmit()">Have Someone Reach Out To Me</button>
+          <p style="font-size:12.5px;color:#84928C;margin:10px 0 0;line-height:1.55;">
+            Or call <a href="tel:+16363754342" style="color:#0F6E56;font-weight:700;">(636) 375-4342</a> and talk to us now.
+            No obligation, and we won&rsquo;t hand your details to anybody else.
+          </p>
+        </div>
+        <div id="q-waitdone" style="display:none;margin-top:14px;background:#E1F5EE;border:1px solid #5DCAA5;border-radius:12px;padding:18px;">
+          <div style="font-size:34px;line-height:1;margin-bottom:6px;">&#128062;</div>
+          <div style="font-weight:800;font-size:17px;margin-bottom:4px;">Got it &mdash; we&rsquo;ll be in touch.</div>
+          <div style="font-size:14px;color:#0F6E56;line-height:1.65;">
+            Somebody from our team will reach out personally to talk about your yard and what it would take
+            to get a route running by you. If you&rsquo;d rather not wait, call
+            <strong><a href="tel:+16363754342" style="color:#0F6E56;">(636) 375-4342</a></strong>.
+          </div>
+        </div>
       </div>
 
       <!-- STEP 2: SERVICE -->
@@ -1058,9 +1098,88 @@
       msg.innerHTML = '&#10004; Great news, we serve your area! Taking you to step 2&hellip;';
       setTimeout(function(){ qGo(2); }, 900);
     } else {
-      msg.classList.add('bad');
-      msg.innerHTML = "We don't have a route in " + v + " yet, but routes grow every month! Call <a href='tel:+16363754342'><strong>(636) 375-4342</strong></a> and we'll see what we can do.";
+      msg.classList.add('ok');
+      msg.innerHTML = '&#128205; ' + v + " isn't on one of our routes yet &mdash; but routes grow every month, and where they grow depends on who asks.";
+      // No auto-focus: it scrolls the message under the sticky header and
+      // throws up the keyboard before they have read why we are asking.
+      if (document.getElementById('q-waitdone').style.display !== 'block'){
+        document.getElementById('q-wait').style.display = 'block';
+      }
+      qWaitBeacon(v);
     }
+  }
+  /* --- Out of area ------------------------------------------------------
+     Two separate records on purpose:
+     qWaitBeacon  - fires the moment an out-of-area ZIP is entered, so we can
+                    count demand even from people who never fill the form in.
+     qWaitSubmit  - the person actually asking us to come to them.
+     Both are typed WAITLIST so they never land in the lead or revenue counts. */
+  var waitBeaconed = {};
+  function qWaitBeacon(zip){
+    if (waitBeaconed[zip]) return;
+    waitBeaconed[zip] = 1;
+    crmCapture({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      created: new Date().toISOString(),
+      type: 'OUTAREA',
+      name: 'ZIP ' + zip,
+      zip: zip,
+      yard: vSid(),
+      service: leadSource() || '',
+      crmnotes: '[SID:' + vSid() + '] ' + (leadSource() ? '[SRC:' + leadSource() + '] ' : '') + 'checked an out-of-area ZIP'
+    });
+  }
+  function qWaitSubmit(){
+    var err = document.getElementById('q-waiterr');
+    err.className = 'zip-msg'; err.textContent = '';
+    var name  = document.getElementById('qw-name').value.trim();
+    var phone = document.getElementById('qw-phone').value.trim();
+    var email = document.getElementById('qw-email').value.trim();
+    if (!name || (!phone && !email)){
+      err.classList.add('bad');
+      err.textContent = 'Please add your name and at least one way to reach you — a phone number or an email.';
+      return;
+    }
+    var zip   = (document.getElementById('q-zip').value || '').trim();
+    var city  = document.getElementById('qw-city').value.trim();
+    var dogs  = document.getElementById('qw-dogs').value.trim();
+    var story = document.getElementById('qw-story').value.trim();
+    var payload = {
+      _cc: BIZ_EMAIL,
+      _autoresponse: 'Thanks for reaching out! You are outside our current routes, but we open new areas based on exactly this — people asking. Somebody from our team will contact you personally to talk about your yard and what it would take to get a route running near you. Want to talk sooner? Call or text (636) 375-4342. — CL Professional Pet Services',
+      _subject: '📍 OUT OF AREA — wants service in ' + (city || zip) + ' (' + zip + ')',
+      Status: 'OUT OF AREA WAITLIST: no route here yet. Call them back personally.',
+      Name: name, Phone: phone, Email: email,
+      ZIP: zip, Town: city, Dogs: dogs,
+      Their_Story: story,
+      Lead_Source: leadSource() || 'unknown'
+    };
+    crmCapture({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      created: new Date().toISOString(),
+      type: 'WAITLIST',
+      name: name, phone: phone, email: email,
+      zip: zip, address: city, dogs: dogs,
+      service: 'out of area', price: '',
+      yard: vSid(),
+      crmnotes: '[SID:' + vSid() + '] ' + (leadSource() ? '[SRC:' + leadSource() + '] ' : '') + story,
+      notes: story
+    });
+    var btn = document.querySelector('#q-wait .submit-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    var done = function(){
+      document.getElementById('q-wait').style.display = 'none';
+      document.getElementById('q-waitdone').style.display = 'block';
+      document.getElementById('q-zipmsg').style.display = 'none';
+    };
+    fetch('https://formsubmit.co/ajax/' + FORM_EMAIL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json(); }).then(done).catch(function(){
+      // the record is already in the tracker, so still thank them
+      done();
+    });
   }
   function qSet(key, val, el){
     q[key] = val;

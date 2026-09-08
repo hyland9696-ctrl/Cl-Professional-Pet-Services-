@@ -91,6 +91,7 @@
       <button class="copybtn" onclick="toggleAsk()" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">&#128172; Ask</button>
       <button class="copybtn" onclick="toggleBrief()">&#128203; Daily brief</button>
       <button class="copybtn" onclick="toggleQR()" id="qrBtn">&#128241; Sign scans</button>
+      <button class="copybtn" onclick="toggleWait()" id="waitBtn">&#128205; Out of area</button>
       <button class="copybtn" onclick="togglePQ()" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">&#128222; Phone quote</button>
       <button class="copybtn" onclick="toggleAdd()">&#10133; Add lead</button>
       <button class="copybtn" onclick="exportCsv()">&#11015;&#65039; Download CSV</button>
@@ -162,6 +163,13 @@
         <input id="ask-input" placeholder="Ask anything&hellip;" onkeydown="if(event.key==='Enter')askSend()" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:9px;font-size:14px;font-family:inherit;">
         <button onclick="askSend()" style="background:#1D9E75;color:#fff;border:none;border-radius:9px;padding:10px 15px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Ask</button>
       </div>
+    </div>
+    <div id="waitPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,.07);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-weight:800;font-size:15px;">&#128205; Outside our routes</div>
+        <button onclick="toggleWait()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
+      </div>
+      <div id="wait-body" style="font-size:13px;line-height:1.6;color:#2B3A34;"></div>
     </div>
     <div id="qrPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -271,7 +279,7 @@ var STATUSES = [
   {k:'lost',   label:'Not interested'}
 ];
 var FILTERS = [{k:'all',label:'All'}].concat(STATUSES);
-var leads = [], views = [], qviews = [], auths = {}, spends = {}, config = {}, filter = 'all', KEY = 'clpps-8k3v51';
+var leads = [], views = [], qviews = [], waitlist = [], outarea = [], auths = {}, spends = {}, config = {}, filter = 'all', KEY = 'clpps-8k3v51';
 var CHANNELS = [{ k: 'Meta Ads', label: 'Meta / Facebook' }, { k: 'Google Ads', label: 'Google Ads' }];
 var roiMonth = '';
 
@@ -284,13 +292,13 @@ function saveLocal(){
   try { localStorage.setItem('clpps_leads', JSON.stringify(leads)); } catch (e) {}
 }
 function saveStatsCache(){
-  try { localStorage.setItem('clpps_stats', JSON.stringify({ views: views, qviews: qviews, auths: auths, spends: spends, config: config, ts: new Date().toISOString() })); } catch (e) {}
+  try { localStorage.setItem('clpps_stats', JSON.stringify({ views: views, qviews: qviews, waitlist: waitlist, outarea: outarea, auths: auths, spends: spends, config: config, ts: new Date().toISOString() })); } catch (e) {}
 }
 function loadLocal(){
   try { leads = JSON.parse(localStorage.getItem('clpps_leads') || '[]'); } catch (e) { leads = []; }
   try {
     var c = JSON.parse(localStorage.getItem('clpps_stats') || 'null');
-    if (c){ views = c.views || []; qviews = c.qviews || []; auths = c.auths || {}; spends = c.spends || {}; config = c.config || {}; statsTs = c.ts || ''; }
+    if (c){ views = c.views || []; qviews = c.qviews || []; waitlist = c.waitlist || []; outarea = c.outarea || []; auths = c.auths || {}; spends = c.spends || {}; config = c.config || {}; statsTs = c.ts || ''; }
   } catch (e) {}
 }
 var statsTs = '';
@@ -312,10 +320,15 @@ function loadLeads(showToast, cb, isRetry){
       remoteLoaded = true;
       document.getElementById('offline').style.display = 'none';
       var remote = (d.leads || []).filter(function(l){
-        return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.type !== 'AUTH' && l.type !== 'SPEND' && l.type !== 'CONFIG' && l.status !== 'deleted';
+        return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.type !== 'AUTH' && l.type !== 'SPEND' &&
+               l.type !== 'CONFIG' && l.type !== 'WAITLIST' && l.type !== 'OUTAREA' && l.status !== 'deleted';
       });
       views = (d.leads || []).filter(function(l){ return l.type === 'VIEW'; });
       qviews = (d.leads || []).filter(function(l){ return l.type === 'QVIEW'; });
+      // People outside the routes: WAITLIST asked us to come to them, OUTAREA
+      // only typed the ZIP. Both are demand, neither is a lead.
+      waitlist = (d.leads || []).filter(function(l){ return l.type === 'WAITLIST' && l.status !== 'deleted'; });
+      outarea  = (d.leads || []).filter(function(l){ return l.type === 'OUTAREA'; });
       // Saved settings (newest row wins), e.g. the Google review link.
       config = {};
       (d.leads || []).forEach(function(l){
@@ -1353,6 +1366,74 @@ function qrCityTable(scans, mine){
   return '<div style="font-weight:700;font-size:12.5px;margin:4px 0 4px;">By city</div>' + rows +
     '<div style="height:10px;"></div>';
 }
+/* ---- People we cannot serve yet -------------------------------------
+   Grouped by ZIP, because one person in a ZIP is a curiosity and five is
+   a route. These never touch the lead or revenue counts. */
+function toggleWait(){
+  var p = document.getElementById('waitPanel');
+  var opening = p.style.display === 'none';
+  p.style.display = opening ? 'block' : 'none';
+  if (opening){ renderWait(); p.scrollIntoView({ behavior:'smooth', block:'start' }); }
+}
+function renderWait(){
+  var box = document.getElementById('wait-body');
+  if (!box) return;
+  if (!waitlist.length && !outarea.length){
+    box.innerHTML = '<div style="color:#777;">Nobody outside the routes yet. When somebody types a ZIP we do not cover, ' +
+      'they get asked to leave their details and they will show up here, grouped by ZIP.</div>';
+    return;
+  }
+  var byZip = {};
+  var add = function(l, asked){
+    var z = String(l.zip || '?').trim() || '?';
+    if (!byZip[z]) byZip[z] = { asked: [], looked: 0, towns: {} };
+    if (asked){ byZip[z].asked.push(l); if (l.address) byZip[z].towns[l.address] = 1; }
+    else byZip[z].looked++;
+  };
+  waitlist.forEach(function(l){ add(l, true); });
+  outarea.forEach(function(l){ add(l, false); });
+  var zips = Object.keys(byZip).sort(function(a, b){
+    var A = byZip[a], B = byZip[b];
+    return (B.asked.length - A.asked.length) || (B.looked - A.looked);
+  });
+  var totalAsked = waitlist.length;
+  var head = '<div style="background:#F2F7F4;border-left:3px solid #1D9E75;border-radius:0 9px 9px 0;padding:10px 12px;margin-bottom:10px;">' +
+    '<strong>' + totalAsked + '</strong> ' + (totalAsked === 1 ? 'person has' : 'people have') + ' asked us to come to them, across <strong>' +
+    zips.filter(function(z){ return byZip[z].asked.length; }).length + '</strong> ZIP code' +
+    (zips.filter(function(z){ return byZip[z].asked.length; }).length === 1 ? '' : 's') + '. ' +
+    outarea.length + ' more looked us up and did not leave details.' +
+    '</div>';
+  var rows = zips.map(function(z){
+    var g = byZip[z], towns = Object.keys(g.towns);
+    var people = g.asked.map(function(l){
+      var when = l.created ? new Date(l.created).toLocaleDateString() : '';
+      var contact = [l.phone, l.email].filter(Boolean).join(' &middot; ');
+      var story = String(l.notes || fuParse(l.crmnotes).text || '').trim();
+      return '<div style="border-top:1px solid #f0f0f0;padding:8px 0 8px 10px;">' +
+        '<div style="font-weight:700;">' + esc(l.name || '(no name)') + '</div>' +
+        '<div style="font-size:12px;color:#666;">' + esc(contact) +
+          (l.dogs ? ' &middot; ' + esc(l.dogs) + ' dog(s)' : '') + (when ? ' &middot; ' + esc(when) : '') + '</div>' +
+        (story ? '<div style="font-size:12.5px;color:#444;margin-top:4px;font-style:italic;">&ldquo;' + esc(story) + '&rdquo;</div>' : '') +
+        (l.phone ? '<a href="tel:' + esc(String(l.phone).replace(/[^0-9+]/g, '')) + '" style="display:inline-block;margin-top:6px;background:#1D9E75;color:#fff;text-decoration:none;border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:700;">&#128222; Call them</a>' : '') +
+        (l.email ? '<a href="mailto:' + esc(l.email) + '" style="display:inline-block;margin-top:6px;margin-left:6px;background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;text-decoration:none;border-radius:8px;padding:5px 11px;font-size:12.5px;font-weight:700;">&#9993;&#65039; Email</a>' : '') +
+        '</div>';
+    }).join('');
+    var hot = g.asked.length >= 3;
+    return '<div style="border:1px solid ' + (hot ? '#1D9E75' : '#E4EBE7') + ';border-radius:11px;padding:10px 12px;margin-bottom:9px;' +
+        (hot ? 'background:#F2F7F4;' : '') + '">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">' +
+        '<div style="font-weight:800;font-size:14.5px;">' + esc(z) +
+          (towns.length ? ' <span style="font-weight:400;color:#777;font-size:12.5px;">' + esc(towns.join(', ')) + '</span>' : '') + '</div>' +
+        '<div style="font-size:12px;color:#555;white-space:nowrap;">' + g.asked.length + ' asked' +
+          (g.looked ? ' &middot; ' + g.looked + ' looked' : '') + '</div>' +
+      '</div>' +
+      (hot ? '<div style="font-size:12px;color:#0F6E56;font-weight:700;margin-top:3px;">Worth a look &mdash; that is a cluster.</div>' : '') +
+      people + '</div>';
+  }).join('');
+  box.innerHTML = head + rows +
+    '<div style="font-size:11.5px;color:#aaa;margin-top:6px;">Nobody here counts as a lead or as revenue. ' +
+    'To serve a ZIP, add it to pricing.js and it starts quoting.</div>';
+}
 function toggleQR(){
   var p = document.getElementById('qrPanel');
   var opening = p.style.display === 'none';
@@ -2147,6 +2228,8 @@ function render(){
   renderAlerts();
   var qp = document.getElementById('qrPanel');
   if (qp && qp.style.display !== 'none') renderQR();
+  var wp = document.getElementById('waitPanel');
+  if (wp && wp.style.display !== 'none') renderWait();
   var counts = {all: leads.length};
   STATUSES.forEach(function(s){ counts[s.k] = leads.filter(function(l){ return (l.status||'new') === s.k; }).length; });
   document.getElementById('stats').innerHTML =
