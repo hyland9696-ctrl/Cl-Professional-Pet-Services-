@@ -8,7 +8,8 @@
                 twice a week = the weekly price × 1.80 (double, less 10%)
                 monthly (one visit) = monthlyBase[dogs] × ZIP multiplier,
                   but never below the base — the ZIP can raise it, never cut it
-                all rounded to the nearest whole dollar
+                all rounded to the nearest whole dollar, and no recurring
+                plan is ever quoted below the monthly minimum
    One-time:    $75 for the first 30 minutes, +$20 per extra 15 minutes.
                 ZIP multiplier NOT applied.
    Unlisted ZIP (inside the service area): priced as Value
@@ -21,6 +22,7 @@ var CLPPS_PRICING = {
   eowFactor: 0.82,
   twiceWeeklyFactor: 1.80,   // weekly x2, less the 10% multi-visit discount
   monthlyTierRaisesOnly: true,  // a cheaper ZIP must not discount the single-visit plan
+  minRecurring: 72,     // the cheapest price anywhere; Value tier floor, everything steps up from here
   roundTwiceWeekly: true,    // false = keep the exact cents (e.g. $163.80)
   onetime: 75,          // first 30 minutes, any dog count, no ZIP multiplier
   onetimeMinutes: 30,   // what the $75 covers
@@ -38,7 +40,10 @@ var CLPPS_PRICING = {
     '62002':'Value','62010':'Core','62040':'Value','62035':'Premium',
     '62095':'Core','62249':'Premium','63090':'Standard','63084':'Standard',
     '63069':'Standard','63010':'Core','63028':'Standard','63383':'Standard',
-    '63379':'Premium','62220':'Core','62269':'Standard','62236':'Premium'
+    '63379':'Premium','62220':'Core','62269':'Standard','62236':'Premium',
+    // Wildwood: 63038 and 63040 are Wildwood only; 63005 is shared with
+    // Chesterfield, which is already Premium on 63017.
+    '63038':'Premium','63040':'Premium','63005':'Premium'
   },
   // Metro ZIP prefixes we run routes in. Anything outside is "no route yet".
   areaPrefixes: ['630','631','633','620','622']
@@ -112,6 +117,9 @@ function clppsQuote(opts){
     service = clppsRound(raw);
     visits = freq === 'biweekly' ? 2 : 4;
   }
+  // Floor applies to every recurring plan, not just one dog: flooring only the
+  // single-dog price would leave two dogs cheaper than one.
+  if (P.minRecurring && service < P.minRecurring) service = P.minRecurring;
   var treatments = deo === 'every' ? visits : (deo === 'eo' ? Math.round(visits / 2) : 0);
   var deoMo = treatments * P.deodorize;
   var total = service + deoMo;
