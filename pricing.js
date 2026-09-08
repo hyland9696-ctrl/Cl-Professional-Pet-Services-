@@ -4,25 +4,27 @@
    phone-quote page (hq-8k3v51/quote/). Change numbers HERE only.
 
    Recurring:   weekly = base[dogs] × ZIP multiplier
-                every other week = base[dogs] × ZIP multiplier × 0.82
+                every other week = that customer's weekly price + $10
+                  (fewer visits, but each one is a bigger job — and it
+                   keeps weekly the obvious buy)
                 twice a week = the weekly price × 1.80 (double, less 10%)
-                monthly (one visit) = monthlyBase[dogs] × ZIP multiplier,
-                  but never below the base — the ZIP can raise it, never cut it
                 all rounded to the nearest whole dollar, and no recurring
                 plan is ever quoted below the monthly minimum
    One-time:    $75 for the first 30 minutes, +$20 per extra 15 minutes.
                 ZIP multiplier NOT applied.
    Unlisted ZIP (inside the service area): priced as Value
+
+   Monthly (one visit a month) was RETIRED on 8 Sep 2026 and is no longer
+   sold. clppsQuote() returns a manual quote for it so an old link or an
+   old record can never silently price itself.
    ============================================================ */
 
 var CLPPS_PRICING = {
   base: { 1: 85, 2: 91, 3: 97, 4: 103 },     // weekly, $/month, Standard tier
-  monthlyBase: { 1: 65, 2: 70, 3: 75, 4: 80 }, // one visit a month, Standard tier ($65 + $5/dog)
   tiers: { Value: 0.90, Core: 0.95, Standard: 1.00, Premium: 1.10 },
-  eowFactor: 0.82,
+  eowPremium: 10,            // every other week = that customer's weekly price + $10
   twiceWeeklyFactor: 1.80,   // weekly x2, less the 10% multi-visit discount
-  monthlyTierRaisesOnly: true,  // a cheaper ZIP must not discount the single-visit plan
-  minRecurring: 72,     // the cheapest price anywhere; Value tier floor, everything steps up from here
+  minRecurring: 72,     // the cheapest price anywhere; nothing should reach it now, but it holds the line
   roundTwiceWeekly: true,    // false = keep the exact cents (e.g. $163.80)
   onetime: 75,          // first 30 minutes, any dog count, no ZIP multiplier
   onetimeMinutes: 30,   // what the $75 covers
@@ -68,7 +70,7 @@ function clppsOnetime(minutes){
   return { minutes: m, blocks: extra, price: P.onetime + extra * P.onetimeBlockPrice };
 }
 
-/* opts: { zip, dogs (1-4, or 5 = custom), freq: 'twiceweekly'|'weekly'|'biweekly'|'monthly'|'onetime',
+/* opts: { zip, dogs (1-4, or 5 = custom), freq: 'twiceweekly'|'weekly'|'biweekly'|'onetime',
            deo: 'none'|'every'|'eo', waiveInitial: bool, minutes: one-time job length }
    Returns the full breakdown, or { manual:true, reason } for custom quotes. */
 function clppsQuote(opts){
@@ -96,26 +98,22 @@ function clppsQuote(opts){
   if (dogs > P.maxDogs){
     return { manual:true, reason:'5+ dogs', tier:tier, mult:mult, dogs:dogs, freq:freq };
   }
-  var base, raw, service, visits;
   if (freq === 'monthly'){
-    base = P.monthlyBase[dogs];
-    // One visit a month is already the least profitable plan per trip, so a
-    // Value or Core ZIP must not drag it below the base price.
-    raw = base * (P.monthlyTierRaisesOnly ? Math.max(mult, 1) : mult);
-    service = clppsRound(raw);
-    visits = 1;
-  } else if (freq === 'twiceweekly'){
-    base = P.base[dogs];
-    raw = base * mult;
-    var wk = clppsRound(raw);               // the customer's own weekly price
-    var tw = wk * P.twiceWeeklyFactor;      // double it, less the 10% discount
+    // Retired plan. Never guess a number for it.
+    return { manual:true, reason:'monthly plan retired', tier:tier, mult:mult, dogs:dogs, freq:freq };
+  }
+  var base = P.base[dogs], service, visits;
+  var weekly = clppsRound(base * mult);     // every plan is priced off the weekly number
+  if (freq === 'twiceweekly'){
+    var tw = weekly * P.twiceWeeklyFactor;  // double it, less the 10% discount
     service = P.roundTwiceWeekly ? clppsRound(tw) : Math.round(tw * 100) / 100;
     visits = 8;
+  } else if (freq === 'biweekly'){
+    service = weekly + P.eowPremium;
+    visits = 2;
   } else {
-    base = P.base[dogs];
-    raw = base * mult * (freq === 'biweekly' ? P.eowFactor : 1);
-    service = clppsRound(raw);
-    visits = freq === 'biweekly' ? 2 : 4;
+    service = weekly;
+    visits = 4;
   }
   // Floor applies to every recurring plan, not just one dog: flooring only the
   // single-dog price would leave two dogs cheaper than one.

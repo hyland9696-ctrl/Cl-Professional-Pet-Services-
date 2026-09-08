@@ -113,7 +113,7 @@
           <option value="">Dogs?</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6+</option>
         </select>
         <select id="m-service" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;">
-          <option value="">Service?</option><option>twice a week</option><option>weekly</option><option>every other week</option><option>monthly</option><option>one-time</option><option>commercial</option>
+          <option value="">Service?</option><option>twice a week</option><option>weekly</option><option>every other week</option><option>one-time</option><option>monthly</option><option>commercial</option>
         </select>
         <select id="m-src" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;grid-column:1 / -1;">
           <option value="">How did they find us? (source)</option>
@@ -195,7 +195,7 @@
 
       <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">3. How often?</div>
       <div class="chips" id="pq-freq" style="margin-bottom:10px;">
-        <button class="chip" onclick="pqSet('freq','twiceweekly',this)">Twice a week</button><button class="chip on" onclick="pqSet('freq','weekly',this)">Weekly</button><button class="chip" onclick="pqSet('freq','biweekly',this)">Every other week</button><button class="chip" onclick="pqSet('freq','monthly',this)">Monthly</button><button class="chip" onclick="pqSet('freq','onetime',this)">One-time cleanup</button>
+        <button class="chip" onclick="pqSet('freq','twiceweekly',this)">Twice a week</button><button class="chip on" onclick="pqSet('freq','weekly',this)">Weekly</button><button class="chip" onclick="pqSet('freq','biweekly',this)">Every other week</button><button class="chip" onclick="pqSet('freq','onetime',this)">One-time cleanup</button>
       </div>
 
       <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">4. Deodorize &amp; sanitize? ($15 a treatment)</div>
@@ -1118,15 +1118,16 @@ function askAnswer(qRaw){
     }
     if (dogs > CLPPS_PRICING.maxDogs) return dogs + ' dogs is a custom quote — price it by hand. For reference, 4 dogs in ' + zip + ' (' + tier + ') is ' + askMoney(clppsQuote({zip:zip,dogs:4,freq:'weekly'}).service) + '/mo weekly.';
     var one = function(f){ return clppsQuote({ zip: zip, dogs: dogs, freq: f }).service; };
-    var only = has('twice') ? 'twiceweekly' : (has('every other', 'biweekly', 'bi-weekly', 'eow') ? 'biweekly' : (has('monthly', 'once a month') ? 'monthly' : null));
+    if (has('monthly', 'once a month')) return 'We do not sell a monthly (one visit a month) plan any more. The plans are twice a week, weekly, every other week, and one-time cleanups.';
+    var only = has('twice') ? 'twiceweekly' : (has('every other', 'biweekly', 'bi-weekly', 'eow') ? 'biweekly' : null);
     var head = dogs + ' dog' + (dogs > 1 ? 's' : '') + ' in ' + zip + ' (' + tier + ' tier, ×' + CLPPS_PRICING.tiers[tier].toFixed(2) + ')' +
                (listed ? '' : ' — not on the ZIP list, so priced as Value');
     if (only){
-      var lbl = { twiceweekly:'Twice a week', biweekly:'Every other week', monthly:'Monthly' }[only];
+      var lbl = { twiceweekly:'Twice a week', biweekly:'Every other week' }[only];
       return head + '\n\n' + lbl + ': ' + askMoney(one(only)) + '/mo\nFirst invoice ' + askMoney(one(only) + CLPPS_PRICING.initialClean) + ' with the $40 initial clean.';
     }
     return head + '\n\nTwice a week: ' + askMoney(one('twiceweekly')) + '/mo\nWeekly: ' + askMoney(one('weekly')) +
-      '/mo\nEvery other week: ' + askMoney(one('biweekly')) + '/mo\nMonthly: ' + askMoney(one('monthly')) +
+      '/mo\nEvery other week: ' + askMoney(one('biweekly')) +
       '/mo\n\nAdd $40 on the first invoice for the initial clean.';
   }
 
@@ -1386,11 +1387,6 @@ function togglePQ(){
 }
 function pqSet(key, val, el){
   pq[key] = val;
-  if (key === 'freq' && val === 'monthly' && pq.deo === 'eo'){
-    pq.deo = 'none';
-    var dc = document.querySelectorAll('#pq-deo .chip');
-    for (var k = 0; k < dc.length; k++) dc[k].classList.toggle('on', k === 0);
-  }
   var kids = el.parentElement.querySelectorAll('.chip');
   for (var i = 0; i < kids.length; i++) kids[i].classList.remove('on');
   el.classList.add('on');
@@ -1408,8 +1404,6 @@ function pqCalc(){
   document.getElementById('pq-icrow').style.display = isOnce ? 'none' : '';
   document.getElementById('pq-ic').style.display = isOnce ? 'none' : '';
   document.getElementById('pq-minrow').style.display = isOnce ? 'block' : 'none';
-  var eoChip = document.querySelectorAll('#pq-deo .chip')[2];
-  if (eoChip) eoChip.style.display = (pq.freq === 'monthly') ? 'none' : '';
 
   if (!/^\d{5}$/.test(zip)){
     tierEl.innerHTML = '<span style="color:#bbb;">enter 5 digits</span>';
@@ -1442,12 +1436,12 @@ function pqCalc(){
     } else {
       lines.push('$' + r.base + ' base &times; ' + r.mult.toFixed(2) + (r.freq === 'biweekly' ? ' &times; 0.82' : '') +
                  ' = $' + (r.base * r.mult * (r.freq === 'biweekly' ? 0.82 : 1)).toFixed(2) +
-                 ' &rarr; <strong>$' + r.service + '</strong>' + (r.freq === 'monthly' ? ' (one visit a month)' : ''));
+                 ' &rarr; <strong>$' + r.service + '</strong>');
     }
     if (r.deoMo) lines.push('+ $' + r.deoMo + '/mo deodorize (' + r.treatments + ' &times; $15)');
     lines.push(r.initial ? 'First invoice <strong>$' + r.first + '</strong> (includes $40 initial clean)' : 'Initial clean <strong>waived</strong> &mdash; first invoice $' + r.first);
   }
-  var PQ_LABELS = { twiceweekly:'Twice a week', weekly:'Weekly', biweekly:'Every other week', monthly:'Monthly', onetime:'One-time cleanup' };
+  var PQ_LABELS = { twiceweekly:'Twice a week', weekly:'Weekly', biweekly:'Every other week', onetime:'One-time cleanup' };
   var label = PQ_LABELS[r.freq];
   box.innerHTML = '<div style="font-size:12.5px;opacity:.85;">' + label + ' &middot; ' + r.dogs + ' dog' + (r.dogs > 1 ? 's' : '') + (r.freq !== 'onetime' ? ' &middot; ' + r.tier + ' ZIP' : ' &middot; ' + r.minutes + ' min') + '</div>' +
     '<div style="font-size:30px;font-weight:800;line-height:1.1;margin:2px 0 4px;">$' + r.total + '<span style="font-size:15px;font-weight:600;opacity:.85;">' + (r.per || ' one-time') + '</span></div>' +
@@ -1463,7 +1457,7 @@ function pqSubmit(kind){
   var price, manual = 'no';
   if (r.manual){ price = custom || 'custom, to be quoted'; manual = custom ? 'no' : 'YES'; }
   else price = '$' + r.total + (r.per ? '/mo' : ' one-time');
-  var PQ_SVC = { twiceweekly:'twice a week', weekly:'weekly', biweekly:'every other week', monthly:'monthly', onetime:'one-time' };
+  var PQ_SVC = { twiceweekly:'twice a week', weekly:'weekly', biweekly:'every other week', onetime:'one-time' };
   var svc = PQ_SVC[pq.freq];
   var deoTxt = pq.deo === 'none' ? 'no' : (pq.deo === 'every' ? 'every visit ($15/treatment)' : 'every other visit ($15/treatment)');
   var src = document.getElementById('pq-src').value;
