@@ -965,7 +965,7 @@
 <script>
   /* ===== Instant quote wizard ===== */
   /* All prices, ZIP tiers and the service area live in /pricing.js (CLPPS_PRICING).
-     Weekly = base × ZIP tier; every other week = that × 0.82; one-time flat, no tier. */
+     Weekly = base × ZIP tier; every other week = the weekly price + $10; one-time flat, no tier. */
   /* If pricing.js somehow fails to load, fall back to a manual quote rather than
      letting the whole page script die — view tracking and the forms still work. */
   var PRICING = (typeof CLPPS_PRICING !== 'undefined') ? CLPPS_PRICING : null;

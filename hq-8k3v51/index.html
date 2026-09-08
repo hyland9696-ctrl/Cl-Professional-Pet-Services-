@@ -973,12 +973,21 @@ function gptContext(){
   }).join('\n');
   var v30 = views.filter(function(v){ return new Date(v.created) >= new Date(now - 30 * 86400000); }).length;
   return 'You are the business assistant for CL Professional Pet Services (CLPPS), a pet waste removal company in St. Peters, Missouri serving the greater St. Louis metro. Owner: Corey Casey. Operations Manager: Jesse Duncan, (636) 388-5069. Main line (636) 375-4342.\n\n' +
+    // Built from pricing.js so this can never drift from what we actually quote.
     'PRICING RULES\n' +
-    'Weekly per month = base by dog count x ZIP tier multiplier, rounded to the dollar. Base: 1 dog $85, 2 $91, 3 $97, 4 $103. 5+ dogs is a custom quote.\n' +
-    'Tiers: Value 0.90, Core 0.95, Standard 1.00, Premium 1.10. A ZIP not on the list is priced as Value.\n' +
-    'Every other week = weekly x 0.82. Twice a week = weekly x 1.80. Monthly (one visit) = base 1 dog $65, 2 $70, 3 $75, 4 $80, x the tier.\n' +
-    'One-time cleanup = $75 for the first 30 minutes then $20 per extra 15 minutes, with no ZIP multiplier.\n' +
-    'Initial clean $40 on the first invoice for recurring customers, sometimes waived. Deodorize $15 per treatment.\n\n' +
+    'Weekly per month = base by dog count x ZIP tier multiplier, rounded to the dollar. Base: ' +
+      [1,2,3,4].map(function(d){ return d + ' dog' + (d > 1 ? 's' : '') + ' $' + CLPPS_PRICING.base[d]; }).join(', ') +
+      '. ' + (CLPPS_PRICING.maxDogs + 1) + '+ dogs is a custom quote.\n' +
+    'Tiers: ' + Object.keys(CLPPS_PRICING.tiers).map(function(t){ return t + ' ' + CLPPS_PRICING.tiers[t].toFixed(2); }).join(', ') +
+      '. A ZIP not on the list is priced as Value.\n' +
+    'Every other week = that customer\'s weekly price + $' + CLPPS_PRICING.eowPremium +
+      '. It costs MORE per month than weekly on purpose (half the visits, but each one is a bigger job), so never call it the cheaper option.\n' +
+    'Twice a week = weekly x ' + CLPPS_PRICING.twiceWeeklyFactor.toFixed(2) + '.\n' +
+    'There is NO monthly plan. One visit a month was retired on 8 September 2026 - never quote it. The plans are twice a week, weekly, every other week, and one-time cleanups.\n' +
+    'One-time cleanup = $' + CLPPS_PRICING.onetime + ' for the first ' + CLPPS_PRICING.onetimeMinutes + ' minutes then $' +
+      CLPPS_PRICING.onetimeBlockPrice + ' per extra ' + CLPPS_PRICING.onetimeBlock + ' minutes, with no ZIP multiplier.\n' +
+    'Initial clean $' + CLPPS_PRICING.initialClean + ' on the first invoice for recurring customers, sometimes waived. Deodorize $' +
+      CLPPS_PRICING.deodorize + ' per treatment.\n\n' +
     'TODAY IS ' + now.toDateString() + '\n\n' +
     'THIS MONTH (' + monthLabel(mk) + ')\n' +
     mb.totals.closed + ' closed, $' + mb.totals.mrr + '/mo new recurring, $' + mb.totals.fees + ' initial cleans, $' +
@@ -1104,6 +1113,10 @@ function askAnswer(qRaw){
   /* --- a price question: "2 dogs weekly in 63304" --- */
   var zipM = q.match(/\b(\d{5})\b/);
   var dogM = q.match(/(\d+)\s*dog/);
+  if (has('monthly', 'once a month') && !zipM && !dogM &&
+      !has('revenue', 'recurring', 'mrr', 'spend', 'income', 'sales', 'profit', 'brought in', 'bring in')){
+    return 'There is no monthly (one visit a month) plan any more \u2014 it was retired on 8 September 2026. The plans are twice a week, weekly, every other week, and one-time cleanups. Every recurring plan is still billed monthly.';
+  }
   var priceWord = has('price', 'cost', 'charge', 'quote', 'how much for', 'how much is', 'what is', 'whats', "what's");
   if (zipM || (dogM && priceWord)){
     if (!zipM) return 'Which ZIP code? Prices change with the ZIP tier, so I need that to give you a number.';
@@ -1118,17 +1131,18 @@ function askAnswer(qRaw){
     }
     if (dogs > CLPPS_PRICING.maxDogs) return dogs + ' dogs is a custom quote — price it by hand. For reference, 4 dogs in ' + zip + ' (' + tier + ') is ' + askMoney(clppsQuote({zip:zip,dogs:4,freq:'weekly'}).service) + '/mo weekly.';
     var one = function(f){ return clppsQuote({ zip: zip, dogs: dogs, freq: f }).service; };
-    if (has('monthly', 'once a month')) return 'We do not sell a monthly (one visit a month) plan any more. The plans are twice a week, weekly, every other week, and one-time cleanups.';
+    var monthlyNote = has('monthly', 'once a month')
+      ? '\n\nNote: there is no monthly (one visit a month) plan any more. Every plan below is billed monthly.' : '';
     var only = has('twice') ? 'twiceweekly' : (has('every other', 'biweekly', 'bi-weekly', 'eow') ? 'biweekly' : null);
     var head = dogs + ' dog' + (dogs > 1 ? 's' : '') + ' in ' + zip + ' (' + tier + ' tier, ×' + CLPPS_PRICING.tiers[tier].toFixed(2) + ')' +
                (listed ? '' : ' — not on the ZIP list, so priced as Value');
     if (only){
       var lbl = { twiceweekly:'Twice a week', biweekly:'Every other week' }[only];
-      return head + '\n\n' + lbl + ': ' + askMoney(one(only)) + '/mo\nFirst invoice ' + askMoney(one(only) + CLPPS_PRICING.initialClean) + ' with the $40 initial clean.';
+      return head + '\n\n' + lbl + ': ' + askMoney(one(only)) + '/mo\nFirst invoice ' + askMoney(one(only) + CLPPS_PRICING.initialClean) + ' with the $' + CLPPS_PRICING.initialClean + ' initial clean.' + monthlyNote;
     }
     return head + '\n\nTwice a week: ' + askMoney(one('twiceweekly')) + '/mo\nWeekly: ' + askMoney(one('weekly')) +
       '/mo\nEvery other week: ' + askMoney(one('biweekly')) +
-      '/mo\n\nAdd $40 on the first invoice for the initial clean.';
+      '/mo\n\nAdd $' + CLPPS_PRICING.initialClean + ' on the first invoice for the initial clean.' + monthlyNote;
   }
 
   /* --- ads / return on spend --- */
@@ -1424,8 +1438,8 @@ function pqCalc(){
   var lines = [];
   if (r.freq === 'onetime'){
     lines.push(r.blocks
-      ? '$' + CLPPS_PRICING.onetime + ' for the first 30 min + ' + r.blocks + ' &times; $' + CLPPS_PRICING.onetimeBlockPrice + ' = <strong>$' + r.service + '</strong>'
-      : '$' + CLPPS_PRICING.onetime + ' covers the first 30 minutes');
+      ? '$' + CLPPS_PRICING.onetime + ' for the first ' + CLPPS_PRICING.onetimeMinutes + ' min + ' + r.blocks + ' &times; $' + CLPPS_PRICING.onetimeBlockPrice + ' = <strong>$' + r.service + '</strong>'
+      : '$' + CLPPS_PRICING.onetime + ' covers the first ' + CLPPS_PRICING.onetimeMinutes + ' minutes');
     lines.push('Any number of dogs, no ZIP tier');
     if (r.deoAmt) lines.push('+ $' + r.deoAmt + ' deodorize');
   } else {
@@ -1433,13 +1447,17 @@ function pqCalc(){
       var wkPrice = clppsRound(r.base * r.mult);
       lines.push('$' + r.base + ' base &times; ' + r.mult.toFixed(2) + ' = $' + wkPrice + ' weekly' +
                  ', &times;' + CLPPS_PRICING.twiceWeeklyFactor.toFixed(2) + ' (double, less 10%) &rarr; <strong>$' + r.service + '</strong>');
+    } else if (r.freq === 'biweekly'){
+      var wk = clppsRound(r.base * r.mult);
+      lines.push('$' + r.base + ' base &times; ' + r.mult.toFixed(2) + ' = $' + wk + ' weekly' +
+                 ', + $' + CLPPS_PRICING.eowPremium + ' &rarr; <strong>$' + r.service + '</strong>');
     } else {
-      lines.push('$' + r.base + ' base &times; ' + r.mult.toFixed(2) + (r.freq === 'biweekly' ? ' &times; 0.82' : '') +
-                 ' = $' + (r.base * r.mult * (r.freq === 'biweekly' ? 0.82 : 1)).toFixed(2) +
+      lines.push('$' + r.base + ' base &times; ' + r.mult.toFixed(2) +
+                 ' = $' + (r.base * r.mult).toFixed(2) +
                  ' &rarr; <strong>$' + r.service + '</strong>');
     }
-    if (r.deoMo) lines.push('+ $' + r.deoMo + '/mo deodorize (' + r.treatments + ' &times; $15)');
-    lines.push(r.initial ? 'First invoice <strong>$' + r.first + '</strong> (includes $40 initial clean)' : 'Initial clean <strong>waived</strong> &mdash; first invoice $' + r.first);
+    if (r.deoMo) lines.push('+ $' + r.deoMo + '/mo deodorize (' + r.treatments + ' &times; $' + CLPPS_PRICING.deodorize + ')');
+    lines.push(r.initial ? 'First invoice <strong>$' + r.first + '</strong> (includes $' + CLPPS_PRICING.initialClean + ' initial clean)' : 'Initial clean <strong>waived</strong> &mdash; first invoice $' + r.first);
   }
   var PQ_LABELS = { twiceweekly:'Twice a week', weekly:'Weekly', biweekly:'Every other week', onetime:'One-time cleanup' };
   var label = PQ_LABELS[r.freq];
