@@ -90,6 +90,7 @@
     <div class="toolbar">
       <button class="copybtn" onclick="toggleAsk()" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">&#128172; Ask</button>
       <button class="copybtn" onclick="toggleBrief()">&#128203; Daily brief</button>
+      <button class="copybtn" onclick="toggleQR()" id="qrBtn">&#128241; Sign scans</button>
       <button class="copybtn" onclick="togglePQ()" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">&#128222; Phone quote</button>
       <button class="copybtn" onclick="toggleAdd()">&#10133; Add lead</button>
       <button class="copybtn" onclick="exportCsv()">&#11015;&#65039; Download CSV</button>
@@ -161,6 +162,13 @@
         <input id="ask-input" placeholder="Ask anything&hellip;" onkeydown="if(event.key==='Enter')askSend()" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:9px;font-size:14px;font-family:inherit;">
         <button onclick="askSend()" style="background:#1D9E75;color:#fff;border:none;border-radius:9px;padding:10px 15px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Ask</button>
       </div>
+    </div>
+    <div id="qrPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-weight:800;font-size:15px;">&#128241; Yard sign QR scans</div>
+        <button onclick="toggleQR()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
+      </div>
+      <div id="qr-body" style="font-size:13px;line-height:1.6;color:#2B3A34;"></div>
     </div>
     <div id="briefPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -389,13 +397,14 @@ function dingDing(){
 function renderAlerts(){
   var box = document.getElementById('alerts');
   if (!box) return;
-  var sa = getSeen(SEEN_A), sl = getSeen(SEEN_L);
-  if (sa === null || sl === null){
+  var sa = getSeen(SEEN_A), sl = getSeen(SEEN_L), sq = getSeen(SEEN_QR);
+  if (sa === null || sl === null || sq === null){
     // First time on this device: wait for the real data to land before deciding
     // what counts as "already seen", otherwise everything looks brand new.
     if (!remoteLoaded){ box.style.display = 'none'; return; }
     setSeen(SEEN_A, Object.keys(auths));
     setSeen(SEEN_L, leads.map(function(l){ return l.id; }));
+    setSeen(SEEN_QR, qrScans().map(function(v){ return v.id; }));
     box.style.display = 'none';
     document.title = 'Lead Tracker';
     alertsPrimed = true;
@@ -405,7 +414,8 @@ function renderAlerts(){
   var newLead = leads.filter(function(l){
     return sl.indexOf(l.id) < 0 && !auths[l.id] && (l.status || 'new') === 'new';
   });
-  var total = newAuth.length + newLead.length;
+  var newQR = qrScans().filter(function(v){ return sq.indexOf(v.id) < 0; });
+  var total = newAuth.length + newLead.length + newQR.length;
   if (!total){
     box.style.display = 'none';
     document.title = 'Lead Tracker';
@@ -435,7 +445,13 @@ function renderAlerts(){
       esc(l.service || '') + (l.dogs ? ' &middot; ' + esc(l.dogs) + ' dog(s)' : '') + ' &middot; came in ' +
       esc(l.created ? new Date(l.created).toLocaleString() : '') + '. <u>Tap to open</u></div></div>';
   }).join('');
-  var bg = newAuth.length ? 'linear-gradient(135deg,#0F6E56,#1D9E75)' : '#1a6fd4';
+  var qrRows = newQR.length
+    ? '<div onclick="openQRFromAlert()" style="background:rgba(255,255,255,0.16);border-radius:10px;padding:9px 12px;margin-top:8px;cursor:pointer;">' +
+        '<div style="font-size:13.5px;font-weight:700;">&#128241; ' + newQR.length + ' yard sign QR scan' + (newQR.length > 1 ? 's' : '') + '</div>' +
+        '<div style="font-size:12px;font-weight:400;opacity:0.92;margin-top:2px;">Most recent ' +
+        esc(new Date(newQR[0].created).toLocaleString()) + '. Somebody scanned a sign and landed on the quote page. <u>Tap for the log</u></div></div>'
+    : '';
+  var bg = newAuth.length ? 'linear-gradient(135deg,#0F6E56,#1D9E75)' : (newLead.length ? '#1a6fd4' : '#6B4FA8');
   box.style.display = 'block';
   box.innerHTML =
     '<div style="background:' + bg + ';color:#fff;border-radius:14px;padding:13px 15px;box-shadow:0 3px 12px rgba(15,110,86,0.3);">' +
@@ -444,9 +460,11 @@ function renderAlerts(){
           (newAuth.length ? '&#127881; ' + newAuth.length + ' quote' + (newAuth.length > 1 ? 's' : '') + ' ACCEPTED' : '') +
           (newAuth.length && newLead.length ? ' &middot; ' : '') +
           (newLead.length ? newLead.length + ' new lead' + (newLead.length > 1 ? 's' : '') : '') +
+          ((newAuth.length || newLead.length) && newQR.length ? ' &middot; ' : '') +
+          (newQR.length ? newQR.length + ' sign scan' + (newQR.length > 1 ? 's' : '') : '') +
         '</div>' +
         '<button onclick="dismissAlerts()" style="background:rgba(255,255,255,0.22);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Got it</button>' +
-      '</div>' + authRows + leadRows +
+      '</div>' + authRows + leadRows + qrRows +
     '</div>';
   document.title = '(' + total + ') Lead Tracker';
   if (alertsPrimed && total > alertCount) dingDing();
@@ -454,11 +472,21 @@ function renderAlerts(){
   alertsPrimed = true;
 }
 function dismissAlerts(){
-  var sa = getSeen(SEEN_A) || [], sl = getSeen(SEEN_L) || [];
+  var sa = getSeen(SEEN_A) || [], sl = getSeen(SEEN_L) || [], sq = getSeen(SEEN_QR) || [];
   Object.keys(auths).forEach(function(id){ if (sa.indexOf(id) < 0) sa.push(id); });
   leads.forEach(function(l){ if (sl.indexOf(l.id) < 0) sl.push(l.id); });
-  setSeen(SEEN_A, sa); setSeen(SEEN_L, sl);
+  qrScans().forEach(function(v){ if (sq.indexOf(v.id) < 0) sq.push(v.id); });
+  setSeen(SEEN_A, sa); setSeen(SEEN_L, sl); setSeen(SEEN_QR, sq);
   renderAlerts();
+}
+/* Opening the log counts as reading the notification. */
+function openQRFromAlert(){
+  var p = document.getElementById('qrPanel');
+  if (p.style.display === 'none') { toggleQR(); return; }
+  var sq = getSeen(SEEN_QR) || [];
+  qrScans().forEach(function(v){ if (sq.indexOf(v.id) < 0) sq.push(v.id); });
+  setSeen(SEEN_QR, sq);
+  renderQR(); renderAlerts();
 }
 function jumpToLead(id){
   markSeen(SEEN_A, id); markSeen(SEEN_L, id);
@@ -1269,6 +1297,74 @@ function askAnswer(qRaw){
   return "I can answer things like:\n  • How are we doing this month?\n  • Which ads are working?\n  • Who do I need to call?\n  • How many leads this week?\n  • What is 3 dogs weekly in 63376?\n  • How's the website traffic?\n  • Or just type a customer's name.";
 }
 /* ---------- Daily brief ---------- */
+/* ---- Yard sign QR scans ----------------------------------------------
+   The QR code on the signs points at /contact, which nothing else links
+   to, so it tags the visit "Yard sign QR" and hands off to the wizard.
+   Those visits arrive here as ordinary VIEW rows carrying that source. */
+var QR_SRC = 'Yard sign QR', SEEN_QR = 'clpps_seen_qr';
+function qrScans(){
+  return views.filter(function(v){ return String(v.service || '') === QR_SRC; })
+              .sort(function(a, b){ return new Date(b.created) - new Date(a.created); });
+}
+/* A scan is "the same person" if it shares the visit id the site stamps. */
+function qrLeads(){
+  var sids = {};
+  qrScans().forEach(function(v){ if (v.yard) sids[v.yard] = 1; });
+  return leads.filter(function(l){
+    if ((l.status || 'new') === 'deleted') return false;
+    var f = fuParse(l.crmnotes);
+    return String(l.source || '') === QR_SRC || f.src === QR_SRC || (f.sid && sids[f.sid]);
+  });
+}
+function toggleQR(){
+  var p = document.getElementById('qrPanel');
+  var opening = p.style.display === 'none';
+  p.style.display = opening ? 'block' : 'none';
+  if (opening){
+    var sq = getSeen(SEEN_QR) || [];
+    qrScans().forEach(function(v){ if (sq.indexOf(v.id) < 0) sq.push(v.id); });
+    setSeen(SEEN_QR, sq);
+    renderQR();
+    renderAlerts();
+    p.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+}
+function renderQR(){
+  var box = document.getElementById('qr-body');
+  if (!box) return;
+  var scans = qrScans(), now = new Date(), todayK = gDayKey(now);
+  var since = function(d){ var c = new Date(now.getTime() - d * 86400000); return scans.filter(function(v){ return new Date(v.created) >= c; }).length; };
+  var today = scans.filter(function(v){ return gDayKey(new Date(v.created)) === todayK; }).length;
+  if (!scans.length){
+    box.innerHTML = '<div style="color:#777;">No scans yet. Every time somebody scans the QR code on a yard sign it will show up here, ' +
+      'and you will get a notification at the top of this page.</div>' +
+      '<div style="font-size:11.5px;color:#aaa;margin-top:8px;">The code points at clpropetservices.com/contact. ' +
+      'Nothing else on the site links there, so anything landing on it came off a sign.</div>';
+    return;
+  }
+  var mine = qrLeads(), closed = mine.filter(function(l){ return (l.status || '') === 'closed'; });
+  var stat = function(n, l){
+    return '<div style="flex:1;min-width:74px;background:#F7F9F8;border:1px solid #E4EBE7;border-radius:10px;padding:9px 10px;">' +
+      '<div style="font-size:20px;font-weight:800;color:#0F6E56;line-height:1.1;">' + n + '</div>' +
+      '<div style="font-size:11px;color:#777;margin-top:2px;">' + l + '</div></div>';
+  };
+  var rows = scans.slice(0, 25).map(function(v){
+    var d = new Date(v.created);
+    return '<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid #f0f0f0;">' +
+      '<span>&#128241; Sign scan</span><span style="color:#777;">' + esc(d.toLocaleString()) + '</span></div>';
+  }).join('');
+  box.innerHTML =
+    '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px;">' +
+      stat(today, 'today') + stat(since(7), 'last 7 days') + stat(since(30), 'last 30 days') + stat(scans.length, 'all time') +
+    '</div>' +
+    '<div style="background:#F2F7F4;border-left:3px solid #1D9E75;border-radius:0 9px 9px 0;padding:9px 11px;font-size:12.5px;margin-bottom:10px;">' +
+      '<strong>' + mine.length + '</strong> lead' + (mine.length === 1 ? '' : 's') + ' came off the signs' +
+      (closed.length ? ', <strong>' + closed.length + '</strong> of them closed' : '') + '.' +
+      (scans.length ? ' That is ' + Math.round(mine.length / scans.length * 100) + '% of scans turning into a lead.' : '') +
+    '</div>' +
+    '<div style="font-weight:700;font-size:12.5px;margin-bottom:2px;">Most recent scans</div>' + rows +
+    (scans.length > 25 ? '<div style="font-size:11.5px;color:#aaa;margin-top:8px;">' + (scans.length - 25) + ' older scans not shown.</div>' : '');
+}
 function toggleBrief(){
   var p = document.getElementById('briefPanel');
   var opening = p.style.display === 'none';
@@ -2010,6 +2106,8 @@ function render(){
   renderROI();
   renderReviews();
   renderAlerts();
+  var qp = document.getElementById('qrPanel');
+  if (qp && qp.style.display !== 'none') renderQR();
   var counts = {all: leads.length};
   STATUSES.forEach(function(s){ counts[s.k] = leads.filter(function(l){ return (l.status||'new') === s.k; }).length; });
   document.getElementById('stats').innerHTML =

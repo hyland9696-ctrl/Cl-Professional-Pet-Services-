@@ -975,7 +975,8 @@
 
   function leadSource(){
     try {
-      var cached = sessionStorage.getItem('lead_src');
+      var cached = null;
+      try { cached = sessionStorage.getItem('lead_src'); } catch (e) {}
       if (cached) return cached;
       var q2 = location.search;
       var get = function(k){ var m = q2.match(new RegExp('[?&]' + k + '=([^&]*)')); return m ? decodeURIComponent(m[1]) : ''; };
@@ -984,7 +985,8 @@
       else if (get('fbclid')) src = 'Meta Ads';
       else if (get('utm_source')){
         var u = get('utm_source').toLowerCase();
-        if (u.indexOf('face') >= 0 || u === 'fb' || u.indexOf('meta') >= 0 || u.indexOf('insta') >= 0) src = 'Meta Ads';
+        if (u.indexOf('yardsign') >= 0 || u.indexOf('yard-sign') >= 0 || u.indexOf('yard_sign') >= 0 || u === 'qr') src = 'Yard sign QR';
+        else if (u.indexOf('face') >= 0 || u === 'fb' || u.indexOf('meta') >= 0 || u.indexOf('insta') >= 0) src = 'Meta Ads';
         else if (u.indexOf('goog') >= 0) src = 'Google Ads';
         else src = get('utm_source');
       } else {
@@ -997,7 +999,7 @@
         else if (r && r.indexOf('clpropetservices') < 0) src = r;
         else src = 'Direct';
       }
-      sessionStorage.setItem('lead_src', src);
+      try { sessionStorage.setItem('lead_src', src); } catch (e) {}
       return src;
     } catch (e) { return ''; }
   }

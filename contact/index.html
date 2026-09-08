@@ -4,12 +4,20 @@
 <meta charset="utf-8">
 <title>Get a Quote | CL Professional Pet Services</title>
 <meta name="robots" content="noindex">
-<script>location.replace('/#quote');</script>
-<meta http-equiv="refresh" content="0; url=/#quote">
+<!-- This page exists for the QR code on the yard signs. Nothing on the site
+     links here and it is noindex, so traffic through it is a sign scan.
+     Tag it before handing off to the quote wizard: sessionStorage is the
+     reliable path (same origin), the utm is the fallback when storage is
+     blocked, e.g. a private window. -->
+<script>
+  try { sessionStorage.setItem('lead_src', 'Yard sign QR'); } catch (e) {}
+  location.replace('/?utm_source=yardsign&utm_medium=qr#quote');
+</script>
+<meta http-equiv="refresh" content="0; url=/?utm_source=yardsign&amp;utm_medium=qr#quote">
 <style>body{font-family:system-ui,sans-serif;text-align:center;padding:60px 20px;color:#1a1a1a}</style>
   <script src="/meta-pixel.js"></script>
 </head>
 <body>
-<p>Taking you to our quote page&hellip; If nothing happens, <a href="/#quote">tap here</a>.</p>
+<p>Taking you to our quote page&hellip; If nothing happens, <a href="/?utm_source=yardsign&amp;utm_medium=qr#quote">tap here</a>.</p>
 </body>
 </html>
