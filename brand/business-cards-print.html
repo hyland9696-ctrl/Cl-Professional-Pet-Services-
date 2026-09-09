@@ -11,6 +11,9 @@
   .wrap{max-width:760px;margin:0 auto;padding:24px 16px 56px}
   h1{font-size:26px;margin:4px 0 6px;letter-spacing:-.02em}
   .lede{color:#4E5F59;margin:0 0 18px}
+  .ask{background:#0F6E56;color:#fff;border-radius:14px;padding:16px 18px;margin-bottom:18px}
+  .ask h3{font-size:16px;margin:0 0 6px}
+  .ask p{margin:0;font-size:14.5px;opacity:.95}
   .spec{background:#fff;border-radius:14px;box-shadow:0 1px 5px rgba(0,0,0,.08);padding:16px 18px;margin-bottom:20px}
   .spec h3{font-size:15px;margin:0 0 8px}
   .spec table{width:100%;border-collapse:collapse;font-size:14px}
@@ -24,10 +27,13 @@
   .proofs figure{margin:0}
   .proofs img{width:100%;height:auto;display:block;border:1px solid #E4EBE7;border-radius:8px}
   .proofs figcaption{font-size:12px;color:#7C8B85;margin-top:4px}
-  .btn{display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;border-radius:10px;padding:12px 18px;font-size:15px;font-weight:700}
-  .alts{font-size:12.5px;color:#7C8B85;margin-top:10px;line-height:1.9}
+  .grp{border-top:1px solid #EEF3F1;padding-top:11px;margin-top:11px}
+  .grp-h{font-size:12.5px;color:#6A7A74;margin-bottom:8px}
+  .grp-h b{color:#0F6E56}
+  .btn{display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;border-radius:10px;padding:10px 16px;font-size:14.5px;font-weight:700;margin:0 6px 6px 0}
+  .btn.alt{background:#fff;color:#0F6E56;border:1.5px solid #0F6E56}
+  .alts{font-size:12.5px;color:#7C8B85;margin-top:12px;line-height:1.9}
   .alts a{color:#0F6E56}
-  .note{background:#FDF3DC;border-left:4px solid #E0A800;border-radius:0 12px 12px 0;padding:12px 15px;font-size:14px;color:#6B5200;margin-bottom:20px}
   footer{margin-top:26px;padding-top:16px;border-top:1px solid #DCE6E1;font-size:13.5px;color:#84928C}
   @media (max-width:560px){ .proofs{grid-template-columns:1fr} }
 </style>
@@ -35,59 +41,80 @@
 <body>
 <div class="wrap">
   <h1>Business cards &mdash; files for the printer</h1>
-  <p class="lede">Send the printer the PDF. It is already the right size with bleed, and the font is embedded, so nothing needs installing at their end.</p>
+  <p class="lede">PNG, 600&nbsp;dpi, four files per person &mdash; a front and a back in two versions.</p>
+
+  <div class="ask">
+    <h3>Ask them one question first</h3>
+    <p>&ldquo;Do you want the artwork <b>with bleed</b> or at <b>finished size</b>?&rdquo;
+      Send the <b>with bleed</b> files unless they say finished size. Send the wrong one and the card
+      gets trimmed in the wrong place &mdash; either a white sliver down the edge of the green side,
+      or your details cropped closer than intended.</p>
+  </div>
 
   <div class="spec">
     <h3>What to tell your supplier</h3>
     <table>
       <tr><td>Finished size</td><td><b>3.5&Prime; &times; 2&Prime;</b> (standard US business card)</td></tr>
-      <tr><td>File size supplied</td><td><b>3.75&Prime; &times; 2.25&Prime;</b> &mdash; includes 0.125&Prime; bleed on all four sides</td></tr>
+      <tr><td>&ldquo;With bleed&rdquo; files</td><td><b>2250 &times; 1350 px</b> &mdash; 3.75&Prime; &times; 2.25&Prime; at 600&nbsp;dpi, 0.125&Prime; bleed all round</td></tr>
+      <tr><td>&ldquo;Finished size&rdquo; files</td><td><b>2100 &times; 1200 px</b> &mdash; 3.5&Prime; &times; 2&Prime; at 600&nbsp;dpi, no bleed</td></tr>
+      <tr><td>Resolution</td><td>600&nbsp;dpi &mdash; double the 300&nbsp;dpi minimum, so they can downsample</td></tr>
+      <tr><td>Sides</td><td><b>Double sided.</b> One file is the details, the other the green logo side</td></tr>
       <tr><td>Safe area</td><td>All text sits at least 0.125&Prime; inside the trim</td></tr>
-      <tr><td>Sides</td><td><b>Double sided.</b> Page 1 is the details, page 2 is the green logo side</td></tr>
-      <tr><td>Resolution</td><td>Vector PDF with the font embedded. PNGs, if they want them, are 600&nbsp;dpi</td></tr>
-      <tr><td>Colour</td><td>RGB &mdash; brand green is <b>#0E4B3B</b>, accent green <b>#1D8A68</b>. Ask them to convert to CMYK</td></tr>
-      <tr><td>Suggested stock</td><td>16pt matte or soft-touch. The green back looks best uncoated or matte</td></tr>
+      <tr><td>Colour</td><td>RGB &mdash; brand green <b>#0E4B3B</b>, accent <b>#1D8A68</b>. Ask them to convert to CMYK</td></tr>
+      <tr><td>Suggested stock</td><td>16pt matte or soft-touch. The green back looks best matte or uncoated</td></tr>
     </table>
   </div>
-
-  <div class="note"><b>One thing worth asking them:</b> the files are RGB, which nearly every printer accepts and converts.
-    If they want CMYK specifically, send them the PDF anyway and ask them to convert &mdash; the deep green may shift very
-    slightly on press, which is normal. Ask for a proof before the full run.</div>
 
   <div class="person">
     <h2>Jesse Duncan <span>Operations Manager</span></h2>
     <div class="proofs">
-      <figure><img src="print/CLPPS-card-jesse-front-600dpi.png" alt="Jesse Duncan card, front"><figcaption>Front</figcaption></figure>
-      <figure><img src="print/CLPPS-card-jesse-back-600dpi.png" alt="Card back, logo"><figcaption>Back</figcaption></figure>
+      <figure><img src="print/CLPPS-card-jesse-front-600dpi.png" alt="Jesse Duncan card, front"><figcaption>Front &mdash; page 1</figcaption></figure>
+      <figure><img src="print/CLPPS-card-jesse-back-600dpi.png" alt="Card back, logo"><figcaption>Back &mdash; page 2</figcaption></figure>
     </div>
-    <a class="btn" href="print/CLPPS-card-jesse-BOTH-SIDES.pdf" download>&#11015; Download print PDF (both sides)</a>
+
+    <div class="grp">
+      <div class="grp-h">PNG &mdash; <b>with bleed</b> &middot; 2250 &times; 1350 &middot; ask for this first</div>
+      <a class="btn" href="print/CLPPS-card-jesse-front-600dpi.png" download>&#11015; Front</a>
+      <a class="btn" href="print/CLPPS-card-jesse-back-600dpi.png" download>&#11015; Back</a>
+    </div>
+    <div class="grp">
+      <div class="grp-h">PNG &mdash; <b>trim size, no bleed</b> &middot; 2100 &times; 1200</div>
+      <a class="btn alt" href="print/CLPPS-card-jesse-front-TRIM-no-bleed-600dpi.png" download>&#11015; Front</a>
+      <a class="btn alt" href="print/CLPPS-card-jesse-back-TRIM-no-bleed-600dpi.png" download>&#11015; Back</a>
+    </div>
     <div class="alts">
-      Separately if your printer asks for it:
-      <a href="print/CLPPS-card-jesse-front.pdf" download>front PDF</a> &middot;
-      <a href="print/CLPPS-card-jesse-back.pdf" download>back PDF</a> &middot;
-      <a href="print/CLPPS-card-jesse-front-600dpi.png" download>front PNG</a> &middot;
-      <a href="print/CLPPS-card-jesse-back-600dpi.png" download>back PNG</a> &middot;
+      Also here if they ever take them:
+      <a href="print/CLPPS-card-jesse-BOTH-SIDES.pdf" download>PDF, both sides</a> &middot;
       <a href="print/CLPPS-card-jesse-PROOF-with-guides.png" download>proof with cut guides</a>
     </div>
   </div>
   <div class="person">
     <h2>Corey Casey <span>Owner</span></h2>
     <div class="proofs">
-      <figure><img src="print/CLPPS-card-corey-front-600dpi.png" alt="Corey Casey card, front"><figcaption>Front</figcaption></figure>
-      <figure><img src="print/CLPPS-card-corey-back-600dpi.png" alt="Card back, logo"><figcaption>Back</figcaption></figure>
+      <figure><img src="print/CLPPS-card-corey-front-600dpi.png" alt="Corey Casey card, front"><figcaption>Front &mdash; page 1</figcaption></figure>
+      <figure><img src="print/CLPPS-card-corey-back-600dpi.png" alt="Card back, logo"><figcaption>Back &mdash; page 2</figcaption></figure>
     </div>
-    <a class="btn" href="print/CLPPS-card-corey-BOTH-SIDES.pdf" download>&#11015; Download print PDF (both sides)</a>
+
+    <div class="grp">
+      <div class="grp-h">PNG &mdash; <b>with bleed</b> &middot; 2250 &times; 1350 &middot; ask for this first</div>
+      <a class="btn" href="print/CLPPS-card-corey-front-600dpi.png" download>&#11015; Front</a>
+      <a class="btn" href="print/CLPPS-card-corey-back-600dpi.png" download>&#11015; Back</a>
+    </div>
+    <div class="grp">
+      <div class="grp-h">PNG &mdash; <b>trim size, no bleed</b> &middot; 2100 &times; 1200</div>
+      <a class="btn alt" href="print/CLPPS-card-corey-front-TRIM-no-bleed-600dpi.png" download>&#11015; Front</a>
+      <a class="btn alt" href="print/CLPPS-card-corey-back-TRIM-no-bleed-600dpi.png" download>&#11015; Back</a>
+    </div>
     <div class="alts">
-      Separately if your printer asks for it:
-      <a href="print/CLPPS-card-corey-front.pdf" download>front PDF</a> &middot;
-      <a href="print/CLPPS-card-corey-back.pdf" download>back PDF</a> &middot;
-      <a href="print/CLPPS-card-corey-front-600dpi.png" download>front PNG</a> &middot;
-      <a href="print/CLPPS-card-corey-back-600dpi.png" download>back PNG</a> &middot;
+      Also here if they ever take them:
+      <a href="print/CLPPS-card-corey-BOTH-SIDES.pdf" download>PDF, both sides</a> &middot;
       <a href="print/CLPPS-card-corey-PROOF-with-guides.png" download>proof with cut guides</a>
     </div>
   </div>
 
-  <footer>Files generated from the live brand artwork. If a phone number or title changes, ask for a fresh set rather than editing these.</footer>
+  <footer>Ask for a printed proof before the full run &mdash; the deep green can shift slightly when it is
+    converted to CMYK for press, which is normal. Files generated from the live brand artwork; if a phone
+    number or title changes, ask for a fresh set rather than editing these.</footer>
 </div>
 </body>
 </html>

@@ -98,6 +98,7 @@ const back = () => shell(`
   fs.mkdirSync(OUT, { recursive: true });
   const b = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   const made = [];
+  const trims = [];
 
   for (const p of PEOPLE) {
     for (const [side, html] of [['front', front(p)], ['back', back()]]) {
@@ -118,6 +119,10 @@ const back = () => shell(`
                               clip: { x:0, y:0, width: CSS_W, height: CSS_H } });
       made.push(pdf, png);
       await page.close();
+
+      // Some printers only accept artwork at the finished size. The bleed is
+      // exactly 75px at 600dpi, so crop rather than re-render: identical pixels.
+      trims.push([png, png.replace('-600dpi.png', '-TRIM-no-bleed-600dpi.png')]);
     }
 
     // Most printers would rather have one file: page 1 front, page 2 back.
@@ -144,5 +149,12 @@ const back = () => shell(`
     await both.close();
   }
   await b.close();
+  const { execFileSync } = require('child_process');
+  for (const [src, dst] of trims) {
+    execFileSync('python3', ['-c',
+      'import sys;from PIL import Image;im=Image.open(sys.argv[1]);w,h=im.size;' +
+      'im.crop((75,75,w-75,h-75)).save(sys.argv[2])', src, dst]);
+    made.push(dst);
+  }
   made.forEach(f => console.log(path.basename(f).padEnd(38), (fs.statSync(f).size/1024).toFixed(0) + ' KB'));
 })();
