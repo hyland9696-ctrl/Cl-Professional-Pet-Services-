@@ -12,17 +12,28 @@
    ============================================================ */
 
 var CLPPS_SIGN_CITIES = {
-  stp: { city: 'St. Peters',      page: '/st-peters/' },
-  stc: { city: 'St. Charles',     page: '/st-charles/' },
-  ofa: { city: "O'Fallon",        page: '/ofallon/' },
-  wnz: { city: 'Wentzville',      page: '/wentzville/' },
-  cot: { city: 'Cottleville',     page: '/cottleville/' },
-  flo: { city: 'Florissant',      page: '/florissant/' },
-  che: { city: 'Chesterfield',    page: '/chesterfield/' },
-  stl: { city: 'St. Louis',       page: '/st-louis/' },
-  pac: { city: 'Pacific',         page: '/pacific/' },
-  bel: { city: 'Belleville, IL',  page: '/belleville-il/' }
+  /* code  = the short path printed on the sign. Kept to three letters so the
+             QR stays at 29 modules; a longer path makes the printed squares
+             smaller and harder to scan from a few feet away.
+     campaign = what shows up in the tracker and in any utm link.
+     NOTE: a code must never match a city landing page folder (ofallon,
+     wentzville, chesterfield ...) or the redirect would point at itself. */
+  stp: { campaign:'stpeters',     city:'St. Peters',     covers:'St. Peters, Cottleville, Weldon Spring', page:'/st-peters/'    },
+  ofa: { campaign:'ofallon',      city:"O'Fallon",       covers:"O'Fallon, Dardenne Prairie",             page:'/ofallon/'      },
+  stc: { campaign:'stcharles',    city:'St. Charles',    covers:'St. Charles',                            page:'/st-charles/'   },
+  wnz: { campaign:'wentzville',   city:'Wentzville',     covers:'Wentzville',                             page:'/wentzville/'   },
+  lsl: { campaign:'lakestlouis',  city:'Lake St. Louis', covers:'Lake St. Louis',                          page:'/'              },
+  wld: { campaign:'wildwood',     city:'Wildwood',       covers:'Wildwood, Eureka',                       page:'/'              },
+  che: { campaign:'chesterfield', city:'Chesterfield',   covers:'Chesterfield, Des Peres',                page:'/chesterfield/' }
 };
+/* Campaign names resolve too, so a utm_campaign=stpeters link tags correctly
+   even though the printed path is /stp. */
+var CLPPS_SIGN_ALIASES = (function(){
+  var m = {};
+  for (var k in CLPPS_SIGN_CITIES) m[CLPPS_SIGN_CITIES[k].campaign] = k;
+  m.cot = 'stp';   // Cottleville folded into St. Peters
+  return m;
+})();
 var CLPPS_SIGN_LABEL = 'Yard sign QR';
 
 /* Storage that never throws. A browser with site data blocked (private
@@ -44,6 +55,7 @@ function clppsParam(k, search){
 /* The label a yard sign scan should carry, or '' if this is not one. */
 function clppsSignSource(code){
   var c = String(code || '').toLowerCase().trim();
+  if (!CLPPS_SIGN_CITIES[c] && CLPPS_SIGN_ALIASES[c]) c = CLPPS_SIGN_ALIASES[c];
   var hit = CLPPS_SIGN_CITIES[c];
   return hit ? CLPPS_SIGN_LABEL + ' (' + hit.city + ')' : '';
 }

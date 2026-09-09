@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Focus City Links &amp; QR Codes | CLPPS</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#F1F5F3;color:#16221E;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
+  .wrap{max-width:840px;margin:0 auto;padding:24px 16px 56px}
+  h1{font-size:26px;margin:4px 0 6px;letter-spacing:-.02em}
+  .lede{color:#4E5F59;margin:0 0 18px}
+  .row{background:#fff;border-radius:14px;box-shadow:0 1px 5px rgba(0,0,0,.08);padding:14px;margin-bottom:14px;display:flex;gap:14px;align-items:flex-start}
+  .row img{width:128px;flex:none;image-rendering:pixelated;border:1px solid #E4EBE7;border-radius:8px}
+  .det{flex:1;min-width:0}
+  .city{font-size:18px;font-weight:800}
+  .covers{font-size:13px;color:#7C8B85;margin-bottom:8px}
+  .lbl{font-size:11px;color:#9AA8A2;text-transform:uppercase;letter-spacing:.06em;margin-top:9px}
+  .url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:#F5F8F7;border:1px solid #E4EBE7;
+       border-radius:7px;padding:7px 9px;margin-top:3px;word-break:break-all;cursor:pointer}
+  .url:hover{background:#E4EFE9}
+  .url.short{font-size:14px;font-weight:700;color:#0F6E56}
+  .tag{font-size:12.5px;color:#3A4A44;margin-top:3px}
+  .tag code{background:#EAF2EE;color:#0F6E56;border-radius:4px;padding:1px 5px;font-weight:700}
+  .warn{background:#FDF3DC;border-left:3px solid #E0A800;border-radius:0 8px 8px 0;padding:7px 10px;font-size:12.5px;color:#6B5200;margin-top:10px}
+  .dl{display:inline-block;margin-top:11px;background:#1D9E75;color:#fff;text-decoration:none;border-radius:9px;padding:8px 13px;font-size:13.5px;font-weight:700}
+  .note{background:#fff;border-left:4px solid #1D9E75;border-radius:0 12px 12px 0;padding:12px 15px;font-size:14px;margin-bottom:14px}
+  .note b{color:#0F6E56}
+  .copied{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#0F6E56;color:#fff;
+          padding:9px 16px;border-radius:9px;font-size:14px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none}
+  .copied.on{opacity:1}
+  footer{margin-top:26px;padding-top:16px;border-top:1px solid #DCE6E1;font-size:13.5px;color:#84928C}
+  @media (max-width:620px){ .row{flex-direction:column} .row img{width:150px} }
+  .pdfbar{background:#0F6E56;color:#fff;border-radius:12px;padding:13px 16px;margin-bottom:16px;
+          display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+  .pdfbar span{font-size:14.5px;font-weight:600}
+  .pdfbar a{background:#fff;color:#0F6E56;text-decoration:none;border-radius:9px;padding:9px 14px;
+            font-size:14px;font-weight:800;white-space:nowrap}
+  @media print{
+    body{background:#fff}
+    .wrap{max-width:none;padding:0}
+    .row{box-shadow:none;border:1px solid #DCE6E1;break-inside:avoid;page-break-inside:avoid}
+    .note{box-shadow:none;border:1px solid #DCE6E1;border-left:4px solid #1D9E75}
+    .dl,.copied,.pdfbar,.screenonly{display:none!important}
+    .url{cursor:auto}
+    .lbl{color:#6A7A74}
+    a{color:#0F6E56;text-decoration:none}
+    h1{font-size:22px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Focus city links &amp; QR codes</h1>
+  <p class="lede">Seven towns, one code each.<span class="screenonly"> Tap any address to copy it.</span></p>
+
+  <div class="pdfbar">
+    <span>&#128196; Want it as one file to keep or send on?</span>
+    <a href="CLPPS-focus-cities.pdf" download>Download the PDF</a>
+  </div>
+
+  <div class="note"><b>Why the sign link is three letters.</b> <code>/stp</code> rather than
+    <code>/stpeters</code> keeps the printed code at 29 squares instead of 33, so each square is
+    bigger and scans more easily from a few feet away in a front yard. It forwards straight to the
+    full link underneath, and the campaign name in your tracker is still the full word.</div>
+
+  <div class="note"><b>Both links do the same job.</b> The short one goes on the sign. Use the full
+    one anywhere you need a normal clickable link &mdash; a Facebook post, an email, a Google
+    Business post &mdash; and it will be counted under the same city.</div>
+
+  <div class="row">
+    <img src="qr/CLPPS-QR-stp.png" alt="QR code for St. Peters">
+    <div class="det">
+      <div class="city">St. Peters</div>
+      <div class="covers">Covers St. Peters, Cottleville, Weldon Spring</div>
+      <div class="lbl">Printed on the sign <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url short" onclick="copyIt('https://clpropetservices.com/stp')">clpropetservices.com/stp</div>
+      <div class="lbl">Full link, for a Facebook post or an email <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url" onclick="copyIt('https://www.clpropetservices.com/st-peters/?utm_source=yardsign&utm_medium=qr&utm_campaign=stpeters')">https://www.clpropetservices.com/st-peters/?utm_source=yardsign&utm_medium=qr&utm_campaign=stpeters</div>
+      <div class="lbl">Campaign name / shows in the tracker as</div>
+      <div class="tag"><code>stpeters</code> &rarr; Yard sign QR (St. Peters)</div>
+      
+      <a class="dl" href="qr/CLPPS-QR-stp.png" download>&#11015; Download this code</a>
+    </div>
+  </div>
+  <div class="row">
+    <img src="qr/CLPPS-QR-ofa.png" alt="QR code for O&#x27;Fallon">
+    <div class="det">
+      <div class="city">O&#x27;Fallon</div>
+      <div class="covers">Covers O&#x27;Fallon, Dardenne Prairie</div>
+      <div class="lbl">Printed on the sign <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url short" onclick="copyIt('https://clpropetservices.com/ofa')">clpropetservices.com/ofa</div>
+      <div class="lbl">Full link, for a Facebook post or an email <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url" onclick="copyIt('https://www.clpropetservices.com/ofallon/?utm_source=yardsign&utm_medium=qr&utm_campaign=ofallon')">https://www.clpropetservices.com/ofallon/?utm_source=yardsign&utm_medium=qr&utm_campaign=ofallon</div>
+      <div class="lbl">Campaign name / shows in the tracker as</div>
+      <div class="tag"><code>ofallon</code> &rarr; Yard sign QR (O&#x27;Fallon)</div>
+      
+      <a class="dl" href="qr/CLPPS-QR-ofa.png" download>&#11015; Download this code</a>
+    </div>
+  </div>
+  <div class="row">
+    <img src="qr/CLPPS-QR-stc.png" alt="QR code for St. Charles">
+    <div class="det">
+      <div class="city">St. Charles</div>
+      <div class="covers">Covers St. Charles</div>
+      <div class="lbl">Printed on the sign <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url short" onclick="copyIt('https://clpropetservices.com/stc')">clpropetservices.com/stc</div>
+      <div class="lbl">Full link, for a Facebook post or an email <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url" onclick="copyIt('https://www.clpropetservices.com/st-charles/?utm_source=yardsign&utm_medium=qr&utm_campaign=stcharles')">https://www.clpropetservices.com/st-charles/?utm_source=yardsign&utm_medium=qr&utm_campaign=stcharles</div>
+      <div class="lbl">Campaign name / shows in the tracker as</div>
+      <div class="tag"><code>stcharles</code> &rarr; Yard sign QR (St. Charles)</div>
+      
+      <a class="dl" href="qr/CLPPS-QR-stc.png" download>&#11015; Download this code</a>
+    </div>
+  </div>
+  <div class="row">
+    <img src="qr/CLPPS-QR-wnz.png" alt="QR code for Wentzville">
+    <div class="det">
+      <div class="city">Wentzville</div>
+      <div class="covers">Covers Wentzville</div>
+      <div class="lbl">Printed on the sign <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url short" onclick="copyIt('https://clpropetservices.com/wnz')">clpropetservices.com/wnz</div>
+      <div class="lbl">Full link, for a Facebook post or an email <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url" onclick="copyIt('https://www.clpropetservices.com/wentzville/?utm_source=yardsign&utm_medium=qr&utm_campaign=wentzville')">https://www.clpropetservices.com/wentzville/?utm_source=yardsign&utm_medium=qr&utm_campaign=wentzville</div>
+      <div class="lbl">Campaign name / shows in the tracker as</div>
+      <div class="tag"><code>wentzville</code> &rarr; Yard sign QR (Wentzville)</div>
+      
+      <a class="dl" href="qr/CLPPS-QR-wnz.png" download>&#11015; Download this code</a>
+    </div>
+  </div>
+  <div class="row">
+    <img src="qr/CLPPS-QR-lsl.png" alt="QR code for Lake St. Louis">
+    <div class="det">
+      <div class="city">Lake St. Louis</div>
+      <div class="covers">Covers Lake St. Louis</div>
+      <div class="lbl">Printed on the sign <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url short" onclick="copyIt('https://clpropetservices.com/lsl')">clpropetservices.com/lsl</div>
+      <div class="lbl">Full link, for a Facebook post or an email <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url" onclick="copyIt('https://www.clpropetservices.com/?utm_source=yardsign&utm_medium=qr&utm_campaign=lakestlouis')">https://www.clpropetservices.com/?utm_source=yardsign&utm_medium=qr&utm_campaign=lakestlouis</div>
+      <div class="lbl">Campaign name / shows in the tracker as</div>
+      <div class="tag"><code>lakestlouis</code> &rarr; Yard sign QR (Lake St. Louis)</div>
+      <div class="warn">No landing page for this town yet, so it goes to the homepage. Worth building one &mdash; say the word.</div>
+      <a class="dl" href="qr/CLPPS-QR-lsl.png" download>&#11015; Download this code</a>
+    </div>
+  </div>
+  <div class="row">
+    <img src="qr/CLPPS-QR-wld.png" alt="QR code for Wildwood">
+    <div class="det">
+      <div class="city">Wildwood</div>
+      <div class="covers">Covers Wildwood, Eureka</div>
+      <div class="lbl">Printed on the sign <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url short" onclick="copyIt('https://clpropetservices.com/wld')">clpropetservices.com/wld</div>
+      <div class="lbl">Full link, for a Facebook post or an email <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url" onclick="copyIt('https://www.clpropetservices.com/?utm_source=yardsign&utm_medium=qr&utm_campaign=wildwood')">https://www.clpropetservices.com/?utm_source=yardsign&utm_medium=qr&utm_campaign=wildwood</div>
+      <div class="lbl">Campaign name / shows in the tracker as</div>
+      <div class="tag"><code>wildwood</code> &rarr; Yard sign QR (Wildwood)</div>
+      <div class="warn">No landing page for this town yet, so it goes to the homepage. Worth building one &mdash; say the word.</div>
+      <a class="dl" href="qr/CLPPS-QR-wld.png" download>&#11015; Download this code</a>
+    </div>
+  </div>
+  <div class="row">
+    <img src="qr/CLPPS-QR-che.png" alt="QR code for Chesterfield">
+    <div class="det">
+      <div class="city">Chesterfield</div>
+      <div class="covers">Covers Chesterfield, Des Peres</div>
+      <div class="lbl">Printed on the sign <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url short" onclick="copyIt('https://clpropetservices.com/che')">clpropetservices.com/che</div>
+      <div class="lbl">Full link, for a Facebook post or an email <span class="screenonly">&mdash; tap to copy</span></div>
+      <div class="url" onclick="copyIt('https://www.clpropetservices.com/chesterfield/?utm_source=yardsign&utm_medium=qr&utm_campaign=chesterfield')">https://www.clpropetservices.com/chesterfield/?utm_source=yardsign&utm_medium=qr&utm_campaign=chesterfield</div>
+      <div class="lbl">Campaign name / shows in the tracker as</div>
+      <div class="tag"><code>chesterfield</code> &rarr; Yard sign QR (Chesterfield)</div>
+      
+      <a class="dl" href="qr/CLPPS-QR-che.png" download>&#11015; Download this code</a>
+    </div>
+  </div>
+
+  <footer>Every code was generated from the live site and scan-tested before saving.
+    Codes for Florissant, St. Louis, Pacific and Belleville have been retired now the focus is these seven.</footer>
+</div>
+<div class="copied" id="copied">Copied</div>
+<script>
+function copyIt(text){
+  var done = function(){
+    var t = document.getElementById('copied');
+    t.classList.add('on'); setTimeout(function(){ t.classList.remove('on'); }, 1200);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done, function(){ fb(text, done); });
+  } else fb(text, done);
+}
+function fb(text, done){
+  var a = document.createElement('textarea');
+  a.value = text; a.style.position='fixed'; a.style.opacity='0';
+  document.body.appendChild(a); a.select();
+  try { document.execCommand('copy'); done(); } catch(e) {}
+  a.remove();
+}
+</script>
+</body>
+</html>
