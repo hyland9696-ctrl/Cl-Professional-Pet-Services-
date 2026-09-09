@@ -1647,7 +1647,7 @@ function briefText(){
   window.location.href = 'sms:?&body=' + encodeURIComponent(briefText_()).replace(/'/g, '%27');
 }
 /* ---------- Phone quote (in-page pricing + lead capture) ---------- */
-var pq = { dogs:'1', freq:'weekly', deo:'none', ic:'', min:'30' };
+var pq = { dogs:'1', freq:'weekly', deo:'none', ic:(typeof CLPPS_PRICING !== 'undefined' && CLPPS_PRICING.waiveInitialClean) ? 'w' : '', min:'30' };
 function togglePQ(){
   var p = document.getElementById('pqPanel');
   var opening = p.style.display === 'none';
@@ -2193,11 +2193,66 @@ function renderROI(){
   box.innerHTML =
     '<div style="font-weight:800;font-size:14px;margin-bottom:7px;">&#128181; Ad spend &rarr; what came back</div>' +
     '<div class="chips" style="margin-bottom:2px;">' + picker + '</div>' +
-    headline + paid + freeBlock + mixups + nudge + verdict +
+    headline + paid + freeBlock + mixups + nudge + verdict + waiverBlock() +
     '<div style="margin-top:11px;">' +
       '<button class="copybtn" onclick="toggleSpendForm()">&#9998; ' + (totalSpend ? 'Update' : 'Enter') + ' ' + esc(monthLabel(roiMonth)) + ' ad spend</button>' +
     '</div>' + form +
     '<div style="font-size:10.5px;color:#bbb;margin-top:8px;line-height:1.5;">Leads counted by the month they came in; revenue by the month the deal closed. "Back" values a customer over their whole stay &mdash; currently set to ' + lifetimeMonths() + ' months, changeable in the &#9881;&#65039; settings. That estimate is not measured from this data, so if it is optimistic these returns are too.</div>';
+}
+/* ---- Is the waived initial clean earning its keep? --------------------
+   Corey's test: does giving up the $40 bring in enough extra sign-ups to
+   pay for itself. Compares the days since the waiver started against the
+   same number of days immediately before it, so the windows are equal. */
+function waiverBlock(){
+  var P = (typeof CLPPS_PRICING !== 'undefined') ? CLPPS_PRICING : null;
+  if (!P || !P.waiveInitialClean || !P.waiveInitialFrom) return '';
+  var start = new Date(P.waiveInitialFrom + 'T00:00:00');
+  if (isNaN(start.getTime())) return '';
+  var now = new Date();
+  var days = Math.floor((now - start) / 86400000);
+  if (days < 0) return '';
+  var span = Math.max(days, 1);
+  var before = new Date(start.getTime() - span * 86400000);
+  var live = leads.filter(function(l){ return (l.status || 'new') !== 'deleted'; });
+  var inRange = function(l, a, b){
+    var d = new Date(l.created);
+    return d >= a && d < b;
+  };
+  var since  = live.filter(function(l){ return inRange(l, start, now); });
+  var prior  = live.filter(function(l){ return inRange(l, before, start); });
+  var closedOf = function(arr){ return arr.filter(function(l){ return (l.status || '') === 'closed'; }).length; };
+  var recurringOf = function(arr){
+    return arr.filter(function(l){ var pp = parsePrice(l); return pp && pp.isMo; });
+  };
+  var givenUp = recurringOf(since).filter(function(l){ return (l.status || '') === 'closed'; }).length * P.initialClean;
+  var diff = since.length - prior.length;
+
+  // With single figures a week either way means nothing. Say so rather than
+  // inviting a decision the data cannot support.
+  var enough = days >= 30 && (since.length + prior.length) >= 12;
+  var verdict = !enough
+    ? '<span style="color:#8a6d1a;">Too early to call &mdash; needs about a month and a dozen leads either side before the comparison means anything.</span>'
+    : (diff > 0
+        ? '<span style="color:#0F6E56;font-weight:700;">' + diff + ' more lead' + (diff === 1 ? '' : 's') +
+          ' than the ' + span + ' days before.</span> Weigh that against ' + money(givenUp) + ' of fees given up.'
+        : (diff === 0
+            ? '<span style="color:#8a6d1a;">Same number of leads as the ' + span + ' days before, for ' + money(givenUp) + ' of fees given up.</span>'
+            : '<span style="color:#c0392b;font-weight:700;">' + Math.abs(diff) + ' fewer leads</span> than the ' +
+              span + ' days before, and ' + money(givenUp) + ' of fees given up.'));
+
+  return '<div style="background:#F7F9F8;border:1px solid #E4EBE7;border-radius:11px;padding:10px 12px;margin-top:11px;">' +
+    '<div style="font-weight:800;font-size:13px;margin-bottom:5px;">&#127991;&#65039; Initial clean fee waived &middot; day ' + days + '</div>' +
+    '<div style="display:flex;gap:10px;margin-bottom:6px;">' +
+      '<div style="flex:1;"><div style="font-size:10.5px;color:#999;">SINCE ' + esc(P.waiveInitialFrom) + '</div>' +
+        '<div style="font-size:17px;font-weight:800;">' + since.length + ' lead' + (since.length === 1 ? '' : 's') + '</div>' +
+        '<div style="font-size:11px;color:#777;">' + closedOf(since) + ' closed</div></div>' +
+      '<div style="flex:1;"><div style="font-size:10.5px;color:#999;">' + span + ' DAYS BEFORE</div>' +
+        '<div style="font-size:17px;font-weight:800;color:#777;">' + prior.length + ' lead' + (prior.length === 1 ? '' : 's') + '</div>' +
+        '<div style="font-size:11px;color:#777;">' + closedOf(prior) + ' closed</div></div>' +
+    '</div>' +
+    '<div style="font-size:12px;line-height:1.6;">' + verdict + '</div>' +
+    '<div style="font-size:10.5px;color:#aaa;margin-top:5px;line-height:1.5;">Sign-ups move with the weather and the season as well as the offer, so treat this as a signal rather than proof. Turn the waiver off in pricing.js when you want the $40 back.</div>' +
+  '</div>';
 }
 function priceLabel(l){
   var pp = parsePrice(l);
@@ -2410,7 +2465,13 @@ function render(){
         (l.address || l.zip ? '&#128205; ' + esc((l.address ? l.address + ', ' : '') + (l.zip||'')) + '<br>' : '') +
         '&#128021; ' + esc(l.dogs||'?') + ' dog(s) &middot; ' + esc(l.service||'') +
         (l.deodorize && l.deodorize !== 'no' ? ' &middot; deodorize' : '') +
-        (l.hero && l.hero !== 'no' ? '<br>&#127894; Hero discount claimed' : '') +
+        (l.hero && l.hero !== 'no'
+          ? '<br>&#127894; Hero discount claimed' +
+            // name the branch: it is what has to be checked against their ID
+            (String(l.hero).match(/CLAIMED:\s*([^(]+)/)
+              ? ' &mdash; ' + esc(String(l.hero).match(/CLAIMED:\s*([^(]+)/)[1].trim()) + ' (verify ID)'
+              : '')
+          : '') +
         (l.manual === 'YES' ? '<br>&#9888;&#65039; Needs manual pricing' : '') +
         '<br><span class="price">' + esc(String(l.price || '').indexOf('$') >= 0 ? l.price : (priceLabel(l) || l.price || '')) + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(l.honored) : '') +

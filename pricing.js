@@ -10,6 +10,8 @@
                 twice a week = the weekly price × 1.80 (double, less 10%)
                 all rounded to the nearest whole dollar, and no recurring
                 plan is ever quoted below the monthly minimum
+   Initial clean: $40 on a recurring customer's first invoice, currently
+                WAIVED as a promotion - see waiveInitialClean below.
    One-time:    $75 for the first 30 minutes, +$20 per extra 15 minutes.
                 ZIP multiplier NOT applied.
    Unlisted ZIP (inside the service area): priced as Value
@@ -31,6 +33,14 @@ var CLPPS_PRICING = {
   onetimeBlock: 15,     // each additional block, in minutes
   onetimeBlockPrice: 20,
   initialClean: 40,     // one-time, first invoice, recurring customers only
+  /* PROMOTION: the initial clean fee is waived for new recurring customers.
+     Set waiveInitialClean to false to end it and the $40 comes straight back
+     everywhere - the wizard, the phone quote and the emailed quote. Leads
+     taken while it is on are stamped [IC:w], so the revenue figures already
+     know not to count a fee that was never charged. waiveInitialFrom is the
+     day it started, used to compare sign-ups before and after. */
+  waiveInitialClean: true,
+  waiveInitialFrom: '2026-09-09',
   deodorize: 15,        // per treatment
   maxDogs: 4,           // 5+ is a custom quote
   zips: {
@@ -121,12 +131,12 @@ function clppsQuote(opts){
   var treatments = deo === 'every' ? visits : (deo === 'eo' ? Math.round(visits / 2) : 0);
   var deoMo = treatments * P.deodorize;
   var total = service + deoMo;
-  var initial = opts.waiveInitial ? 0 : P.initialClean;
+  var initial = (opts.waiveInitial || P.waiveInitialClean) ? 0 : P.initialClean;
   var first = total + initial;
   var agree = '$' + total + '/mo' +
     (deoMo ? ' (includes ' + treatments + ' deodorize treatments at $15 each)' : '') +
     (initial ? ', with a first invoice of $' + first + ' including the one-time $' + initial + ' initial clean'
-             : ', initial clean fee waived');
+             : ', with the $' + P.initialClean + ' initial clean fee waived');
   return { manual:false, freq:freq, tier:tier, mult:mult, dogs:dogs,
            base:base, service:service, visits:visits, treatments:treatments, deoMo:deoMo,
            total:total, per:'/mo', initial:initial, first:first, agree:agree };

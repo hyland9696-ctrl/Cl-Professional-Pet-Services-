@@ -276,6 +276,8 @@
     .zip-row{display:flex;gap:10px;max-width:430px;}
     .zip-row input{flex:1;font-size:18px;padding:14px 16px;border:2px solid #e0e0e0;border-radius:10px;font-family:inherit;outline:none;letter-spacing:0.1em;transition:border-color 0.2s;}
     .zip-row input:focus{border-color:#1D9E75;}
+    .promo-tag{display:inline-block;background:#fff;color:#0F6E56;font-size:11px;font-weight:800;
+      letter-spacing:.03em;border-radius:6px;padding:2px 7px;margin-right:4px;vertical-align:1px;}
     .zip-msg{margin-top:14px;font-size:14px;line-height:1.6;display:none;padding:14px 16px;border-radius:10px;}
     .zip-msg.ok{display:block;background:#E1F5EE;color:#085041;border:1px solid #5DCAA5;}
     .zip-msg.bad{display:block;background:#FDECEC;color:#8a1f1f;border:1px solid #f0b9b9;}
@@ -960,7 +962,14 @@
           <button class="q-back" style="width:100%;margin-top:6px;padding:14px;" onclick="qSubmit(false)">Save my quote instead and we'll honor it for 6 months</button>
           <div class="q-sub" style="margin-top:12px;text-align:center;">No hidden fees &bull; Quotes honored for 6 months &bull; No contracts, cancel anytime</div>
           <div class="zip-msg" id="q-formerr" style="margin-top:12px;"></div>
-          <div class="q-nav" style="margin-top:14px;"><button class="q-back" onclick="qGo(2)">&larr; Back</button></div>
+          <div id="q-leaving" style="display:none;margin-top:12px;background:#F2F7F4;border:1px solid #CFE3DA;border-radius:12px;padding:13px 15px;">
+            <div style="font-weight:800;font-size:14.5px;margin-bottom:4px;">Before you go &mdash; want us to hold this price?</div>
+            <p style="font-size:13.5px;color:#4E5F59;margin:0 0 10px;line-height:1.6;">
+              No commitment and no card. We&rsquo;ll keep your quote on file for 6 months and you can start whenever suits you.</p>
+            <button class="submit-btn" style="margin-top:0;" onclick="qSubmit(false)">Save my quote for 6 months</button>
+            <button class="q-back" style="width:100%;margin-top:7px;" onclick="qLeaveAnyway()">No thanks, take me back</button>
+          </div>
+          <div class="q-nav" style="margin-top:14px;"><button class="q-back" onclick="qBackFromStep3()">&larr; Back</button></div>
         </div>
         <div class="q-success" id="q-success">
           <div class="big" id="q-success-icon">&#127881;</div>
@@ -979,7 +988,7 @@
       <p style="font-size:12px;color:#999;margin-bottom:18px;">CL Professional Pet Services LLC &middot; St. Peters, Missouri</p>
       <div style="font-size:14px;color:#444;line-height:1.75;display:flex;flex-direction:column;gap:12px;">
         <p><strong>1. Services.</strong> CL Professional Pet Services LLC ("CLPPS") provides pet waste removal at the service address you provide, on the schedule you select (twice a week, weekly, every other week, or one-time). Every visit includes a full-yard sweep, waste haul-away, and securing your gate before we leave.</p>
-        <p><strong>2. Quotes &amp; pricing.</strong> Quotes are honored for 6 months from the date issued and assume a serviceable yard of up to &frac14; acre. Lot size may be verified against county records; if your yard is materially larger, we will contact you to agree on adjusted pricing before service begins. New recurring clients are charged a one-time $40 initial clean on the first invoice. There are no hidden fees.</p>
+        <p><strong>2. Quotes &amp; pricing.</strong> Quotes are honored for 6 months from the date issued and assume a serviceable yard of up to &frac14; acre. Lot size may be verified against county records; if your yard is materially larger, we will contact you to agree on adjusted pricing before service begins. New recurring clients are normally charged a one-time $40 initial clean on the first invoice; this fee is <strong>currently waived</strong> for new recurring customers. A yard with excessive accumulation, or a first cleanup needing significantly more time than a standard visit, may incur an additional cleanup charge, which we will quote and agree with you before any extra work is done. There are no hidden fees.</p>
         <p><strong>3. Billing.</strong> Recurring service is billed monthly through our billing system using the payment method you place on file via a secure link. A late fee of $10 per month applies to invoices remaining unpaid 30 days after the due date.</p>
         <p><strong>4. No contracts.</strong> Service is month-to-month. You may cancel at any time with no cancellation fee.</p>
         <p><strong>5. Yard access.</strong> Please ensure gates are unlocked and pets are secured on your service day. If we cannot access the yard, the visit may be skipped and charged; we will notify you and attempt to reschedule where possible.</p>
@@ -1225,7 +1234,17 @@
       var eowNote = (q.freq === 'biweekly')
         ? 'Two visits a month. Waste piles up twice as much between them, so each visit is a bigger job \u2014 that\u2019s why weekly costs less per month. '
         : '';
-      noteEl.textContent = eowNote + (p.deoMo ? 'Includes ' + p.treatments + '\u00d7 $15 deodorize/mo. ' : '') + 'First invoice $' + p.first + ', which includes your one-time $' + PRICING.initialClean + ' initial clean. Haul-away always included.';
+      // Show the fee crossed out rather than just saying "waived" - people
+      // need to see what they are not paying for it to feel like anything.
+      var promo = p.initial ? '' :
+        '<span class="promo-tag">&#127991;&#65039; New customer promo</span> ' +
+        'Initial clean <s style="opacity:.6;">$' + PRICING.initialClean + '</s> ' +
+        '<strong style="color:#fff;">FREE</strong> &mdash; first invoice is just <strong style="color:#fff;">$' + p.first + '</strong>. ';
+      noteEl.innerHTML = eowNote + (p.deoMo ? 'Includes ' + p.treatments + '\u00d7 $15 deodorize/mo. ' : '') +
+        (p.initial
+          ? 'First invoice $' + p.first + ', which includes your one-time $' + PRICING.initialClean + ' initial clean. '
+          : promo) +
+        'Haul-away always included.';
     }
     agreeEl.textContent = p.agree;
   }
@@ -1266,6 +1285,8 @@
     crmCapture({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       created: new Date().toISOString(),
+      // A commercial enquiry carries no quoted price and no initial clean,
+      // so it never gets the waived-fee stamp.
       crmnotes: '[SID:' + vSid() + '] ' + (leadSource() ? '[SRC:' + leadSource() + '] ' : ''),
       type: 'COMMERCIAL',
       name: name + (prop ? ' — ' + prop : ''),
@@ -1440,6 +1461,28 @@
     }
   }
   var leadTracked = false;   // Meta Lead fires at most once per visitor
+  /* Backing out of the last step with contact details already typed is the
+     one moment we can still keep the lead. Offer to save the quote instead
+     of just dropping them, and only once - if they say no thanks, they go. */
+  var leavingAsked = false;
+  function qBackFromStep3(){
+    var name = (document.getElementById('qf2-name').value || '').trim();
+    var phone = (document.getElementById('qf2-phone').value || '').trim();
+    var email = (document.getElementById('qf2-email').value || '').trim();
+    if (!leavingAsked && name && (phone || email)){
+      leavingAsked = true;
+      var box = document.getElementById('q-leaving');
+      box.style.display = 'block';
+      box.scrollIntoView({ behavior:'smooth', block:'center' });
+      return;
+    }
+    qGo(2);
+  }
+  function qLeaveAnyway(){
+    document.getElementById('q-leaving').style.display = 'none';
+    qGo(2);
+  }
+
   function qSubmit(activate){
     var err = document.getElementById('q-formerr');
     err.className = 'zip-msg'; err.textContent = '';
@@ -1486,7 +1529,10 @@
     crmCapture({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       created: new Date().toISOString(),
-      crmnotes: '[SID:' + vSid() + '] ' + (leadSource() ? '[SRC:' + leadSource() + '] ' : ''),
+      // Stamp a waived fee so the revenue figures never count $40 we did not
+      // charge, and so the promotion's sign-ups can be told apart later.
+      crmnotes: '[SID:' + vSid() + '] ' + (leadSource() ? '[SRC:' + leadSource() + '] ' : '') +
+                (!p.manual && p.per === '/mo' && !p.initial ? '[IC:w] ' : ''),
       type: activate ? 'ACTIVATE' : 'SAVED',
       name: name,
       phone: phone,

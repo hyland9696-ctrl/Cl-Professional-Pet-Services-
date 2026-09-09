@@ -94,7 +94,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
       <summary style="cursor:pointer;font-weight:700;color:#0F6E56;">Terms of Service (summary)</summary>
       <ul style="padding:8px 0 0 18px;line-height:1.75;">
         <li>Service is month-to-month. No contracts, cancel anytime.</li>
-        <li>For recurring service, your first invoice includes a one-time <span class="ic-fee">$40</span> initial clean.</li>
+        <li>For recurring service the first invoice normally includes a one-time <span class="ic-fee">$40</span> initial clean. Where your quote shows it waived, you will not be charged it.</li>
+        <li>A yard with excessive accumulation, or a first cleanup needing significantly more time than a standard visit, may incur an additional cleanup charge. We will quote it and agree it with you before doing the extra work.</li>
         <li>Billing is monthly. A $10 late fee applies after a 30-day grace period.</li>
         <li>Your quoted price is honored for 6 months from the quote date.</li>
         <li>Every visit: full-yard sweep, waste hauled away, gate latched, photo confirmation.</li>
@@ -146,7 +147,8 @@ var QP = {};
   if (P.d)  rows += '<div class="dline"><span>Dogs</span><span>' + P.d + '</span></div>';
   if (P.sv) rows += '<div class="dline"><span>Schedule</span><span>' + svc + '</span></div>';
   if (P.deo) rows += '<div class="dline"><span>Deodorize &amp; sanitize</span><span>' + P.deo + '</span></div>';
-  if (P.ic === 'w' && !once) rows += '<div class="dline"><span>Initial clean fee</span><span style="color:#1D9E75;">Waived &#10004;</span></div>';
+  if (P.ic === 'w' && !once) rows += '<div class="dline"><span>Initial clean fee</span>' +
+    '<span><s style="opacity:.55;">$' + IC_FEE + '</s> <strong style="color:#1D9E75;">FREE &#10004;</strong></span></div>';
   else if (!once && !isNaN(amt)) rows += '<div class="dline"><span>Initial clean (first invoice)</span><span>$' + IC_FEE + ' one-time</span></div>';
   if (P.a)  rows += '<div class="dline"><span>Service address</span><span>' + P.a + '</span></div>';
   document.getElementById('q-details').innerHTML = rows;
