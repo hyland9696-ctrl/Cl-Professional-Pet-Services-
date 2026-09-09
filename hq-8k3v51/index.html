@@ -1012,7 +1012,7 @@ function gptContext(){
   var mb = monthBreakdown(mk);
   var spendLines = CHANNELS.map(function(c){
     var sp = spendFor(mk, c.k), r = mb.by[c.k];
-    return c.label + ': spent $' + sp + ', ' + r.leads + ' leads, ' + r.closed + ' closed, $' + r.year1 + ' first-year value';
+    return c.label + ': spent $' + sp + ', ' + r.leads + ' leads, ' + r.closed + ' closed, $' + r.ltv + ' customer value ($' + r.year1 + ' in year one)';
   }).join('\n');
   var rows = live.slice(0, 120).map(function(l){
     var f = fuParse(l.crmnotes);
@@ -1044,7 +1044,8 @@ function gptContext(){
     'TODAY IS ' + now.toDateString() + '\n\n' +
     'THIS MONTH (' + monthLabel(mk) + ')\n' +
     mb.totals.closed + ' closed, $' + mb.totals.mrr + '/mo new recurring, $' + mb.totals.fees + ' initial cleans, $' +
-    mb.totals.once + ' one-time, $' + mb.totals.year1 + ' first-year value.\n' + spendLines + '\n\n' +
+    mb.totals.once + ' one-time, $' + mb.totals.ltv + ' customer value over ' + lifetimeMonths() +
+    ' months ($' + mb.totals.year1 + ' of it in year one).\n' + spendLines + '\n\n' +
     'WEBSITE: ' + v30 + ' visits in the last 30 days.\n\n' +
     'LEADS (' + live.length + ' total; contact details deliberately excluded)\n' + rows + '\n\n' +
     'Answer the question using only this data. Be brief and specific, use real names and dollar figures, and say plainly when the data does not cover something. Do not invent numbers.';
@@ -1203,19 +1204,20 @@ function askAnswer(qRaw){
     var mb = monthBreakdown(mk);
     var totalSpend = CHANNELS.reduce(function(a, c){ return a + spendFor(mk, c.k); }, 0);
     if (!totalSpend) return 'No ad spend entered for ' + monthLabel(mk) + ' yet. Open the green "Ad spend" panel and put in what was spent, then I can tell you the return.';
-    var out = monthLabel(mk) + ': ' + askMoney(totalSpend) + ' spent on ads, ' + askMoney(mb.totals.year1) + ' of first-year value closed — ' +
-      (mb.totals.year1 / totalSpend).toFixed(1) + '× back.\n';
+    var out = monthLabel(mk) + ': ' + askMoney(totalSpend) + ' spent on ads, ' + askMoney(mb.totals.ltv) +
+      ' of customer value closed over ' + lifetimeMonths() + ' months (' + askMoney(mb.totals.year1) + ' of that in year one) — ' +
+      (mb.totals.ltv / totalSpend).toFixed(1) + '× back.\n';
     CHANNELS.forEach(function(c){
       var sp = spendFor(mk, c.k), r = mb.by[c.k];
       if (!sp) return;
-      out += '\n' + c.label + ': ' + askMoney(sp) + ' → ' + (r.year1 ? askMoney(r.year1) + ' (' + r.leads + ' leads, ' + r.closed + ' closed, $' + (r.year1 / sp).toFixed(2) + ' back per $1)' : 'nothing closed yet');
+      out += '\n' + c.label + ': ' + askMoney(sp) + ' → ' + (r.ltv ? askMoney(r.ltv) + ' (' + r.leads + ' leads, ' + r.closed + ' closed, $' + (r.ltv / sp).toFixed(2) + ' back per $1)' : 'nothing closed yet');
     });
-    var ranked = CHANNELS.map(function(c){ return { c: c, sp: spendFor(mk, c.k), y: mb.by[c.k].year1 }; })
+    var ranked = CHANNELS.map(function(c){ return { c: c, sp: spendFor(mk, c.k), y: mb.by[c.k].ltv }; })
                          .filter(function(r){ return r.sp > 0; })
                          .sort(function(a, b){ return (b.y / b.sp) - (a.y / a.sp); });
     if (ranked.length && ranked[0].y > 0) out += '\n\nPut the next dollar into ' + ranked[0].c.label + '.';
     var untag = mb.by['Not tagged'];
-    if (untag && untag.closed) out += '\n\nNote: ' + untag.closed + ' closed customer' + (untag.closed === 1 ? '' : 's') + ' worth ' + askMoney(untag.year1) + ' have no source recorded, so they are not credited to any channel.';
+    if (untag && untag.closed) out += '\n\nNote: ' + untag.closed + ' closed customer' + (untag.closed === 1 ? '' : 's') + ' worth ' + askMoney(untag.ltv) + ' have no source recorded, so they are not credited to any channel.';
     return out;
   }
 
@@ -1269,8 +1271,8 @@ function askAnswer(qRaw){
       (mb2.totals.mrr ? '\n  +' + askMoney(mb2.totals.mrr) + '/mo recurring' : '') +
       (mb2.totals.fees ? '\n  ' + askMoney(mb2.totals.fees) + ' initial cleans' : '') +
       (mb2.totals.once ? '\n  ' + askMoney(mb2.totals.once) + ' one-time' : '') +
-      '\n  ' + askMoney(mb2.totals.year1) + ' first-year value';
-    if (sp2) o2 += '\n  ' + askMoney(sp2) + ' ad spend → ' + (mb2.totals.year1 / sp2).toFixed(1) + '× back';
+      '\n  ' + askMoney(mb2.totals.ltv) + ' customer value (' + askMoney(mb2.totals.year1) + ' in year one)';
+    if (sp2) o2 += '\n  ' + askMoney(sp2) + ' ad spend → ' + (mb2.totals.ltv / sp2).toFixed(1) + '× back';
     o2 += '\n\nAll time: ' + askMoney(mrrAll) + '/mo recurring (' + askMoney(mrrAll * 12) + ' a year)' +
       (feesAll ? ', ' + askMoney(feesAll) + ' in initial cleans' : '') + (onceAll ? ', ' + askMoney(onceAll) + ' one-time' : '') + '.';
     return o2;
@@ -1617,12 +1619,12 @@ function briefText_(){
   if (mb.totals.mrr) L.push('  New recurring: +' + money(mb.totals.mrr) + '/mo');
   if (mb.totals.fees) L.push('  Initial cleans: ' + money(mb.totals.fees));
   if (mb.totals.once) L.push('  One-time jobs: ' + money(mb.totals.once));
-  L.push('  First-year value closed: ' + money(mb.totals.year1));
+  L.push('  Value closed: ' + money(mb.totals.ltv) + ' over ' + lifetimeMonths() + ' months (' + money(mb.totals.year1) + ' in year one)');
   if (spend > 0){
-    L.push('  Ad spend: ' + money(spend) + ' \u2192 ' + (mb.totals.year1 / spend).toFixed(1) + '\u00d7 back');
+    L.push('  Ad spend: ' + money(spend) + ' \u2192 ' + (mb.totals.ltv / spend).toFixed(1) + '\u00d7 back');
     CHANNELS.forEach(function(c){
       var sp = spendFor(mk, c.k), r = mb.by[c.k];
-      if (sp) L.push('    ' + c.label + ': ' + money(sp) + ' \u2192 ' + (r.year1 ? money(r.year1) + ' (' + r.closed + ' closed)' : 'nothing closed yet'));
+      if (sp) L.push('    ' + c.label + ': ' + money(sp) + ' \u2192 ' + (r.ltv ? money(r.ltv) + ' (' + r.closed + ' closed)' : 'nothing closed yet'));
     });
   }
   return L.join('\n');
@@ -1765,6 +1767,30 @@ function pqSubmit(kind){
 /* ---------- Review requests ---------- */
 var REVIEW_WAIT_DAYS = 14;   // ask once they've had a couple of visits, not the day after
 var DEFAULT_REVIEW_LINK = 'https://g.page/r/CY5zKebjSgrdEBM/review';
+/* How long the average customer stays. Every "what did the ads earn us"
+   figure multiplies the monthly price by this, so it is the single number
+   that decides whether advertising looks worth it. Corey's figure is three
+   years; it is a setting rather than a constant so it can be corrected once
+   there is enough history to measure it properly. */
+var DEFAULT_LIFETIME_MONTHS = 36;
+function lifetimeMonths(){
+  var c = config.lifetime_months;
+  var n = c ? parseInt(c.value, 10) : NaN;
+  return (n > 0 && n <= 240) ? n : DEFAULT_LIFETIME_MONTHS;
+}
+function saveLifetime(){
+  var raw = String(document.getElementById('cfg-life').value || '').trim();
+  var n = parseInt(raw, 10);
+  if (!(n > 0 && n <= 240)){ toast('Enter how many months a customer stays, between 1 and 240'); return; }
+  config.lifetime_months = { value: String(n), created: new Date().toISOString() };
+  saveStatsCache();
+  render();
+  post({ action: 'lead', lead: {
+    id: 'cfg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    created: new Date().toISOString(), type: 'CONFIG',
+    name: 'lifetime_months', notes: String(n), status: 'config', crmnotes: ''
+  } }, 'Customer lifetime set to ' + n + ' months');
+}
 function reviewLink(){
   var c = config.review_link;
   return c ? (c.value || '') : DEFAULT_REVIEW_LINK;   // saved value wins, even if blanked on purpose
@@ -1894,6 +1920,17 @@ function renderReviews(){
       '<div style="font-size:12px;color:#555;margin-bottom:6px;">Your Google review link (Business Profile &rarr; Ask for reviews &rarr; copy):</div>' +
       '<input id="rv-link" type="url" inputmode="url" placeholder="https://g.page/r/..." value="' + esc(link) + '" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;">' +
       '<button class="copybtn" style="margin-top:8px;background:#1D9E75;color:#fff;border-color:#1D9E75;" onclick="saveReviewLink()">Save link</button>' +
+      '<div style="border-top:1px solid #eee;margin-top:12px;padding-top:10px;">' +
+        '<div style="font-size:12px;color:#555;margin-bottom:6px;">How many months does the average customer stay? ' +
+          'Every &ldquo;what did the ads earn us&rdquo; figure is built on this number.</div>' +
+        '<input id="cfg-life" type="number" min="1" max="240" value="' + lifetimeMonths() + '" ' +
+          'style="width:110px;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;"> ' +
+        '<span style="font-size:12px;color:#777;">months</span>' +
+        '<button class="copybtn" style="margin-top:8px;display:block;background:#1D9E75;color:#fff;border-color:#1D9E75;" onclick="saveLifetime()">Save</button>' +
+        '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5;">Currently ' + lifetimeMonths() + ' months. ' +
+          'This is an estimate, not something measured from the tracker &mdash; cancellations are not recorded yet, ' +
+          'so if it is optimistic the return figures are too.</div>' +
+      '</div>' +
     '</div>';
 }
 /* ---------- Ad spend vs what came back ---------- */
@@ -1942,8 +1979,17 @@ function monthBreakdown(mk){
       b.once += pp.amt; totals.once += pp.amt;
     }
   });
-  Object.keys(by).forEach(function(k){ by[k].year1 = by[k].mrr * 12 + by[k].fees + by[k].once; });
+  // year1 is what lands in the first twelve months, which is the honest
+  // number for payback and cash flow. ltv is what the customer is worth over
+  // their whole stay, which is the honest number for "should we advertise
+  // more". Reporting only the first is what made the ads look weak.
+  var LM = lifetimeMonths();
+  Object.keys(by).forEach(function(k){
+    by[k].year1 = by[k].mrr * 12 + by[k].fees + by[k].once;
+    by[k].ltv   = by[k].mrr * LM + by[k].fees + by[k].once;
+  });
   totals.year1 = totals.mrr * 12 + totals.fees + totals.once;
+  totals.ltv   = totals.mrr * LM + totals.fees + totals.once;
   return { by: by, totals: totals };
 }
 function spendFor(mk, ch){ return (spends[mk + '|' + ch] || {}).amt || 0; }
@@ -2007,7 +2053,9 @@ function renderROI(){
   if (t.mrr) earnedBits.push('+' + money(t.mrr) + '/mo recurring');
   if (t.fees) earnedBits.push(money(t.fees) + ' initial cleans');
   if (t.once) earnedBits.push(money(t.once) + ' one-time');
-  var overall = totalSpend > 0 ? t.year1 / totalSpend : 0;
+  var LMx = lifetimeMonths();
+  var overall = totalSpend > 0 ? t.ltv / totalSpend : 0;          // over a customer's whole stay
+  var overallY1 = totalSpend > 0 ? t.year1 / totalSpend : 0;      // just the first twelve months
   var headline =
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#eee;border-radius:10px;overflow:hidden;margin:10px 0 4px;">' +
       '<div style="background:#fff;padding:9px 11px;">' +
@@ -2015,13 +2063,15 @@ function renderROI(){
         '<div style="font-size:19px;font-weight:800;">' + money(totalSpend) + '</div></div>' +
       '<div style="background:#fff;padding:9px 11px;">' +
         '<div style="font-size:10.5px;color:#999;letter-spacing:.04em;">CLOSED THIS MONTH</div>' +
-        '<div style="font-size:19px;font-weight:800;color:#0F6E56;">' + money(t.year1) + '</div>' +
-        '<div style="font-size:10.5px;color:#aaa;">first-year value</div></div>' +
+        '<div style="font-size:19px;font-weight:800;color:#0F6E56;">' + money(t.ltv) + '</div>' +
+        '<div style="font-size:10.5px;color:#aaa;">worth over ' + (LMx % 12 === 0 ? (LMx / 12) + ' year' + (LMx === 12 ? '' : 's') : LMx + ' months') +
+        ' &middot; ' + money(t.year1) + ' in year one</div></div>' +
     '</div>' +
     (totalSpend > 0
       ? '<div style="background:' + (overall >= 1 ? '#0F6E56' : '#C0392B') + ';color:#fff;border-radius:10px;padding:9px 12px;margin-bottom:8px;font-size:13px;font-weight:700;">' +
           money(totalSpend) + ' of advertising &rarr; <span style="font-size:16px;">' + overall.toFixed(1) + '&times;</span> back' +
-          ' <span style="font-weight:400;opacity:.85;font-size:11.5px;">($' + overall.toFixed(2) + ' for every $1 spent, everything combined)</span></div>'
+          ' <span style="font-weight:400;opacity:.85;font-size:11.5px;">($' + overall.toFixed(2) + ' per $1 over a customer\'s whole stay &middot; ' +
+          overallY1.toFixed(1) + '&times; in year one alone)</span></div>'
       : '') +
     (earnedBits.length
       ? '<div style="font-size:11.5px;color:#777;margin-bottom:8px;">' + esc(monthLabel(roiMonth)) + ' closed: ' + earnedBits.join(' &middot; ') +
@@ -2030,14 +2080,14 @@ function renderROI(){
 
   // Paid channels: spend vs return
   var scale = Math.max.apply(null, CHANNELS.map(function(c){
-    return Math.max(spendFor(roiMonth, c.k), (mb.by[c.k] || {}).year1 || 0);
+    return Math.max(spendFor(roiMonth, c.k), (mb.by[c.k] || {}).ltv || 0);
   }).concat([1]));
   var paid = CHANNELS.map(function(c){
     var r = mb.by[c.k], spend = spendFor(roiMonth, c.k);
     var pct = function(v){ return Math.max(v > 0 ? 3 : 0, Math.round(v / scale * 100)); };
-    var mult = spend > 0 ? r.year1 / spend : 0;
+    var mult = spend > 0 ? r.ltv / spend : 0;
     var verdictTxt = spend > 0
-      ? (r.year1 > 0
+      ? (r.ltv > 0
           ? '<span style="color:' + (mult >= 1 ? '#0F6E56' : '#c0392b') + ';font-weight:800;">' + mult.toFixed(1) + '&times;</span>'
           : '<span style="color:#c0392b;font-weight:700;font-size:11.5px;">nothing closed yet</span>')
       : '<span style="color:#bbb;font-weight:600;font-size:11.5px;">no spend entered</span>';
@@ -2057,8 +2107,8 @@ function renderROI(){
       '<div style="display:flex;align-items:center;gap:7px;">' +
         '<span style="font-size:10.5px;color:#aaa;width:34px;">back</span>' +
         '<div style="flex:1;height:13px;background:#f4f4f4;border-radius:4px;overflow:hidden;">' +
-          '<div style="height:100%;width:' + pct(r.year1) + '%;background:' + (r.year1 >= spend && r.year1 > 0 ? '#1D9E75' : '#E2A03F') + ';"></div></div>' +
-        '<span style="font-size:11.5px;font-weight:700;width:56px;text-align:right;color:#0F6E56;">' + money(r.year1) + '</span></div>' +
+          '<div style="height:100%;width:' + pct(r.ltv) + '%;background:' + (r.ltv >= spend && r.ltv > 0 ? '#1D9E75' : '#E2A03F') + ';"></div></div>' +
+        '<span style="font-size:11.5px;font-weight:700;width:56px;text-align:right;color:#0F6E56;">' + money(r.ltv) + '</span></div>' +
     '</div>';
   }).join('');
 
@@ -2073,7 +2123,7 @@ function renderROI(){
       return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#666;padding:3px 0;">' +
         '<span>' + esc(k === 'Not tagged' ? 'Not tagged (phone-ins, older leads)' : k) +
           ' <span style="color:#aaa;">' + r.leads + ' lead' + (r.leads === 1 ? '' : 's') + ', ' + r.closed + ' closed</span></span>' +
-        '<span style="font-weight:700;color:' + (r.year1 ? '#0F6E56' : '#bbb') + ';">' + money(r.year1) + '</span></div>';
+        '<span style="font-weight:700;color:' + (r.ltv ? '#0F6E56' : '#bbb') + ';">' + money(r.ltv) + '</span></div>';
     }).join('');
   var freeBlock = freeRows
     ? '<div style="margin-top:12px;padding-top:9px;border-top:1px solid #eee;">' +
@@ -2105,16 +2155,16 @@ function renderROI(){
 
   // Where the next dollar goes
   var verdict = '';
-  var withSpend = CHANNELS.map(function(c){ return { c: c, spend: spendFor(roiMonth, c.k), year1: mb.by[c.k].year1 }; })
+  var withSpend = CHANNELS.map(function(c){ return { c: c, spend: spendFor(roiMonth, c.k), ltv: mb.by[c.k].ltv }; })
                           .filter(function(r){ return r.spend > 0; });
   if (withSpend.length){
-    var ranked = withSpend.slice().sort(function(a, b){ return (b.year1 / b.spend) - (a.year1 / a.spend); });
-    var per = function(r){ return '$' + (r.year1 / r.spend).toFixed(2); };
-    if (ranked[0].year1 > 0){
+    var ranked = withSpend.slice().sort(function(a, b){ return (b.ltv / b.spend) - (a.ltv / a.spend); });
+    var per = function(r){ return '$' + (r.ltv / r.spend).toFixed(2); };
+    if (ranked[0].ltv > 0){
       var w = ranked[0], lo = ranked[1];
       verdict = '<div style="background:#E6F2ED;border-radius:9px;padding:9px 11px;margin-top:11px;font-size:12.5px;color:#0F6E56;font-weight:700;line-height:1.5;">' +
         '&#127919; ' + esc(w.c.label) + ' returned ' + per(w) + ' for every $1 spent' +
-        (lo ? (lo.year1 > 0 ? ', vs ' + per(lo) + ' from ' + esc(lo.c.label) : ', while ' + esc(lo.c.label) + ' closed nobody') : '') +
+        (lo ? (lo.ltv > 0 ? ', vs ' + per(lo) + ' from ' + esc(lo.c.label) : ', while ' + esc(lo.c.label) + ' closed nobody') : '') +
         '. Next advertising dollar goes to ' + esc(w.c.label) + '.</div>';
     } else {
       verdict = '<div style="background:#FDF3DC;border-radius:9px;padding:9px 11px;margin-top:11px;font-size:12.5px;color:#7a5c00;font-weight:600;line-height:1.5;">' +
@@ -2145,7 +2195,7 @@ function renderROI(){
     '<div style="margin-top:11px;">' +
       '<button class="copybtn" onclick="toggleSpendForm()">&#9998; ' + (totalSpend ? 'Update' : 'Enter') + ' ' + esc(monthLabel(roiMonth)) + ' ad spend</button>' +
     '</div>' + form +
-    '<div style="font-size:10.5px;color:#bbb;margin-top:8px;line-height:1.5;">Leads counted by the month they came in; revenue by the month the deal closed. "Back" values a customer at their first 12 months, so it can be compared against one month of ad spend.</div>';
+    '<div style="font-size:10.5px;color:#bbb;margin-top:8px;line-height:1.5;">Leads counted by the month they came in; revenue by the month the deal closed. "Back" values a customer over their whole stay &mdash; currently set to ' + lifetimeMonths() + ' months, changeable in the &#9881;&#65039; settings. That estimate is not measured from this data, so if it is optimistic these returns are too.</div>';
 }
 function priceLabel(l){
   var pp = parsePrice(l);
