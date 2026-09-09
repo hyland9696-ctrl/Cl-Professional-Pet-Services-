@@ -1589,12 +1589,19 @@
     var all = document.querySelectorAll('[data-reveal]');
     for (var i = 0; i < all.length; i++) revealObs.observe(all[i]);
   }
+  /* Paid clicks that land on the bare homepage go straight to the quote
+     wizard. We pay for those clicks, so making them hunt for the form is a
+     step we are paying to lose people on. Only fires when the ad pointed at
+     the plain homepage: an ad aimed at a city page, or any link carrying its
+     own #section, is left exactly where it was sent. Set to [] to turn off. */
+  var JUMP_TO_QUOTE_FOR = ['Google Ads'];
   document.addEventListener('DOMContentLoaded', function(){
-    leadSource();
+    var src = leadSource();
     setupReveal();
     animateStats();
     var h = (location.hash || '').replace('#', '');
     if (h && document.getElementById('page-' + h)) showPage(h);
+    else if (!h && JUMP_TO_QUOTE_FOR.indexOf(src) >= 0) showPage('quote');
     else crmView('home');
   });
   window.addEventListener('hashchange', function(){
