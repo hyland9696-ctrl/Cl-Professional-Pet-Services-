@@ -1470,8 +1470,10 @@ function renderQR(){
   if (!scans.length){
     box.innerHTML = '<div style="color:#777;">No scans yet. Every time somebody scans the QR code on a yard sign it will show up here, ' +
       'and you will get a notification at the top of this page.</div>' +
-      '<div style="font-size:11.5px;color:#aaa;margin-top:8px;">The code points at clpropetservices.com/contact. ' +
-      'Nothing else on the site links there, so anything landing on it came off a sign.</div>';
+      '<div style="font-size:11.5px;color:#aaa;margin-top:8px;">This counts every sign code. ' +
+      'The ones out now point at clpropetservices.com/contact and land here without a city beside them. ' +
+      'The new per-city codes (/stp, /ofa and so on) show their town. Nothing else on the site links to any ' +
+      'of those, so anything arriving on one came off a sign.</div>';
     return;
   }
   var mine = qrLeads(), closed = mine.filter(function(l){ return (l.status || '') === 'closed'; });

@@ -123,14 +123,22 @@ function doPost(e) {
     var sh2 = sheet_();
     var data = sh2.getDataRange().getValues();
     var idCol = HEADERS.indexOf('id');
+    // A lead can appear more than once under the same id: saving an edit
+    // appends a fresh row rather than rewriting the old one. The tracker
+    // reads the NEWEST of those, so updating only the first match wrote the
+    // change into a stale row where nothing could ever see it - a review
+    // marked as asked, a status, a follow-up date, all silently lost.
+    // Update every row carrying the id so it cannot matter which one is read.
+    var hit = 0;
     for (var i = 1; i < data.length; i++) {
       if (String(data[i][idCol]) === String(body.id)) {
         if (body.status != null) sh2.getRange(i+1, HEADERS.indexOf('status')+1).setValue(body.status);
         if (body.notes  != null) sh2.getRange(i+1, HEADERS.indexOf('crmnotes')+1).setValue(body.notes);
         sh2.getRange(i+1, HEADERS.indexOf('updated')+1).setValue(new Date().toISOString());
-        return json_({ok:true});
+        hit++;
       }
     }
+    if (hit) return json_({ok:true, rowsUpdated:hit});
     return json_({ok:false, error:'not found'});
   }
 
