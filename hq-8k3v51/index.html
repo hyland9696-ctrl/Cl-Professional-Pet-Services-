@@ -280,6 +280,7 @@ var STATUSES = [
 ];
 var FILTERS = [{k:'all',label:'All'}].concat(STATUSES);
 var TRAFFIC_DAYS = 400;   // ~13 months of traffic history
+var QUIET_DAYS = 7;       // a called lead with no follow-up booked goes back on the list after this
 var leads = [], views = [], qviews = [], waitlist = [], outarea = [], auths = {}, spends = {}, config = {}, filter = 'all', KEY = 'clpps-8k3v51';
 var CHANNELS = [{ k: 'Meta Ads', label: 'Meta / Facebook' }, { k: 'Google Ads', label: 'Google Ads' }];
 var roiMonth = '';
@@ -889,6 +890,13 @@ function parsePrice(l){
   else if (sv.indexOf('one') >= 0) isMo = false;
   else isMo = true;
   return { amt: amt, isMo: isMo };
+}
+/* Ranking value: recurring is worth far more than a one-off, so a $91/mo
+   quote should outrank a $275 cleanup when deciding who to call first. */
+function leadMonthly(l){
+  var p = parsePrice(l);
+  if (!p) return 0;
+  return p.isMo ? p.amt : p.amt / 12;
 }
 /* Same customer entered twice (usually an old edit that copied a record).
    Grouped by name, and only when the phone numbers agree or one is missing,
@@ -1531,6 +1539,19 @@ function briefText_(){
     return days >= -0.5 && days <= 7;
   }).sort(function(a, b){ return fuParse(a.crmnotes).sd.localeCompare(fuParse(b.crmnotes).sd); });
   var revDue = live.filter(reviewDue);
+  // Marking a lead "Called" used to make it disappear: the stale list only
+  // watches "New", and nothing else brings it back unless somebody sets a
+  // follow-up date by hand. These are people who saw a price and did not say
+  // no, so they are the warmest money we have. Biggest first.
+  var quiet = live.filter(function(l){
+    if ((l.status || 'new') !== 'called') return false;
+    if (auths[l.id]) return false;                       // already accepted
+    var f = fuParse(l.crmnotes);
+    if (f.date) return false;                            // a follow-up is already booked
+    var last = l.updated || f.attDate || l.created;
+    if (!last) return false;
+    return (Date.now() - new Date(last).getTime()) / 86400000 >= QUIET_DAYS;
+  }).sort(function(a, b){ return leadMonthly(b) - leadMonthly(a); });
 
   var vToday = views.filter(function(v){ return gDayKey(new Date(v.created)) === todayK; }).length;
   var cut7 = new Date(now.getTime() - 7 * 86400000);
@@ -1555,6 +1576,15 @@ function briefText_(){
   if (stale.length){
     L.push('\u23f0 ' + stale.length + ' lead' + (stale.length === 1 ? '' : 's') + ' waiting over 24h with no contact:');
     L.push(list(stale));
+  }
+  if (quiet.length){
+    L.push('\ud83d\udd07 ' + quiet.length + ' quote' + (quiet.length === 1 ? '' : 's') +
+           ' gone quiet \u2014 called, never closed, no follow-up booked:');
+    L.push(list(quiet, function(l){
+      var last = l.updated || fuParse(l.crmnotes).attDate || l.created;
+      var d = Math.floor((Date.now() - new Date(last).getTime()) / 86400000);
+      return nm(l) + ' \u2014 ' + d + ' days quiet' + (l.phone ? ' \u2014 ' + l.phone : '');
+    }));
   }
   if (fuDue.length){
     L.push('\ud83d\udd14 ' + fuDue.length + ' follow-up' + (fuDue.length === 1 ? '' : 's') + ' due:');
@@ -2375,6 +2405,12 @@ function renderTraffic(){
   var v7 = since(7).length, v30 = since(30).length;
   var l30 = leads.filter(function(l){ return new Date(l.created) >= new Date(now.getTime() - 30 * 86400000); }).length;
   var conv = v30 ? Math.round(l30 / v30 * 100) : 0;
+  // The step that actually matters: of the people who got as far as seeing a
+  // price, how many went on to fill the form in? Both numbers were already
+  // being collected; nobody was doing the subtraction.
+  var cut30 = new Date(now.getTime() - 30 * 86400000);
+  var q30 = qviews.filter(function(v){ return new Date(v.created) >= cut30; }).length;
+  var priceConv = q30 ? Math.round(l30 / q30 * 100) : 0;
   var tn = document.getElementById('t-nums');
   tn.style.gridTemplateColumns = 'repeat(5,1fr)';
   tn.style.cursor = 'pointer';
@@ -2384,7 +2420,8 @@ function renderTraffic(){
     '<div class="stat"><div class="n">' + v7 + '</div><div class="l">Views 7d</div></div>' +
     '<div class="stat"><div class="n">' + v30 + '</div><div class="l">Views 30d</div></div>' +
     '<div class="stat"><div class="n">' + l30 + '</div><div class="l">Leads 30d</div></div>' +
-    '<div class="stat"><div class="n">' + conv + '%</div><div class="l">Convert</div></div>';
+    '<div class="stat"><div class="n"' + (q30 && priceConv < 25 ? ' style="color:#c0392b"' : '') + '>' +
+      (q30 ? priceConv + '%' : '\u2014') + '</div><div class="l">Priced &rarr; lead</div></div>';
   var days = [], counts = [];
   for (var i = 13; i >= 0; i--){
     var d = new Date(now.getTime() - i * 86400000);
