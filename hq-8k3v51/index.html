@@ -92,6 +92,7 @@
       <button class="copybtn" onclick="toggleBrief()">&#128203; Daily brief</button>
       <button class="copybtn" onclick="toggleQR()" id="qrBtn">&#128241; Sign scans</button>
       <button class="copybtn" onclick="toggleWait()" id="waitBtn">&#128205; Out of area</button>
+      <button class="copybtn" onclick="toggleNo()" id="noBtn">&#128078; Said no</button>
       <button class="copybtn" onclick="togglePQ()" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">&#128222; Phone quote</button>
       <button class="copybtn" onclick="toggleAdd()">&#10133; Add lead</button>
       <button class="copybtn" onclick="exportCsv()">&#11015;&#65039; Download CSV</button>
@@ -170,6 +171,13 @@
         <button onclick="toggleWait()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
       </div>
       <div id="wait-body" style="font-size:13px;line-height:1.6;color:#2B3A34;"></div>
+    </div>
+    <div id="noPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,.07);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-weight:800;font-size:15px;">&#128078; Said no to their quote</div>
+        <button onclick="toggleNo()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
+      </div>
+      <div id="no-body" style="font-size:13px;line-height:1.6;color:#2B3A34;"></div>
     </div>
     <div id="qrPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -578,8 +586,10 @@ function dogsLabel(n){
 }
 function fuParse(crmnotes){
   var s = String(crmnotes || '');
-  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', text: '' };
-  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC|SRC|SID|RV):([^\]]*)\]\s*/;
+  // qa = the answer to their quote: w waiting, a accepted, d declined.
+  // wb = the date we sent them a win-back email after a no.
+  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', text: '' };
+  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -591,6 +601,8 @@ function fuParse(crmnotes){
     else if (hit[1] === 'SRC') m.src = hit[2];
     else if (hit[1] === 'SID') m.sid = hit[2];
     else if (hit[1] === 'RV') m.rv = hit[2];
+    else if (hit[1] === 'QA') m.qa = hit[2];
+    else if (hit[1] === 'WB') m.wb = hit[2];
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -607,7 +619,9 @@ function fuCompose(m){
          (m.ic ? '[IC:' + m.ic + '] ' : '') +
          (m.src ? '[SRC:' + m.src + '] ' : '') +
          (m.sid ? '[SID:' + m.sid + '] ' : '') +
-         (m.rv ? '[RV:' + m.rv + '] ' : '') + (m.text || '');
+         (m.rv ? '[RV:' + m.rv + '] ' : '') +
+         (m.qa ? '[QA:' + m.qa + '] ' : '') +
+         (m.wb ? '[WB:' + m.wb + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -1404,6 +1418,166 @@ function qrCityTable(scans, mine){
 /* ---- People we cannot serve yet -------------------------------------
    Grouped by ZIP, because one person in a ZIP is a curiosity and five is
    a route. These never touch the lead or revenue counts. */
+/* ============================================================
+   PEOPLE WHO SAID NO.
+
+   The quote wizard takes their details before it shows them a price,
+   so a refusal now arrives with a name, a number and a reason attached.
+   That makes it the one list in here we can actually do something with:
+   they have seen our price, told us why it did not work, and their quote
+   is held for six months.
+
+   The email is a mailto, not something we send for them. It opens in
+   whatever they already write mail in, so it comes from a real person at
+   a real address, replies land in that inbox, and nothing goes to a spam
+   folder on the way. They read it before it goes.
+   ============================================================ */
+var WINBACK_AFTER_HOURS = 20;   // let the no sit overnight before we chase it
+
+function declinedLeads(){
+  return leads.filter(function(l){
+    return String(l.type) === 'DECLINED' || fuParse(l.crmnotes).qa === 'd';
+  }).sort(function(a, b){ return new Date(b.created) - new Date(a.created); });
+}
+function quoteState(l){
+  var qa = fuParse(l.crmnotes).qa;
+  if (qa === 'a' || String(l.type) === 'ACTIVATE') return 'accepted';
+  if (qa === 'd' || String(l.type) === 'DECLINED') return 'declined';
+  if (qa === 'w' || String(l.type) === 'ENQUIRY') return 'waiting';
+  return '';
+}
+function hoursSince(t){
+  var d = new Date(t);
+  return isNaN(d) ? 1e9 : (Date.now() - d.getTime()) / 3600000;
+}
+/* The one line that makes the email worth sending: answer what they
+   actually told us, rather than the same paragraph for everybody. */
+function winbackAngle(why){
+  var w = String(why || '').toLowerCase();
+  if (w.indexOf('higher') >= 0 || w.indexOf('price') >= 0)
+    return 'If it came down to the price, that is worth a conversation rather than an email. Depending on how big the yard is and how often you would want us out, there is sometimes room to put something together that works better.';
+  if (w.indexOf('comparing') >= 0)
+    return 'If you are still weighing up a few companies, one thing worth checking against the others: our price includes hauling the waste away, and there is no contract and no start-up fee at the moment. A lot of quotes add those on afterwards.';
+  if (w.indexOf('another company') >= 0)
+    return 'If you have gone with somebody else, genuinely no hard feelings, and I hope they look after you. If it ever does not work out, we are here and your price is still on file.';
+  if (w.indexOf('myself') >= 0)
+    return 'Doing it yourself is a perfectly good answer. If it ever gets old, or the weather makes it a chore, we are a phone call away.';
+  if (w.indexOf('right time') >= 0)
+    return 'Timing is the easiest one to fix. Whenever it is the right time, nothing needs redoing at your end.';
+  return 'If there was anything about the quote that did not sit right, I would genuinely like to hear it.';
+}
+function winbackText(l){
+  var f = fuParse(l.crmnotes);
+  var first = String(l.name || '').trim().split(/\s+/)[0] || 'there';
+  var price = String(l.price || '').split(',')[0];
+  var body = [
+    'Hi ' + first + ',',
+    '',
+    'Thanks for taking the time to get a quote from us. I saw you decided not to go ahead, and that is completely fine.',
+    '',
+    'I wanted to reach out for two reasons.',
+    '',
+    'First, your price is still yours. ' + (price ? 'We are holding ' + price + ' for you for six months' : 'We are holding your quote for six months') +
+      ', so if anything changes there is nothing to fill in again. Just reply to this email or call us on (636) 375-4342.',
+    '',
+    'Second, ' + winbackAngle(f.text),
+    '',
+    'Either way, thanks for considering us.',
+    '',
+    'CL Professional Pet Services',
+    '(636) 375-4342',
+    'info@clpropetservices.com'
+  ].join('\n');
+  return { subject: 'Your quote from CL Professional Pet Services', body: body };
+}
+function winbackSend(id){
+  var l = leads.filter(function(x){ return x.id === id; })[0];
+  if (!l) return;
+  if (!l.email){ toast('No email address on this lead'); return; }
+  var m = winbackText(l);
+  window.location.href = 'mailto:' + encodeURIComponent(l.email) +
+    '?subject=' + encodeURIComponent(m.subject) + '&body=' + encodeURIComponent(m.body);
+  winbackMark(id, true);
+}
+function winbackMark(id, sent){
+  var l = leads.filter(function(x){ return x.id === id; })[0];
+  if (!l) return;
+  var m = fuParse(l.crmnotes);
+  m.wb = sent ? new Date().toISOString().slice(0, 10) : '';
+  l.crmnotes = fuCompose(m);
+  l.updated = new Date().toISOString();
+  saveLocal();
+  renderNo();
+  render();
+  post({ action:'update', key:KEY, id:id, notes:l.crmnotes },
+       sent ? 'Marked as followed up ✓' : 'Follow-up cleared');
+}
+function renderNoCount(){
+  var btn = document.getElementById('noBtn');
+  if (!btn) return;
+  var list = declinedLeads();
+  var due = list.filter(function(l){ return !fuParse(l.crmnotes).wb && hoursSince(l.created) >= WINBACK_AFTER_HOURS; }).length;
+  btn.innerHTML = '\uD83D\uDC4E Said no' + (list.length ? ' (' + list.length + ')' : '');
+  // A follow-up that is due is the only reason to look at this list today.
+  btn.style.background = due ? '#0F6E56' : '';
+  btn.style.color = due ? '#fff' : '';
+  btn.style.borderColor = due ? '#0F6E56' : '';
+  btn.title = due ? due + ' ready to follow up' : '';
+}
+function toggleNo(){
+  var p = document.getElementById('noPanel');
+  var opening = p.style.display === 'none';
+  p.style.display = opening ? 'block' : 'none';
+  if (opening){ renderNo(); p.scrollIntoView({ behavior:'smooth', block:'start' }); }
+}
+function renderNo(){
+  var box = document.getElementById('no-body');
+  if (!box) return;
+  var list = declinedLeads();
+  if (!list.length){
+    box.innerHTML = '<div style="color:#777;">Nobody has turned a quote down yet. When somebody sees their price and ' +
+      'says no, they land here with the reason they gave &mdash; and because the form comes before the price now, ' +
+      'we will have their name, number and email to follow it up.</div>';
+    return;
+  }
+  var due = list.filter(function(l){ return !fuParse(l.crmnotes).wb && hoursSince(l.created) >= WINBACK_AFTER_HOURS; });
+  var head = '<div style="background:#F2F7F4;border-left:3px solid #1D9E75;border-radius:0 9px 9px 0;padding:10px 12px;margin-bottom:10px;">' +
+    '<strong>' + list.length + '</strong> ' + (list.length === 1 ? 'person has' : 'people have') + ' said no to a quote. ' +
+    (due.length
+      ? '<strong>' + due.length + '</strong> ' + (due.length === 1 ? 'is' : 'are') + ' ready to follow up now.'
+      : 'None are due a follow-up yet &mdash; we leave a no overnight before chasing it.') +
+    '</div>';
+  var rows = list.map(function(l){
+    var f = fuParse(l.crmnotes);
+    var when = l.created ? new Date(l.created).toLocaleDateString() : '';
+    var hrs = hoursSince(l.created);
+    var ready = !f.wb && hrs >= WINBACK_AFTER_HOURS;
+    var contact = [l.phone, l.email].filter(Boolean).join(' · ');
+    var why = String(f.text || '').trim();
+    return '<div style="border:1px solid ' + (ready ? '#1D9E75' : '#E4EBE7') + ';border-radius:11px;padding:11px 12px;margin-bottom:9px;' +
+        (ready ? 'background:#F7FBF9;' : '') + '">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">' +
+        '<div style="font-weight:800;font-size:14.5px;">' + esc(l.name || '(no name)') + '</div>' +
+        '<div style="font-size:12px;color:#8a6d1a;font-weight:700;white-space:nowrap;">' + esc(String(l.price || '').split(',')[0]) + '</div>' +
+      '</div>' +
+      '<div style="font-size:12px;color:#666;margin-top:2px;">' + esc(contact) +
+        (l.dogs ? ' · ' + esc(dogsLabel(l.dogs)) : '') +
+        (l.service ? ' · ' + esc(planLabel(l.service)) : '') +
+        (when ? ' · ' + esc(when) : '') +
+        (f.src ? ' · ' + esc(f.src) : '') + '</div>' +
+      (why ? '<div style="font-size:12.5px;color:#444;margin-top:5px;font-style:italic;">&ldquo;' + esc(why) + '&rdquo;</div>' : '') +
+      (f.wb
+        ? '<div style="font-size:12.5px;color:#0F6E56;margin-top:7px;font-weight:700;">✓ Followed up ' + esc(f.wb) +
+          ' <button onclick="winbackMark(\'' + esc(l.id) + '\', false)" style="background:none;border:none;color:#999;font-size:11.5px;cursor:pointer;font-family:inherit;text-decoration:underline;">undo</button></div>'
+        : (l.email
+            ? '<button onclick="winbackSend(\'' + esc(l.id) + '\')" style="margin-top:8px;background:' + (ready ? '#1D9E75' : '#fff') + ';color:' + (ready ? '#fff' : '#0F6E56') + ';border:1.5px solid #0F6E56;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">✉️ Email them about it</button>' +
+              (ready ? '' : '<div style="font-size:11.5px;color:#999;margin-top:4px;">Said no ' + Math.round(hrs) + 'h ago &mdash; worth leaving until tomorrow.</div>')
+            : '<div style="font-size:12px;color:#999;margin-top:7px;">No email address, but there is a phone number.</div>')) +
+      (l.phone ? '<a href="tel:' + esc(String(l.phone).replace(/[^0-9+]/g, '')) + '" style="display:inline-block;margin-top:8px;margin-left:6px;background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;text-decoration:none;border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:700;">☎️ Call</a>' : '') +
+      '</div>';
+  }).join('');
+  box.innerHTML = head + rows;
+}
 function toggleWait(){
   var p = document.getElementById('waitPanel');
   var opening = p.style.display === 'none';
@@ -2393,6 +2567,9 @@ function render(){
   if (qp && qp.style.display !== 'none') renderQR();
   var wp = document.getElementById('waitPanel');
   if (wp && wp.style.display !== 'none') renderWait();
+  renderNoCount();
+  var np = document.getElementById('noPanel');
+  if (np && np.style.display !== 'none') renderNo();
   var counts = {all: leads.length};
   STATUSES.forEach(function(s){ counts[s.k] = leads.filter(function(l){ return (l.status||'new') === s.k; }).length; });
   document.getElementById('stats').innerHTML =
@@ -2479,7 +2656,10 @@ function render(){
           ? 'cls">&#10003; CLOSED &middot; ON SCHEDULE'
           : (st === 'lost'
             ? 'lst">PASSED'
-            : (l.type === 'ACTIVATE' ? 'act">WANTS TO START' : (l.type === 'COMMERCIAL' ? 'com">COMMERCIAL' : 'sav">SAVED QUOTE')))) + '</span></div>' +
+            : (l.type === 'ACTIVATE' ? 'act">WANTS TO START'
+              : (l.type === 'COMMERCIAL' ? 'com">COMMERCIAL'
+                : (l.type === 'DECLINED' ? 'lst">SAID NO TO THE PRICE'
+                  : (l.type === 'ENQUIRY' ? 'sav">SHOWN A PRICE, NO ANSWER YET' : 'sav">SAVED QUOTE')))))) + '</span></div>' +
       '<div class="meta">' +
         (l.phone ? '&#128222; <a href="tel:' + esc(digits) + '">' + esc(l.phone) + '</a><br>' : '') +
         (l.email ? '&#9993;&#65039; <a href="mailto:' + esc(l.email) + '">' + esc(l.email) + '</a><br>' : '') +

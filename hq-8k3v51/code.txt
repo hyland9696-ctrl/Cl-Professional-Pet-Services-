@@ -51,6 +51,15 @@ function notifyLead_(l) {
   } else if (t === 'ACTIVATE') {
     subject = '\ud83d\udd25 NEW LEAD (wants to start!): ' + (l.name || '') + (l.price ? ' - ' + String(l.price).split(',')[0] : '');
     intro = 'This lead activated through the website quote wizard and accepted the Terms of Service.';
+  } else if (t === 'ENQUIRY') {
+    subject = '\ud83d\udcdd QUOTE REQUEST: ' + (l.name || '') + (l.price ? ' - ' + String(l.price).split(',')[0] : '');
+    intro = 'Somebody filled in the quote form and has just been shown this price. They have NOT answered yet - ' +
+            'a second email follows if they accept or decline. Their details are real either way, so this is worth ' +
+            'a call even if nothing else arrives.';
+  } else if (t === 'DECLINED') {
+    subject = '\ud83d\udc4e SAID NO: ' + (l.name || '') + (l.price ? ' to ' + String(l.price).split(',')[0] : '');
+    intro = 'They saw the price and turned it down. The reason they gave is in the notes below. Their quote is held ' +
+            'for 6 months, and the tracker will offer to email them a follow-up tomorrow.';
   } else {
     subject = '\ud83d\udc3e NEW LEAD: ' + (l.name || '') + (l.price ? ' - ' + String(l.price).split(',')[0] : '');
     intro = 'New lead captured.';
@@ -156,23 +165,36 @@ function weeklyDigest() {
   var sh = sheet_();
   var rows = sh.getDataRange().getValues();
   var cut = new Date(Date.now() - 7 * 86400000);
-  var views = 0, qviews = 0, leads = 0, closed = 0, names = [];
+  var views = 0, qviews = 0, closed = 0, names = [];
   var outAsked = 0, outLooked = 0;   // people we cannot serve yet
+  // One person is one lead. The quote wizard writes their row again when they
+  // answer - ENQUIRY, then ACTIVATE or DECLINED, all under the same id - and
+  // editing a lead in the tracker appends another. Counting rows would report
+  // the same customer two or three times, so count distinct ids instead.
+  var leadIds = {}, closedIds = {}, answered = 0, declined = 0;
+  var NOT_A_LEAD = { VIEW:1, QVIEW:1, OUTAREA:1, WAITLIST:1, AUTH:1, SPEND:1, CONFIG:1 };
   for (var i = 1; i < rows.length; i++) {
     var created = new Date(rows[i][HEADERS.indexOf('created')]);
-    var type = rows[i][HEADERS.indexOf('type')];
+    var type = String(rows[i][HEADERS.indexOf('type')] || '');
     var status = rows[i][HEADERS.indexOf('status')];
+    var id = String(rows[i][HEADERS.indexOf('id')] || '');
     if (created >= cut) {
       if (type === 'VIEW') views++;
       else if (type === 'QVIEW') qviews++;
       else if (type === 'OUTAREA') outLooked++;
       else if (type === 'WAITLIST') outAsked++;
-      else if (type === 'AUTH' || type === 'SPEND' || type === 'CONFIG') { /* not leads */ }
-      else { leads++; names.push(rows[i][HEADERS.indexOf('name')]); }
+      else if (NOT_A_LEAD[type]) { /* not leads */ }
+      else if (id && !leadIds[id]) {
+        leadIds[id] = 1;
+        names.push(rows[i][HEADERS.indexOf('name')]);
+      }
+      if (type === 'ACTIVATE') answered++;
+      if (type === 'DECLINED') declined++;
     }
-    if (type !== 'VIEW' && type !== 'QVIEW' && type !== 'OUTAREA' && type !== 'WAITLIST' &&
-        status === 'closed' && created >= cut) closed++;
+    if (!NOT_A_LEAD[type] && status === 'closed' && created >= cut && id) closedIds[id] = 1;
   }
+  var leads = 0; for (var k in leadIds) leads++;
+  for (var k2 in closedIds) closed++;
   MailApp.sendEmail({
     to: 'info@clpropetservices.com',
     subject: 'CLPPS weekly: ' + leads + ' lead' + (leads === 1 ? '' : 's') + ', ' + views + ' site visits',
@@ -180,6 +202,8 @@ function weeklyDigest() {
       'Site visits: ' + views + '\n' +
       'Saw a price: ' + qviews + '\n' +
       'New leads: ' + leads + (names.length ? ' (' + names.join(', ') + ')' : '') + '\n' +
+      'Of those, accepted their quote: ' + answered + '\n' +
+      'Of those, said no: ' + declined + '\n' +
       'Marked closed: ' + closed + '\n' +
       (outAsked || outLooked
         ? 'Outside our routes: ' + outAsked + ' asked us to come to them' +

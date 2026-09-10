@@ -808,24 +808,33 @@
   <section class="page" id="page-quote">
     <div class="page-hero">
       <h1>Get Your Instant Quote</h1>
-      <p>Answer three quick questions, see your price on the spot, and lock it in. No phone tag, no waiting.</p>
+      <p>Tell us about your yard on one page, see your price on the next. No phone tag, no waiting, and nothing is booked until you say yes.</p>
     </div>
     <div class="q-wrap">
       <div class="q-steps">
-        <div class="q-step active" id="qs1"><span class="dot">1</span> Your Area</div>
-        <div class="q-step" id="qs2"><span class="dot">2</span> Your Service</div>
-        <div class="q-step" id="qs3"><span class="dot">3</span> Lock It In</div>
+        <div class="q-step active" id="qs1"><span class="dot">1</span> Your Details</div>
+        <div class="q-step" id="qs2"><span class="dot">2</span> Your Price</div>
       </div>
 
-      <!-- STEP 1: ZIP -->
+      <!-- ============================================================
+           STEP 1 - everything on one page.
+
+           The price used to show here, before we knew who was looking.
+           It now comes on step 2, after this form is filed, so a person
+           who sees a number is always somebody we can call back. That is
+           deliberate: it trades some price views for contact details on
+           every one of them.
+           ============================================================ -->
       <div class="q-panel active" id="qp1">
-        <div class="q-title">First, are we neighbors?</div>
-        <div class="q-sub">Enter your ZIP code and we'll check that you're in our service area.</div>
-        <div class="zip-row">
-          <input id="q-zip" type="text" inputmode="numeric" maxlength="5" placeholder="e.g. 63376" aria-label="ZIP code" />
-          <button class="btn-primary" onclick="qCheckZip()">Check My Area</button>
-        </div>
-        <div class="zip-msg" id="q-zipmsg" role="status"></div>
+        <div id="q-form-area">
+          <div class="q-title">Tell us about your yard.</div>
+          <div class="q-sub">One page, then your price on the next screen. No payment now, no card, and nothing is scheduled until you accept.</div>
+
+          <div class="q-label">Your ZIP code</div>
+          <div class="zip-row">
+            <input id="q-zip" type="text" inputmode="numeric" maxlength="5" placeholder="e.g. 63376" aria-label="ZIP code" oninput="qZipInput()" />
+          </div>
+          <div class="zip-msg" id="q-zipmsg" role="status"></div>
 
         <!-- Out-of-area waitlist. We would rather know exactly who wants us and
              where than send them away with a phone number - that list is how we
@@ -866,12 +875,8 @@
             <strong><a href="tel:+16363754342" style="color:#0F6E56;">(636) 375-4342</a></strong>.
           </div>
         </div>
-      </div>
 
-      <!-- STEP 2: SERVICE -->
-      <div class="q-panel" id="qp2">
-        <div class="q-title">Build your service.</div>
-        <div class="q-sub">Pick what fits your pack and watch your price update below.</div>
+          <div id="q-mainform" style="display:none;">
         <div class="q-label">How often?</div>
         <div class="opt-grid" id="q-freq">
           <button class="opt-card" data-v="twiceweekly" onclick="qSet('freq','twiceweekly',this)"><div class="oc-big">Twice a Week</div><div class="oc-sub">Spotless, always</div></button>
@@ -898,29 +903,9 @@
           <button class="opt-card" data-v="every" onclick="qSet('deo','every',this)"><div class="oc-big">Every visit</div><div class="oc-sub">Freshest yard possible</div></button>
           <button class="opt-card" data-v="eo" onclick="qSet('deo','eo',this)"><div class="oc-big">Every other visit</div><div class="oc-sub">Budget-friendly freshness</div></button>
         </div>
-        <div class="price-panel">
-          <div>
-            <div class="pp-label" id="q-price-label">Your weekly service</div>
-            <div class="pp-price" id="q-price">$—</div>
-            <div class="pp-note" id="q-price-note"></div>
-          </div>
-          <button class="btn-secondary" style="background:#fff;border:none;font-weight:700;" onclick="qGo(3)">Looks Good, Continue</button>
-        </div>
-        <div class="zip-section" style="margin-top:4px;">
-          <div class="zip-title">Every visit includes</div>
-          <div class="zip-tags">
-            <span class="zip-tag">&#10004; Visit on schedule</span><span class="zip-tag">&#10004; Full-yard sweep</span><span class="zip-tag">&#10004; Haul-away included</span><span class="zip-tag">&#10004; Gate latched &amp; checked</span><span class="zip-tag">&#10004; No contract, cancel anytime</span><span class="zip-tag">&#10004; No hidden fees</span>
-          </div>
-        </div>
-        <div class="q-sub" style="margin-top:10px;">Commercial, HOA, or apartment community? Call <a href="tel:+16363754342" style="color:#0F6E56;font-weight:600;">(636) 375-4342</a> for a custom proposal.</div>
-        <div class="q-nav"><button class="q-back" onclick="qGo(1)">&larr; Back</button></div>
-      </div>
 
-      <!-- STEP 3: CONFIRM -->
-      <div class="q-panel" id="qp3">
-        <div id="q-form-area">
-          <div class="q-title">Lock in your quote.</div>
-          <div class="q-sub">We'll confirm your start date within one business day. No payment now. You pay after service begins.</div>
+            <div class="q-label" style="margin-top:26px;">Where should we send your price?</div>
+            <div class="q-sub" style="margin-top:-6px;">We build your quote by hand against your address, so we need to know who we&rsquo;re quoting. We don&rsquo;t share your details with anybody.</div>
           <div class="form-row">
             <div class="form-field"><label for="qf2-name">Name</label><input id="qf2-name" type="text" required autocomplete="name" /></div>
             <div class="form-field"><label for="qf2-phone">Phone</label><input id="qf2-phone" type="tel" required autocomplete="tel" /></div>
@@ -953,28 +938,73 @@
             <div style="font-size:20px;">&#128274;</div>
             <div><strong>Payment:</strong> after we confirm your start date, you'll receive a secure link from our billing system to place a card on file. For your protection we never collect card numbers on this form. Billed monthly, no contracts, cancel anytime.</div>
           </div>
+
+            <button class="submit-btn" id="q-see-btn" onclick="qSeePrice()">See My Price &rarr;</button>
+            <div class="zip-msg" id="q-formerr" style="margin-top:12px;"></div>
+            <div class="q-sub" style="margin-top:12px;text-align:center;">No payment now &bull; No contracts, cancel anytime &bull; We never sell your details</div>
+            <div class="q-sub" style="margin-top:10px;">Commercial, HOA, or apartment community? Call <a href="tel:+16363754342" style="color:#0F6E56;font-weight:600;">(636) 375-4342</a> for a custom proposal.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           STEP 2 - the price, and the only two answers to it.
+           ============================================================ -->
+      <div class="q-panel" id="qp2">
+        <div id="q-price-area">
+          <div class="q-title">Here&rsquo;s your price<span id="q-hi-name"></span>.</div>
+          <div class="q-sub" id="q-recap">&nbsp;</div>
+          <div class="price-panel" style="margin-top:18px;">
+            <div>
+              <div class="pp-label" id="q-price-label">Your weekly service</div>
+              <div class="pp-price" id="q-price">$&mdash;</div>
+              <div class="pp-note" id="q-price-note"></div>
+            </div>
+          </div>
+          <div class="zip-section" style="margin-top:4px;">
+            <div class="zip-title">Every visit includes</div>
+            <div class="zip-tags">
+              <span class="zip-tag">&#10004; Visit on schedule</span><span class="zip-tag">&#10004; Full-yard sweep</span><span class="zip-tag">&#10004; Haul-away included</span><span class="zip-tag">&#10004; Gate latched &amp; checked</span><span class="zip-tag">&#10004; No contract, cancel anytime</span><span class="zip-tag">&#10004; No hidden fees</span>
+            </div>
+          </div>
           <div class="agree-row">
             <input type="checkbox" id="qf2-tos" />
-            <label for="qf2-tos">I have read and accept the <a href="#" onclick="qTos(true);return false;" style="color:#0F6E56;font-weight:600;">Terms of Service</a>. <strong>By accepting these terms, I am choosing to activate service</strong> at the quoted price of <strong id="q-agree-price">$—</strong>, and CL Professional Pet Services will contact me to confirm my start date. My quote assumes a yard up to &frac14; acre.</label>
+            <label for="qf2-tos">I have read and accept the <a href="#" onclick="qTos(true);return false;" style="color:#0F6E56;font-weight:600;">Terms of Service</a>. <strong>By accepting these terms, I am choosing to activate service</strong> at the quoted price of <strong id="q-agree-price">$&mdash;</strong>, and CL Professional Pet Services will contact me to confirm my start date. My quote assumes a yard up to &frac14; acre.</label>
           </div>
-          <button class="submit-btn" onclick="qSubmit(true)">Activate My Service</button>
-          <div class="q-sub" style="margin-top:14px;text-align:center;">Not ready to start today?</div>
-          <button class="q-back" style="width:100%;margin-top:6px;padding:14px;" onclick="qSubmit(false)">Save my quote instead and we'll honor it for 6 months</button>
-          <div class="q-sub" style="margin-top:12px;text-align:center;">No hidden fees &bull; Quotes honored for 6 months &bull; No contracts, cancel anytime</div>
-          <div class="zip-msg" id="q-formerr" style="margin-top:12px;"></div>
-          <div id="q-leaving" style="display:none;margin-top:12px;background:#F2F7F4;border:1px solid #CFE3DA;border-radius:12px;padding:13px 15px;">
-            <div style="font-weight:800;font-size:14.5px;margin-bottom:4px;">Before you go &mdash; want us to hold this price?</div>
-            <p style="font-size:13.5px;color:#4E5F59;margin:0 0 10px;line-height:1.6;">
-              No commitment and no card. We&rsquo;ll keep your quote on file for 6 months and you can start whenever suits you.</p>
-            <button class="submit-btn" style="margin-top:0;" onclick="qSubmit(false)">Save my quote for 6 months</button>
-            <button class="q-back" style="width:100%;margin-top:7px;" onclick="qLeaveAnyway()">No thanks, take me back</button>
+          <button class="submit-btn" id="q-yes-btn" onclick="qAnswer(true)">Yes &mdash; Start My Service</button>
+          <div class="q-sub" style="margin-top:14px;text-align:center;">Not what you were hoping for?</div>
+          <button class="q-back" style="width:100%;margin-top:6px;padding:14px;" id="q-no-btn" onclick="qDeclineOpen()">No thanks, this isn&rsquo;t for me</button>
+
+          <!-- Saying no is a real answer and we want it recorded, not
+               guessed at. The reason is what tells us whether the number
+               is wrong or the timing is. -->
+          <div id="q-decline" style="display:none;margin-top:12px;background:#F7F9F8;border:1px solid #DCE6E1;border-radius:12px;padding:16px;">
+            <div style="font-weight:800;font-size:15px;margin-bottom:4px;">No problem at all &mdash; can we ask why?</div>
+            <p style="font-size:13.5px;color:#4E5F59;margin:0 0 12px;line-height:1.6;">
+              It genuinely helps us, and it costs you one tap. Either way we&rsquo;ll hold this price for you for 6 months in case you change your mind.</p>
+            <div class="form-field">
+              <label for="q-why">What put you off?</label>
+              <select id="q-why">
+                <option value="Price is higher than I expected">Price is higher than I expected</option>
+                <option value="Just comparing quotes right now">Just comparing quotes right now</option>
+                <option value="Going with another company">Going with another company</option>
+                <option value="I will do it myself">I&rsquo;ll do it myself</option>
+                <option value="Not the right time">Not the right time</option>
+                <option value="Something else">Something else</option>
+              </select>
+            </div>
+            <div class="form-field"><label for="q-why-more">Anything else? (optional)</label><textarea id="q-why-more" placeholder="Totally optional."></textarea></div>
+            <button class="submit-btn" style="margin-top:0;" id="q-no-send" onclick="qAnswer(false)">Send &amp; hold my price for 6 months</button>
+            <button class="q-back" style="width:100%;margin-top:7px;" onclick="qDeclineClose()">Actually, take me back</button>
           </div>
-          <div class="q-nav" style="margin-top:14px;"><button class="q-back" onclick="qBackFromStep3()">&larr; Back</button></div>
+
+          <div class="zip-msg" id="q-answererr" style="margin-top:12px;"></div>
+          <div class="q-nav" style="margin-top:14px;"><button class="q-back" onclick="qGo(1)">&larr; Change my answers</button></div>
         </div>
         <div class="q-success" id="q-success">
           <div class="big" id="q-success-icon">&#127881;</div>
-          <h3 id="q-success-title">You're on the list!</h3>
-          <p id="q-success-text">Your activation is in our inbox. We'll reach out within one business day to confirm your start date and get you on the schedule. Need us sooner? Call <strong>(636) 375-4342</strong>.</p>
+          <h3 id="q-success-title">You&rsquo;re on the list!</h3>
+          <p id="q-success-text">Your activation is in our inbox. We&rsquo;ll reach out within one business day to confirm your start date and get you on the schedule. Need us sooner? Call <strong>(636) 375-4342</strong>.</p>
         </div>
       </div>
     </div>
@@ -1063,7 +1093,7 @@
   var q = { zip:"", freq:"weekly", dogs:"1", yard:"small", deo:"none" };
 
   function qGo(n){
-    for (var i=1;i<=3;i++){
+    for (var i=1;i<=2;i++){
       document.getElementById('qp'+i).classList.toggle('active', i===n);
       var s = document.getElementById('qs'+i);
       s.classList.toggle('active', i===n);
@@ -1095,20 +1125,30 @@
       }).catch(function(){});
     } catch (e) {}
   }
-  function qCheckZip(){
-    var v = (document.getElementById('q-zip').value||'').trim();
+  /* The ZIP is checked as they type rather than behind a button. Somebody
+     we cannot serve finds out before they fill anything in, and everybody
+     else gets the rest of the form the moment we know we can quote them. */
+  function qZipInput(){
+    var v = (document.getElementById('q-zip').value || '').trim();
     var msg = document.getElementById('q-zipmsg');
+    var form = document.getElementById('q-mainform');
     msg.className = 'zip-msg';
-    if(!/^\d{5}$/.test(v)){ msg.classList.add('bad'); msg.innerHTML = 'Please enter a 5-digit ZIP code.'; return; }
+    if (v.length < 5){ msg.textContent = ''; form.style.display = 'none'; return; }
+    if (!/^\d{5}$/.test(v)){
+      msg.classList.add('bad'); msg.innerHTML = 'Please enter a 5-digit ZIP code.';
+      form.style.display = 'none'; return;
+    }
     q.zip = v;
     var inArea = (typeof clppsInArea === 'function') ? clppsInArea(v) : /^(630|631|633|620|622)/.test(v);
     if (inArea){
       msg.classList.add('ok');
-      msg.innerHTML = '&#10004; Great news, we serve your area! Taking you to step 2&hellip;';
-      setTimeout(function(){ qGo(2); }, 900);
+      msg.innerHTML = '&#10004; Great news, we serve your area!';
+      document.getElementById('q-wait').style.display = 'none';
+      form.style.display = 'block';
     } else {
       msg.classList.add('ok');
       msg.innerHTML = '&#128205; ' + v + " isn't on one of our routes yet &mdash; but routes grow every month, and where they grow depends on who asks.";
+      form.style.display = 'none';
       // No auto-focus: it scrolls the message under the sticky header and
       // throws up the keyboard before they have read why we are asking.
       if (document.getElementById('q-waitdone').style.display !== 'block'){
@@ -1117,6 +1157,9 @@
       qWaitBeacon(v);
     }
   }
+  /* The old button is gone from the markup, but an old link or a stale
+     cached page can still call it. Keep it pointing at the same check. */
+  function qCheckZip(){ qZipInput(); }
   /* --- Out of area ------------------------------------------------------
      Two separate records on purpose:
      qWaitBeacon  - fires the moment an out-of-area ZIP is entered, so we can
@@ -1464,53 +1507,33 @@
   /* Backing out of the last step with contact details already typed is the
      one moment we can still keep the lead. Offer to save the quote instead
      of just dropping them, and only once - if they say no thanks, they go. */
-  var leavingAsked = false;
-  function qBackFromStep3(){
-    var name = (document.getElementById('qf2-name').value || '').trim();
-    var phone = (document.getElementById('qf2-phone').value || '').trim();
-    var email = (document.getElementById('qf2-email').value || '').trim();
-    if (!leavingAsked && name && (phone || email)){
-      leavingAsked = true;
-      var box = document.getElementById('q-leaving');
-      box.style.display = 'block';
-      box.scrollIntoView({ behavior:'smooth', block:'center' });
-      return;
-    }
-    qGo(2);
-  }
-  function qLeaveAnyway(){
-    document.getElementById('q-leaving').style.display = 'none';
-    qGo(2);
-  }
+  /* ============================================================
+     ONE QUOTE REQUEST, TWO MOMENTS.
 
-  function qSubmit(activate){
-    var err = document.getElementById('q-formerr');
-    err.className = 'zip-msg'; err.textContent = '';
-    var name = document.getElementById('qf2-name').value.trim();
-    var phone = document.getElementById('qf2-phone').value.trim();
-    if (!name || !phone){ err.classList.add('bad'); err.textContent = 'Please add your name and phone number so we can reach you.'; return; }
-    if (activate && !document.getElementById('qf2-tos').checked){
-      err.classList.add('bad');
-      err.textContent = 'To activate service, please read and accept the Terms of Service (that\u2019s what turns your quote into a start date).';
-      return;
-    }
-    var p = qPriceParts();
-    var priceStr = p.manual ? 'custom, to be quoted' : p.agree;
-    var payload = {
-      _cc: BIZ_EMAIL,
-      _autoresponse: activate
-        ? 'Welcome to CL Professional Pet Services! Your service activation is in. Within one business day you\u2019ll receive a separate email inviting you to your Sweep&Go client account \u2014 that\u2019s your home base, where you can see your visit schedule, get on-the-way and job-done notifications with photo proof, pay invoices and manage your card on file, and update your gate code or pet details anytime. Questions before then? Call or text (636) 375-4342.'
-        : 'Your quote is saved and we\u2019ll honor it for a full 6 months. Whenever you\u2019re ready, come back to clpropetservices.com to activate, or call/text (636) 375-4342 and mention your saved quote. \u2014 CL Professional Pet Services',
-      _subject: (activate ? '\u2705 ACTIVATE SERVICE: ' : '\ud83d\udcbe SAVED QUOTE (6 mo): ') + name + (p.manual ? ' (manual review)' : ' at $' + p.total + p.per),
-      Status: activate ? 'ACTIVATED: accepted Terms of Service, wants to start service' : 'SAVED QUOTE: not activating yet; honor price for 6 months',
-      Name: name,
-      Phone: phone,
-      Email: document.getElementById('qf2-email').value.trim(),
-      Address: document.getElementById('qf2-addr').value.trim(),
-      Address_Verified: addrVerified
-        ? ('YES, matched map lookup' + (addrPickedZip && q.zip && addrPickedZip !== q.zip ? ' (NOTE: address ZIP ' + addrPickedZip + ' differs from step-1 ZIP ' + q.zip + ')' : ''))
-        : 'no, typed manually — double-check before first visit',
-      ZIP: q.zip,
+     Step 1 files the request (type ENQUIRY) BEFORE the price is shown.
+     Step 2 shows the price and takes the only two answers there are.
+     The answer is written under the SAME id, so the tracker - which
+     keeps the newest row per id - shows one person whose state moved
+     from "waiting on them" to accepted or declined, not three people.
+
+     The point of the order: everybody who sees a number is somebody we
+     can ring back. A no is worth having written down too; it is the only
+     way to find out whether the price is wrong or just the timing.
+     ============================================================ */
+  var qEnquiry = { id:'', filed:false };
+  var qAnswered = false;
+
+  function qFormValues(){
+    var g = function(id){ return (document.getElementById(id).value || '').trim(); };
+    return { name:g('qf2-name'), phone:g('qf2-phone'), email:g('qf2-email'),
+             address:g('qf2-addr'), notes:g('qf2-notes') };
+  }
+  function qFirstName(n){ return String(n || '').trim().split(/\s+/)[0] || ''; }
+
+  /* The shape both the sheet row and the email are built from, so an
+     enquiry and its answer can never describe different services. */
+  function qFacts(p){
+    return {
       Service: q.freq === 'biweekly' ? 'every other week' : (q.freq === 'twiceweekly' ? 'twice a week' : (q.freq === 'onetime' ? 'one-time' : q.freq)),
       Pricing_Tier: q.freq === 'onetime' ? 'n/a (flat rate)' : (typeof clppsZipTier === 'function' ? clppsZipTier(q.zip) : 'unknown'),
       Dogs: q.dogs === '5' ? '5+ (manual pricing)' : q.dogs,
@@ -1520,46 +1543,139 @@
       Hero_Discount: document.getElementById('qf2-hero').checked
         ? 'CLAIMED: ' + document.getElementById('qf2-branch').value + ' (verify service ID at first contact, apply discount manually)'
         : 'no',
-      Quoted_Price: priceStr,
-      Quote_Honored_Until: new Date(Date.now() + 183*24*3600*1000).toDateString(),
-      TOS_Accepted: activate ? 'YES at ' + new Date().toISOString() : 'not yet (quote saved only)',
-      Notes: document.getElementById('qf2-notes').value.trim(),
+      Quoted_Price: p.manual ? 'custom, to be quoted' : p.agree,
+      Quote_Honored_Until: new Date(Date.now() + 183*24*3600*1000).toDateString()
+    };
+  }
+  function qCrmRow(kind, p, why){
+    var v = qFormValues(), f = qFacts(p);
+    return {
+      id: qEnquiry.id,
+      created: new Date().toISOString(),
+      // [QA:] is the answer to the quote: w = still waiting on them,
+      // a = accepted, d = declined. The tracker chases w and offers to
+      // win back d. [IC:w] stamps a waived initial clean so the revenue
+      // figures never count $40 we did not charge.
+      crmnotes: '[SID:' + vSid() + '] ' + (leadSource() ? '[SRC:' + leadSource() + '] ' : '') +
+                (!p.manual && p.per === '/mo' && !p.initial ? '[IC:w] ' : '') +
+                '[QA:' + (kind === 'ACTIVATE' ? 'a' : (kind === 'DECLINED' ? 'd' : 'w')) + '] ' +
+                (why || ''),
+      type: kind,
+      name: v.name, phone: v.phone, email: v.email, address: v.address, zip: q.zip,
+      service: f.Service, dogs: f.Dogs, yard: f.Yard_Size, deodorize: f.Deodorize,
+      hero: f.Hero_Discount, price: f.Quoted_Price, manual: f.Manual_Review,
+      honored: f.Quote_Honored_Until, notes: v.notes
+    };
+  }
+  function qPayload(kind, p, why){
+    var v = qFormValues(), f = qFacts(p);
+    var subj = kind === 'ACTIVATE' ? '✅ ACTIVATE SERVICE: '
+             : kind === 'DECLINED' ? '👎 SAID NO TO THEIR QUOTE: '
+             : '📝 NEW QUOTE REQUEST: ';
+    var auto = kind === 'ACTIVATE'
+      ? 'Welcome to CL Professional Pet Services! Your service activation is in. Within one business day you’ll receive a separate email inviting you to your Sweep&Go client account — that’s your home base, where you can see your visit schedule, get on-the-way and job-done notifications with photo proof, pay invoices and manage your card on file, and update your gate code or pet details anytime. Questions before then? Call or text (636) 375-4342.'
+      : kind === 'DECLINED'
+      ? 'Thanks for letting us know — no hard feelings at all. We’ve saved your quote and we’ll honor it for a full 6 months, so if anything changes just call or text (636) 375-4342 and mention it. If it was the price, it is worth a conversation: we can often do something on a larger yard or a longer schedule. — CL Professional Pet Services'
+      : 'Thanks for your quote request! Your price is on screen now, and we’ve saved it for 6 months either way. Questions before you decide? Call or text (636) 375-4342. — CL Professional Pet Services';
+    var payload = {
+      _cc: BIZ_EMAIL,
+      _autoresponse: auto,
+      _subject: subj + v.name + (p.manual ? ' (manual review)' : ' at $' + p.total + p.per),
+      Status: kind === 'ACTIVATE' ? 'ACTIVATED: accepted Terms of Service, wants to start service'
+            : kind === 'DECLINED' ? 'DECLINED the quote: ' + (why || 'no reason given')
+            : 'QUOTE REQUEST: details captured, price shown, waiting on their answer',
+      Name: v.name, Phone: v.phone, Email: v.email, Address: v.address,
+      Address_Verified: addrVerified
+        ? ('YES, matched map lookup' + (addrPickedZip && q.zip && addrPickedZip !== q.zip ? ' (NOTE: address ZIP ' + addrPickedZip + ' differs from the ZIP they typed, ' + q.zip + ')' : ''))
+        : 'no, typed manually — double-check before first visit',
+      ZIP: q.zip,
+      TOS_Accepted: kind === 'ACTIVATE' ? 'YES at ' + new Date().toISOString() : 'not accepted',
+      Notes: v.notes,
       Lead_Source: leadSource() || 'unknown'
     };
-    crmCapture({
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-      created: new Date().toISOString(),
-      // Stamp a waived fee so the revenue figures never count $40 we did not
-      // charge, and so the promotion's sign-ups can be told apart later.
-      crmnotes: '[SID:' + vSid() + '] ' + (leadSource() ? '[SRC:' + leadSource() + '] ' : '') +
-                (!p.manual && p.per === '/mo' && !p.initial ? '[IC:w] ' : ''),
-      type: activate ? 'ACTIVATE' : 'SAVED',
-      name: name,
-      phone: phone,
-      email: payload.Email,
-      address: payload.Address,
-      zip: q.zip,
-      service: payload.Service,
-      dogs: payload.Dogs,
-      yard: payload.Yard_Size,
-      deodorize: payload.Deodorize,
-      hero: payload.Hero_Discount,
-      price: priceStr,
-      manual: payload.Manual_Review,
-      honored: payload.Quote_Honored_Until,
-      notes: payload.Notes
-    });
-    var btn = document.querySelector('#q-form-area .submit-btn');
-    btn.disabled = true; btn.textContent = 'Sending\u2026';
+    var f = qFacts(p);
+    for (var k in f) payload[k] = f[k];
+    if (why) payload.Why_They_Said_No = why;
+    return payload;
+  }
+  function qMail(payload, done, fail){
     fetch('https://formsubmit.co/ajax/' + FORM_EMAIL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify(payload)
-    }).then(function(r){ return r.json(); }).then(function(){
-      // Meta's Lead event means one thing only: a confirmed activation.
-      // It fires here — after the submit succeeded — and never on a saved
-      // quote, a price view, or a failed send. Once per visitor, at most.
-      if (activate){
+    }).then(function(r){ return r.json(); }).then(done).catch(fail || function(){});
+  }
+
+  /* --- Step 1 -> step 2 ------------------------------------------------ */
+  function qSeePrice(){
+    var err = document.getElementById('q-formerr');
+    err.className = 'zip-msg'; err.textContent = '';
+    var v = qFormValues();
+    if (!/^\d{5}$/.test(q.zip)){
+      err.classList.add('bad'); err.textContent = 'Please enter your ZIP code first so we can price your yard.';
+      document.getElementById('q-zip').focus(); return;
+    }
+    if (!v.name || !v.phone){
+      err.classList.add('bad');
+      err.textContent = 'Please add your name and phone number — that’s how we get your quote to you.';
+      document.getElementById(v.name ? 'qf2-phone' : 'qf2-name').focus(); return;
+    }
+    var p = qPriceParts();
+    if (!qEnquiry.id) qEnquiry.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    // File it BEFORE the price appears. If they close the tab on seeing the
+    // number, we still have them - that was the whole reason for the change.
+    //
+    // Re-filed every time, because they can go back and change their answers:
+    // the row is written under the same id, and the tracker keeps the newest
+    // row per id, so the sheet always reflects the price they were actually
+    // last shown. The EMAIL only goes once, or toggling between weekly and
+    // every-other-week would mail the office on every tap.
+    crmCapture(qCrmRow('ENQUIRY', p, ''));
+    if (!qEnquiry.filed){
+      qEnquiry.filed = true;
+      qMail(qPayload('ENQUIRY', p, ''), function(){}, function(){});
+    }
+    document.getElementById('q-hi-name').textContent = qFirstName(v.name) ? ', ' + qFirstName(v.name) : '';
+    var f = qFacts(p);
+    document.getElementById('q-recap').textContent =
+      f.Service + ' · ' + (q.dogs === '5' ? '5+ dogs' : q.dogs + (q.dogs === '1' ? ' dog' : ' dogs')) +
+      ' · ' + q.zip + (q.deo === 'none' ? '' : ' · with deodorize');
+    qGo(2);
+  }
+
+  /* --- The answer ------------------------------------------------------ */
+  function qDeclineOpen(){
+    var box = document.getElementById('q-decline');
+    box.style.display = 'block';
+    box.scrollIntoView({ behavior:'smooth', block:'center' });
+  }
+  function qDeclineClose(){ document.getElementById('q-decline').style.display = 'none'; }
+
+  function qAnswer(accept){
+    var err = document.getElementById('q-answererr');
+    err.className = 'zip-msg'; err.textContent = '';
+    if (accept && !document.getElementById('qf2-tos').checked){
+      err.classList.add('bad');
+      err.textContent = 'To start service, please read and accept the Terms of Service (that’s what turns your quote into a start date).';
+      return;
+    }
+    if (qAnswered) return;
+    qAnswered = true;
+    var p = qPriceParts();
+    var why = '';
+    if (!accept){
+      var more = (document.getElementById('q-why-more').value || '').trim();
+      why = document.getElementById('q-why').value + (more ? ' — ' + more : '');
+    }
+    var kind = accept ? 'ACTIVATE' : 'DECLINED';
+    crmCapture(qCrmRow(kind, p, why));
+    var btn = document.getElementById(accept ? 'q-yes-btn' : 'q-no-send');
+    var label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Sending…';
+    var payload = qPayload(kind, p, why);
+    qMail(payload, function(){
+      if (accept){
+        // Meta's Lead event means one thing only: a confirmed activation.
         if (!leadTracked){
           leadTracked = true;
           if (window.clppsTrack) clppsTrack('Lead', {
@@ -1568,31 +1684,39 @@
           });
         }
       } else if (window.clppsTrackCustom){
-        clppsTrackCustom('SavedQuote', {
+        clppsTrackCustom('QuoteDeclined', {
           content_category: q.freq, value: p.manual ? 0 : p.total, currency: 'USD'
         });
       }
-      document.getElementById('q-form-area').style.display = 'none';
-      var icon = document.getElementById('q-success-icon');
-      var title = document.getElementById('q-success-title');
-      var text = document.getElementById('q-success-text');
-      if (activate){
-        icon.innerHTML = '&#127881;';
-        title.textContent = "You're on the list!";
-        text.innerHTML = "Your activation is in our inbox. We'll reach out within one business day to confirm your start date and get you on the schedule. Need us sooner? Call <strong>(636) 375-4342</strong>.";
-      } else {
-        icon.innerHTML = '&#128190;';
-        title.textContent = 'Your quote is locked in for 6 months!';
-        text.innerHTML = 'We saved your quote' + (p.manual ? '' : ' of <strong>' + (p.per ? '$' + p.total + p.per : '$' + p.total) + '</strong>') +
-          ". We'll honor it until <strong>" + new Date(Date.now() + 183*24*3600*1000).toLocaleDateString() + '</strong>. ' +
-          'Whenever you\u2019re ready, come back and activate or just call <strong>(636) 375-4342</strong> and mention your saved quote.';
-      }
-      document.getElementById('q-success').classList.add('show');
-    }).catch(function(){
+      qDone(accept, p);
+    }, function(){
+      // The email failed but the sheet row is already in. Hand them off to
+      // their mail app rather than losing the answer.
       var body = Object.keys(payload).map(function(k){ return k + ': ' + payload[k]; }).join('%0D%0A');
-      window.location.href = 'mailto:' + BIZ_EMAIL + '?subject=New%20Quote%20Request&body=' + body;
-      btn.disabled = false; btn.textContent = 'Activate My Service';
+      window.location.href = 'mailto:' + BIZ_EMAIL + '?subject=Quote%20response&body=' + body;
+      btn.disabled = false; btn.textContent = label;
+      qAnswered = false;
     });
+  }
+  function qDone(accept, p){
+    document.getElementById('q-price-area').style.display = 'none';
+    var icon = document.getElementById('q-success-icon');
+    var title = document.getElementById('q-success-title');
+    var text = document.getElementById('q-success-text');
+    if (accept){
+      icon.innerHTML = '&#127881;';
+      title.textContent = "You're on the list!";
+      text.innerHTML = "Your activation is in our inbox. We'll reach out within one business day to confirm your start date and get you on the schedule. Need us sooner? Call <strong>(636) 375-4342</strong>.";
+    } else {
+      icon.innerHTML = '&#128078;';
+      title.textContent = 'Thanks for telling us.';
+      text.innerHTML = 'No hard feelings at all &mdash; and your price is not going anywhere. We&rsquo;ll hold ' +
+        (p.manual ? 'your quote' : '<strong>$' + p.total + (p.per || '') + '</strong>') +
+        ' until <strong>' + new Date(Date.now() + 183*24*3600*1000).toLocaleDateString() + '</strong>. ' +
+        'If anything changes, or if you just want to talk it through, call or text <strong>(636) 375-4342</strong>.';
+    }
+    document.getElementById('q-success').classList.add('show');
+    window.scrollTo({ top:0, behavior:'smooth' });
   }
 
   function faqToggle(btn){
