@@ -911,7 +911,7 @@
             <div class="form-field"><label for="qf2-phone">Phone</label><input id="qf2-phone" type="tel" required autocomplete="tel" /></div>
           </div>
           <div class="form-row">
-            <div class="form-field"><label for="qf2-email">Email</label><input id="qf2-email" type="email" autocomplete="email" /></div>
+            <div class="form-field"><label for="qf2-email">Email</label><input id="qf2-email" type="email" required autocomplete="email" placeholder="We send your quote here in writing" /></div>
             <div class="form-field addr-wrap"><label for="qf2-addr">Service Address</label>
               <input id="qf2-addr" type="text" autocomplete="off" placeholder="Start typing, then pick your address&hellip;" oninput="addrInput()" onblur="addrBlur()" />
               <div class="addr-sug" id="addr-sug"></div>
@@ -1620,6 +1620,16 @@
       err.textContent = 'Please add your name and phone number — that’s how we get your quote to you.';
       document.getElementById(v.name ? 'qf2-phone' : 'qf2-name').focus(); return;
     }
+    // Email is required, not optional. It is the only way we can send a
+    // written copy of the quote, and the only way to follow up later without
+    // cold-calling somebody who already said no once.
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v.email)){
+      err.classList.add('bad');
+      err.textContent = v.email
+        ? 'That email doesn’t look right — mind checking it? We send your quote in writing.'
+        : 'Please add your email so we can send your quote in writing.';
+      document.getElementById('qf2-email').focus(); return;
+    }
     var p = qPriceParts();
     if (!qEnquiry.id) qEnquiry.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     // File it BEFORE the price appears. If they close the tab on seeing the
@@ -1635,6 +1645,11 @@
       qEnquiry.filed = true;
       qMail(qPayload('ENQUIRY', p, ''), function(){}, function(){});
     }
+    // "Start My Service" is wrong for a single cleanup, and wronger still for
+    // a 5-dog yard where there is no price on screen to agree to yet.
+    document.getElementById('q-yes-btn').textContent =
+      p.manual ? 'Yes — Have Someone Quote Me'
+               : (q.freq === 'onetime' ? 'Yes — Book My Cleanup' : 'Yes — Start My Service');
     document.getElementById('q-hi-name').textContent = qFirstName(v.name) ? ', ' + qFirstName(v.name) : '';
     var f = qFacts(p);
     document.getElementById('q-recap').textContent =
