@@ -460,7 +460,7 @@ function renderAlerts(){
     return '<div onclick="jumpToLead(\'' + esc(l.id) + '\')" style="background:rgba(255,255,255,0.16);border-radius:10px;padding:9px 12px;margin-top:8px;cursor:pointer;">' +
       '<div style="font-size:13.5px;font-weight:700;">&#128062; New lead: ' + esc(l.name || '(no name)') + (p ? ' &mdash; ' + esc(p) : '') + '</div>' +
       '<div style="font-size:12px;font-weight:400;opacity:0.92;margin-top:2px;">' +
-      esc(l.service || '') + (l.dogs ? ' &middot; ' + esc(l.dogs) + ' dog(s)' : '') + ' &middot; came in ' +
+      esc(planLabel(l.service)) + (l.dogs ? ' &middot; ' + esc(dogsLabel(l.dogs)) : '') + ' &middot; came in ' +
       esc(l.created ? new Date(l.created).toLocaleString() : '') + '. <u>Tap to open</u></div></div>';
   }).join('');
   var qrRows = newQR.length
@@ -554,6 +554,27 @@ function attemptLead(id){
   render();
   renderTraffic();
   post({action:'update', key:KEY, id:id, notes:l.crmnotes}, 'Attempt #' + m.att + ' logged');
+}
+/* How a plan and a dog count should read on a card.
+
+   The wizard and the manual entry form both store plain English already
+   ("every other week"), so this is mostly a safety net: a lead taken
+   before that, or one edited by hand, can still carry the wizard's
+   internal word. Either way the card should never show our vocabulary
+   back at us - Jesse reads these all day, and "1 dog(s) · biweekly" is
+   not how anybody says it. */
+function planLabel(v){
+  var s = String(v == null ? '' : v).trim();
+  var map = { biweekly:'every other week', 'bi-weekly':'every other week',
+              twiceweekly:'twice a week', 'twice-weekly':'twice a week',
+              onetime:'one-time' };
+  return map[s.toLowerCase()] || s;
+}
+/* "1 dog", "3 dogs", "6+ dogs". Blank stays blank so a caller can decide
+   whether to print anything at all. */
+function dogsLabel(n){
+  var s = String(n == null ? '' : n).trim();
+  return s ? s + ' dog' + (s === '1' ? '' : 's') : '';
 }
 function fuParse(crmnotes){
   var s = String(crmnotes || '');
@@ -1016,7 +1037,7 @@ function gptContext(){
   }).join('\n');
   var rows = live.slice(0, 120).map(function(l){
     var f = fuParse(l.crmnotes);
-    return [l.name || '(no name)', l.status || 'new', l.service || '', (l.dogs || '') + ' dogs', l.price || 'no price',
+    return [l.name || '(no name)', l.status || 'new', planLabel(l.service), dogsLabel(l.dogs), l.price || 'no price',
             l.zip || '', f.src ? 'from ' + f.src : 'source unknown',
             'created ' + String(l.created || '').slice(0, 10),
             f.cd ? 'closed ' + f.cd : '', f.sd ? 'first visit ' + f.sd : '',
@@ -1310,7 +1331,7 @@ function askAnswer(qRaw){
         var f = fuParse(l.crmnotes);
         return (l.name || '(no name)') + ' — ' + (l.status || 'new') +
           (l.price ? '\n  Price: ' + l.price : '') +
-          (l.service ? '\n  Service: ' + l.service + (l.dogs ? ', ' + l.dogs + ' dog(s)' : '') : '') +
+          (l.service ? '\n  Service: ' + planLabel(l.service) + (l.dogs ? ', ' + dogsLabel(l.dogs) : '') : '') +
           (l.phone ? '\n  Phone: ' + l.phone : '') +
           (l.address ? '\n  Address: ' + l.address : '') +
           (f.src ? '\n  Came from: ' + f.src : '') +
@@ -1426,7 +1447,7 @@ function renderWait(){
       return '<div style="border-top:1px solid #f0f0f0;padding:8px 0 8px 10px;">' +
         '<div style="font-weight:700;">' + esc(l.name || '(no name)') + '</div>' +
         '<div style="font-size:12px;color:#666;">' + esc(contact) +
-          (l.dogs ? ' &middot; ' + esc(l.dogs) + ' dog(s)' : '') + (when ? ' &middot; ' + esc(when) : '') + '</div>' +
+          (l.dogs ? ' &middot; ' + esc(dogsLabel(l.dogs)) : '') + (when ? ' &middot; ' + esc(when) : '') + '</div>' +
         (story ? '<div style="font-size:12.5px;color:#444;margin-top:4px;font-style:italic;">&ldquo;' + esc(story) + '&rdquo;</div>' : '') +
         (l.phone ? '<a href="tel:' + esc(String(l.phone).replace(/[^0-9+]/g, '')) + '" style="display:inline-block;margin-top:6px;background:#1D9E75;color:#fff;text-decoration:none;border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:700;">&#128222; Call them</a>' : '') +
         (l.email ? '<a href="mailto:' + esc(l.email) + '" style="display:inline-block;margin-top:6px;margin-left:6px;background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;text-decoration:none;border-radius:8px;padding:5px 11px;font-size:12.5px;font-weight:700;">&#9993;&#65039; Email</a>' : '') +
@@ -2463,7 +2484,7 @@ function render(){
         (l.phone ? '&#128222; <a href="tel:' + esc(digits) + '">' + esc(l.phone) + '</a><br>' : '') +
         (l.email ? '&#9993;&#65039; <a href="mailto:' + esc(l.email) + '">' + esc(l.email) + '</a><br>' : '') +
         (l.address || l.zip ? '&#128205; ' + esc((l.address ? l.address + ', ' : '') + (l.zip||'')) + '<br>' : '') +
-        '&#128021; ' + esc(l.dogs||'?') + ' dog(s) &middot; ' + esc(l.service||'') +
+        '&#128021; ' + esc(l.dogs ? dogsLabel(l.dogs) : '? dogs') + ' &middot; ' + esc(planLabel(l.service)) +
         (l.deodorize && l.deodorize !== 'no' ? ' &middot; deodorize' : '') +
         (l.hero && l.hero !== 'no'
           ? '<br>&#127894; Hero discount claimed' +
@@ -2659,13 +2680,11 @@ function renderDetail(){
     var s = fuParse(l.crmnotes).sid;
     if (s && !sidLead[s]) sidLead[s] = l;
   });
+  /* The beacon stores the plan and dogs as one string, "weekly / 2 dog(s)". */
   var planName = function(n){
-    return String(n || '')
-      .replace(/^twiceweekly/, 'twice a week')
-      .replace(/^biweekly/, 'every other week')
-      .replace(/^onetime/, 'one-time')
-      .replace(/ \/ /, ', ')
-      .replace(/(\d+) dog\(s\)/, function(_, n){ return n + (n === '1' ? ' dog' : ' dogs'); });
+    var bits = String(n || '').split(' / ');
+    var dogs = dogsLabel((bits[1] || '').replace(/\s*dog\(s\)/, ''));
+    return planLabel(bits[0]) + (dogs ? ', ' + dogs : '');
   };
   var qvLine = function(qv){
     var became = qv.yard ? sidLead[qv.yard] : null;
