@@ -2648,7 +2648,43 @@ function renderDetail(){
     return Object.keys(m).sort(function(a, b){ return m[b] - m[a]; })
       .map(function(k){ return esc(k) + ' (' + m[k] + ')'; }).join(' &middot; ');
   };
-  var funnel = '<div style="font-weight:800;font-size:13px;margin-bottom:8px;">&#128200; Funnel, last 30 days</div>' +
+  /* A price view is anonymous - nobody has typed a name yet. But the visit
+     id rides on the price view AND on the lead, if they go on to submit
+     one. So the person can be named after the fact, and the ones who never
+     came back are exactly the people worth knowing about: they saw a real
+     number and walked. The price itself has been in the sheet all along,
+     it just was not being shown. */
+  var sidLead = {};
+  leads.forEach(function(l){
+    var s = fuParse(l.crmnotes).sid;
+    if (s && !sidLead[s]) sidLead[s] = l;
+  });
+  var planName = function(n){
+    return String(n || '')
+      .replace(/^twiceweekly/, 'twice a week')
+      .replace(/^biweekly/, 'every other week')
+      .replace(/^onetime/, 'one-time')
+      .replace(/ \/ /, ', ')
+      .replace(/(\d+) dog\(s\)/, function(_, n){ return n + (n === '1' ? ' dog' : ' dogs'); });
+  };
+  var qvLine = function(qv){
+    var became = qv.yard ? sidLead[qv.yard] : null;
+    var when = new Date(qv.created).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+    var price = qv.price && qv.price !== 'manual'
+      ? '<strong style="color:#8a6d1a;">' + esc(qv.price) + '</strong>'
+      : '<strong style="color:#8a6d1a;">custom quote</strong>';
+    return '<div style="font-size:11.5px;color:#777;margin-top:2px;padding-left:14px;">' +
+      price +
+      (qv.name ? ' &middot; ' + esc(planName(qv.name)) : '') +
+      (qv.zip ? ' &middot; ' + esc(qv.zip) : '') +
+      ' &middot; ' + esc(qvSource(qv)) +
+      ' &middot; ' + when +
+      (became
+        ? ' &middot; <span style="color:#0F6E56;font-weight:700;">&#8594; became a lead: ' + esc(became.name || '?') + '</span>'
+        : ' &middot; <span style="color:#b45309;font-weight:700;">&#8594; never submitted</span>') +
+      '</div>';
+  };
+  var funnel ='<div style="font-weight:800;font-size:13px;margin-bottom:8px;">&#128200; Funnel, last 30 days</div>' +
     steps.map(function(st, i){
       var pct = Math.round(st[1] / base * 100);
       var stepPct = i > 0 && steps[i-1][1] > 0 ? Math.round(st[1] / steps[i-1][1] * 100) + '% of previous' : '';
@@ -2669,7 +2705,6 @@ function renderDetail(){
     var dayPricedList = qviews.filter(function(q){ return gDayKey(new Date(q.created)) === k; });
     var dayPriced = dayPricedList.length;
     if (!dayViews.length && !dayLeads.length && !dayPriced) continue;
-    var pricedStr = dayPriced ? tallySources(dayPricedList) : '';
     var pages = {}, srcs = {};
     dayViews.forEach(function(v){
       pages[v.name || '?'] = (pages[v.name || '?'] || 0) + 1;
@@ -2687,7 +2722,12 @@ function renderDetail(){
       (dayLeads.length ? ' &middot; <span style="color:#1D9E75;">' + dayLeads.length + ' lead' + (dayLeads.length === 1 ? '' : 's') + '</span>' : '') + '</span></div>' +
       (pageStr ? '<div style="font-size:11.5px;color:#777;margin-top:2px;">Pages: ' + pageStr + '</div>' : '') +
       (srcStr ? '<div style="font-size:11.5px;color:#999;margin-top:1px;">From: ' + srcStr + '</div>' : '') +
-      (pricedStr ? '<div style="font-size:11.5px;color:#8a6d1a;margin-top:1px;">&#128178; Saw a price, from: ' + pricedStr + '</div>' : '') +
+      (dayPriced ? '<div style="font-size:11.5px;color:#8a6d1a;margin-top:3px;font-weight:700;">&#128178; Saw a price (' + dayPriced + ')</div>' +
+        dayPricedList.slice()
+          .sort(function(a, b){ return new Date(b.created) - new Date(a.created); })
+          .slice(0, 8).map(qvLine).join('') +
+        (dayPriced > 8 ? '<div style="font-size:11px;color:#999;padding-left:14px;">and ' + (dayPriced - 8) + ' more</div>' : '')
+        : '') +
       (dayLeads.length ? '<div style="font-size:11.5px;color:#0F6E56;margin-top:1px;">Leads: ' + dayLeads.map(function(l){ return esc(l.name || '?'); }).join(', ') + '</div>' : '') +
       '</div>';
   }
