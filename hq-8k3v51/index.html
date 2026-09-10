@@ -24,7 +24,7 @@
   .toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;}
   .toolbar input{flex:1;min-width:140px;padding:10px 12px;border:1px solid #ddd;border-radius:10px;font-size:14px;font-family:inherit;}
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
-  .chip{background:#fff;border:1px solid #ddd;border-radius:16px;padding:6px 13px;font-size:12.5px;cursor:pointer;color:#555;font-family:inherit;}
+  .chip{background:#fff;border:1px solid #ddd;border-radius:17px;padding:9px 14px;font-size:12.5px;cursor:pointer;color:#555;font-family:inherit;min-height:34px;}
   .chip.on{background:#0F6E56;color:#fff;border-color:#0F6E56;font-weight:600;}
   .copybtn{background:#fff;border:1px solid #1D9E75;color:#0F6E56;border-radius:10px;padding:9px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600;}
   .card{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);border-left:5px solid #bbb;}
@@ -402,7 +402,7 @@ function loadLeads(showToast, cb, isRetry){
       var ob = document.getElementById('offline');
       ob.style.display = 'block';
       ob.innerHTML = '&#9888;&#65039; Can\u2019t reach the database right now' +
-        (statsTs ? ' &mdash; showing your last synced copy from ' + new Date(statsTs).toLocaleString() : '') +
+        (whenText(statsTs) ? ' &mdash; showing your last synced copy from ' + whenText(statsTs) : '') +
         '. Retrying automatically\u2026 <a href="#" onclick="loadLeads(true);return false;" style="color:#7a5c00;font-weight:700;">retry now</a>';
       if (!isRetry) setTimeout(function(){ loadLeads(false, null, true); }, 4000);
       if (cb) cb(false);
@@ -478,13 +478,13 @@ function renderAlerts(){
       '<div style="font-size:13.5px;font-weight:700;">&#128062; New lead: ' + esc(l.name || '(no name)') + (p ? ' &mdash; ' + esc(p) : '') + '</div>' +
       '<div style="font-size:12px;font-weight:400;opacity:0.92;margin-top:2px;">' +
       esc(planLabel(l.service)) + (l.dogs ? ' &middot; ' + esc(dogsLabel(l.dogs)) : '') + ' &middot; came in ' +
-      esc(l.created ? new Date(l.created).toLocaleString() : '') + '. <u>Tap to open</u></div></div>';
+      esc(whenText(l.created)) + '. <u>Tap to open</u></div></div>';
   }).join('');
   var qrRows = newQR.length
     ? '<div onclick="openQRFromAlert()" style="background:rgba(255,255,255,0.16);border-radius:10px;padding:9px 12px;margin-top:8px;cursor:pointer;">' +
         '<div style="font-size:13.5px;font-weight:700;">&#128241; ' + newQR.length + ' yard sign QR scan' + (newQR.length > 1 ? 's' : '') + '</div>' +
         '<div style="font-size:12px;font-weight:400;opacity:0.92;margin-top:2px;">Most recent ' +
-        esc(new Date(newQR[0].created).toLocaleString()) + '. Somebody scanned a sign and landed on the quote page. <u>Tap for the log</u></div></div>'
+        esc(whenText(newQR[0].created)) + '. Somebody scanned a sign and landed on the quote page. <u>Tap for the log</u></div></div>'
     : '';
   var bg = newAuth.length ? 'linear-gradient(135deg,#0F6E56,#1D9E75)' : (newLead.length ? '#1a6fd4' : '#6B4FA8');
   box.style.display = 'block';
@@ -589,6 +589,15 @@ function planLabel(v){
 }
 /* "1 dog", "3 dogs", "6+ dogs". Blank stays blank so a caller can decide
    whether to print anything at all. */
+/* A row can carry a date that will not parse - typed by hand into the
+   sheet, pasted from somewhere, or blank. Formatting it produced the
+   literal words "Invalid Date" on the lead card. Say nothing instead. */
+function whenText(v, dateOnly){
+  if (!v) return '';
+  var d = new Date(v);
+  if (isNaN(d.getTime())) return '';
+  return dateOnly ? d.toLocaleDateString() : d.toLocaleString();
+}
 function dogsLabel(n){
   var s = String(n == null ? '' : n).trim();
   return s ? s + ' dog' + (s === '1' ? '' : 's') : '';
@@ -880,14 +889,30 @@ function addManual(){
   toggleAdd();
   toast('Lead added ✓');
 }
+/* answer and why are worked out from the row rather than stored on it, so
+   the download says "said no / Price is higher than I expected" instead of
+   making somebody decode [QA:d] out of the notes column. */
 var CSV_COLS = ['created','type','name','phone','email','address','zip','service','dogs',
-                'yard','deodorize','hero','price','manual','honored','notes','status','crmnotes'];
+                'yard','deodorize','hero','price','manual','honored','notes','status',
+                'answer','why','source','followed_up','crmnotes'];
+function csvValue(l, c){
+  if (c === 'answer'){
+    var q = quoteState(l);
+    return q === 'accepted' ? 'said yes'
+         : q === 'declined' ? 'said no'
+         : q === 'waiting'  ? 'no answer yet' : '';
+  }
+  if (c === 'why') return quoteState(l) === 'declined' ? fuParse(l.crmnotes).text : '';
+  if (c === 'source') return fuParse(l.crmnotes).src || '';
+  if (c === 'followed_up') return fuParse(l.crmnotes).wb || '';
+  return l[c];
+}
 function exportCsv(){
   if (!leads.length){ toast('Nothing to download yet'); return; }
   var esc = function(v){ v = String(v == null ? '' : v); return '"' + v.replace(/"/g, '""') + '"'; };
   var rows = [CSV_COLS.join(',')];
   leads.forEach(function(l){
-    rows.push(CSV_COLS.map(function(c){ return esc(l[c]); }).join(','));
+    rows.push(CSV_COLS.map(function(c){ return esc(csvValue(l, c)); }).join(','));
   });
   var blob = new Blob(['﻿' + rows.join('\r\n')], {type: 'text/csv;charset=utf-8;'});
   var a = document.createElement('a');
@@ -919,7 +944,11 @@ function visible(){
     else if (filter === 'interested'){ if (quoteState(l) === 'declined' || st === 'lost') return false; }
     else if (filter !== 'all' && st !== filter) return false;
     if (!s) return true;
-    return ((l.name||'')+(l.phone||'')+(l.email||'')+(l.zip||'')+(l.address||'')).toLowerCase().indexOf(s) >= 0;
+    // Search the notes too: "spring" should find the person who said ask me
+    // in spring, and "eureka" should find them by what they typed.
+    return ((l.name||'')+(l.phone||'')+(l.email||'')+(l.zip||'')+(l.address||'')+
+            (l.notes||'')+(fuParse(l.crmnotes).text||'')+(l.service||'')
+           ).toLowerCase().indexOf(s) >= 0;
   });
 }
 function esc(x){
@@ -1066,12 +1095,17 @@ function gptContext(){
   }).join('\n');
   var rows = live.slice(0, 120).map(function(l){
     var f = fuParse(l.crmnotes);
-    return [l.name || '(no name)', l.status || 'new', planLabel(l.service), dogsLabel(l.dogs), l.price || 'no price',
+    var q = quoteState(l);
+    var answer = q === 'accepted' ? 'SAID YES to the quote'
+               : q === 'declined' ? 'SAID NO to the quote' + (f.text ? ' because: ' + f.text : '')
+               : q === 'waiting'  ? 'shown a price, has not answered yet' : '';
+    return [l.name || '(no name)', l.status || 'new', answer, planLabel(l.service), dogsLabel(l.dogs), l.price || 'no price',
             l.zip || '', f.src ? 'from ' + f.src : 'source unknown',
             'created ' + String(l.created || '').slice(0, 10),
             f.cd ? 'closed ' + f.cd : '', f.sd ? 'first visit ' + f.sd : '',
             auths[l.id] ? 'ACCEPTED QUOTE ' + auths[l.id] : '',
-            f.date ? 'follow up ' + f.date : '', f.text ? 'notes: ' + f.text : ''
+            f.date ? 'follow up ' + f.date : '', f.wb ? 'we emailed them a follow-up on ' + f.wb : '',
+            f.text && q !== 'declined' ? 'notes: ' + f.text : ''
            ].filter(Boolean).join(' | ');
   }).join('\n');
   var v30 = views.filter(function(v){ return new Date(v.created) >= new Date(now - 30 * 86400000); }).length;
@@ -1564,7 +1598,7 @@ function renderNo(){
     '</div>';
   var rows = list.map(function(l){
     var f = fuParse(l.crmnotes);
-    var when = l.created ? new Date(l.created).toLocaleDateString() : '';
+    var when = whenText(l.created, true);
     var hrs = hoursSince(l.created);
     var ready = !f.wb && hrs >= WINBACK_AFTER_HOURS;
     var contact = [l.phone, l.email].filter(Boolean).join(' · ');
@@ -1630,7 +1664,7 @@ function renderWait(){
   var rows = zips.map(function(z){
     var g = byZip[z], towns = Object.keys(g.towns);
     var people = g.asked.map(function(l){
-      var when = l.created ? new Date(l.created).toLocaleDateString() : '';
+      var when = whenText(l.created, true);
       var contact = [l.phone, l.email].filter(Boolean).join(' &middot; ');
       var story = String(l.notes || fuParse(l.crmnotes).text || '').trim();
       return '<div style="border-top:1px solid #f0f0f0;padding:8px 0 8px 10px;">' +
@@ -2101,10 +2135,10 @@ function renderReviews(){
         '<strong style="font-size:13.5px;">' + esc(l.name || '(no name)') + '</strong>' +
         '<span style="font-size:11px;color:#aaa;">' + esc(since) + '</span></div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
-        (l.phone ? '<button onclick="reviewText(\'' + esc(l.id) + '\')" style="background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#128172; Text the ask</button>' : '') +
+        (l.phone ? '<button onclick="reviewText(\'' + esc(l.id) + '\')" style="background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:34px;">&#128172; Text the ask</button>' : '') +
         (l.email ? '<button onclick="reviewEmail(\'' + esc(l.id) + '\')" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#9993;&#65039; Email it</button>' : '') +
-        '<button onclick="markReviewAsked(\'' + esc(l.id) + '\')" style="background:#fff;color:#555;border:1px solid #ccc;border-radius:8px;padding:6px 11px;font-size:12px;cursor:pointer;font-family:inherit;">&#10003; Already asked</button>' +
-        '<button onclick="markReviewAsked(\'' + esc(l.id) + '\',\'skip\')" style="background:none;color:#aaa;border:none;padding:6px 4px;font-size:12px;cursor:pointer;font-family:inherit;">Skip</button>' +
+        '<button onclick="markReviewAsked(\'' + esc(l.id) + '\')" style="background:#fff;color:#555;border:1px solid #ccc;border-radius:8px;padding:9px 12px;font-size:12px;cursor:pointer;font-family:inherit;min-height:34px;">&#10003; Already asked</button>' +
+        '<button onclick="markReviewAsked(\'' + esc(l.id) + '\',\'skip\')" style="background:none;color:#aaa;border:none;padding:9px 10px;font-size:12px;cursor:pointer;font-family:inherit;min-height:34px;">Skip</button>' +
       '</div></div>';
   }).join('');
 
@@ -2113,7 +2147,7 @@ function renderReviews(){
       '<div style="font-weight:800;font-size:14px;">&#11088; Ask for a review' +
         (due.length ? ' <span style="background:#1D9E75;color:#fff;border-radius:20px;padding:1px 8px;font-size:12px;">' + due.length + '</span>' : '') +
       '</div>' +
-      '<button onclick="toggleReviewSettings()" style="background:none;border:none;color:#0F6E56;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;">&#9881;&#65039; Link</button>' +
+      '<button onclick="toggleReviewSettings()" style="background:none;border:none;color:#0F6E56;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;padding:9px 8px;margin:-9px -8px;">&#9881;&#65039; Link</button>' +
     '</div>' +
     (!link
       ? '<div style="background:#FDF3DC;border-radius:9px;padding:9px 11px;margin-top:8px;font-size:12px;color:#7a5c00;line-height:1.5;">' +
@@ -2651,7 +2685,7 @@ function render(){
       rvRow = '<div style="background:#FFF8E1;border-radius:9px;padding:8px 11px;margin-top:8px;font-size:12.5px;color:#7a5c00;font-weight:700;">' +
         '&#11088; Been with you a while &mdash; ask for a Google review' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
-          (digits ? '<button onclick="reviewText(\'' + esc(l.id) + '\')" style="background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#128172; Text the ask</button>' : '') +
+          (digits ? '<button onclick="reviewText(\'' + esc(l.id) + '\')" style="background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:34px;">&#128172; Text the ask</button>' : '') +
           (l.email ? '<button onclick="reviewEmail(\'' + esc(l.id) + '\')" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#9993;&#65039; Email it</button>' : '') +
           '<button onclick="markReviewAsked(\'' + esc(l.id) + '\',\'skip\')" style="background:none;color:#b09a5e;border:none;padding:5px 4px;font-size:12px;cursor:pointer;font-family:inherit;">Skip</button>' +
         '</div></div>';
@@ -2711,20 +2745,21 @@ function render(){
       smsBtn + '</div>' +
       '<div class="notes"><textarea id="note-' + esc(l.id) + '" placeholder="Your notes (gate code, price agreed…)">' + esc(fu.text) + '</textarea>' +
       '<button onclick="saveNote(\'' + esc(l.id) + '\')">Save</button></div>' +
-      '<div style="margin-top:6px;font-size:12px;color:#555;">Follow up on: <input type="date" id="fu-' + esc(l.id) + '" value="' + esc(fu.date) + '" style="border:1px solid #ddd;border-radius:7px;padding:5px 7px;font-family:inherit;font-size:12px;"> <span style="color:#aaa;">(tap Save after picking)</span></div>' +
+      '<div style="margin-top:6px;font-size:12px;color:#555;">Follow up on: <input type="date" id="fu-' + esc(l.id) + '" value="' + esc(fu.date) + '" style="border:1px solid #ddd;border-radius:7px;padding:8px 9px;font-family:inherit;font-size:12px;min-height:34px;"> <span style="color:#aaa;">(tap Save after picking)</span></div>' +
       '<div style="margin-top:8px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">Quote: ' +
-      '<button onclick="quoteEmail(\'' + esc(l.id) + '\')" style="background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#9993;&#65039; Email quote</button>' +
+      '<button onclick="quoteEmail(\'' + esc(l.id) + '\')" style="background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:34px;">&#9993;&#65039; Email quote</button>' +
       (fu.qs
         ? '<span onclick="markQuoteSent(\'' + esc(l.id) + '\')" style="color:#0F6E56;font-weight:700;cursor:pointer;">&#128228; Quote emailed ' + esc(fu.qs.slice(5)) + ' <span style="color:#bbb;font-weight:400;">(tap to undo)</span></span>'
-        : '<button onclick="markQuoteSent(\'' + esc(l.id) + '\')" style="background:#fff;color:#555;border:1px solid #ccc;border-radius:8px;padding:6px 11px;font-size:12px;cursor:pointer;font-family:inherit;">&#10003; Mark as sent</button>') + '</div>' +
-      '<div style="margin-top:8px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">First visit: <input type="date" id="sd-' + esc(l.id) + '" value="' + esc(fu.sd) + '" style="border:1px solid #ddd;border-radius:7px;padding:5px 7px;font-family:inherit;font-size:12px;">' +
-      '<button onclick="schedText(\'' + esc(l.id) + '\')" style="background:#0F6E56;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#128172; Text the date</button>' +
-      '<button onclick="schedEmail(\'' + esc(l.id) + '\')" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#9993;&#65039; Email the date</button></div>' +
+        : '<button onclick="markQuoteSent(\'' + esc(l.id) + '\')" style="background:#fff;color:#555;border:1px solid #ccc;border-radius:8px;padding:9px 12px;font-size:12px;cursor:pointer;font-family:inherit;min-height:34px;">&#10003; Mark as sent</button>') + '</div>' +
+      '<div style="margin-top:8px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">First visit: <input type="date" id="sd-' + esc(l.id) + '" value="' + esc(fu.sd) + '" style="border:1px solid #ddd;border-radius:7px;padding:8px 9px;font-family:inherit;font-size:12px;min-height:34px;">' +
+      '<button onclick="schedText(\'' + esc(l.id) + '\')" style="background:#0F6E56;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:34px;">&#128172; Text the date</button>' +
+      '<button onclick="schedEmail(\'' + esc(l.id) + '\')" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:34px;">&#9993;&#65039; Email the date</button></div>' +
       '<div class="when" style="display:flex;justify-content:space-between;align-items:center;">' +
-        '<span>Came in ' + esc(l.created ? new Date(l.created).toLocaleString() : '') + '</span>' +
+        '<span>' + (whenText(l.created) ? 'Came in ' + esc(whenText(l.created)) : 'No date on this one') + '</span>' +
         '<span>' +
-        '<button onclick="editLead(\'' + esc(l.id) + '\')" style="background:none;border:none;color:#0F6E56;font-size:11.5px;cursor:pointer;font-family:inherit;padding:2px 8px;font-weight:600;">&#9999;&#65039; Edit</button>' +
-        '<button onclick="removeLead(\'' + esc(l.id) + '\')" style="background:none;border:none;color:#c0392b;font-size:11.5px;cursor:pointer;font-family:inherit;padding:2px 4px;">&#128465; Remove</button>' +
+        '<button onclick="editLead(\'' + esc(l.id) + '\')" style="background:none;border:none;color:#0F6E56;font-size:11.5px;cursor:pointer;font-family:inherit;padding:8px 10px;font-weight:600;min-height:32px;">&#9999;&#65039; Edit</button>' +
+        '<span style="display:inline-block;width:14px;"></span>' +
+        '<button onclick="removeLead(\'' + esc(l.id) + '\')" style="background:none;border:none;color:#c0392b;font-size:11.5px;cursor:pointer;font-family:inherit;padding:8px 10px;min-height:32px;">&#128465; Remove</button>' +
         '</span>' +
       '</div>' +
     '</div>';
@@ -2929,8 +2964,15 @@ function renderDetail(){
   };
   var funnel ='<div style="font-weight:800;font-size:13px;margin-bottom:8px;">&#128200; Funnel, last 30 days</div>' +
     steps.map(function(st, i){
-      var pct = Math.round(st[1] / base * 100);
-      var stepPct = i > 0 && steps[i-1][1] > 0 ? Math.round(st[1] / steps[i-1][1] * 100) + '% of previous' : '';
+      // A step can come out ABOVE the one before it - not because the site is
+      // magic, but because a visit was not counted: an ad blocker, a browser
+      // with storage switched off, or somebody who came back on a second
+      // device. Left alone the bar drew wider than its own track and the
+      // percentage read like a boast. Cap it and say what it really means.
+      var pct = Math.min(Math.round(st[1] / base * 100), 100);
+      var raw = i > 0 && steps[i-1][1] > 0 ? Math.round(st[1] / steps[i-1][1] * 100) : 0;
+      var stepPct = raw ? (raw > 100 ? 'more than the step above &mdash; some visits went uncounted'
+                                     : raw + '% of previous') : '';
       return '<div style="margin-bottom:7px;">' +
         '<div style="display:flex;justify-content:space-between;font-size:12px;color:#555;"><span>' + st[0] + '</span><span style="font-weight:800;color:#1a1a1a;">' + st[1] +
         (stepPct ? ' <span style="color:#999;font-weight:400;">(' + stepPct + ')</span>' : '') + '</span></div>' +
