@@ -286,7 +286,16 @@ var STATUSES = [
   {k:'closed', label:'Closed ✓'},
   {k:'lost',   label:'Not interested'}
 ];
-var FILTERS = [{k:'all',label:'All'}].concat(STATUSES);
+/* The status chips are about what WE have done (rung them, closed them).
+   These two are about what THEY said, which is a different question and the
+   one Jesse actually asks first: who is worth calling, and who turned us
+   down. "Interested" deliberately includes people who have not answered
+   yet - they asked for a price today and have not said no. */
+var ANSWER_FILTERS = [
+  {k:'interested', label:'\uD83D\uDC4D Interested'},
+  {k:'saidno',     label:'\uD83D\uDC4E Said no'}
+];
+var FILTERS = [{k:'all',label:'All'}].concat(STATUSES).concat(ANSWER_FILTERS);
 var TRAFFIC_DAYS = 400;   // ~13 months of traffic history
 var QUIET_DAYS = 7;       // a called lead with no follow-up booked goes back on the list after this
 var leads = [], views = [], qviews = [], waitlist = [], outarea = [], auths = {}, spends = {}, config = {}, filter = 'all', KEY = 'clpps-8k3v51';
@@ -902,7 +911,13 @@ function visible(){
   var s = (document.getElementById('search').value||'').toLowerCase();
   return leads.filter(function(l){
     var st = (l.status||'new');
-    if (filter !== 'all' && st !== filter) return false;
+    // Two different ways to be a no: they turned the price down on the site
+    // ("Said no"), or we rang them and marked it ourselves ("Not interested").
+    // Interested is everybody who is neither - including people who asked for
+    // a price today and have not answered yet.
+    if (filter === 'saidno'){ if (quoteState(l) !== 'declined') return false; }
+    else if (filter === 'interested'){ if (quoteState(l) === 'declined' || st === 'lost') return false; }
+    else if (filter !== 'all' && st !== filter) return false;
     if (!s) return true;
     return ((l.name||'')+(l.phone||'')+(l.email||'')+(l.zip||'')+(l.address||'')).toLowerCase().indexOf(s) >= 0;
   });
@@ -2572,14 +2587,25 @@ function render(){
   if (np && np.style.display !== 'none') renderNo();
   var counts = {all: leads.length};
   STATUSES.forEach(function(s){ counts[s.k] = leads.filter(function(l){ return (l.status||'new') === s.k; }).length; });
+  counts.saidno = leads.filter(function(l){ return quoteState(l) === 'declined'; }).length;
+  counts.interested = leads.filter(function(l){
+    return quoteState(l) !== 'declined' && (l.status || 'new') !== 'lost';
+  }).length;
+  // "New" on its own read as more than "Interested", because a refusal we
+  // have not acted on yet is also status new. The tile means the calls
+  // waiting on us, so it counts the ones worth calling; the chip below still
+  // filters raw status.
+  var newToCall = leads.filter(function(l){
+    return (l.status || 'new') === 'new' && quoteState(l) !== 'declined';
+  }).length;
   document.getElementById('stats').innerHTML =
-    '<div class="stat"><div class="n">' + counts.all + '</div><div class="l">Leads</div></div>' +
-    '<div class="stat"><div class="n" style="color:#2980ef">' + counts.new + '</div><div class="l">New</div></div>' +
-    '<div class="stat"><div class="n" style="color:#1D9E75">' + counts.closed + '</div><div class="l">Closed</div></div>' +
-    '<div class="stat"><div class="n" style="color:#8a8a8a">' + counts.lost + '</div><div class="l">Lost</div></div>';
+    '<div class="stat" onclick="filter=\'interested\';render()" style="cursor:pointer;"><div class="n" style="color:#1D9E75">' + counts.interested + '</div><div class="l">Interested</div></div>' +
+    '<div class="stat" onclick="filter=\'new\';render()" style="cursor:pointer;"><div class="n" style="color:#2980ef">' + newToCall + '</div><div class="l">New to call</div></div>' +
+    '<div class="stat" onclick="filter=\'closed\';render()" style="cursor:pointer;"><div class="n" style="color:#1D9E75">' + counts.closed + '</div><div class="l">Closed</div></div>' +
+    '<div class="stat" onclick="filter=\'saidno\';render()" style="cursor:pointer;"><div class="n" style="color:#b45309">' + counts.saidno + '</div><div class="l">Said no</div></div>';
   document.getElementById('chips').innerHTML = FILTERS.map(function(f){
     return '<button class="chip' + (filter === f.k ? ' on' : '') + '" onclick="filter=\'' + f.k + '\';render()">' + f.label +
-      (f.k === 'all' ? '' : ' (' + counts[f.k] + ')') + '</button>';
+      (f.k === 'all' ? '' : ' (' + (counts[f.k] || 0) + ')') + '</button>';
   }).join('');
   var v = visible();
   if (!v.length){
