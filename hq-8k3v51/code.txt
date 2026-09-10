@@ -37,6 +37,11 @@ function notifyLead_(l) {
   // Analytics pings, no email. OUTAREA fires every time somebody types a ZIP
   // we do not cover, so mailing it would bury the real leads.
   if (t === 'VIEW' || t === 'QVIEW' || t === 'OUTAREA') return;
+  // A re-write of a row we have already been told about: somebody changing
+  // their answers before accepting, or an edit saved in the tracker. The row
+  // still has to be written so the sheet stays current, but mailing it again
+  // means one undecided customer fills the inbox on their own.
+  if (l.silent) return;
   var subject, intro;
   if (t === 'AUTH') {
     subject = '\u2705 QUOTE AUTHORIZED: ' + (l.name || 'Customer') + (l.price ? ' at ' + l.price : '');
@@ -171,13 +176,14 @@ function weeklyDigest() {
   // answer - ENQUIRY, then ACTIVATE or DECLINED, all under the same id - and
   // editing a lead in the tracker appends another. Counting rows would report
   // the same customer two or three times, so count distinct ids instead.
-  var leadIds = {}, closedIds = {}, answered = 0, declined = 0;
+  var leadIds = {}, closedIds = {}, yesIds = {}, noIds = {};
   var NOT_A_LEAD = { VIEW:1, QVIEW:1, OUTAREA:1, WAITLIST:1, AUTH:1, SPEND:1, CONFIG:1 };
   for (var i = 1; i < rows.length; i++) {
     var created = new Date(rows[i][HEADERS.indexOf('created')]);
     var type = String(rows[i][HEADERS.indexOf('type')] || '');
     var status = rows[i][HEADERS.indexOf('status')];
     var id = String(rows[i][HEADERS.indexOf('id')] || '');
+    var notes = String(rows[i][HEADERS.indexOf('crmnotes')] || '');
     if (created >= cut) {
       if (type === 'VIEW') views++;
       else if (type === 'QVIEW') qviews++;
@@ -188,13 +194,27 @@ function weeklyDigest() {
         leadIds[id] = 1;
         names.push(rows[i][HEADERS.indexOf('name')]);
       }
-      if (type === 'ACTIVATE') answered++;
-      if (type === 'DECLINED') declined++;
+      // by id, not by row: the same customer's row gets written again when
+      // they answer, and again if somebody edits them in the tracker.
+      if (type === 'ACTIVATE' && id) yesIds[id] = 1;
+      if (type === 'DECLINED' && id) noIds[id] = 1;
     }
-    if (!NOT_A_LEAD[type] && status === 'closed' && created >= cut && id) closedIds[id] = 1;
+    // A lead is almost never created and closed inside the same week - they
+    // take days to call back and sign up - so gating this on the CREATED date
+    // made "Marked closed" read zero nearly every Monday. The closed date is
+    // stamped in the notes as [CD:yyyy-mm-dd] when the status is set; use it,
+    // and only fall back to created for old rows that never got one.
+    if (!NOT_A_LEAD[type] && status === 'closed' && id) {
+      var cdm = notes.match(/\[CD:([0-9]{4}-[0-9]{2}-[0-9]{2})\]/);
+      var when = cdm ? new Date(cdm[1] + 'T12:00:00') : created;
+      if (when >= cut) closedIds[id] = 1;
+    }
   }
-  var leads = 0; for (var k in leadIds) leads++;
+  var leads = 0, answered = 0, declined = 0;
+  for (var k in leadIds) leads++;
   for (var k2 in closedIds) closed++;
+  for (var k3 in yesIds) answered++;
+  for (var k4 in noIds) declined++;
   MailApp.sendEmail({
     to: 'info@clpropetservices.com',
     subject: 'CLPPS weekly: ' + leads + ' lead' + (leads === 1 ? '' : 's') + ', ' + views + ' site visits',

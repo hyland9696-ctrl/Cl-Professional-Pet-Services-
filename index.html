@@ -1547,10 +1547,14 @@
       Quote_Honored_Until: new Date(Date.now() + 183*24*3600*1000).toDateString()
     };
   }
-  function qCrmRow(kind, p, why){
+  function qCrmRow(kind, p, why, silent){
     var v = qFormValues(), f = qFacts(p);
     return {
       id: qEnquiry.id,
+      // A re-file after they changed their answers: write it, do not announce
+      // it. Without this, one person toggling between weekly and every other
+      // week mails the office once per tap.
+      silent: silent ? 1 : 0,
       created: new Date().toISOString(),
       // [QA:] is the answer to the quote: w = still waiting on them,
       // a = accepted, d = declined. The tracker chases w and offers to
@@ -1640,7 +1644,7 @@
     // row per id, so the sheet always reflects the price they were actually
     // last shown. The EMAIL only goes once, or toggling between weekly and
     // every-other-week would mail the office on every tap.
-    crmCapture(qCrmRow('ENQUIRY', p, ''));
+    crmCapture(qCrmRow('ENQUIRY', p, '', qEnquiry.filed));
     if (!qEnquiry.filed){
       qEnquiry.filed = true;
       qMail(qPayload('ENQUIRY', p, ''), function(){}, function(){});

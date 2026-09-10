@@ -872,6 +872,9 @@ function addManual(){
     var idx = leads.indexOf(editing);
     markSeen(SEEN_L, lead.id);
     if (idx >= 0) leads.splice(idx, 1, lead); else leads.unshift(lead);
+    // An edit, not a new lead: the row is rewritten but nobody needs an email
+    // announcing a customer they already know about.
+    lead.silent = 1;
     post({action:'lead', lead:lead}, 'Lead updated ✓');
     editing = null;
     document.getElementById('m-savebtn').textContent = 'Add manual lead';
