@@ -9,7 +9,7 @@
   *{box-sizing:border-box}
   @page { size: letter; margin: 0.5in; }
   :root{
-    --ink:#14201C; --muted:#5A6B65; --brand:#0F6E56; --lift:#1D9E75;
+    --ink:#14201C; --muted:#5A6B65; --brand:#0F6E56; --lift:#188663;
     --paper:#FFFFFF; --wash:#EFF6F2; --rule:#D6E2DC;
   }
   body{ background:#E8EDEA; color:var(--ink);
@@ -43,6 +43,22 @@
     .sheet{ padding:0; max-width:none; }
     .card{ break-inside:avoid; }
   }
+
+    /* WCAG 2.4.7 Focus Visible. Somebody navigating by keyboard - a screen
+       reader user, or anyone who cannot hold a mouse - has to be able to see
+       where they are. The nav buttons had no visible focus at all, so the
+       tab key moved an invisible cursor around the page.
+       :focus-visible only shows the ring for keyboard users, so mouse clicks
+       still look the way they did. */
+    :focus-visible{outline:3px solid #188663;outline-offset:2px;border-radius:4px;}
+    a:focus-visible,button:focus-visible,input:focus-visible,
+    select:focus-visible,textarea:focus-visible{outline:3px solid #188663;outline-offset:2px;}
+    /* On the dark green header the brand ring would disappear, so flip it. */
+    .nav a:focus-visible,.topbar a:focus-visible,header a:focus-visible{outline-color:#fff;}
+    @media (prefers-reduced-motion: reduce){
+      *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+        transition-duration:.01ms !important;scroll-behavior:auto !important;}
+    }
 </style>
 </head>
 <body>

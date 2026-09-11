@@ -21,7 +21,7 @@
   thead th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:#7E8D87;border-bottom:1.5px solid #CBD8D2}
   tbody th{font-weight:600;white-space:nowrap}
   td strong{color:#0F6E56}
-  .rule{background:#F2F7F4;border-left:4px solid #1D9E75;border-radius:0 9px 9px 0;padding:12px 15px;margin-bottom:10px}
+  .rule{background:#F2F7F4;border-left:4px solid #188663;border-radius:0 9px 9px 0;padding:12px 15px;margin-bottom:10px}
   .rule b{color:#0F6E56}
   .rule code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:#fff;padding:1px 5px;border-radius:4px;border:1px solid #DCE7E2}
   .tierhead{display:flex;justify-content:space-between;align-items:baseline;margin-top:16px;border-top:1px solid #E3EAE6;padding-top:12px}
@@ -39,6 +39,22 @@
   .foot{margin-top:28px;padding-top:13px;border-top:1px solid #E3EAE6;font-size:12px;color:#7E8D87;line-height:1.65}
   .noprint{background:#FDF3DC;border:1px solid #E6C96A;border-radius:9px;padding:11px 14px;font-size:13px;color:#7a5c00;margin-bottom:18px}
   @media print{ body{background:#fff} .sheet{max-width:none;padding:0} .noprint{display:none} h2{break-after:avoid} table,.rule,li{break-inside:avoid} }
+
+    /* WCAG 2.4.7 Focus Visible. Somebody navigating by keyboard - a screen
+       reader user, or anyone who cannot hold a mouse - has to be able to see
+       where they are. The nav buttons had no visible focus at all, so the
+       tab key moved an invisible cursor around the page.
+       :focus-visible only shows the ring for keyboard users, so mouse clicks
+       still look the way they did. */
+    :focus-visible{outline:3px solid #188663;outline-offset:2px;border-radius:4px;}
+    a:focus-visible,button:focus-visible,input:focus-visible,
+    select:focus-visible,textarea:focus-visible{outline:3px solid #188663;outline-offset:2px;}
+    /* On the dark green header the brand ring would disappear, so flip it. */
+    .nav a:focus-visible,.topbar a:focus-visible,header a:focus-visible{outline-color:#fff;}
+    @media (prefers-reduced-motion: reduce){
+      *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+        transition-duration:.01ms !important;scroll-behavior:auto !important;}
+    }
 </style></head>
 <body><div class="sheet">
 

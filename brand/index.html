@@ -23,9 +23,25 @@
   h2{font-size:17px;margin:0 0 2px}
   .dims{font-size:12.5px;color:#0F6E56;font-weight:700;margin:0 0 6px}
   .use{font-size:14px;color:#4E5F59;margin:0 0 12px}
-  .btn{display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;border-radius:10px;padding:11px 16px;font-size:14.5px;font-weight:700}
+  .btn{display:inline-block;background:#188663;color:#fff;text-decoration:none;border-radius:10px;padding:11px 16px;font-size:14.5px;font-weight:700}
   .btn.alt{background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;margin-left:6px}
-  footer{margin-top:26px;padding-top:16px;border-top:1px solid #DCE6E1;font-size:14px;color:#84928C}
+  footer{margin-top:26px;padding-top:16px;border-top:1px solid #DCE6E1;font-size:14px;color:#697470}
+
+    /* WCAG 2.4.7 Focus Visible. Somebody navigating by keyboard - a screen
+       reader user, or anyone who cannot hold a mouse - has to be able to see
+       where they are. The nav buttons had no visible focus at all, so the
+       tab key moved an invisible cursor around the page.
+       :focus-visible only shows the ring for keyboard users, so mouse clicks
+       still look the way they did. */
+    :focus-visible{outline:3px solid #188663;outline-offset:2px;border-radius:4px;}
+    a:focus-visible,button:focus-visible,input:focus-visible,
+    select:focus-visible,textarea:focus-visible{outline:3px solid #188663;outline-offset:2px;}
+    /* On the dark green header the brand ring would disappear, so flip it. */
+    .nav a:focus-visible,.topbar a:focus-visible,header a:focus-visible{outline-color:#fff;}
+    @media (prefers-reduced-motion: reduce){
+      *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+        transition-duration:.01ms !important;scroll-behavior:auto !important;}
+    }
 </style>
 </head>
 <body>
@@ -52,7 +68,7 @@
       <a class="btn" href="print/CLPPS-card-corey-back-600dpi.png" download>&#11015; Back</a>
       <p class="use" style="margin:14px 0 0;font-size:13px;">
         <a href="business-cards-print.html" target="_blank" rel="noopener" style="color:#0F6E56;font-weight:700;">Finished-size versions, the PDF and the full spec &rarr;</a><br>
-        <span style="color:#84928C;font-size:12.5px;">On a phone, press and hold an image and choose &ldquo;Save to Photos&rdquo;.</span>
+        <span style="color:#697470;font-size:12.5px;">On a phone, press and hold an image and choose &ldquo;Save to Photos&rdquo;.</span>
       </p>
     </div>
   </div>

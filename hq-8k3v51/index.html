@@ -15,22 +15,22 @@
   .wrap{max-width:720px;margin:0 auto;padding:14px;}
   .gate{max-width:340px;margin:80px auto;text-align:center;padding:24px;}
   .gate input{width:100%;font-size:22px;text-align:center;letter-spacing:6px;padding:12px;border:2px solid #ccc;border-radius:12px;margin:14px 0;}
-  .gate button{width:100%;background:#1D9E75;color:#fff;border:none;font-size:16px;font-weight:600;padding:13px;border-radius:12px;cursor:pointer;}
+  .gate button{width:100%;background:#188663;color:#fff;border:none;font-size:16px;font-weight:600;padding:13px;border-radius:12px;cursor:pointer;}
   .gate .err{color:#c0392b;font-size:13px;margin-top:10px;min-height:18px;}
   .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}
   .stat{background:#fff;border-radius:12px;padding:10px 6px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
   .stat .n{font-size:20px;font-weight:800;}
-  .stat .l{font-size:10.5px;color:#888;text-transform:uppercase;letter-spacing:0.4px;}
+  .stat .l{font-size:10.5px;color:#707070;text-transform:uppercase;letter-spacing:0.4px;}
   .toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;}
   .toolbar input{flex:1;min-width:140px;padding:10px 12px;border:1px solid #ddd;border-radius:10px;font-size:14px;font-family:inherit;}
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
   .chip{background:#fff;border:1px solid #ddd;border-radius:17px;padding:9px 14px;font-size:12.5px;cursor:pointer;color:#555;font-family:inherit;min-height:34px;}
   .chip.on{background:#0F6E56;color:#fff;border-color:#0F6E56;font-weight:600;}
-  .copybtn{background:#fff;border:1px solid #1D9E75;color:#0F6E56;border-radius:10px;padding:9px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600;}
+  .copybtn{background:#fff;border:1px solid #188663;color:#0F6E56;border-radius:10px;padding:9px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600;}
   .card{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);border-left:5px solid #bbb;}
   .card.s-new{border-left-color:#2980ef;}
   .card.s-called{border-left-color:#e6a817;}
-  .card.s-closed{border-left-color:#1D9E75;}
+  .card.s-closed{border-left-color:#188663;}
   .card.s-lost{border-left-color:#b0b0b0;}
   .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
   .who{font-size:16px;font-weight:700;}
@@ -39,7 +39,7 @@
   .badge.sav{background:#FDF3DC;color:#9a6d00;}
   .badge.com{background:#EDE7F6;color:#5E35B1;}
   .badge.cls{background:#0F6E56;color:#fff;}
-  .badge.lst{background:#eee;color:#888;}
+  .badge.lst{background:#eee;color:#707070;}
   .meta{font-size:13px;color:#555;margin-top:6px;line-height:1.75;}
   .meta a{color:#0F6E56;font-weight:600;text-decoration:none;}
   .price{font-size:15px;font-weight:800;color:#0F6E56;}
@@ -48,16 +48,32 @@
   .stbtns button.on{color:#fff;font-weight:700;border-color:transparent;}
   .stbtns button.on.b-new{background:#2980ef;}
   .stbtns button.on.b-called{background:#e6a817;}
-  .stbtns button.on.b-closed{background:#1D9E75;}
+  .stbtns button.on.b-closed{background:#188663;}
   .stbtns button.on.b-lost{background:#8a8a8a;}
   .notes{margin-top:10px;display:flex;gap:6px;}
   .notes textarea{flex:1;border:1px solid #ddd;border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;min-height:38px;}
   .notes button{background:#0F6E56;color:#fff;border:none;border-radius:9px;padding:0 14px;font-size:12.5px;cursor:pointer;font-family:inherit;}
-  .when{font-size:11px;color:#aaa;margin-top:8px;}
-  .empty{text-align:center;color:#888;padding:50px 20px;font-size:14px;}
+  .when{font-size:11px;color:#707070;margin-top:8px;}
+  .empty{text-align:center;color:#707070;padding:50px 20px;font-size:14px;}
   .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;opacity:0;transition:opacity 0.25s;pointer-events:none;z-index:50;}
   .toast.show{opacity:1;}
   .setup{background:#FDF3DC;border:1px solid #e6c96a;border-radius:12px;padding:16px;font-size:14px;line-height:1.6;}
+
+    /* WCAG 2.4.7 Focus Visible. Somebody navigating by keyboard - a screen
+       reader user, or anyone who cannot hold a mouse - has to be able to see
+       where they are. The nav buttons had no visible focus at all, so the
+       tab key moved an invisible cursor around the page.
+       :focus-visible only shows the ring for keyboard users, so mouse clicks
+       still look the way they did. */
+    :focus-visible{outline:3px solid #188663;outline-offset:2px;border-radius:4px;}
+    a:focus-visible,button:focus-visible,input:focus-visible,
+    select:focus-visible,textarea:focus-visible{outline:3px solid #188663;outline-offset:2px;}
+    /* On the dark green header the brand ring would disappear, so flip it. */
+    .nav a:focus-visible,.topbar a:focus-visible,header a:focus-visible{outline-color:#fff;}
+    @media (prefers-reduced-motion: reduce){
+      *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+        transition-duration:.01ms !important;scroll-behavior:auto !important;}
+    }
 </style>
 </head>
 <body>
@@ -75,9 +91,9 @@
       <div style="font-weight:800;font-size:14px;margin-bottom:10px;">&#128202; Site traffic</div>
       <div class="stats" id="t-nums" style="margin-bottom:10px;"></div>
       <div id="t-chart" style="display:flex;align-items:flex-end;gap:3px;height:64px;margin-bottom:6px;"></div>
-      <div id="t-chart-label" style="font-size:10.5px;color:#aaa;margin-bottom:10px;">Last 14 days</div>
+      <div id="t-chart-label" style="font-size:10.5px;color:#707070;margin-bottom:10px;">Last 14 days</div>
       <div id="t-extra" style="font-size:12.5px;color:#555;line-height:1.8;"></div>
-      <div style="font-size:11px;color:#aaa;margin-top:8px;">Tap any number or chart bar for the full breakdown &#9660;</div>
+      <div style="font-size:11px;color:#707070;margin-top:8px;">Tap any number or chart bar for the full breakdown &#9660;</div>
       <div id="t-detail" style="display:none;border-top:1px solid #eee;margin-top:10px;padding-top:10px;"></div>
     </div>
     <div class="stats" id="stats"></div>
@@ -100,13 +116,13 @@
     </div>
     <div id="addPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="font-weight:700;font-size:14px;margin-bottom:8px;">Paste the quote email</div>
-      <p style="font-size:12.5px;color:#777;margin-bottom:8px;">Open the quote email, select all the text, copy it, and paste it below. I'll pull out the name, phone, price and the rest automatically.</p>
+      <p style="font-size:12.5px;color:#707070;margin-bottom:8px;">Open the quote email, select all the text, copy it, and paste it below. I'll pull out the name, phone, price and the rest automatically.</p>
       <textarea id="pasteBox" style="width:100%;min-height:110px;border:1px solid #ddd;border-radius:9px;padding:10px;font-size:13px;font-family:inherit;" placeholder="Paste email text here&hellip;"></textarea>
       <div style="display:flex;gap:8px;margin-top:8px;">
-        <button class="copybtn" style="background:#1D9E75;color:#fff;border-color:#1D9E75;" onclick="addFromPaste()">Add this lead</button>
+        <button class="copybtn" style="background:#188663;color:#fff;border-color:#188663;" onclick="addFromPaste()">Add this lead</button>
         <button class="copybtn" onclick="toggleAdd()">Cancel</button>
       </div>
-      <div style="font-size:12px;color:#999;margin-top:10px;">Or add by hand: fill only what you know.</div>
+      <div style="font-size:12px;color:#707070;margin-top:10px;">Or add by hand: fill only what you know.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
         <input id="m-name" placeholder="Name" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
         <input id="m-phone" placeholder="Phone" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
@@ -140,76 +156,76 @@
     <div id="askPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
         <div style="font-weight:800;font-size:15px;">&#128172; Ask about the business</div>
-        <button onclick="toggleAsk()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
+        <button onclick="toggleAsk()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
         <button id="gpt-toggle" onclick="gptToggle()" style="border:1px solid #ddd;background:#fff;color:#666;border-radius:20px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;"></button>
         <button onclick="gptSettings()" style="background:none;border:none;color:#0F6E56;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;">&#9881;&#65039; Key</button>
-        <span id="gpt-note" style="font-size:11.5px;color:#999;"></span>
+        <span id="gpt-note" style="font-size:11.5px;color:#707070;"></span>
       </div>
       <div id="gpt-panel" style="display:none;background:#F7F9F8;border:1px solid #E4EBE7;border-radius:10px;padding:11px 12px;margin-bottom:9px;">
         <div style="font-size:12.5px;font-weight:700;margin-bottom:5px;">Connect your own OpenAI key</div>
-        <div style="font-size:11.5px;color:#777;line-height:1.6;margin-bottom:8px;">Get one at <strong>platform.openai.com &rarr; API keys</strong>. It is saved <strong>only in this browser on this device</strong> &mdash; it never goes into the website or anywhere anyone else can read it. Set a monthly spend limit on the key while you are there.</div>
+        <div style="font-size:11.5px;color:#707070;line-height:1.6;margin-bottom:8px;">Get one at <strong>platform.openai.com &rarr; API keys</strong>. It is saved <strong>only in this browser on this device</strong> &mdash; it never goes into the website or anywhere anyone else can read it. Set a monthly spend limit on the key while you are there.</div>
         <input id="gpt-key" type="password" placeholder="sk-&hellip;" autocomplete="off" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;margin-bottom:7px;">
         <input id="gpt-model" placeholder="gpt-4o-mini" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;margin-bottom:8px;">
         <div style="display:flex;gap:7px;flex-wrap:wrap;">
-          <button onclick="gptSave()" style="background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:9px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Save key</button>
+          <button onclick="gptSave()" style="background:#188663;color:#fff;border:none;border-radius:8px;padding:9px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Save key</button>
           <button onclick="gptClear()" style="background:#fff;color:#c0392b;border:1px solid #e0b4ad;border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Remove key</button>
         </div>
-        <div style="font-size:11px;color:#aaa;margin-top:7px;line-height:1.55;">Questions are sent to OpenAI with a summary of your leads and figures &mdash; names, services, prices and dates. Phone numbers, emails and addresses are never sent.</div>
+        <div style="font-size:11px;color:#707070;margin-top:7px;line-height:1.55;">Questions are sent to OpenAI with a summary of your leads and figures &mdash; names, services, prices and dates. Phone numbers, emails and addresses are never sent.</div>
       </div>
       <div id="ask-log" style="max-height:340px;overflow-y:auto;padding:2px;"></div>
       <div class="chips" id="ask-sugg" style="margin:8px 0 6px;"></div>
       <div style="display:flex;gap:7px;">
         <input id="ask-input" placeholder="Ask anything&hellip;" onkeydown="if(event.key==='Enter')askSend()" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:9px;font-size:14px;font-family:inherit;">
-        <button onclick="askSend()" style="background:#1D9E75;color:#fff;border:none;border-radius:9px;padding:10px 15px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Ask</button>
+        <button onclick="askSend()" style="background:#188663;color:#fff;border:none;border-radius:9px;padding:10px 15px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Ask</button>
       </div>
     </div>
     <div id="waitPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="font-weight:800;font-size:15px;">&#128205; Outside our routes</div>
-        <button onclick="toggleWait()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
+        <button onclick="toggleWait()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
       </div>
       <div id="wait-body" style="font-size:13px;line-height:1.6;color:#2B3A34;"></div>
     </div>
     <div id="noPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="font-weight:800;font-size:15px;">&#128078; Said no to their quote</div>
-        <button onclick="toggleNo()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
+        <button onclick="toggleNo()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
       </div>
       <div id="no-body" style="font-size:13px;line-height:1.6;color:#2B3A34;"></div>
     </div>
     <div id="qrPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="font-weight:800;font-size:15px;">&#128241; Yard sign QR scans</div>
-        <button onclick="toggleQR()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
+        <button onclick="toggleQR()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
       </div>
       <div id="qr-body" style="font-size:13px;line-height:1.6;color:#2B3A34;"></div>
     </div>
     <div id="briefPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="font-weight:800;font-size:15px;">&#128203; Daily brief</div>
-        <button onclick="toggleBrief()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
+        <button onclick="toggleBrief()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
       </div>
       <div id="brief-body" style="background:#F7F9F8;border:1px solid #E4EBE7;border-radius:10px;padding:12px 13px;font-size:13px;line-height:1.65;color:#2B3A34;white-space:pre-wrap;font-family:inherit;"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
-        <button onclick="briefCopy()" style="background:#1D9E75;color:#fff;border:none;border-radius:9px;padding:10px 13px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">&#128203; Copy</button>
+        <button onclick="briefCopy()" style="background:#188663;color:#fff;border:none;border-radius:9px;padding:10px 13px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">&#128203; Copy</button>
         <button onclick="briefEmail()" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:9px;padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">&#9993;&#65039; Email it</button>
         <button onclick="briefText()" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:9px;padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">&#128172; Text it</button>
       </div>
-      <div style="font-size:11px;color:#aaa;margin-top:7px;">Built from the numbers on this page right now.</div>
+      <div style="font-size:11px;color:#707070;margin-top:7px;">Built from the numbers on this page right now.</div>
     </div>
     <div id="pqPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <div style="font-weight:800;font-size:15px;">&#128222; Price it on the phone</div>
-        <button onclick="togglePQ()" style="background:none;border:none;color:#999;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
+        <button onclick="togglePQ()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
       </div>
-      <div style="font-size:12px;color:#888;margin-bottom:10px;">Ask in this order. The price updates as you go.</div>
+      <div style="font-size:12px;color:#707070;margin-bottom:10px;">Ask in this order. The price updates as you go.</div>
 
       <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">1. ZIP code</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
         <input id="pq-zip" inputmode="numeric" maxlength="5" placeholder="63376" oninput="pqCalc()" style="width:110px;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:15px;font-family:inherit;letter-spacing:.05em;">
-        <span id="pq-tier" style="font-size:12.5px;color:#888;"></span>
+        <span id="pq-tier" style="font-size:12.5px;color:#707070;"></span>
       </div>
 
       <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:4px;">2. How many dogs?</div>
@@ -263,14 +279,14 @@
         <input id="pq-notes" placeholder="Notes (gate code, dog names, best time)" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
-        <button onclick="pqSubmit('activate')" style="background:#1D9E75;color:#fff;border:none;border-radius:9px;padding:11px 14px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit;">&#9989; They want to start</button>
+        <button onclick="pqSubmit('activate')" style="background:#188663;color:#fff;border:none;border-radius:9px;padding:11px 14px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit;">&#9989; They want to start</button>
         <button onclick="pqSubmit('saved')" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:9px;padding:10px 14px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;">&#128190; Save the quote</button>
       </div>
-      <div style="font-size:11px;color:#aaa;margin-top:8px;">Either button adds them to the leads below. Just pricing? Close this and nothing is saved.</div>
+      <div style="font-size:11px;color:#707070;margin-top:8px;">Either button adds them to the leads below. Just pricing? Close this and nothing is saved.</div>
     </div>
     <div class="chips" id="chips"></div>
     <div id="list"></div>
-    <p style="font-size:11.5px;color:#aaa;margin-top:16px;line-height:1.6;">Quotes from the website flow in automatically and everything is stored permanently in the "CLPPS Leads" spreadsheet in your Google Drive. Download the CSV anytime for campaigns or backups.</p>
+    <p style="font-size:11.5px;color:#707070;margin-top:16px;line-height:1.6;">Quotes from the website flow in automatically and everything is stored permanently in the "CLPPS Leads" spreadsheet in your Google Drive. Download the CSV anytime for campaigns or backups.</p>
   </div>
 </div>
 
@@ -486,7 +502,7 @@ function renderAlerts(){
         '<div style="font-size:12px;font-weight:400;opacity:0.92;margin-top:2px;">Most recent ' +
         esc(whenText(newQR[0].created)) + '. Somebody scanned a sign and landed on the quote page. <u>Tap for the log</u></div></div>'
     : '';
-  var bg = newAuth.length ? 'linear-gradient(135deg,#0F6E56,#1D9E75)' : (newLead.length ? '#1a6fd4' : '#6B4FA8');
+  var bg = newAuth.length ? 'linear-gradient(135deg,#0F6E56,#188663)' : (newLead.length ? '#1a6fd4' : '#6B4FA8');
   box.style.display = 'block';
   box.innerHTML =
     '<div style="background:' + bg + ';color:#fff;border-radius:14px;padding:13px 15px;box-shadow:0 3px 12px rgba(15,110,86,0.3);">' +
@@ -534,7 +550,7 @@ function jumpToLead(id){
   if (card){
     card.scrollIntoView({ behavior:'smooth', block:'center' });
     var old = card.style.boxShadow;
-    card.style.boxShadow = '0 0 0 3px #1D9E75';
+    card.style.boxShadow = '0 0 0 3px #188663';
     setTimeout(function(){ card.style.boxShadow = old; }, 2500);
   }
 }
@@ -1457,9 +1473,9 @@ function qrCityTable(scans, mine){
     var pct = top ? Math.round(n / top * 100) : 0;
     return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;">' +
       '<div style="width:104px;flex:none;font-size:12.5px;' +
-        (c === 'Not tagged by city' ? 'color:#999;' : 'font-weight:600;') + '">' + esc(c) + '</div>' +
+        (c === 'Not tagged by city' ? 'color:#707070;' : 'font-weight:600;') + '">' + esc(c) + '</div>' +
       '<div style="flex:1;background:#F0F4F2;border-radius:5px;height:15px;overflow:hidden;">' +
-        '<div style="width:' + Math.max(pct, 4) + '%;background:#1D9E75;height:100%;"></div></div>' +
+        '<div style="width:' + Math.max(pct, 4) + '%;background:#188663;height:100%;"></div></div>' +
       '<div style="width:88px;flex:none;text-align:right;font-size:12px;color:#555;">' +
         n + ' scan' + (n === 1 ? '' : 's') + (lds ? ' &middot; ' + lds + ' lead' + (lds === 1 ? '' : 's') : '') +
       '</div></div>';
@@ -1587,13 +1603,13 @@ function renderNo(){
   if (!box) return;
   var list = declinedLeads();
   if (!list.length){
-    box.innerHTML = '<div style="color:#777;">Nobody has turned a quote down yet. When somebody sees their price and ' +
+    box.innerHTML = '<div style="color:#707070;">Nobody has turned a quote down yet. When somebody sees their price and ' +
       'says no, they land here with the reason they gave &mdash; and because the form comes before the price now, ' +
       'we will have their name, number and email to follow it up.</div>';
     return;
   }
   var due = list.filter(function(l){ return !fuParse(l.crmnotes).wb && hoursSince(l.created) >= WINBACK_AFTER_HOURS; });
-  var head = '<div style="background:#F2F7F4;border-left:3px solid #1D9E75;border-radius:0 9px 9px 0;padding:10px 12px;margin-bottom:10px;">' +
+  var head = '<div style="background:#F2F7F4;border-left:3px solid #188663;border-radius:0 9px 9px 0;padding:10px 12px;margin-bottom:10px;">' +
     '<strong>' + list.length + '</strong> ' + (list.length === 1 ? 'person has' : 'people have') + ' said no to a quote. ' +
     (due.length
       ? '<strong>' + due.length + '</strong> ' + (due.length === 1 ? 'is' : 'are') + ' ready to follow up now.'
@@ -1606,7 +1622,7 @@ function renderNo(){
     var ready = !f.wb && hrs >= WINBACK_AFTER_HOURS;
     var contact = [l.phone, l.email].filter(Boolean).join(' · ');
     var why = String(f.text || '').trim();
-    return '<div style="border:1px solid ' + (ready ? '#1D9E75' : '#E4EBE7') + ';border-radius:11px;padding:11px 12px;margin-bottom:9px;' +
+    return '<div style="border:1px solid ' + (ready ? '#188663' : '#E4EBE7') + ';border-radius:11px;padding:11px 12px;margin-bottom:9px;' +
         (ready ? 'background:#F7FBF9;' : '') + '">' +
       '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">' +
         '<div style="font-weight:800;font-size:14.5px;">' + esc(l.name || '(no name)') + '</div>' +
@@ -1620,11 +1636,11 @@ function renderNo(){
       (why ? '<div style="font-size:12.5px;color:#444;margin-top:5px;font-style:italic;">&ldquo;' + esc(why) + '&rdquo;</div>' : '') +
       (f.wb
         ? '<div style="font-size:12.5px;color:#0F6E56;margin-top:7px;font-weight:700;">✓ Followed up ' + esc(f.wb) +
-          ' <button onclick="winbackMark(\'' + esc(l.id) + '\', false)" style="background:none;border:none;color:#999;font-size:11.5px;cursor:pointer;font-family:inherit;text-decoration:underline;">undo</button></div>'
+          ' <button onclick="winbackMark(\'' + esc(l.id) + '\', false)" style="background:none;border:none;color:#707070;font-size:11.5px;cursor:pointer;font-family:inherit;text-decoration:underline;">undo</button></div>'
         : (l.email
-            ? '<button onclick="winbackSend(\'' + esc(l.id) + '\')" style="margin-top:8px;background:' + (ready ? '#1D9E75' : '#fff') + ';color:' + (ready ? '#fff' : '#0F6E56') + ';border:1.5px solid #0F6E56;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">✉️ Email them about it</button>' +
-              (ready ? '' : '<div style="font-size:11.5px;color:#999;margin-top:4px;">Said no ' + Math.round(hrs) + 'h ago &mdash; worth leaving until tomorrow.</div>')
-            : '<div style="font-size:12px;color:#999;margin-top:7px;">No email address, but there is a phone number.</div>')) +
+            ? '<button onclick="winbackSend(\'' + esc(l.id) + '\')" style="margin-top:8px;background:' + (ready ? '#188663' : '#fff') + ';color:' + (ready ? '#fff' : '#0F6E56') + ';border:1.5px solid #0F6E56;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">✉️ Email them about it</button>' +
+              (ready ? '' : '<div style="font-size:11.5px;color:#707070;margin-top:4px;">Said no ' + Math.round(hrs) + 'h ago &mdash; worth leaving until tomorrow.</div>')
+            : '<div style="font-size:12px;color:#707070;margin-top:7px;">No email address, but there is a phone number.</div>')) +
       (l.phone ? '<a href="tel:' + esc(String(l.phone).replace(/[^0-9+]/g, '')) + '" style="display:inline-block;margin-top:8px;margin-left:6px;background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;text-decoration:none;border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:700;">☎️ Call</a>' : '') +
       '</div>';
   }).join('');
@@ -1640,7 +1656,7 @@ function renderWait(){
   var box = document.getElementById('wait-body');
   if (!box) return;
   if (!waitlist.length && !outarea.length){
-    box.innerHTML = '<div style="color:#777;">Nobody outside the routes yet. When somebody types a ZIP we do not cover, ' +
+    box.innerHTML = '<div style="color:#707070;">Nobody outside the routes yet. When somebody types a ZIP we do not cover, ' +
       'they get asked to leave their details and they will show up here, grouped by ZIP.</div>';
     return;
   }
@@ -1658,7 +1674,7 @@ function renderWait(){
     return (B.asked.length - A.asked.length) || (B.looked - A.looked);
   });
   var totalAsked = waitlist.length;
-  var head = '<div style="background:#F2F7F4;border-left:3px solid #1D9E75;border-radius:0 9px 9px 0;padding:10px 12px;margin-bottom:10px;">' +
+  var head = '<div style="background:#F2F7F4;border-left:3px solid #188663;border-radius:0 9px 9px 0;padding:10px 12px;margin-bottom:10px;">' +
     '<strong>' + totalAsked + '</strong> ' + (totalAsked === 1 ? 'person has' : 'people have') + ' asked us to come to them, across <strong>' +
     zips.filter(function(z){ return byZip[z].asked.length; }).length + '</strong> ZIP code' +
     (zips.filter(function(z){ return byZip[z].asked.length; }).length === 1 ? '' : 's') + '. ' +
@@ -1675,16 +1691,16 @@ function renderWait(){
         '<div style="font-size:12px;color:#666;">' + esc(contact) +
           (l.dogs ? ' &middot; ' + esc(dogsLabel(l.dogs)) : '') + (when ? ' &middot; ' + esc(when) : '') + '</div>' +
         (story ? '<div style="font-size:12.5px;color:#444;margin-top:4px;font-style:italic;">&ldquo;' + esc(story) + '&rdquo;</div>' : '') +
-        (l.phone ? '<a href="tel:' + esc(String(l.phone).replace(/[^0-9+]/g, '')) + '" style="display:inline-block;margin-top:6px;background:#1D9E75;color:#fff;text-decoration:none;border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:700;">&#128222; Call them</a>' : '') +
+        (l.phone ? '<a href="tel:' + esc(String(l.phone).replace(/[^0-9+]/g, '')) + '" style="display:inline-block;margin-top:6px;background:#188663;color:#fff;text-decoration:none;border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:700;">&#128222; Call them</a>' : '') +
         (l.email ? '<a href="mailto:' + esc(l.email) + '" style="display:inline-block;margin-top:6px;margin-left:6px;background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;text-decoration:none;border-radius:8px;padding:5px 11px;font-size:12.5px;font-weight:700;">&#9993;&#65039; Email</a>' : '') +
         '</div>';
     }).join('');
     var hot = g.asked.length >= 3;
-    return '<div style="border:1px solid ' + (hot ? '#1D9E75' : '#E4EBE7') + ';border-radius:11px;padding:10px 12px;margin-bottom:9px;' +
+    return '<div style="border:1px solid ' + (hot ? '#188663' : '#E4EBE7') + ';border-radius:11px;padding:10px 12px;margin-bottom:9px;' +
         (hot ? 'background:#F2F7F4;' : '') + '">' +
       '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">' +
         '<div style="font-weight:800;font-size:14.5px;">' + esc(z) +
-          (towns.length ? ' <span style="font-weight:400;color:#777;font-size:12.5px;">' + esc(towns.join(', ')) + '</span>' : '') + '</div>' +
+          (towns.length ? ' <span style="font-weight:400;color:#707070;font-size:12.5px;">' + esc(towns.join(', ')) + '</span>' : '') + '</div>' +
         '<div style="font-size:12px;color:#555;white-space:nowrap;">' + g.asked.length + ' asked' +
           (g.looked ? ' &middot; ' + g.looked + ' looked' : '') + '</div>' +
       '</div>' +
@@ -1692,7 +1708,7 @@ function renderWait(){
       people + '</div>';
   }).join('');
   box.innerHTML = head + rows +
-    '<div style="font-size:11.5px;color:#aaa;margin-top:6px;">Nobody here counts as a lead or as revenue. ' +
+    '<div style="font-size:11.5px;color:#707070;margin-top:6px;">Nobody here counts as a lead or as revenue. ' +
     'To serve a ZIP, add it to pricing.js and it starts quoting.</div>';
 }
 function toggleQR(){
@@ -1715,9 +1731,9 @@ function renderQR(){
   var since = function(d){ var c = new Date(now.getTime() - d * 86400000); return scans.filter(function(v){ return new Date(v.created) >= c; }).length; };
   var today = scans.filter(function(v){ return gDayKey(new Date(v.created)) === todayK; }).length;
   if (!scans.length){
-    box.innerHTML = '<div style="color:#777;">No scans yet. Every time somebody scans the QR code on a yard sign it will show up here, ' +
+    box.innerHTML = '<div style="color:#707070;">No scans yet. Every time somebody scans the QR code on a yard sign it will show up here, ' +
       'and you will get a notification at the top of this page.</div>' +
-      '<div style="font-size:11.5px;color:#aaa;margin-top:8px;">This counts every sign code. ' +
+      '<div style="font-size:11.5px;color:#707070;margin-top:8px;">This counts every sign code. ' +
       'The ones out now point at clpropetservices.com/contact and land here without a city beside them. ' +
       'The new per-city codes (/stp, /ofa and so on) show their town. Nothing else on the site links to any ' +
       'of those, so anything arriving on one came off a sign.</div>';
@@ -1727,19 +1743,19 @@ function renderQR(){
   var stat = function(n, l){
     return '<div style="flex:1;min-width:74px;background:#F7F9F8;border:1px solid #E4EBE7;border-radius:10px;padding:9px 10px;">' +
       '<div style="font-size:20px;font-weight:800;color:#0F6E56;line-height:1.1;">' + n + '</div>' +
-      '<div style="font-size:11px;color:#777;margin-top:2px;">' + l + '</div></div>';
+      '<div style="font-size:11px;color:#707070;margin-top:2px;">' + l + '</div></div>';
   };
   var rows = scans.slice(0, 25).map(function(v){
     var d = new Date(v.created), c = qrCityOf(v.service);
     return '<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid #f0f0f0;">' +
       '<span>&#128241; ' + esc(c === 'Not tagged by city' ? 'Sign scan' : c) + '</span>' +
-      '<span style="color:#777;">' + esc(d.toLocaleString()) + '</span></div>';
+      '<span style="color:#707070;">' + esc(d.toLocaleString()) + '</span></div>';
   }).join('');
   box.innerHTML =
     '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px;">' +
       stat(today, 'today') + stat(since(7), 'last 7 days') + stat(since(30), 'last 30 days') + stat(scans.length, 'total') +
     '</div>' +
-    '<div style="background:#F2F7F4;border-left:3px solid #1D9E75;border-radius:0 9px 9px 0;padding:9px 11px;font-size:12.5px;margin-bottom:10px;">' +
+    '<div style="background:#F2F7F4;border-left:3px solid #188663;border-radius:0 9px 9px 0;padding:9px 11px;font-size:12.5px;margin-bottom:10px;">' +
       '<strong>' + mine.length + '</strong> lead' + (mine.length === 1 ? '' : 's') + ' came off the signs' +
       (closed.length ? ', <strong>' + closed.length + '</strong> of them closed' : '') + '.' +
       (scans.length ? ' That is ' + Math.round(mine.length / scans.length * 100) + '% of scans turning into a lead.' : '') +
@@ -1747,7 +1763,7 @@ function renderQR(){
     qrCityTable(scans, mine) +
     '<div style="font-weight:700;font-size:12.5px;margin-bottom:2px;">Most recent scans</div>' + rows +
     '<div style="font-size:11px;color:#bbb;margin-top:8px;">Traffic history is kept for about 13 months.</div>' +
-    (scans.length > 25 ? '<div style="font-size:11.5px;color:#aaa;margin-top:8px;">' + (scans.length - 25) + ' older scans not shown.</div>' : '');
+    (scans.length > 25 ? '<div style="font-size:11.5px;color:#707070;margin-top:8px;">' + (scans.length - 25) + ' older scans not shown.</div>' : '');
 }
 function toggleBrief(){
   var p = document.getElementById('briefPanel');
@@ -2136,19 +2152,19 @@ function renderReviews(){
     return '<div style="padding:9px 0;border-top:1px solid #f2f2f2;">' +
       '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">' +
         '<strong style="font-size:13.5px;">' + esc(l.name || '(no name)') + '</strong>' +
-        '<span style="font-size:11px;color:#aaa;">' + esc(since) + '</span></div>' +
+        '<span style="font-size:11px;color:#707070;">' + esc(since) + '</span></div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
-        (l.phone ? '<button onclick="reviewText(\'' + esc(l.id) + '\')" style="background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:34px;">&#128172; Text the ask</button>' : '') +
+        (l.phone ? '<button onclick="reviewText(\'' + esc(l.id) + '\')" style="background:#188663;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:34px;">&#128172; Text the ask</button>' : '') +
         (l.email ? '<button onclick="reviewEmail(\'' + esc(l.id) + '\')" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#9993;&#65039; Email it</button>' : '') +
         '<button onclick="markReviewAsked(\'' + esc(l.id) + '\')" style="background:#fff;color:#555;border:1px solid #ccc;border-radius:8px;padding:9px 12px;font-size:12px;cursor:pointer;font-family:inherit;min-height:34px;">&#10003; Already asked</button>' +
-        '<button onclick="markReviewAsked(\'' + esc(l.id) + '\',\'skip\')" style="background:none;color:#aaa;border:none;padding:9px 10px;font-size:12px;cursor:pointer;font-family:inherit;min-height:34px;">Skip</button>' +
+        '<button onclick="markReviewAsked(\'' + esc(l.id) + '\',\'skip\')" style="background:none;color:#707070;border:none;padding:9px 10px;font-size:12px;cursor:pointer;font-family:inherit;min-height:34px;">Skip</button>' +
       '</div></div>';
   }).join('');
 
   box.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
       '<div style="font-weight:800;font-size:14px;">&#11088; Ask for a review' +
-        (due.length ? ' <span style="background:#1D9E75;color:#fff;border-radius:20px;padding:1px 8px;font-size:12px;">' + due.length + '</span>' : '') +
+        (due.length ? ' <span style="background:#188663;color:#fff;border-radius:20px;padding:1px 8px;font-size:12px;">' + due.length + '</span>' : '') +
       '</div>' +
       '<button onclick="toggleReviewSettings()" style="background:none;border:none;color:#0F6E56;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;padding:9px 8px;margin:-9px -8px;">&#9881;&#65039; Link</button>' +
     '</div>' +
@@ -2158,25 +2174,25 @@ function renderReviews(){
           'Add it with the &#9881;&#65039; button: Google Business Profile &rarr; <strong>Ask for reviews</strong> &rarr; copy the link.</div>'
       : '') +
     (due.length
-      ? '<div style="font-size:11.5px;color:#888;margin-top:6px;">' + due.length + ' customer' + (due.length === 1 ? '' : 's') +
+      ? '<div style="font-size:11.5px;color:#707070;margin-top:6px;">' + due.length + ' customer' + (due.length === 1 ? '' : 's') +
         ' ' + (due.length === 1 ? 'has' : 'have') + ' been with you ' + REVIEW_WAIT_DAYS + '+ days and ' +
         (due.length === 1 ? 'hasn’t' : 'haven’t') + ' been asked yet. The message is written &mdash; just send it.</div>' + list +
-        (due.length > 8 ? '<div style="font-size:11.5px;color:#aaa;padding-top:8px;">+ ' + (due.length - 8) + ' more after these.</div>' : '')
-      : '<div style="font-size:12.5px;color:#777;margin-top:6px;">' +
+        (due.length > 8 ? '<div style="font-size:11.5px;color:#707070;padding-top:8px;">+ ' + (due.length - 8) + ' more after these.</div>' : '')
+      : '<div style="font-size:12.5px;color:#707070;margin-top:6px;">' +
           (asked ? 'All caught up &mdash; ' + asked + ' customer' + (asked === 1 ? '' : 's') + ' asked so far. ' : '') +
           (upcoming ? upcoming + ' more come due as they hit ' + REVIEW_WAIT_DAYS + ' days.' : '') + '</div>') +
     '<div id="rv-settings" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid #eee;">' +
       '<div style="font-size:12px;color:#555;margin-bottom:6px;">Your Google review link (Business Profile &rarr; Ask for reviews &rarr; copy):</div>' +
       '<input id="rv-link" type="url" inputmode="url" placeholder="https://g.page/r/..." value="' + esc(link) + '" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;">' +
-      '<button class="copybtn" style="margin-top:8px;background:#1D9E75;color:#fff;border-color:#1D9E75;" onclick="saveReviewLink()">Save link</button>' +
+      '<button class="copybtn" style="margin-top:8px;background:#188663;color:#fff;border-color:#188663;" onclick="saveReviewLink()">Save link</button>' +
       '<div style="border-top:1px solid #eee;margin-top:12px;padding-top:10px;">' +
         '<div style="font-size:12px;color:#555;margin-bottom:6px;">How many months does the average customer stay? ' +
           'Every &ldquo;what did the ads earn us&rdquo; figure is built on this number.</div>' +
         '<input id="cfg-life" type="number" min="1" max="240" value="' + lifetimeMonths() + '" ' +
           'style="width:110px;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;"> ' +
-        '<span style="font-size:12px;color:#777;">months</span>' +
-        '<button class="copybtn" style="margin-top:8px;display:block;background:#1D9E75;color:#fff;border-color:#1D9E75;" onclick="saveLifetime()">Save</button>' +
-        '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5;">Currently ' + lifetimeMonths() + ' months. ' +
+        '<span style="font-size:12px;color:#707070;">months</span>' +
+        '<button class="copybtn" style="margin-top:8px;display:block;background:#188663;color:#fff;border-color:#188663;" onclick="saveLifetime()">Save</button>' +
+        '<div style="font-size:11px;color:#707070;margin-top:6px;line-height:1.5;">Currently ' + lifetimeMonths() + ' months. ' +
           'This is an estimate, not something measured from the tracker &mdash; cancellations are not recorded yet, ' +
           'so if it is optimistic the return figures are too.</div>' +
       '</div>' +
@@ -2308,12 +2324,12 @@ function renderROI(){
   var headline =
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#eee;border-radius:10px;overflow:hidden;margin:10px 0 4px;">' +
       '<div style="background:#fff;padding:9px 11px;">' +
-        '<div style="font-size:10.5px;color:#999;letter-spacing:.04em;">SPENT ON ADS</div>' +
+        '<div style="font-size:10.5px;color:#707070;letter-spacing:.04em;">SPENT ON ADS</div>' +
         '<div style="font-size:19px;font-weight:800;">' + money(totalSpend) + '</div></div>' +
       '<div style="background:#fff;padding:9px 11px;">' +
-        '<div style="font-size:10.5px;color:#999;letter-spacing:.04em;">CLOSED THIS MONTH</div>' +
+        '<div style="font-size:10.5px;color:#707070;letter-spacing:.04em;">CLOSED THIS MONTH</div>' +
         '<div style="font-size:19px;font-weight:800;color:#0F6E56;">' + money(t.ltv) + '</div>' +
-        '<div style="font-size:10.5px;color:#aaa;">worth over ' + (LMx % 12 === 0 ? (LMx / 12) + ' year' + (LMx === 12 ? '' : 's') : LMx + ' months') +
+        '<div style="font-size:10.5px;color:#707070;">worth over ' + (LMx % 12 === 0 ? (LMx / 12) + ' year' + (LMx === 12 ? '' : 's') : LMx + ' months') +
         ' &middot; ' + money(t.year1) + ' in year one</div></div>' +
     '</div>' +
     (totalSpend > 0
@@ -2323,9 +2339,9 @@ function renderROI(){
           overallY1.toFixed(1) + '&times; in year one alone)</span></div>'
       : '') +
     (earnedBits.length
-      ? '<div style="font-size:11.5px;color:#777;margin-bottom:8px;">' + esc(monthLabel(roiMonth)) + ' closed: ' + earnedBits.join(' &middot; ') +
+      ? '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">' + esc(monthLabel(roiMonth)) + ' closed: ' + earnedBits.join(' &middot; ') +
         ' &mdash; ' + t.closed + ' customer' + (t.closed === 1 ? '' : 's') + '</div>'
-      : '<div style="font-size:11.5px;color:#777;margin-bottom:8px;">Nothing closed in ' + esc(monthLabel(roiMonth)) + ' yet.</div>');
+      : '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">Nothing closed in ' + esc(monthLabel(roiMonth)) + ' yet.</div>');
 
   // Paid channels: spend vs return
   var scale = Math.max.apply(null, CHANNELS.map(function(c){
@@ -2347,16 +2363,16 @@ function renderROI(){
     return '<div style="padding:10px 0;border-top:1px solid #f2f2f2;">' +
       '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">' +
         '<strong style="font-size:13.5px;">' + esc(c.label) + '</strong>' + verdictTxt + '</div>' +
-      '<div style="font-size:11.5px;color:#888;margin:2px 0 6px;">' + bits.join(' &middot; ') + '</div>' +
+      '<div style="font-size:11.5px;color:#707070;margin:2px 0 6px;">' + bits.join(' &middot; ') + '</div>' +
       '<div style="display:flex;align-items:center;gap:7px;margin-bottom:3px;">' +
-        '<span style="font-size:10.5px;color:#aaa;width:34px;">spent</span>' +
+        '<span style="font-size:10.5px;color:#707070;width:34px;">spent</span>' +
         '<div style="flex:1;height:13px;background:#f4f4f4;border-radius:4px;overflow:hidden;">' +
           '<div style="height:100%;width:' + pct(spend) + '%;background:#B9C4C0;"></div></div>' +
         '<span style="font-size:11.5px;font-weight:700;width:56px;text-align:right;">' + money(spend) + '</span></div>' +
       '<div style="display:flex;align-items:center;gap:7px;">' +
-        '<span style="font-size:10.5px;color:#aaa;width:34px;">back</span>' +
+        '<span style="font-size:10.5px;color:#707070;width:34px;">back</span>' +
         '<div style="flex:1;height:13px;background:#f4f4f4;border-radius:4px;overflow:hidden;">' +
-          '<div style="height:100%;width:' + pct(r.ltv) + '%;background:' + (r.ltv >= spend && r.ltv > 0 ? '#1D9E75' : '#E2A03F') + ';"></div></div>' +
+          '<div style="height:100%;width:' + pct(r.ltv) + '%;background:' + (r.ltv >= spend && r.ltv > 0 ? '#188663' : '#E2A03F') + ';"></div></div>' +
         '<span style="font-size:11.5px;font-weight:700;width:56px;text-align:right;color:#0F6E56;">' + money(r.ltv) + '</span></div>' +
     '</div>';
   }).join('');
@@ -2371,12 +2387,12 @@ function renderROI(){
       var r = mb.by[k];
       return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#666;padding:3px 0;">' +
         '<span>' + esc(k === 'Not tagged' ? 'Not tagged (phone-ins, older leads)' : k) +
-          ' <span style="color:#aaa;">' + r.leads + ' lead' + (r.leads === 1 ? '' : 's') + ', ' + r.closed + ' closed</span></span>' +
+          ' <span style="color:#707070;">' + r.leads + ' lead' + (r.leads === 1 ? '' : 's') + ', ' + r.closed + ' closed</span></span>' +
         '<span style="font-weight:700;color:' + (r.ltv ? '#0F6E56' : '#bbb') + ';">' + money(r.ltv) + '</span></div>';
     }).join('');
   var freeBlock = freeRows
     ? '<div style="margin-top:12px;padding-top:9px;border-top:1px solid #eee;">' +
-        '<div style="font-size:11px;color:#999;margin-bottom:4px;">Came in without ad spend &mdash; free revenue</div>' + freeRows + '</div>'
+        '<div style="font-size:11px;color:#707070;margin-bottom:4px;">Came in without ad spend &mdash; free revenue</div>' + freeRows + '</div>'
     : '';
   // Paying for a channel while all its leads land in the organic bucket usually
   // means click tagging is off in the ad account, not that the ads did nothing.
@@ -2429,12 +2445,12 @@ function renderROI(){
       var cur = spendFor(roiMonth, c.k);
       return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">' +
         '<label for="sp-' + c.k.replace(/\W/g, '') + '" style="font-size:12.5px;flex:1;">' + esc(c.label) + '</label>' +
-        '<span style="color:#999;font-size:13px;">$</span>' +
+        '<span style="color:#707070;font-size:13px;">$</span>' +
         '<input id="sp-' + c.k.replace(/\W/g, '') + '" type="text" inputmode="decimal" placeholder="0" value="' + (cur || '') +
           '" style="width:92px;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;text-align:right;"></div>';
     }).join('') +
-    '<button class="copybtn" style="margin-top:3px;background:#1D9E75;color:#fff;border-color:#1D9E75;" onclick="saveSpend()">Save ' + esc(monthLabel(roiMonth)) + ' spend</button>' +
-    '<div style="font-size:11px;color:#aaa;margin-top:6px;">Leave a box empty to leave that channel unchanged. Saving again replaces the old number.</div>' +
+    '<button class="copybtn" style="margin-top:3px;background:#188663;color:#fff;border-color:#188663;" onclick="saveSpend()">Save ' + esc(monthLabel(roiMonth)) + ' spend</button>' +
+    '<div style="font-size:11px;color:#707070;margin-top:6px;">Leave a box empty to leave that channel unchanged. Saving again replaces the old number.</div>' +
   '</div>';
 
   box.innerHTML =
@@ -2490,15 +2506,15 @@ function waiverBlock(){
   return '<div style="background:#F7F9F8;border:1px solid #E4EBE7;border-radius:11px;padding:10px 12px;margin-top:11px;">' +
     '<div style="font-weight:800;font-size:13px;margin-bottom:5px;">&#127991;&#65039; Initial clean fee waived &middot; day ' + days + '</div>' +
     '<div style="display:flex;gap:10px;margin-bottom:6px;">' +
-      '<div style="flex:1;"><div style="font-size:10.5px;color:#999;">SINCE ' + esc(P.waiveInitialFrom) + '</div>' +
+      '<div style="flex:1;"><div style="font-size:10.5px;color:#707070;">SINCE ' + esc(P.waiveInitialFrom) + '</div>' +
         '<div style="font-size:17px;font-weight:800;">' + since.length + ' lead' + (since.length === 1 ? '' : 's') + '</div>' +
-        '<div style="font-size:11px;color:#777;">' + closedOf(since) + ' closed</div></div>' +
-      '<div style="flex:1;"><div style="font-size:10.5px;color:#999;">' + span + ' DAYS BEFORE</div>' +
-        '<div style="font-size:17px;font-weight:800;color:#777;">' + prior.length + ' lead' + (prior.length === 1 ? '' : 's') + '</div>' +
-        '<div style="font-size:11px;color:#777;">' + closedOf(prior) + ' closed</div></div>' +
+        '<div style="font-size:11px;color:#707070;">' + closedOf(since) + ' closed</div></div>' +
+      '<div style="flex:1;"><div style="font-size:10.5px;color:#707070;">' + span + ' DAYS BEFORE</div>' +
+        '<div style="font-size:17px;font-weight:800;color:#707070;">' + prior.length + ' lead' + (prior.length === 1 ? '' : 's') + '</div>' +
+        '<div style="font-size:11px;color:#707070;">' + closedOf(prior) + ' closed</div></div>' +
     '</div>' +
     '<div style="font-size:12px;line-height:1.6;">' + verdict + '</div>' +
-    '<div style="font-size:10.5px;color:#aaa;margin-top:5px;line-height:1.5;">Sign-ups move with the weather and the season as well as the offer, so treat this as a signal rather than proof. Turn the waiver off in pricing.js when you want the $40 back.</div>' +
+    '<div style="font-size:10.5px;color:#707070;margin-top:5px;line-height:1.5;">Sign-ups move with the weather and the season as well as the offer, so treat this as a signal rather than proof. Turn the waiver off in pricing.js when you want the $40 back.</div>' +
   '</div>';
 }
 function priceLabel(l){
@@ -2636,9 +2652,9 @@ function render(){
     return (l.status || 'new') === 'new' && quoteState(l) !== 'declined';
   }).length;
   document.getElementById('stats').innerHTML =
-    '<div class="stat" onclick="filter=\'interested\';render()" style="cursor:pointer;"><div class="n" style="color:#1D9E75">' + counts.interested + '</div><div class="l">Interested</div></div>' +
+    '<div class="stat" onclick="filter=\'interested\';render()" style="cursor:pointer;"><div class="n" style="color:#188663">' + counts.interested + '</div><div class="l">Interested</div></div>' +
     '<div class="stat" onclick="filter=\'new\';render()" style="cursor:pointer;"><div class="n" style="color:#2980ef">' + newToCall + '</div><div class="l">New to call</div></div>' +
-    '<div class="stat" onclick="filter=\'closed\';render()" style="cursor:pointer;"><div class="n" style="color:#1D9E75">' + counts.closed + '</div><div class="l">Closed</div></div>' +
+    '<div class="stat" onclick="filter=\'closed\';render()" style="cursor:pointer;"><div class="n" style="color:#188663">' + counts.closed + '</div><div class="l">Closed</div></div>' +
     '<div class="stat" onclick="filter=\'saidno\';render()" style="cursor:pointer;"><div class="n" style="color:#b45309">' + counts.saidno + '</div><div class="l">Said no</div></div>';
   document.getElementById('chips').innerHTML = FILTERS.map(function(f){
     return '<button class="chip' + (filter === f.k ? ' on' : '') + '" onclick="filter=\'' + f.k + '\';render()">' + f.label +
@@ -2675,7 +2691,7 @@ function render(){
     var smsBody = 'Hi ' + firstName + ", it's Corey with CL Professional Pet Services - just got your request" +
       (shortPrice ? ' (' + shortPrice + ')' : '') + ". When's a good time to talk?";
     var smsBtn = digits2 ? '<a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(smsBody).replace(/'/g, '%27') + '"' +
-      ' style="display:inline-block;background:#1D9E75;color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:700;text-decoration:none;">&#128172; Text them</a>' : '';
+      ' style="display:inline-block;background:#188663;color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:700;text-decoration:none;">&#128172; Text them</a>' : '';
     var attLine = fu.att ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#9742;&#65039; ' + fu.att + ' contact attempt' + (fu.att > 1 ? 's' : '') + ' &middot; last ' + esc(fu.attDate) + '</div>' : '';
     var icChip = fu.ic === 'w' ? '<div style="color:#5E35B1;font-size:12px;font-weight:700;margin-top:6px;">&#128142; Initial clean fee: WAIVED</div>' : '';
     var srcChip = fu.src ? '<div style="color:#8a6d1a;font-size:12px;font-weight:600;margin-top:6px;">&#128227; Source: ' + esc(fu.src) + '</div>' : '';
@@ -2688,7 +2704,7 @@ function render(){
       rvRow = '<div style="background:#FFF8E1;border-radius:9px;padding:8px 11px;margin-top:8px;font-size:12.5px;color:#7a5c00;font-weight:700;">' +
         '&#11088; Been with you a while &mdash; ask for a Google review' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
-          (digits ? '<button onclick="reviewText(\'' + esc(l.id) + '\')" style="background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:34px;">&#128172; Text the ask</button>' : '') +
+          (digits ? '<button onclick="reviewText(\'' + esc(l.id) + '\')" style="background:#188663;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:34px;">&#128172; Text the ask</button>' : '') +
           (l.email ? '<button onclick="reviewEmail(\'' + esc(l.id) + '\')" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#9993;&#65039; Email it</button>' : '') +
           '<button onclick="markReviewAsked(\'' + esc(l.id) + '\',\'skip\')" style="background:none;color:#b09a5e;border:none;padding:5px 4px;font-size:12px;cursor:pointer;font-family:inherit;">Skip</button>' +
         '</div></div>';
@@ -2744,13 +2760,13 @@ function render(){
       '<div class="stbtns">' + STATUSES.map(function(s){
         return '<button class="b-' + s.k + (st === s.k ? ' on' : '') + '" onclick="setStatus(\'' + esc(l.id) + '\',\'' + s.k + '\')">' + s.label + '</button>';
       }).join('') +
-      '<button onclick="attemptLead(\'' + esc(l.id) + '\')" style="border-color:#1D9E75;color:#0F6E56;font-weight:700;">&#9742;&#65039; +1 attempt</button>' +
+      '<button onclick="attemptLead(\'' + esc(l.id) + '\')" style="border-color:#188663;color:#0F6E56;font-weight:700;">&#9742;&#65039; +1 attempt</button>' +
       smsBtn + '</div>' +
       '<div class="notes"><textarea id="note-' + esc(l.id) + '" placeholder="Your notes (gate code, price agreed…)">' + esc(fu.text) + '</textarea>' +
       '<button onclick="saveNote(\'' + esc(l.id) + '\')">Save</button></div>' +
-      '<div style="margin-top:6px;font-size:12px;color:#555;">Follow up on: <input type="date" id="fu-' + esc(l.id) + '" value="' + esc(fu.date) + '" style="border:1px solid #ddd;border-radius:7px;padding:8px 9px;font-family:inherit;font-size:12px;min-height:34px;"> <span style="color:#aaa;">(tap Save after picking)</span></div>' +
+      '<div style="margin-top:6px;font-size:12px;color:#555;">Follow up on: <input type="date" id="fu-' + esc(l.id) + '" value="' + esc(fu.date) + '" style="border:1px solid #ddd;border-radius:7px;padding:8px 9px;font-family:inherit;font-size:12px;min-height:34px;"> <span style="color:#707070;">(tap Save after picking)</span></div>' +
       '<div style="margin-top:8px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">Quote: ' +
-      '<button onclick="quoteEmail(\'' + esc(l.id) + '\')" style="background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:34px;">&#9993;&#65039; Email quote</button>' +
+      '<button onclick="quoteEmail(\'' + esc(l.id) + '\')" style="background:#188663;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:34px;">&#9993;&#65039; Email quote</button>' +
       (fu.qs
         ? '<span onclick="markQuoteSent(\'' + esc(l.id) + '\')" style="color:#0F6E56;font-weight:700;cursor:pointer;">&#128228; Quote emailed ' + esc(fu.qs.slice(5)) + ' <span style="color:#bbb;font-weight:400;">(tap to undo)</span></span>'
         : '<button onclick="markQuoteSent(\'' + esc(l.id) + '\')" style="background:#fff;color:#555;border:1px solid #ccc;border-radius:8px;padding:9px 12px;font-size:12px;cursor:pointer;font-family:inherit;min-height:34px;">&#10003; Mark as sent</button>') + '</div>' +
@@ -2800,7 +2816,7 @@ function renderTraffic(){
   tn.style.cursor = 'pointer';
   tn.onclick = function(){ toggleDetail(); };
   tn.innerHTML =
-    '<div class="stat"><div class="n" style="color:#1D9E75">' + vToday + '</div><div class="l">Today</div></div>' +
+    '<div class="stat"><div class="n" style="color:#188663">' + vToday + '</div><div class="l">Today</div></div>' +
     '<div class="stat"><div class="n">' + v7 + '</div><div class="l">Views 7d</div></div>' +
     '<div class="stat"><div class="n">' + v30 + '</div><div class="l">Views 30d</div></div>' +
     '<div class="stat"><div class="n">' + l30 + '</div><div class="l">Leads 30d</div></div>' +
@@ -2816,7 +2832,7 @@ function renderTraffic(){
   var max = Math.max.apply(null, counts.concat([1]));
   document.getElementById('t-chart').innerHTML = counts.map(function(c, i){
     var h = Math.max(3, Math.round(c / max * 60));
-    return '<div onclick="showDayDetail(\'' + days[i] + '\')" title="' + days[i] + ': ' + c + '" style="flex:1;height:' + h + 'px;background:' + (i === 13 ? '#1D9E75' : '#BFE6D8') + ';border-radius:3px 3px 0 0;cursor:pointer;"></div>';
+    return '<div onclick="showDayDetail(\'' + days[i] + '\')" title="' + days[i] + ': ' + c + '" style="flex:1;height:' + h + 'px;background:' + (i === 13 ? '#188663' : '#BFE6D8') + ';border-radius:3px 3px 0 0;cursor:pointer;"></div>';
   }).join('');
   var srcName = function(h){
     h = String(h).toLowerCase();
@@ -2954,7 +2970,7 @@ function renderDetail(){
     var price = qv.price && qv.price !== 'manual'
       ? '<strong style="color:#8a6d1a;">' + esc(qv.price) + '</strong>'
       : '<strong style="color:#8a6d1a;">custom quote</strong>';
-    return '<div style="font-size:11.5px;color:#777;margin-top:2px;padding-left:14px;">' +
+    return '<div style="font-size:11.5px;color:#707070;margin-top:2px;padding-left:14px;">' +
       price +
       (qv.name ? ' &middot; ' + esc(planName(qv.name)) : '') +
       (qv.zip ? ' &middot; ' + esc(qv.zip) : '') +
@@ -2978,8 +2994,8 @@ function renderDetail(){
                                      : raw + '% of previous') : '';
       return '<div style="margin-bottom:7px;">' +
         '<div style="display:flex;justify-content:space-between;font-size:12px;color:#555;"><span>' + st[0] + '</span><span style="font-weight:800;color:#1a1a1a;">' + st[1] +
-        (stepPct ? ' <span style="color:#999;font-weight:400;">(' + stepPct + ')</span>' : '') + '</span></div>' +
-        '<div style="height:9px;background:#f0f0f0;border-radius:5px;overflow:hidden;"><div style="height:100%;width:' + Math.max(pct, st[1] ? 3 : 0) + '%;background:' + ['#BFE6D8','#9FDCC5','#8ED4B8','#5DC49B','#1D9E75','#0F6E56'][i] + ';"></div></div>' +
+        (stepPct ? ' <span style="color:#707070;font-weight:400;">(' + stepPct + ')</span>' : '') + '</span></div>' +
+        '<div style="height:9px;background:#f0f0f0;border-radius:5px;overflow:hidden;"><div style="height:100%;width:' + Math.max(pct, st[1] ? 3 : 0) + '%;background:' + ['#BFE6D8','#9FDCC5','#8ED4B8','#5DC49B','#188663','#0F6E56'][i] + ';"></div></div>' +
         (i === 3 && st[1] ? '<div style="font-size:11px;color:#8a6d1a;margin-top:3px;">from ' + tallySources(qviews.filter(in30)) + '</div>' : '') +
         '</div>';
     }).join('');
@@ -3007,14 +3023,14 @@ function renderDetail(){
       '<div style="display:flex;justify-content:space-between;font-size:12.5px;"><strong>' + label + (i === 0 ? ' (today)' : '') + '</strong>' +
       '<span style="font-weight:700;">' + dayViews.length + ' view' + (dayViews.length === 1 ? '' : 's') +
       (dayPriced ? ' &middot; ' + dayPriced + ' priced' : '') +
-      (dayLeads.length ? ' &middot; <span style="color:#1D9E75;">' + dayLeads.length + ' lead' + (dayLeads.length === 1 ? '' : 's') + '</span>' : '') + '</span></div>' +
-      (pageStr ? '<div style="font-size:11.5px;color:#777;margin-top:2px;">Pages: ' + pageStr + '</div>' : '') +
-      (srcStr ? '<div style="font-size:11.5px;color:#999;margin-top:1px;">From: ' + srcStr + '</div>' : '') +
+      (dayLeads.length ? ' &middot; <span style="color:#188663;">' + dayLeads.length + ' lead' + (dayLeads.length === 1 ? '' : 's') + '</span>' : '') + '</span></div>' +
+      (pageStr ? '<div style="font-size:11.5px;color:#707070;margin-top:2px;">Pages: ' + pageStr + '</div>' : '') +
+      (srcStr ? '<div style="font-size:11.5px;color:#707070;margin-top:1px;">From: ' + srcStr + '</div>' : '') +
       (dayPriced ? '<div style="font-size:11.5px;color:#8a6d1a;margin-top:3px;font-weight:700;">&#128178; Saw a price (' + dayPriced + ')</div>' +
         dayPricedList.slice()
           .sort(function(a, b){ return new Date(b.created) - new Date(a.created); })
           .slice(0, 8).map(qvLine).join('') +
-        (dayPriced > 8 ? '<div style="font-size:11px;color:#999;padding-left:14px;">and ' + (dayPriced - 8) + ' more</div>' : '')
+        (dayPriced > 8 ? '<div style="font-size:11px;color:#707070;padding-left:14px;">and ' + (dayPriced - 8) + ' more</div>' : '')
         : '') +
       (dayLeads.length ? '<div style="font-size:11.5px;color:#0F6E56;margin-top:1px;">Leads: ' + dayLeads.map(function(l){ return esc(l.name || '?'); }).join(', ') + '</div>' : '') +
       '</div>';
@@ -3043,7 +3059,7 @@ function renderDetail(){
     var o = landBySrc[s];
     var total = 0; Object.keys(o).forEach(function(k){ total += o[k]; });
     return '<div style="font-size:12px;color:#555;padding:3px 0;border-bottom:1px solid #f7f7f7;">' +
-      '<strong>' + esc(s) + '</strong> <span style="color:#999;">(' + total + ' visit' + (total === 1 ? '' : 's') + ') first clicked into:</span> ' +
+      '<strong>' + esc(s) + '</strong> <span style="color:#707070;">(' + total + ' visit' + (total === 1 ? '' : 's') + ') first clicked into:</span> ' +
       Object.keys(o).sort(function(a, b){ return o[b] - o[a]; })
         .map(function(p){ return esc(pgName(p)) + ' (' + o[p] + ')'; }).join(' &middot; ') + '</div>';
   }).join('');
@@ -3075,21 +3091,21 @@ function renderDetail(){
     if (!src){ var rv = s.vs.filter(function(v){ return v.zip; })[0]; src = rv ? srcName2(rv.zip) : 'Direct'; }
     var path = s.vs.map(function(v){ return esc(pgName(v.name)); });
     if (s.q) path.push('<span style="color:#8a6d1a;">&#128178; saw ' + esc(s.q.price || 'a price') + '</span>');
-    if (s.lead) path.push('<span style="color:#1D9E75;font-weight:700;">&#9989; became a lead' + (s.lead.name ? ': ' + esc(s.lead.name) : '') + '</span>');
+    if (s.lead) path.push('<span style="color:#188663;font-weight:700;">&#9989; became a lead' + (s.lead.name ? ': ' + esc(s.lead.name) : '') + '</span>');
     var when = new Date(first.created).toLocaleDateString('en-US', { month:'short', day:'numeric' }) +
       ' ' + new Date(first.created).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
     return '<div style="font-size:12px;color:#555;padding:5px 0;border-bottom:1px solid #f7f7f7;">' +
-      '<span style="color:#999;">' + when + '</span> &middot; <strong>' + esc(src) + '</strong><br>' +
+      '<span style="color:#707070;">' + when + '</span> &middot; <strong>' + esc(src) + '</strong><br>' +
       path.join(' <span style="color:#bbb;">&rarr;</span> ') + '</div>';
   }).join('');
   var journeys = jRows
     ? '<div style="font-weight:800;font-size:13px;margin:14px 0 4px;">&#129517; Visitor journeys, newest first</div>' +
-      '<div style="font-size:11px;color:#aaa;margin-bottom:4px;">Each line is one visit: where they came from and every page they touched, in order.</div>' + jRows
+      '<div style="font-size:11px;color:#707070;margin-bottom:4px;">Each line is one visit: where they came from and every page they touched, in order.</div>' + jRows
     : '';
 
   document.getElementById('t-detail').innerHTML = funnel + landing + journeys +
     '<div style="font-weight:800;font-size:13px;margin:14px 0 4px;">&#128197; Day by day, last 14 days</div>' +
-    (dayRows || '<div style="font-size:12px;color:#999;">No activity recorded yet.</div>');
+    (dayRows || '<div style="font-size:12px;color:#707070;">No activity recorded yet.</div>');
 }
 loadLeads(false);
 // Keep the page live: quietly re-check the database every 60 seconds, and again

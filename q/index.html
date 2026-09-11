@@ -12,34 +12,50 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
 .top{background:#fff;border-bottom:1px solid #e8e8e8;padding:14px 20px;display:flex;align-items:center;gap:10px;}
 .top img{width:42px;height:42px;object-fit:contain;}
 .top b{font-size:14px;display:block;}
-.top small{font-size:11px;color:#888;}
+.top small{font-size:11px;color:#707070;}
 .wrap{max-width:560px;margin:0 auto;padding:28px 18px 60px;}
 .card{background:#fff;border-radius:18px;box-shadow:0 6px 28px rgba(0,0,0,0.08);overflow:hidden;}
-.head{background:linear-gradient(135deg,#1D9E75,#0F6E56);color:#fff;padding:26px 24px;text-align:center;}
+.head{background:linear-gradient(135deg,#188663,#0F6E56);color:#fff;padding:26px 24px;text-align:center;}
 .head .eyebrow{font-size:11.5px;letter-spacing:2px;text-transform:uppercase;opacity:0.85;font-weight:700;}
 .head h1{font-size:24px;margin:6px 0 2px;}
 .head .for{font-size:14px;opacity:0.92;}
 .pricebox{text-align:center;padding:26px 24px 8px;}
 .pricebox .amt{font-size:52px;font-weight:800;color:#0F6E56;line-height:1;}
 .pricebox .amt small{font-size:20px;font-weight:600;color:#666;}
-.pricebox .sub{font-size:13.5px;color:#777;margin-top:8px;}
+.pricebox .sub{font-size:13.5px;color:#707070;margin-top:8px;}
 .details{padding:16px 24px 6px;}
 .dline{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f1f1f1;font-size:14.5px;}
-.dline span:first-child{color:#777;}
+.dline span:first-child{color:#707070;}
 .dline span:last-child{font-weight:700;text-align:right;}
 .inc{padding:16px 24px;}
-.inc h3{font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:8px;}
+.inc h3{font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#707070;margin-bottom:8px;}
 .inc li{list-style:none;padding:6px 0 6px 26px;position:relative;font-size:14px;color:#444;}
-.inc li::before{content:'\2714';position:absolute;left:2px;color:#1D9E75;font-weight:700;}
+.inc li::before{content:'\2714';position:absolute;left:2px;color:#188663;font-weight:700;}
 .honor{margin:6px 24px 18px;background:#FDF3DC;border:1px solid #eedfae;border-radius:12px;padding:12px 15px;font-size:13.5px;color:#7a5c00;text-align:center;}
 .ctas{padding:0 24px 26px;display:flex;flex-direction:column;gap:10px;}
-.cta{display:block;text-align:center;background:#1D9E75;color:#fff;text-decoration:none;font-weight:800;font-size:16px;padding:15px;border-radius:12px;}
-.cta.alt{background:#fff;color:#0F6E56;border:2px solid #1D9E75;}
-.fine{font-size:12px;color:#999;text-align:center;padding:0 24px 22px;line-height:1.6;}
+.cta{display:block;text-align:center;background:#188663;color:#fff;text-decoration:none;font-weight:800;font-size:16px;padding:15px;border-radius:12px;}
+.cta.alt{background:#fff;color:#0F6E56;border:2px solid #188663;}
+.fine{font-size:12px;color:#707070;text-align:center;padding:0 24px 22px;line-height:1.6;}
 .trust{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:20px;font-size:12.5px;color:#666;text-align:center;}
 .trust span{background:#fff;border:1px solid #e8e8e8;border-radius:20px;padding:7px 14px;}
-.foot{text-align:center;font-size:12px;color:#999;margin-top:26px;}
+.foot{text-align:center;font-size:12px;color:#707070;margin-top:26px;}
 .foot a{color:#0F6E56;}
+
+    /* WCAG 2.4.7 Focus Visible. Somebody navigating by keyboard - a screen
+       reader user, or anyone who cannot hold a mouse - has to be able to see
+       where they are. The nav buttons had no visible focus at all, so the
+       tab key moved an invisible cursor around the page.
+       :focus-visible only shows the ring for keyboard users, so mouse clicks
+       still look the way they did. */
+    :focus-visible{outline:3px solid #188663;outline-offset:2px;border-radius:4px;}
+    a:focus-visible,button:focus-visible,input:focus-visible,
+    select:focus-visible,textarea:focus-visible{outline:3px solid #188663;outline-offset:2px;}
+    /* On the dark green header the brand ring would disappear, so flip it. */
+    .nav a:focus-visible,.topbar a:focus-visible,header a:focus-visible{outline-color:#fff;}
+    @media (prefers-reduced-motion: reduce){
+      *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+        transition-duration:.01ms !important;scroll-behavior:auto !important;}
+    }
 </style>
   <script src="/pricing.js?v=2ab4a546"></script>
   <script src="/meta-pixel.js?v=38fe5a84"></script>
@@ -63,11 +79,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
     <div class="details" id="q-details"></div>
     <div class="inc">
       <h3>Every visit includes</h3>
+      <ul>
       <li>Full-yard sweep, every corner</li>
       <li>Waste bagged &amp; hauled away with us</li>
       <li>Gate latched &amp; double-checked</li>
       <li>Photo confirmation when the job is done</li>
       <li>On-the-way text so your pups can head inside</li>
+      </ul>
     </div>
     <div class="honor" id="q-honor">&#128274; This price is locked in for you for 6 months.</div>
     <div class="ctas" id="az-area">
@@ -82,17 +100,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
         <a class="cta alt" style="flex:1;" href="tel:+16363885069">&#128222; Call</a>
         <a class="cta alt" style="flex:1;" href="sms:6363885069">&#128172; Text</a>
       </div>
-      <div style="text-align:center;font-size:12.5px;color:#888;">Jesse Duncan &middot; Operations Manager &middot; (636) 388-5069</div>
+      <div style="text-align:center;font-size:12.5px;color:#707070;">Jesse Duncan &middot; Operations Manager &middot; (636) 388-5069</div>
     </div>
     <div id="az-done" style="display:none;padding:10px 24px 30px;text-align:center;">
       <div style="font-size:46px;">&#127881;</div>
       <h2 style="font-size:21px;margin:8px 0 10px;color:#0F6E56;">You're authorized and on our list!</h2>
       <p style="font-size:14.5px;color:#555;line-height:1.7;">We'll add you to the schedule now. <strong>Be on the lookout for an email with your start date and your Sweep&amp;Go account login</strong> &mdash; that's your home base for visit notifications, photo confirmations, and billing. A confirmation email is on its way to you as well.</p>
-      <p style="font-size:13px;color:#888;margin-top:12px;">Questions in the meantime? Jesse Duncan, Operations Manager &middot; <a href="tel:+16363885069" style="color:#0F6E56;font-weight:700;">(636) 388-5069</a></p>
+      <p style="font-size:13px;color:#707070;margin-top:12px;">Questions in the meantime? Jesse Duncan, Operations Manager &middot; <a href="tel:+16363885069" style="color:#0F6E56;font-weight:700;">(636) 388-5069</a></p>
     </div>
     <details id="tosd" style="margin:0 24px 22px;font-size:12.5px;color:#666;">
       <summary style="cursor:pointer;font-weight:700;color:#0F6E56;">Terms of Service (summary)</summary>
       <ul style="padding:8px 0 0 18px;line-height:1.75;">
+      <ul>
         <li>Service is month-to-month. No contracts, cancel anytime.</li>
         <li>For recurring service the first invoice normally includes a one-time <span class="ic-fee">$40</span> initial clean. Where your quote shows it waived, you will not be charged it.</li>
         <li>A yard with excessive accumulation, or a first cleanup needing significantly more time than a standard visit, may incur an additional cleanup charge. We will quote it and agree it with you before doing the extra work.</li>
@@ -100,6 +119,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
         <li>Your quoted price is honored for 6 months from the quote date.</li>
         <li>Every visit: full-yard sweep, waste hauled away, gate latched, photo confirmation.</li>
         <li>Governed by Missouri law. Full terms provided at service start.</li>
+      </ul>
       </ul>
     </details>
     <div class="fine">Licensed &amp; insured &middot; Month-to-month, no contracts, cancel anytime &middot; Discounts for military, veterans &amp; first responders (mention it when you call!)</div>
@@ -148,7 +168,7 @@ var QP = {};
   if (P.sv) rows += '<div class="dline"><span>Schedule</span><span>' + svc + '</span></div>';
   if (P.deo) rows += '<div class="dline"><span>Deodorize &amp; sanitize</span><span>' + P.deo + '</span></div>';
   if (P.ic === 'w' && !once) rows += '<div class="dline"><span>Initial clean fee</span>' +
-    '<span><s style="opacity:.55;">$' + IC_FEE + '</s> <strong style="color:#1D9E75;">FREE &#10004;</strong></span></div>';
+    '<span><s style="opacity:.55;">$' + IC_FEE + '</s> <strong style="color:#188663;">FREE &#10004;</strong></span></div>';
   else if (!once && !isNaN(amt)) rows += '<div class="dline"><span>Initial clean (first invoice)</span><span>$' + IC_FEE + ' one-time</span></div>';
   if (P.a)  rows += '<div class="dline"><span>Service address</span><span>' + P.a + '</span></div>';
   document.getElementById('q-details').innerHTML = rows;

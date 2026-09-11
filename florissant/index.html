@@ -28,29 +28,45 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:14px 2
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:#1a1a1a;}
 .brand img{width:42px;height:42px;object-fit:contain;}
 .brand b{font-size:14px;}
-.brand small{display:block;font-size:11px;color:#888;font-weight:400;}
-.cta{background:#1D9E75;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:10px 18px;border-radius:10px;}
+.brand small{display:block;font-size:11px;color:#707070;font-weight:400;}
+.cta{background:#188663;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:10px 18px;border-radius:10px;}
 .wrap{max-width:860px;margin:0 auto;padding:34px 22px 60px;}
 h1{font-size:clamp(26px,5vw,38px);line-height:1.2;margin-bottom:14px;}
-h1 span{color:#1D9E75;}
+h1 span{color:#188663;}
 .lead{font-size:16.5px;color:#444;margin-bottom:12px;}
 .badge{display:inline-flex;align-items:center;gap:9px;background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:8px 15px;margin:14px 0 22px;box-shadow:0 2px 8px rgba(0,0,0,0.05);}
 .badge .sc{font-size:21px;font-weight:800;}
 .badge .st{color:#f5a623;letter-spacing:2px;}
-.badge small{color:#888;line-height:1.35;}
+.badge small{color:#707070;line-height:1.35;}
 .btns{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:34px;}
-.btn2{border:2px solid #1D9E75;color:#0F6E56;text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px;}
+.btn2{border:2px solid #188663;color:#0F6E56;text-decoration:none;font-weight:700;font-size:15px;padding:12px 20px;border-radius:12px;}
 .cta.big{font-size:15px;padding:13px 22px;}
 h2{font-size:21px;margin:30px 0 12px;}
 ul.svc{list-style:none;margin:0 0 8px;}
 ul.svc li{padding:9px 0 9px 30px;position:relative;border-bottom:1px solid #f2f2f2;font-size:15px;}
-ul.svc li::before{content:'\2714';position:absolute;left:2px;color:#1D9E75;font-weight:700;}
+ul.svc li::before{content:'\2714';position:absolute;left:2px;color:#188663;font-weight:700;}
 .rev{background:#f7faf9;border:1px solid #e4efe9;border-radius:14px;padding:16px 18px;margin:12px 0;}
 .rev .stars{color:#f5a623;letter-spacing:2px;font-size:13px;}
 .rev p{font-size:14.5px;color:#444;margin:6px 0;}
 .rev b{font-size:13px;}
-.foot{border-top:1px solid #e8e8e8;padding:20px 22px;font-size:13px;color:#888;text-align:center;}
+.foot{border-top:1px solid #e8e8e8;padding:20px 22px;font-size:13px;color:#707070;text-align:center;}
 .foot a{margin:0 6px;}
+
+    /* WCAG 2.4.7 Focus Visible. Somebody navigating by keyboard - a screen
+       reader user, or anyone who cannot hold a mouse - has to be able to see
+       where they are. The nav buttons had no visible focus at all, so the
+       tab key moved an invisible cursor around the page.
+       :focus-visible only shows the ring for keyboard users, so mouse clicks
+       still look the way they did. */
+    :focus-visible{outline:3px solid #188663;outline-offset:2px;border-radius:4px;}
+    a:focus-visible,button:focus-visible,input:focus-visible,
+    select:focus-visible,textarea:focus-visible{outline:3px solid #188663;outline-offset:2px;}
+    /* On the dark green header the brand ring would disappear, so flip it. */
+    .nav a:focus-visible,.topbar a:focus-visible,header a:focus-visible{outline-color:#fff;}
+    @media (prefers-reduced-motion: reduce){
+      *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+        transition-duration:.01ms !important;scroll-behavior:auto !important;}
+    }
 </style>
   <script src="/meta-pixel.js?v=38fe5a84"></script>
 </head>
