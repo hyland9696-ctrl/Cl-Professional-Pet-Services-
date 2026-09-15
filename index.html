@@ -686,7 +686,7 @@
           <div class="form-sub">No automated pricing here, commercial properties deserve a real conversation. Send the basics and we'll get back to you personally within one business day.</div>
           <div class="form-row">
             <div class="form-field"><label for="cf-prop">Property / Company Name</label><input id="cf-prop" type="text" autocomplete="organization" /></div>
-            <div class="form-field"><label for="cf-name">Your Name</label><input id="cf-name" type="text" autocomplete="name" /></div>
+            <div class="form-field"><label for="cf-name">Your Name</label><input id="cf-name" type="text" autocomplete="name" required /></div>
           </div>
           <div class="form-row">
             <div class="form-field"><label for="cf-role">Your Role</label>
@@ -697,11 +697,11 @@
             </div>
           </div>
           <div class="form-row">
-            <div class="form-field"><label for="cf-phone">Phone</label><input id="cf-phone" type="tel" autocomplete="tel" /></div>
-            <div class="form-field"><label for="cf-email">Email</label><input id="cf-email" type="email" autocomplete="email" /></div>
+            <div class="form-field"><label for="cf-phone">Phone</label><input id="cf-phone" type="tel" autocomplete="tel" required /></div>
+            <div class="form-field"><label for="cf-email">Email</label><input id="cf-email" type="email" autocomplete="email" required /></div>
           </div>
           <div class="form-row">
-            <div class="form-field"><label for="cf-addr">Property Address / Location</label><input id="cf-addr" type="text" /></div>
+            <div class="form-field"><label for="cf-addr">Property Address</label><input id="cf-addr" type="text" required /></div>
             <div class="form-field"><label for="cf-size">Size (units, acres, or best guess)</label><input id="cf-size" type="text" placeholder="e.g. 120 units, ~5 acres of common ground" /></div>
           </div>
           <div class="form-row">
@@ -770,12 +770,12 @@
           <div class="form-title">Start the conversation</div>
           <div class="form-sub">100% confidential. No obligation. Even "just curious what my route is worth" is welcome.</div>
           <div class="form-row">
-            <div class="form-field"><label for="sf-name">Your Name</label><input id="sf-name" type="text" autocomplete="name" /></div>
+            <div class="form-field"><label for="sf-name">Your Name</label><input id="sf-name" type="text" autocomplete="name" required /></div>
             <div class="form-field"><label for="sf-biz">Business Name</label><input id="sf-biz" type="text" autocomplete="organization" /></div>
           </div>
           <div class="form-row">
-            <div class="form-field"><label for="sf-phone">Phone</label><input id="sf-phone" type="tel" autocomplete="tel" /></div>
-            <div class="form-field"><label for="sf-email">Email</label><input id="sf-email" type="email" autocomplete="email" /></div>
+            <div class="form-field"><label for="sf-phone">Phone</label><input id="sf-phone" type="tel" autocomplete="tel" required /></div>
+            <div class="form-field"><label for="sf-email">Email</label><input id="sf-email" type="email" autocomplete="email" required /></div>
           </div>
           <div class="form-row">
             <div class="form-field"><label for="sf-area">Service Area (cities / counties)</label><input id="sf-area" type="text" /></div>
@@ -851,12 +851,12 @@
             if there&rsquo;s enough interest around you, yours could be the next route we run.
           </p>
           <div class="form-grid">
-            <div class="form-field"><label for="qw-name">Name</label><input id="qw-name" type="text" autocomplete="name" /></div>
-            <div class="form-field"><label for="qw-phone">Phone</label><input id="qw-phone" type="tel" autocomplete="tel" /></div>
+            <div class="form-field"><label for="qw-name">Name</label><input id="qw-name" type="text" autocomplete="name" required /></div>
+            <div class="form-field"><label for="qw-phone">Phone</label><input id="qw-phone" type="tel" autocomplete="tel" required /></div>
           </div>
-          <div class="form-field"><label for="qw-email">Email</label><input id="qw-email" type="email" autocomplete="email" /></div>
+          <div class="form-field"><label for="qw-email">Email</label><input id="qw-email" type="email" autocomplete="email" required /></div>
           <div class="form-grid">
-            <div class="form-field"><label for="qw-city">Town or neighborhood</label><input id="qw-city" type="text" autocomplete="address-level2" /></div>
+            <div class="form-field"><label for="qw-city">Town or neighborhood</label><input id="qw-city" type="text" autocomplete="address-level2" required /></div>
             <div class="form-field"><label for="qw-dogs">How many dogs?</label><input id="qw-dogs" type="text" inputmode="numeric" /></div>
           </div>
           <div class="form-field">
@@ -917,7 +917,7 @@
           <div class="form-row">
             <div class="form-field"><label for="qf2-email">Email</label><input id="qf2-email" type="email" required autocomplete="email" placeholder="We send your quote here in writing" /></div>
             <div class="form-field addr-wrap"><label for="qf2-addr">Service Address</label>
-              <input id="qf2-addr" type="text" autocomplete="off" placeholder="Start typing, then pick your address&hellip;" oninput="addrInput()" onblur="addrBlur()" />
+              <input id="qf2-addr" type="text" autocomplete="off" placeholder="Start typing, then pick your address&hellip;" oninput="addrInput()" onblur="addrBlur()" required />
               <div class="addr-sug" id="addr-sug"></div>
               <div class="addr-note" id="addr-note"></div>
             </div>
@@ -1191,11 +1191,12 @@
     var name  = document.getElementById('qw-name').value.trim();
     var phone = document.getElementById('qw-phone').value.trim();
     var email = document.getElementById('qw-email').value.trim();
-    if (!name || (!phone && !email)){
-      err.classList.add('bad');
-      err.textContent = 'Please add your name and at least one way to reach you — a phone number or an email.';
-      return;
-    }
+    if (!clppsRequire('q-waiterr', [
+      { id:'qw-name',  rule: CLPPS_REQ.name },
+      { id:'qw-phone', rule: CLPPS_REQ.phone },
+      { id:'qw-email', rule: CLPPS_REQ.email },
+      { id:'qw-city',  rule: CLPPS_REQ.town }
+    ])) return;
     var zip   = (document.getElementById('q-zip').value || '').trim();
     var city  = document.getElementById('qw-city').value.trim();
     var dogs  = document.getElementById('qw-dogs').value.trim();
@@ -1302,11 +1303,12 @@
     var name = document.getElementById('cf-name').value.trim();
     var phone = document.getElementById('cf-phone').value.trim();
     var email = document.getElementById('cf-email').value.trim();
-    if (!name || (!phone && !email)){
-      err.classList.add('bad');
-      err.textContent = 'Please add your name and at least one way to reach you (phone or email).';
-      return;
-    }
+    if (!clppsRequire('c-formerr', [
+      { id:'cf-name',  rule: CLPPS_REQ.name },
+      { id:'cf-phone', rule: CLPPS_REQ.phone },
+      { id:'cf-email', rule: CLPPS_REQ.email },
+      { id:'cf-addr',  rule: CLPPS_REQ.address, what:'the property address' }
+    ])) return;
     var ptype = document.getElementById('cf-type').value;
     var size = document.getElementById('cf-size').value.trim();
     var current = document.getElementById('cf-current').value;
@@ -1376,11 +1378,11 @@
     var name = document.getElementById('sf-name').value.trim();
     var phone = document.getElementById('sf-phone').value.trim();
     var email = document.getElementById('sf-email').value.trim();
-    if (!name || (!phone && !email)){
-      err.classList.add('bad');
-      err.textContent = 'Please add your name and at least one way to reach you (phone or email).';
-      return;
-    }
+    if (!clppsRequire('s-formerr', [
+      { id:'sf-name',  rule: CLPPS_REQ.name },
+      { id:'sf-phone', rule: CLPPS_REQ.phone },
+      { id:'sf-email', rule: CLPPS_REQ.email }
+    ])) return;
     var payload = {
       _cc: BIZ_EMAIL,
       _autoresponse: 'We received your confidential inquiry and will get back to you within two business days. Everything you shared stays private. \u2014 CL Professional Pet Services',
@@ -1615,6 +1617,63 @@
   }
 
   /* --- Step 1 -> step 2 ------------------------------------------------ */
+  /* ============================================================
+     ONE SET OF RULES FOR WHO WE WILL TAKE DETAILS FROM.
+
+     Every public form asks for the same contact details and will not
+     proceed without them: a name, a phone number that is really a phone
+     number, and an email. A lead we cannot ring is not a lead.
+
+     Three of these forms used to accept "a name and EITHER a phone or an
+     email", which is how somebody reached us with no number at all.
+     Shared from here so they cannot drift apart again.
+     ============================================================ */
+  var CLPPS_REQ = {
+    name: function(v){
+      return String(v || '').trim().length < 2 ? 'Please tell us your name.' : '';
+    },
+    phone: function(v){
+      var d = String(v || '').replace(/[^0-9]/g, '');
+      if (!d) return 'Please add a phone number — it is how we reach you to confirm.';
+      if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1);
+      if (d.length !== 10) return 'That phone number doesn’t look right — we need 10 digits, like (636) 375-4342.';
+      if (/^(\d)\1{9}$/.test(d)) return 'That phone number doesn’t look right — mind checking it?';
+      return '';
+    },
+    email: function(v){
+      v = String(v || '').trim();
+      if (!v) return 'Please add your email so we can send this to you in writing.';
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v)) return 'That email doesn’t look right — mind checking it?';
+      return '';
+    },
+    address: function(v, what){
+      v = String(v || '').trim();
+      if (!v) return 'Please add ' + (what || 'your address') + ' — we quote against the actual property.';
+      if (v.length < 6 || !/\d/.test(v)) return 'That address looks incomplete — we need the house number and street.';
+      return '';
+    },
+    town: function(v){
+      return String(v || '').trim().length < 2 ? 'Please tell us the town or neighborhood you are in.' : '';
+    }
+  };
+  /* Checks in order, shows the first problem, focuses the field it belongs
+     to and returns false. True when everything we need is there. */
+  function clppsRequire(errId, checks){
+    var err = document.getElementById(errId);
+    err.className = 'zip-msg'; err.textContent = '';
+    for (var i = 0; i < checks.length; i++){
+      var c = checks[i], el = document.getElementById(c.id);
+      var msg = c.rule((el || {}).value, c.what);
+      if (msg){
+        err.classList.add('bad');
+        err.textContent = msg;
+        if (el){ try { el.focus(); el.scrollIntoView({ behavior:'smooth', block:'center' }); } catch (e) {} }
+        return false;
+      }
+    }
+    return true;
+  }
+
   function qSeePrice(){
     var err = document.getElementById('q-formerr');
     err.className = 'zip-msg'; err.textContent = '';
@@ -1623,21 +1682,12 @@
       err.classList.add('bad'); err.textContent = 'Please enter your ZIP code first so we can price your yard.';
       document.getElementById('q-zip').focus(); return;
     }
-    if (!v.name || !v.phone){
-      err.classList.add('bad');
-      err.textContent = 'Please add your name and phone number — that’s how we get your quote to you.';
-      document.getElementById(v.name ? 'qf2-phone' : 'qf2-name').focus(); return;
-    }
-    // Email is required, not optional. It is the only way we can send a
-    // written copy of the quote, and the only way to follow up later without
-    // cold-calling somebody who already said no once.
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v.email)){
-      err.classList.add('bad');
-      err.textContent = v.email
-        ? 'That email doesn’t look right — mind checking it? We send your quote in writing.'
-        : 'Please add your email so we can send your quote in writing.';
-      document.getElementById('qf2-email').focus(); return;
-    }
+    if (!clppsRequire('q-formerr', [
+      { id:'qf2-name',  rule: CLPPS_REQ.name },
+      { id:'qf2-phone', rule: CLPPS_REQ.phone },
+      { id:'qf2-email', rule: CLPPS_REQ.email },
+      { id:'qf2-addr',  rule: CLPPS_REQ.address, what:'your service address' }
+    ])) return;
     var p = qPriceParts();
     if (!qEnquiry.id) qEnquiry.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     // File it BEFORE the price appears. If they close the tab on seeing the
