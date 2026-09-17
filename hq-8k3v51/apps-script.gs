@@ -32,6 +32,97 @@ function sheet_() {
 var NOTIFY_TO = 'clpropetservices@gmail.com';
 var NOTIFY_CC = 'info@clpropetservices.com';
 
+/* ============================================================
+   PHONE NOTIFICATIONS.
+
+   A real notification from an app on your phone, the moment a lead
+   lands - not an email you have to go and look at.
+
+   Pick ONE and fill it in. Both are set up on the phone, not here.
+
+   ntfy  - free, no account, open source. Install "ntfy" from the App
+           Store or Play Store, tap +, and subscribe to a topic. The
+           topic name IS the password, so use the long random one below
+           and do not share it - anybody who knows it can read your
+           notifications. Then paste the same topic here.
+
+   Pushover - $5 once per phone, more polished, has a proper account.
+           Install Pushover, register, and it shows you a user key.
+           Create an application on pushover.net for the API token.
+
+   Leave both blank and nothing is sent; the emails carry on as normal.
+   ============================================================ */
+var PUSH_NTFY_TOPIC    = '';   // e.g. 'clpps-leads-7f3a91c4bd'
+var PUSH_OVER_USER     = '';   // Pushover user key
+var PUSH_OVER_TOKEN    = '';   // Pushover application token
+var PUSH_TRACKER_URL   = 'https://www.clpropetservices.com/hq-8k3v51/';
+
+/* One line for the lock screen. It has to be readable without opening
+   anything, because that is the whole point of a notification. */
+function pushTitle_(l) {
+  var t = String(l.type || ''), who = l.name || 'Someone';
+  var price = l.price ? String(l.price).split(',')[0] : '';
+  if (t === 'ACTIVATE')   return '\ud83d\udd25 ' + who + ' wants to start' + (price ? ' \u2014 ' + price : '');
+  if (t === 'ENQUIRY')    return '\ud83d\udcdd ' + who + ' asked for a quote' + (price ? ' \u2014 ' + price : '');
+  if (t === 'DECLINED')   return '\ud83d\udc4e ' + who + ' said no' + (price ? ' to ' + price : '');
+  if (t === 'COMMERCIAL') return '\ud83c\udfe2 Commercial enquiry: ' + who;
+  if (t === 'WAITLIST')   return '\ud83d\udccd Out of area: ' + who;
+  if (t === 'AUTH')       return '\u2705 ' + who + ' authorized their quote';
+  return '\ud83d\udc3e New lead: ' + who;
+}
+function pushBody_(l) {
+  var bits = [];
+  if (l.phone) bits.push(l.phone);
+  if (l.zip) bits.push(l.zip);
+  if (l.dogs) bits.push(l.dogs + (String(l.dogs) === '1' ? ' dog' : ' dogs'));
+  if (l.service) bits.push(l.service);
+  return bits.join(' \u00b7 ') || 'Open the tracker for the details.';
+}
+
+/* Never let a notification problem stop a lead being saved. Every call is
+   muted and wrapped - if the phone service is down, the row is still in
+   the sheet and the email still goes. */
+function pushLead_(l) {
+  var t = String(l.type || '');
+  if (t === 'VIEW' || t === 'QVIEW' || t === 'OUTAREA' || t === 'CONFIG' ||
+      t === 'SPEND' || l.silent) return;
+  var title = pushTitle_(l), body = pushBody_(l);
+  // an activation is worth waking somebody up for; a refusal is not
+  var urgent = (t === 'ACTIVATE' || t === 'AUTH');
+
+  if (PUSH_NTFY_TOPIC) {
+    try {
+      UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(PUSH_NTFY_TOPIC), {
+        method: 'post',
+        contentType: 'text/plain; charset=utf-8',
+        payload: body,
+        headers: {
+          'Title': title,
+          'Priority': urgent ? 'high' : 'default',
+          'Tags': urgent ? 'fire' : 'paw_prints',
+          'Click': PUSH_TRACKER_URL
+        },
+        muteHttpExceptions: true
+      });
+    } catch (e) {}
+  }
+
+  if (PUSH_OVER_USER && PUSH_OVER_TOKEN) {
+    try {
+      UrlFetchApp.fetch('https://api.pushover.net/1/messages.json', {
+        method: 'post',
+        payload: {
+          token: PUSH_OVER_TOKEN, user: PUSH_OVER_USER,
+          title: title, message: body,
+          url: PUSH_TRACKER_URL, url_title: 'Open the lead tracker',
+          priority: urgent ? '1' : '0'
+        },
+        muteHttpExceptions: true
+      });
+    } catch (e) {}
+  }
+}
+
 function notifyLead_(l) {
   var t = String(l.type || '');
   // Analytics pings, no email. OUTAREA fires every time somebody types a ZIP
@@ -129,6 +220,7 @@ function doPost(e) {
       return l[h] != null ? String(l[h]) : '';
     }));
     try { notifyLead_(l); } catch (e) {}
+    try { pushLead_(l); } catch (e) {}
     return json_({ok:true});
   }
 
