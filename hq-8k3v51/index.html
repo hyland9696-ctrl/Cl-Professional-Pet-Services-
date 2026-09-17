@@ -82,7 +82,10 @@
   <header>
     <img src="../images/logo.png" alt="">
     <h1>Lead Tracker</h1>
-    <button onclick="loadLeads(true)">&#8635; Refresh</button>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+      <button onclick="loadLeads(true)">&#8635; Refresh</button>
+      <span id="syncAge" style="font-size:10.5px;opacity:.85;"></span>
+    </div>
   </header>
   <div class="wrap">
     <div id="offline" style="display:none;background:#FDF3DC;border:1px solid #e6c96a;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#7a5c00;"></div>
@@ -315,6 +318,11 @@ var FILTERS = [{k:'all',label:'All'}].concat(STATUSES).concat(ANSWER_FILTERS);
 var TRAFFIC_DAYS = 400;   // ~13 months of traffic history
 var QUIET_DAYS = 7;       // a called lead with no follow-up booked goes back on the list after this
 var leads = [], views = [], qviews = [], waitlist = [], outarea = [], auths = {}, spends = {}, config = {}, filter = 'all', KEY = 'clpps-8k3v51';
+/* lastLoadAt = when we last ASKED. lastSyncAt = when real data last came
+   back. They differ when the phone is offline or the script is slow, and
+   the header shows the second one so "Refreshed" never means "asked and
+   got nothing". */
+var lastLoadAt = 0, lastSyncAt = 0;
 var CHANNELS = [{ k: 'Meta Ads', label: 'Meta / Facebook' }, { k: 'Google Ads', label: 'Google Ads' }];
 var roiMonth = '';
 
@@ -351,12 +359,23 @@ function loadLeads(showToast, cb, isRetry){
   // Ask for a bounded window of traffic rows. Leads always come back in full;
   // this only trims old page views, which otherwise grow without limit and
   // get re-downloaded every minute by the auto-refresh.
-  fetch(CRM_ENDPOINT + '?action=list&key=' + encodeURIComponent(KEY) + '&days=' + TRAFFIC_DAYS)
+  // The URL used to be byte-for-byte identical on every load, with nothing
+  // telling the browser not to cache it. So a phone would answer Refresh out
+  // of its own store and show yesterday's leads - press it twice, three
+  // times, and eventually the cached copy expired and the real data arrived.
+  // The changing parameter means no cached entry can ever match, and
+  // no-store says it plainly for anything in between.
+  lastLoadAt = Date.now();
+  fetch(CRM_ENDPOINT + '?action=list&key=' + encodeURIComponent(KEY) +
+        '&days=' + TRAFFIC_DAYS + '&_=' + Date.now(),
+        { cache: 'no-store' })
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok){ if (cb) cb(false); return; }
       remoteLoaded = true;
+      lastSyncAt = Date.now();
       document.getElementById('offline').style.display = 'none';
+      paintSync();
       var remote = (d.leads || []).filter(function(l){
         return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.type !== 'AUTH' && l.type !== 'SPEND' &&
                l.type !== 'CONFIG' && l.type !== 'WAITLIST' && l.type !== 'OUTAREA' && l.status !== 'deleted';
@@ -1591,6 +1610,18 @@ function renderNoCount(){
   btn.style.color = due ? '#fff' : '';
   btn.style.borderColor = due ? '#0F6E56' : '';
   btn.title = due ? due + ' ready to follow up' : '';
+}
+function paintSync(){
+  var el = document.getElementById('syncAge');
+  if (!el) return;
+  if (!lastSyncAt){ el.textContent = ''; return; }
+  var secs = Math.round((Date.now() - lastSyncAt) / 1000);
+  el.textContent = secs < 10 ? 'just now'
+    : secs < 60 ? secs + 's ago'
+    : secs < 3600 ? Math.round(secs/60) + 'm ago'
+    : Math.round(secs/3600) + 'h ago';
+  // going stale means the phone is not getting through, not that nothing happened
+  el.style.color = secs > 300 ? '#FFD9A0' : '';
 }
 function toggleNo(){
   var p = document.getElementById('noPanel');
@@ -3111,9 +3142,20 @@ loadLeads(false);
 // Keep the page live: quietly re-check the database every 60 seconds, and again
 // the moment the tab comes back into view, so an acceptance shows up on its own.
 setInterval(function(){ loadLeads(false, null, true); }, 60000);
+/* A phone does not run timers for a page sitting in the background, so
+   coming back to an already-open tab used to show whatever was on screen
+   when you left it - sometimes hours old - until the next minute ticked.
+   Reload the moment it comes back into view. */
 document.addEventListener('visibilitychange', function(){
-  if (!document.hidden) loadLeads(false, null, true);
+  if (document.visibilityState !== 'visible') return;
+  if (Date.now() - lastLoadAt < 5000) return;   // do not stampede on tab flicking
+  loadLeads(false, null, true);
 });
+window.addEventListener('pageshow', function(e){
+  // back/forward navigation hands back a frozen page; treat it as a return
+  if (e.persisted && Date.now() - lastLoadAt > 5000) loadLeads(false, null, true);
+});
+setInterval(paintSync, 15000);
 </script>
 </body>
 </html>
