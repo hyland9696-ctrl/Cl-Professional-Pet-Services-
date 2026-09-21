@@ -52,6 +52,11 @@ var CLPPS_PRICING = {
     '62002':'Value','62010':'Core','62040':'Value','62035':'Premium',
     '62095':'Core','62249':'Premium','63090':'Standard','63084':'Standard',
     '63069':'Standard','63010':'Core','63028':'Standard','63383':'Standard',
+    /* 63304, 63385 and 63379 are Premium despite mid-range incomes
+       ($114k, $112k, $91k). That is deliberate and Corey confirmed it:
+       they are the furthest-out territory we run, so Premium there is
+       paying for the drive, not the postcode. Do not "correct" them to
+       match income - the tier carries two things, not one. */
     '63379':'Premium','62220':'Core','62269':'Standard','62236':'Premium',
     // Wildwood: 63038 and 63040 are Wildwood only; 63005 is shared with
     // Chesterfield, which is already Premium on 63017.
@@ -68,12 +73,37 @@ var CLPPS_PRICING = {
                          //                      mistake, it is the poorer half
     '63131':'Premium',   // Des Peres/Frontenac  $225,493 - richest in county
     '63124':'Premium',   // Ladue                $193,942
-    '63122':'Premium'    // Kirkwood             $136,385
+    '63122':'Premium',   // Kirkwood             $136,385
+    '63127':'Premium',   // Sunset Hills         $122,663 - just under the line
+                         //                      on income; Corey's call to
+                         //                      price it up anyway
+
+    /* ---- Filled in Sep 2026 against median household income ----
+       These were all quoting Value simply because nobody had listed them,
+       not because anyone decided they were cheap. Income beside each. */
+    '63105':'Standard',  // Clayton              $116,439
+    '63119':'Standard',  // Webster Groves       $106,183
+    '63144':'Standard',  // Brentwood            $104,438
+    '63126':'Standard',  // Crestwood            $98,852
+    '63026':'Standard',  // Fenton               $97,553
+    '63129':'Standard',  // Oakville             $94,888
+    '63128':'Standard',  // South County         $92,359
+    '63049':'Standard',  // High Ridge           $92,333
+    '63043':'Standard',  // Maryland Heights     $91,509
+    '63117':'Standard',  // Richmond Heights     $90,921
+    '63132':'Standard',  // Olivette             $87,385
+    '63130':'Standard'   // University City      $85,823
   },
   // Metro ZIP prefixes we run routes in. Anything outside is "no route yet".
   areaPrefixes: ['630','631','633','620','622']
 };
 
+/* An unlisted ZIP inside the service area prices as Value. That is a
+   deliberate floor, NOT a judgement that the area is cheap - Ladue and
+   Des Peres both sat there for months purely because nobody had typed
+   them in. If a ZIP starts showing up in the leads and is not on the
+   list above, check what it should be rather than assuming Value was
+   chosen on purpose. */
 function clppsZipTier(zip){
   var z = String(zip || '').trim();
   return CLPPS_PRICING.zips[z] || 'Value';
