@@ -56,11 +56,19 @@ var CLPPS_PRICING = {
     // Wildwood: 63038 and 63040 are Wildwood only; 63005 is shared with
     // Chesterfield, which is already Premium on 63017.
     '63038':'Premium','63040':'Premium','63005':'Premium',
-    // Creve Coeur. Unlisted until now, which meant it fell through to Value
-    // and quoted $17/mo UNDER Chesterfield next door - on one of the more
-    // affluent suburbs in the county. Caught when a real lead came through
-    // underpriced.
-    '63141':'Premium','63146':'Premium'
+    /* ---- West and central St. Louis County ----
+       Set against median household income (ACS), calibrated to the line
+       Corey's own picks already drew: 63017 Chesterfield is Premium at
+       $127k, 63011 Ballwin is Standard at $124k. So Premium starts around
+       $125k. Income is in the comment so the next person can check the
+       reasoning instead of guessing at it. */
+    '63141':'Premium',   // Creve Coeur          $133,851
+    '63146':'Standard',  // Creve Coeur, west    $84,756 - NOT the same place
+                         //                      as 63141; briefly Premium by
+                         //                      mistake, it is the poorer half
+    '63131':'Premium',   // Des Peres/Frontenac  $225,493 - richest in county
+    '63124':'Premium',   // Ladue                $193,942
+    '63122':'Premium'    // Kirkwood             $136,385
   },
   // Metro ZIP prefixes we run routes in. Anything outside is "no route yet".
   areaPrefixes: ['630','631','633','620','622']
