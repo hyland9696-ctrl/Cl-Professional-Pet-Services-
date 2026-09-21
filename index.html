@@ -372,7 +372,7 @@
     input:focus,select:focus,textarea:focus{outline:3px solid #188663;outline-offset:1px;}
     .nav-links button[aria-current="page"]{color:#0F6E56;font-weight:600;}
   </style>
-  <script src="/pricing.js?v=b49caac9"></script>
+  <script src="/pricing.js?v=0220045d"></script>
   <script src="/lead-source.js?v=45f52d8c"></script>
   <script src="/meta-pixel.js?v=38fe5a84"></script>
 </head>
@@ -1262,7 +1262,12 @@
       labelEl.textContent = 'Custom quote';
       priceEl.innerHTML = "We'll price it personally";
       priceEl.style.fontSize = '30px';
-      noteEl.textContent = (q.dogs === '5' ? '5+ dogs' : 'Larger yards') + ' get a hand-built quote. Continue and we\u2019ll contact you within one business day.';
+      // Three different reasons land here and they need different words. An
+      // Illinois customer told "larger yards get a hand-built quote" would
+      // rightly wonder what we are on about.
+      noteEl.textContent = p.reason === 'illinois'
+        ? 'We cross the river for Illinois customers, but we price those routes by hand rather than off a table. Send this through and we\u2019ll email you a proper quote within one business day.'
+        : (q.dogs === '5' ? '5+ dogs' : 'Larger yards') + ' get a hand-built quote. Continue and we\u2019ll contact you within one business day.';
       agreeEl.textContent = 'a custom quote (CLPPS will contact me with personal pricing)';
       return;
     }

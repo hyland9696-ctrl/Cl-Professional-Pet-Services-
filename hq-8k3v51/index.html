@@ -295,7 +295,7 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/pricing.js?v=b49caac9"></script>
+<script src="/pricing.js?v=0220045d"></script>
 <script>
 var CRM_ENDPOINT = "https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec";
 
@@ -632,6 +632,13 @@ function whenText(v, dateOnly){
   var d = new Date(v);
   if (isNaN(d.getTime())) return '';
   return dateOnly ? d.toLocaleDateString() : d.toLocaleString();
+}
+/* A value Google Sheets tried to evaluate as a formula. It shows as
+   #ERROR! / #REF! / #VALUE! and the real content is gone. Saying "no phone
+   number" would be a lie - there WAS one, the sheet ate it - so the card
+   has to say that plainly and point at where the number still exists. */
+function isSheetError(v){
+  return /^#(ERROR|REF|VALUE|NAME|N\/A|DIV\/0|NUM|NULL)[!?]?/i.test(String(v == null ? '' : v).trim());
 }
 function dogsLabel(n){
   var s = String(n == null ? '' : n).trim();
@@ -1972,16 +1979,33 @@ function pqCalc(){
     tierEl.innerHTML = '<span style="color:#bbb;">enter 5 digits</span>';
   } else {
     var t = clppsZipTier(zip), listed = !!CLPPS_PRICING.zips[zip], inArea = clppsInArea(zip);
-    tierEl.innerHTML = '<strong style="color:#0F6E56;">' + t + '</strong> tier &middot; &times;' + CLPPS_PRICING.tiers[t].toFixed(2) +
-      (!listed ? ' <span style="color:#a96410;">(not on the list, priced as Value)</span>' : '') +
-      (!inArea ? ' <span style="color:#c0392b;">&middot; outside our normal area</span>' : '');
+    /* Illinois ZIPs still carry a tier in the file, but we do not quote off
+       it any more. Showing "Premium tier x1.10" here would put a number in
+       front of whoever is on the phone that the website itself refuses to
+       give - so say plainly that this one is priced by hand. */
+    var isIL = (CLPPS_PRICING.manualPrefixes || []).indexOf(zip.substring(0, 3)) >= 0;
+    tierEl.innerHTML = isIL
+      ? '<strong style="color:#a96410;">Illinois</strong> &middot; no table price &mdash; quote this one by hand'
+      : '<strong style="color:#0F6E56;">' + t + '</strong> tier &middot; &times;' + CLPPS_PRICING.tiers[t].toFixed(2) +
+        (!listed ? ' <span style="color:#a96410;">(not on the list, priced as Value)</span>' : '') +
+        (!inArea ? ' <span style="color:#c0392b;">&middot; outside our normal area</span>' : '');
   }
   var r = pqQuote();
   document.getElementById('pq-customrow').style.display = r.manual ? 'block' : 'none';
   if (r.manual){
-    box.innerHTML = '<div style="font-size:13px;opacity:.85;">5+ dogs</div><div style="font-size:20px;font-weight:800;">Custom quote &mdash; price it by hand</div>' +
-      '<div style="font-size:12px;opacity:.85;margin-top:3px;">For reference, 4 dogs here would be $' +
-      clppsQuote({ zip: zip, dogs: 4, freq: pq.freq === 'onetime' ? 'weekly' : pq.freq }).service + '/mo on this plan.</div>';
+    // More than one thing lands here - Illinois and 5+ dogs - so the panel
+    // has to name the right one, and must not offer a "for reference" price
+    // in Illinois, where there is no table number to reference.
+    var ref = r.reason === 'illinois' ? null
+      : clppsQuote({ zip: zip, dogs: 4, freq: pq.freq === 'onetime' ? 'weekly' : pq.freq }).service;
+    box.innerHTML =
+      '<div style="font-size:13px;opacity:.85;">' +
+        (r.reason === 'illinois' ? 'Illinois' : '5+ dogs') +
+      '</div><div style="font-size:20px;font-weight:800;">Custom quote &mdash; price it by hand</div>' +
+      '<div style="font-size:12px;opacity:.85;margin-top:3px;">' +
+        (ref ? 'For reference, 4 dogs here would be $' + ref + '/mo on this plan.'
+             : 'We do not run a table price across the river. Work it out from the drive and the yard, then type it in below.') +
+      '</div>';
     return;
   }
   var lines = [];
@@ -2771,8 +2795,13 @@ function render(){
                 : (l.type === 'DECLINED' ? 'lst">SAID NO TO THE PRICE'
                   : (l.type === 'ENQUIRY' ? 'sav">SHOWN A PRICE, NO ANSWER YET' : 'sav">SAVED QUOTE')))))) + '</span></div>' +
       '<div class="meta">' +
-        (l.phone ? '&#128222; <a href="tel:' + esc(digits) + '">' + esc(l.phone) + '</a><br>' : '') +
-        (l.email ? '&#9993;&#65039; <a href="mailto:' + esc(l.email) + '">' + esc(l.email) + '</a><br>' : '') +
+        (isSheetError(l.phone)
+          ? '<span style="color:#c0392b;font-weight:700;">&#9888;&#65039; Phone lost by the spreadsheet</span> ' +
+            '<span style="color:#707070;">&mdash; it is in the &ldquo;NEW LEAD&rdquo; email for this person. Tap Edit to put it back.</span><br>'
+          : (l.phone ? '&#128222; <a href="tel:' + esc(digits) + '">' + esc(l.phone) + '</a><br>' : '')) +
+        (isSheetError(l.email)
+          ? '<span style="color:#c0392b;font-weight:700;">&#9888;&#65039; Email lost by the spreadsheet</span><br>'
+          : (l.email ? '&#9993;&#65039; <a href="mailto:' + esc(l.email) + '">' + esc(l.email) + '</a><br>' : '')) +
         (l.address || l.zip ? '&#128205; ' + esc((l.address ? l.address + ', ' : '') + (l.zip||'')) + '<br>' : '') +
         '&#128021; ' + esc(l.dogs ? dogsLabel(l.dogs) : '? dogs') + ' &middot; ' + esc(planLabel(l.service)) +
         (l.deodorize && l.deodorize !== 'no' ? ' &middot; deodorize' : '') +

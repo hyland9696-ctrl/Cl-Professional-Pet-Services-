@@ -50,8 +50,17 @@ var CLPPS_PRICING = {
     '63033':'Value','63034':'Standard','62025':'Premium','62026':'Standard',
     '62034':'Standard','62062':'Standard','62294':'Premium','62234':'Core',
     '62002':'Value','62010':'Core','62040':'Value','62035':'Premium',
-    '62095':'Core','62249':'Premium','63090':'Standard','63084':'Standard',
-    '63069':'Standard','63010':'Core','63028':'Standard','63383':'Standard',
+    '62095':'Core','62249':'Premium','63010':'Core','63028':'Standard','63383':'Standard',
+    /* 63090 Washington, 63084 Union and 63069 Pacific were Standard. Jesse
+       asked for the whole of Franklin County at Value, and these three are
+       the only Franklin ZIPs that were not - the county's three towns, sat
+       at Standard while every field around them was Value. The income
+       figures agree with him: all three come in under the cheapest ZIP on
+       our Standard list. Changing the tier only moves what NEW quotes say;
+       anyone already on the books keeps the price they signed at. To put
+       them back, change these three to 'Standard' - nothing else depends
+       on it. */
+    '63090':'Value','63084':'Value','63069':'Value',
     /* 63304, 63385 and 63379 are Premium despite mid-range incomes
        ($114k, $112k, $91k). That is deliberate and Corey confirmed it:
        they are the furthest-out territory we run, so Premium there is
@@ -92,10 +101,28 @@ var CLPPS_PRICING = {
     '63043':'Standard',  // Maryland Heights     $91,509
     '63117':'Standard',  // Richmond Heights     $90,921
     '63132':'Standard',  // Olivette             $87,385
-    '63130':'Standard'   // University City      $85,823
+    '63130':'Standard',  // University City      $85,823
+
+    /* ---- Franklin County ----
+       Rural, long drives, low density. Value across the board, decided
+       deliberately rather than by falling through the default.
+       NOT 63005: the Post Office counts it as Franklin because it crosses
+       the county line, but it is Chesterfield/Wildwood at $198,469 and
+       stays Premium. Do not sweep it in with the rest of the county. */
+    '63013':'Value','63014':'Value','63015':'Value','63037':'Value',
+    '63039':'Value','63041':'Value','63055':'Value','63056':'Value',
+    '63060':'Value','63061':'Value','63068':'Value','63072':'Value',
+    '63073':'Value','63077':'Value','63079':'Value','63080':'Value',
+    '63089':'Value','63091':'Value'
   },
   // Metro ZIP prefixes we run routes in. Anything outside is "no route yet".
-  areaPrefixes: ['630','631','633','620','622']
+  areaPrefixes: ['630','631','633','620','622'],
+  /* Illinois. We do cross the river, but the routes over there are thin
+     enough that an automatic number is more likely to be wrong than right,
+     so these get a hand-built quote instead. They are still IN the area -
+     the request comes through as a normal lead with all their details, it
+     just says we will send them a price rather than showing one. */
+  manualPrefixes: ['620','622']
 };
 
 /* An unlisted ZIP inside the service area prices as Value. That is a
@@ -134,6 +161,11 @@ function clppsQuote(opts){
   var tier = clppsZipTier(opts.zip);
   var mult = P.tiers[tier];
 
+  // Illinois before anything else: no automatic price, whatever they picked.
+  var zp = String(opts.zip || '').trim().substring(0, 3);
+  if (P.manualPrefixes && P.manualPrefixes.indexOf(zp) >= 0){
+    return { manual:true, reason:'illinois', tier:tier, mult:mult, dogs:dogs, freq:freq };
+  }
   if (freq === 'onetime'){
     var job = clppsOnetime(opts.minutes);
     var deoOnce = deo !== 'none' ? P.deodorize : 0;
