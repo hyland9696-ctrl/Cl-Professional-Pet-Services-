@@ -25,7 +25,12 @@ function sheet_() {
     props.setProperty('SHEET_ID', ss.getId());
   }
   var sh = ss.getSheets()[0];
-  if (sh.getLastRow() === 0) sh.appendRow(HEADERS);
+  if (sh.getLastRow() === 0) {
+    sh.appendRow(HEADERS);
+    // Belt and braces alongside safeCell_: tell the sheet the whole thing is
+    // text, so nothing that lands in it is ever read as a formula.
+    try { sh.getRange(1, 1, sh.getMaxRows(), HEADERS.length).setNumberFormat('@'); } catch (e) {}
+  }
   return sh;
 }
 
@@ -171,6 +176,45 @@ function notifyLead_(l) {
   MailApp.sendEmail({ to: NOTIFY_TO, cc: NOTIFY_CC, subject: subject, body: lines.join('\n') });
 }
 
+/* Google Sheets treats a cell starting with =, +, - or @ as a FORMULA.
+   A customer typing their number as +16365550143 - which phones offer as
+   the standard international format - made Sheets try to evaluate it and
+   store #ERROR! instead. The number was simply gone, on a live lead, and
+   nothing anywhere said so.
+
+   A leading apostrophe forces Sheets to treat the cell as text. It is not
+   part of the value: getValues() reads it back without, so the tracker and
+   the CSV see exactly what the customer typed. */
+function safeCell_(v) {
+  var s = v == null ? '' : String(v);
+  return /^[=+\-@]/.test(s) ? "'" + s : s;
+}
+
+/* OPTIONAL, run by hand once. safeCell_ protects every lead from here on,
+   but the sheet that already exists was created before any of this and is
+   still on default formatting. Open the script editor, pick this function
+   from the drop-down and press Run, and the whole sheet is set to plain
+   text - after which even a cell written by hand cannot turn into a
+   formula. It changes no data, only formatting. Nothing breaks if it is
+   never run; it just means the apostrophe is doing all the work. */
+function fixSheetFormatting() {
+  var sh = sheet_();
+  sh.getRange(1, 1, sh.getMaxRows(), HEADERS.length).setNumberFormat('@');
+  var broken = [], data = sh.getDataRange().getValues();
+  for (var r = 1; r < data.length; r++) {
+    for (var c = 0; c < HEADERS.length; c++) {
+      if (/^#(ERROR|REF|VALUE|NAME|N\/A|DIV\/0|NUM|NULL)/i.test(String(data[r][c]))) {
+        broken.push('row ' + (r + 1) + ', ' + HEADERS[c]);
+      }
+    }
+  }
+  // Deliberately NOT cleared. A blank looks like "they never gave us one";
+  // #ERROR! is at least honest, and the tracker now explains it.
+  Logger.log(broken.length
+    ? 'Sheet set to text. Still damaged from before: ' + broken.join('; ')
+    : 'Sheet set to text. No damaged cells found.');
+}
+
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
@@ -215,9 +259,9 @@ function doPost(e) {
     var sh = sheet_();
     sh.appendRow(HEADERS.map(function(h){
       if (h === 'status') return (h === 'status' && l.status) ? String(l.status) : 'new';
-      if (h === 'crmnotes') return l.crmnotes != null ? String(l.crmnotes) : '';
+      if (h === 'crmnotes') return safeCell_(l.crmnotes != null ? l.crmnotes : '');
       if (h === 'updated') return new Date().toISOString();
-      return l[h] != null ? String(l[h]) : '';
+      return safeCell_(l[h]);
     }));
     try { notifyLead_(l); } catch (e) {}
     try { pushLead_(l); } catch (e) {}
@@ -239,7 +283,7 @@ function doPost(e) {
     for (var i = 1; i < data.length; i++) {
       if (String(data[i][idCol]) === String(body.id)) {
         if (body.status != null) sh2.getRange(i+1, HEADERS.indexOf('status')+1).setValue(body.status);
-        if (body.notes  != null) sh2.getRange(i+1, HEADERS.indexOf('crmnotes')+1).setValue(body.notes);
+        if (body.notes  != null) sh2.getRange(i+1, HEADERS.indexOf('crmnotes')+1).setValue(safeCell_(body.notes));
         sh2.getRange(i+1, HEADERS.indexOf('updated')+1).setValue(new Date().toISOString());
         hit++;
       }
