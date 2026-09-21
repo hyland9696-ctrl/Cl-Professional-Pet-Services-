@@ -55,7 +55,12 @@ var CLPPS_PRICING = {
     '63379':'Premium','62220':'Core','62269':'Standard','62236':'Premium',
     // Wildwood: 63038 and 63040 are Wildwood only; 63005 is shared with
     // Chesterfield, which is already Premium on 63017.
-    '63038':'Premium','63040':'Premium','63005':'Premium'
+    '63038':'Premium','63040':'Premium','63005':'Premium',
+    // Creve Coeur. Unlisted until now, which meant it fell through to Value
+    // and quoted $17/mo UNDER Chesterfield next door - on one of the more
+    // affluent suburbs in the county. Caught when a real lead came through
+    // underpriced.
+    '63141':'Premium','63146':'Premium'
   },
   // Metro ZIP prefixes we run routes in. Anything outside is "no route yet".
   areaPrefixes: ['630','631','633','620','622']
