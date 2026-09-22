@@ -640,6 +640,32 @@ function whenText(v, dateOnly){
 function isSheetError(v){
   return /^#(ERROR|REF|VALUE|NAME|N\/A|DIV\/0|NUM|NULL)[!?]?/i.test(String(v == null ? '' : v).trim());
 }
+/* Why this lead came through with no price on it.
+
+   New leads carry [MR:reason]. Leads filed before that marker existed do
+   not, so the reason is worked back out of the row itself - the yard,
+   dog and ZIP columns were always there, nobody had just put them
+   together. Returns '' when there is genuinely nothing to say, so the
+   card reads exactly as before rather than showing an empty dash. */
+function manualWhy(mr, l){
+  var why = '';
+  if (mr === 'noprice'){
+    return '<br><span style="color:#c0392b;font-weight:800;">&#128680; SITE FAULT &mdash; the price list did not load for this visitor.</span> ' +
+           '<span style="color:#707070;">Nobody was shown a price while that lasted. Check the website is quoting, then call them.</span>';
+  }
+  if (mr === 'illinois') why = 'Illinois &mdash; we price those by hand';
+  else if (mr === 'yard') why = 'yard is over &frac14; acre';
+  else if (mr === '5+ dogs') why = '5 or more dogs';
+  else if (mr === 'monthly plan retired') why = 'they asked for the monthly plan, which we retired';
+  else if (mr) why = mr;
+  else {
+    // worked back out of the row, for leads filed before [MR:] existed
+    if (/OVER 1\/4|over 1\/4/i.test(String(l.yard || ''))) why = 'yard is over &frac14; acre';
+    else if (/^5/.test(String(l.dogs || ''))) why = '5 or more dogs';
+    else if (/^(620|622)/.test(String(l.zip || ''))) why = 'Illinois &mdash; we price those by hand';
+  }
+  return why ? ' <span style="color:#707070;">&mdash; ' + why + '</span>' : '';
+}
 function dogsLabel(n){
   var s = String(n == null ? '' : n).trim();
   return s ? s + ' dog' + (s === '1' ? '' : 's') : '';
@@ -648,8 +674,10 @@ function fuParse(crmnotes){
   var s = String(crmnotes || '');
   // qa = the answer to their quote: w waiting, a accepted, d declined.
   // wb = the date we sent them a win-back email after a no.
-  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', text: '' };
-  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB):([^\]]*)\]\s*/;
+  // mr = why this lead has no price on it (yard, illinois, 5+ dogs, or
+  //      noprice, which means the site's price list failed to load).
+  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '', text: '' };
+  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|MR):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -663,6 +691,7 @@ function fuParse(crmnotes){
     else if (hit[1] === 'RV') m.rv = hit[2];
     else if (hit[1] === 'QA') m.qa = hit[2];
     else if (hit[1] === 'WB') m.wb = hit[2];
+    else if (hit[1] === 'MR') m.mr = hit[2];
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -681,7 +710,8 @@ function fuCompose(m){
          (m.sid ? '[SID:' + m.sid + '] ' : '') +
          (m.rv ? '[RV:' + m.rv + '] ' : '') +
          (m.qa ? '[QA:' + m.qa + '] ' : '') +
-         (m.wb ? '[WB:' + m.wb + '] ' : '') + (m.text || '');
+         (m.wb ? '[WB:' + m.wb + '] ' : '') +
+         (m.mr ? '[MR:' + m.mr + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -2793,7 +2823,13 @@ function render(){
             : (l.type === 'ACTIVATE' ? 'act">WANTS TO START'
               : (l.type === 'COMMERCIAL' ? 'com">COMMERCIAL'
                 : (l.type === 'DECLINED' ? 'lst">SAID NO TO THE PRICE'
-                  : (l.type === 'ENQUIRY' ? 'sav">SHOWN A PRICE, NO ANSWER YET' : 'sav">SAVED QUOTE')))))) + '</span></div>' +
+                  /* A manual-review lead was never shown a price, so
+                     "shown a price, no answer yet" reads as though the ball
+                     is in their court when it is actually in ours. */
+                  : (l.type === 'ENQUIRY'
+                      ? (l.manual === 'YES' ? 'sav">WAITING ON US FOR A PRICE'
+                                            : 'sav">SHOWN A PRICE, NO ANSWER YET')
+                      : 'sav">SAVED QUOTE')))))) + '</span></div>' +
       '<div class="meta">' +
         (isSheetError(l.phone)
           ? '<span style="color:#c0392b;font-weight:700;">&#9888;&#65039; Phone lost by the spreadsheet</span> ' +
@@ -2812,7 +2848,11 @@ function render(){
               ? ' &mdash; ' + esc(String(l.hero).match(/CLAIMED:\s*([^(]+)/)[1].trim()) + ' (verify ID)'
               : '')
           : '') +
-        (l.manual === 'YES' ? '<br>&#9888;&#65039; Needs manual pricing' : '') +
+        /* "Needs manual pricing" on its own left everyone guessing. A lead
+           with no price is a lead somebody has to ring, and the first thing
+           they want to know is why: a big yard is a normal sale, the price
+           list failing to load is an emergency. */
+        (l.manual === 'YES' ? '<br>&#9888;&#65039; Needs manual pricing' + manualWhy(fu.mr, l) : '') +
         '<br><span class="price">' + esc(String(l.price || '').indexOf('$') >= 0 ? l.price : (priceLabel(l) || l.price || '')) + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(l.honored) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +

@@ -1245,12 +1245,31 @@
     el.classList.add('sel');
     qPrice();
   }
+  /* Several different things end with "we'll price it personally", and until
+     now the lead landed in the tracker saying only "needs manual pricing" -
+     no reason. Somebody asks "why didn't she get a price?" and there is no
+     way to answer it from the record. Every path now names itself, the name
+     goes on the row, and the tracker prints it.
+
+     'noprice' is the one that matters most: it means pricing.js did not load,
+     so the site quietly stopped quoting ANYBODY. That is an outage, not a
+     custom quote, and it has to be impossible to mistake for one. */
   function qPriceParts(){
-    // Manual-review paths: yards over 1/4 acre, or 5+ dogs
-    if (!PRICING || typeof clppsQuote !== 'function' || q.yard === 'large' || q.dogs === '5'){
-      return { manual: true };
+    if (!PRICING || typeof clppsQuote !== 'function'){
+      return { manual: true, reason: 'noprice' };
     }
+    if (q.yard === 'large') return { manual: true, reason: 'yard' };
+    if (q.dogs === '5')     return { manual: true, reason: '5+ dogs' };
     return clppsQuote({ zip: q.zip, dogs: q.dogs, freq: q.freq, deo: q.deo });
+  }
+  // Plain English for the office, from whichever path we took.
+  function qManualReason(p){
+    return p.reason === 'illinois' ? 'Illinois, priced by hand'
+         : p.reason === 'yard'     ? 'yard over 1/4 acre'
+         : p.reason === '5+ dogs'  ? '5 or more dogs'
+         : p.reason === 'monthly plan retired' ? 'asked for the retired monthly plan'
+         : p.reason === 'noprice'  ? 'SITE FAULT: the price list did not load'
+         : 'reason not recorded';
   }
   function qPrice(){
     var p = qPriceParts();
@@ -1262,11 +1281,17 @@
       labelEl.textContent = 'Custom quote';
       priceEl.innerHTML = "We'll price it personally";
       priceEl.style.fontSize = '30px';
-      // Three different reasons land here and they need different words. An
-      // Illinois customer told "larger yards get a hand-built quote" would
-      // rightly wonder what we are on about.
-      noteEl.textContent = p.reason === 'illinois'
+      // Each reason needs its own words. An Illinois customer told "larger
+      // yards get a hand-built quote" would rightly wonder what we are on
+      // about, and somebody hitting a site fault should not be told their
+      // yard is the problem.
+      noteEl.textContent =
+          p.reason === 'illinois'
         ? 'We cross the river for Illinois customers, but we price those routes by hand rather than off a table. Send this through and we\u2019ll email you a proper quote within one business day.'
+        : p.reason === 'yard'
+        ? 'Yards over a quarter acre get a hand-built quote, because the time on site is the thing we are really pricing. Continue and we\u2019ll contact you within one business day \u2014 or call (636) 375-4342 and we\u2019ll do it now.'
+        : p.reason === 'noprice'
+        ? 'Our price list didn\u2019t load just now \u2014 that\u2019s our fault, not anything you did. Send this through and we\u2019ll get you a price within one business day, or call (636) 375-4342 and we\u2019ll give you one on the spot.'
         : (q.dogs === '5' ? '5+ dogs' : 'Larger yards') + ' get a hand-built quote. Continue and we\u2019ll contact you within one business day.';
       agreeEl.textContent = 'a custom quote (CLPPS will contact me with personal pricing)';
       return;
@@ -1551,6 +1576,7 @@
       Yard_Size: q.yard === 'large' ? 'OVER 1/4 acre (manual review)' : 'up to 1/4 acre',
       Deodorize: q.deo === 'none' ? 'no' : (q.deo === 'every' ? 'every visit ($15/treatment)' : 'every other visit ($15/treatment)'),
       Manual_Review: p.manual ? 'YES' : 'no',
+      Manual_Reason: p.manual ? qManualReason(p) : '',
       Hero_Discount: document.getElementById('qf2-hero').checked
         ? 'CLAIMED: ' + document.getElementById('qf2-branch').value + ' (verify service ID at first contact, apply discount manually)'
         : 'no',
@@ -1574,6 +1600,8 @@
       crmnotes: '[SID:' + vSid() + '] ' + (leadSource() ? '[SRC:' + leadSource() + '] ' : '') +
                 (!p.manual && p.per === '/mo' && !p.initial ? '[IC:w] ' : '') +
                 '[QA:' + (kind === 'ACTIVATE' ? 'a' : (kind === 'DECLINED' ? 'd' : 'w')) + '] ' +
+                // [MR:] says WHY there is no price, so nobody has to guess
+                (p.manual ? '[MR:' + (p.reason || 'unknown') + '] ' : '') +
                 (why || ''),
       type: kind,
       name: v.name, phone: v.phone, email: v.email, address: v.address, zip: q.zip,
@@ -1595,7 +1623,7 @@
     var payload = {
       _cc: BIZ_EMAIL,
       _autoresponse: auto,
-      _subject: subj + v.name + (p.manual ? ' (manual review)' : ' at $' + p.total + p.per),
+      _subject: subj + v.name + (p.manual ? ' (manual review: ' + qManualReason(p) + ')' : ' at $' + p.total + p.per),
       Status: kind === 'ACTIVATE' ? 'ACTIVATED: accepted Terms of Service, wants to start service'
             : kind === 'DECLINED' ? 'DECLINED the quote: ' + (why || 'no reason given')
             : 'QUOTE REQUEST: details captured, price shown, waiting on their answer',
