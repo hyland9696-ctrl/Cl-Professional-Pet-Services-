@@ -1,0 +1,7 @@
+{
+  "name": "clpps-tests",
+  "private": true,
+  "description": "Checks that run against the CLPPS site before anything goes live. Not published - see README.md.",
+  "scripts": { "test": "./run.sh" },
+  "dependencies": { "playwright-core": "^1.49.0" }
+}
