@@ -896,10 +896,18 @@
           <button class="opt-card" data-v="4" onclick="qSet('dogs','4',this)"><div class="oc-big">4</div><div class="oc-sub">dogs</div></button>
           <button class="opt-card" data-v="5" onclick="qSet('dogs','5',this)"><div class="oc-big">5+</div><div class="oc-sub">custom quote</div></button>
         </div>
+        <!-- A customer with a lot well under a quarter acre picked "Larger"
+             and so never saw a price. The old wording invited it: the small
+             option's note ("we verify lot size from county records") read as
+             a warning, while the large one ("we'll build a custom quote")
+             read as a perk, and almost nobody can judge a quarter acre by
+             eye anyway. So: give them something they can picture, say where
+             to go if they are unsure, and be honest that the big-yard card
+             means no price today. -->
         <div class="q-label">Yard size</div>
         <div class="opt-grid" id="q-yard">
-          <button class="opt-card sel" data-v="small" onclick="qSet('yard','small',this)"><div class="oc-big">Up to &frac14; acre</div><div class="oc-sub">We verify lot size from county records before your first visit</div></button>
-          <button class="opt-card" data-v="large" onclick="qSet('yard','large',this)"><div class="oc-big">Larger than &frac14; acre</div><div class="oc-sub">We'll build a custom quote</div></button>
+          <button class="opt-card sel" data-v="small" onclick="qSet('yard','small',this)"><div class="oc-big">Up to &frac14; acre</div><div class="oc-sub">About 10,000 sq ft &mdash; most subdivision lots. Not sure? Pick this; we check county records before your first visit.</div></button>
+          <button class="opt-card" data-v="large" onclick="qSet('yard','large',this)"><div class="oc-big">Larger than &frac14; acre</div><div class="oc-sub">Acreage, or a lot you&rsquo;d call big. We price these by hand, so you won&rsquo;t see a price today.</div></button>
         </div>
         <div class="q-label">Deodorize &amp; sanitize add-on: $15 per treatment</div>
         <div class="opt-grid" id="q-deo-grid">
@@ -1289,7 +1297,11 @@
           p.reason === 'illinois'
         ? 'We cross the river for Illinois customers, but we price those routes by hand rather than off a table. Send this through and we\u2019ll email you a proper quote within one business day.'
         : p.reason === 'yard'
-        ? 'Yards over a quarter acre get a hand-built quote, because the time on site is the thing we are really pricing. Continue and we\u2019ll contact you within one business day \u2014 or call (636) 375-4342 and we\u2019ll do it now.'
+        /* The way back matters more than the explanation. Somebody who ticked
+           the big yard without being sure is standing at the one screen where
+           they find out it cost them their price, so tell them plainly that
+           changing it back takes seconds. */
+        ? 'Yards over a quarter acre get a hand-built quote, because the time on site is what we are really pricing. Lot actually under a quarter acre \u2014 a normal subdivision garden? Tap \u201cChange my answers\u201d and you\u2019ll have a price straight away. Otherwise continue and we\u2019ll contact you within one business day, or call (636) 375-4342 and we\u2019ll do it now.'
         : p.reason === 'noprice'
         ? 'Our price list didn\u2019t load just now \u2014 that\u2019s our fault, not anything you did. Send this through and we\u2019ll get you a price within one business day, or call (636) 375-4342 and we\u2019ll give you one on the spot.'
         : (q.dogs === '5' ? '5+ dogs' : 'Larger yards') + ' get a hand-built quote. Continue and we\u2019ll contact you within one business day.';

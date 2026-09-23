@@ -653,6 +653,9 @@ function manualWhy(mr, l){
     return '<br><span style="color:#c0392b;font-weight:800;">&#128680; SITE FAULT &mdash; the price list did not load for this visitor.</span> ' +
            '<span style="color:#707070;">Nobody was shown a price while that lasted. Check the website is quoting, then call them.</span>';
   }
+  // Commercial never had an automatic price and never will - it is not a
+  // fault or an exception, so the card should not imply something went wrong.
+  if (l && l.type === 'COMMERCIAL') return ' <span style="color:#707070;">&mdash; commercial, always quoted by hand</span>';
   if (mr === 'illinois') why = 'Illinois &mdash; we price those by hand';
   else if (mr === 'yard') why = 'yard is over &frac14; acre';
   else if (mr === '5+ dogs') why = '5 or more dogs';
