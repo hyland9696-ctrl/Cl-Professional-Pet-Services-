@@ -370,9 +370,14 @@
     *:focus-visible{outline:3px solid #188663;outline-offset:3px;}
     button:focus-visible{outline:3px solid #188663;outline-offset:3px;}
     input:focus,select:focus,textarea:focus{outline:3px solid #188663;outline-offset:1px;}
+    /* the one-tap fix offered when an email domain is an obvious typo */
+    .zip-msg .fixmail{background:#188663;color:#fff;border:0;border-radius:8px;
+      padding:8px 14px;font-weight:700;font-size:14px;cursor:pointer;min-height:40px;}
+    .zip-msg .fixmail:hover{background:#0F6E56;}
     .nav-links button[aria-current="page"]{color:#0F6E56;font-weight:600;}
   </style>
   <script src="/pricing.js?v=0220045d"></script>
+  <script src="/contact-check.js?v=b4a5b7a1"></script>
   <script src="/lead-source.js?v=45f52d8c"></script>
   <script src="/meta-pixel.js?v=38fe5a84"></script>
 </head>
@@ -1677,19 +1682,36 @@
     name: function(v){
       return String(v || '').trim().length < 2 ? 'Please tell us your name.' : '';
     },
+    /* Phone and email now go through contact-check.js, which knows which
+       numbers are impossible rather than merely odd. It is loaded as a
+       shared file so the tracker can judge a number the same way. If it
+       somehow did not load, fall back to the old loose checks rather than
+       letting everything through. */
     phone: function(v){
-      var d = String(v || '').replace(/[^0-9]/g, '');
-      if (!d) return 'Please add a phone number — it is how we reach you to confirm.';
-      if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1);
-      if (d.length !== 10) return 'That phone number doesn’t look right — we need 10 digits, like (636) 375-4342.';
-      if (/^(\d)\1{9}$/.test(d)) return 'That phone number doesn’t look right — mind checking it?';
-      return '';
+      if (typeof clppsPhoneCheck !== 'function'){
+        return String(v || '').replace(/[^0-9]/g,'').length >= 10 ? ''
+          : 'Please add a phone number — it is how we reach you to confirm.';
+      }
+      var r = clppsPhoneCheck(v);
+      if (r.ok) return '';
+      if (r.why === 'empty')  return 'Please add a phone number — it is how we reach you to confirm.';
+      if (r.why === 'length') return 'That phone number needs 10 digits, like (636) 375-4342.';
+      if (r.why === 'area-code') return 'That area code isn’t a real one — mind checking the number?';
+      if (r.why === 'exchange')  return 'That number can’t be right — the middle three digits aren’t a real exchange.';
+      return 'That phone number isn’t a working one. We do actually ring people, so we need one that reaches you.';
     },
     email: function(v){
-      v = String(v || '').trim();
-      if (!v) return 'Please add your email so we can send this to you in writing.';
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v)) return 'That email doesn’t look right — mind checking it?';
-      return '';
+      if (typeof clppsEmailCheck !== 'function'){
+        return /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(String(v || '').trim()) ? ''
+          : 'Please add your email so we can send this to you in writing.';
+      }
+      var r = clppsEmailCheck(v);
+      if (r.ok) return '';
+      if (r.why === 'empty')  return 'Please add your email so we can send this to you in writing.';
+      if (r.why === 'burner') return 'That’s a throwaway email address — we send your quote in writing, so we need one you actually read.';
+      // a typo is a real customer we would otherwise lose, so offer the fix
+      if (r.why === 'typo')   return { suggest: r.suggest };
+      return 'That email doesn’t look right — mind checking it?';
     },
     address: function(v, what){
       v = String(v || '').trim();
@@ -1711,7 +1733,28 @@
       var msg = c.rule((el || {}).value, c.what);
       if (msg){
         err.classList.add('bad');
-        err.textContent = msg;
+        /* A rule can hand back { suggest: 'them@gmail.com' } instead of a
+           telling-off. Somebody who typed @gmial.com is a customer we are
+           about to lose to a slip of the thumb, so the sensible thing is to
+           show them the fix and let them take it with one tap - not to
+           block them, and not to silently correct an address they might
+           have meant. */
+        if (msg && typeof msg === 'object' && msg.suggest){
+          err.innerHTML = 'Did you mean <strong></strong>?' +
+            ' <button type="button" class="fixmail" style="margin-left:6px;">Yes, use that</button>' +
+            '<span style="display:block;font-size:12px;opacity:.8;margin-top:4px;">' +
+            'Or correct it yourself and tap the button again.</span>';
+          err.querySelector('strong').textContent = msg.suggest;
+          (function(field, value){
+            err.querySelector('.fixmail').onclick = function(){
+              field.value = value;
+              err.className = 'zip-msg'; err.textContent = '';
+              try { field.focus(); } catch (e) {}
+            };
+          })(el, msg.suggest);
+        } else {
+          err.textContent = msg;
+        }
         if (el){ try { el.focus(); el.scrollIntoView({ behavior:'smooth', block:'center' }); } catch (e) {} }
         return false;
       }

@@ -296,6 +296,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="/pricing.js?v=0220045d"></script>
+<script src="/contact-check.js?v=b4a5b7a1"></script>
 <script>
 var CRM_ENDPOINT = "https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec";
 
@@ -639,6 +640,51 @@ function whenText(v, dateOnly){
    has to say that plainly and point at where the number still exists. */
 function isSheetError(v){
   return /^#(ERROR|REF|VALUE|NAME|N\/A|DIV\/0|NUM|NULL)[!?]?/i.test(String(v == null ? '' : v).trim());
+}
+/* A warning on the card when the contact details will not reach anybody.
+
+   Two different strengths, because they mean different things to whoever
+   is about to pick up the phone:
+
+     red   - this cannot work. The number breaks the rules every North
+             American number obeys, or the email address is malformed or
+             a throwaway. Do not spend a morning on it.
+     amber - possible, but worth a glance first. A 555 number, digits
+             that just count up, an address like test@test.com.
+
+   Deliberately reads the stored values rather than a marker on the row,
+   so it works on every lead already in the sheet, not just new ones.
+   Analytics rows and the spreadsheet-eaten cells are left alone - those
+   already have their own line. */
+function contactDoubtLine(l){
+  if (typeof clppsPhoneCheck !== 'function') return '';        // checker did not load
+  if (isSheetError(l.phone) || isSheetError(l.email)) return '';
+  var NOT_A_LEAD = { VIEW:1, QVIEW:1, OUTAREA:1, CONFIG:1, SPEND:1 };
+  if (NOT_A_LEAD[String(l.type || '')]) return '';
+
+  var hard = [], soft = [];
+  if (l.phone){
+    var p = clppsPhoneCheck(l.phone);
+    if (!p.ok && p.why !== 'empty') hard.push('that phone number cannot be a real one');
+    else if (p.ok && p.doubt) soft.push(p.doubt);
+  }
+  if (l.email){
+    var e = clppsEmailCheck(l.email);
+    if (!e.ok && e.why !== 'empty'){
+      hard.push(e.why === 'typo'
+        ? 'the email looks mistyped (' + (e.suggest || '') + '?)'
+        : (e.why === 'burner' ? 'that is a throwaway email address'
+                              : 'that email address will not work'));
+    } else if (e.ok && e.doubt) soft.push(e.doubt);
+  }
+  if (!hard.length && !soft.length) return '';
+
+  var say = hard.concat(soft).join(', and ');
+  return hard.length
+    ? '<span style="color:#c0392b;font-weight:700;">&#9888;&#65039; Check before you call</span> ' +
+      '<span style="color:#707070;">&mdash; ' + esc(say) + '.</span><br>'
+    : '<span style="color:#a96410;font-weight:700;">&#9888;&#65039; Worth a glance</span> ' +
+      '<span style="color:#707070;">&mdash; ' + esc(say) + '.</span><br>';
 }
 /* Why this lead came through with no price on it.
 
@@ -2842,6 +2888,12 @@ function render(){
           ? '<span style="color:#c0392b;font-weight:700;">&#9888;&#65039; Email lost by the spreadsheet</span><br>'
           : (l.email ? '&#9993;&#65039; <a href="mailto:' + esc(l.email) + '">' + esc(l.email) + '</a><br>' : '')) +
         (l.address || l.zip ? '&#128205; ' + esc((l.address ? l.address + ', ' : '') + (l.zip||'')) + '<br>' : '') +
+        /* Details that will not reach anybody. The site now turns away the
+           impossible ones, but leads taken before it did are still in here,
+           and a few things are doubtful without being provably wrong - a 555
+           number, a straight run of digits. Say so on the card rather than
+           letting somebody find out by dialling. */
+        contactDoubtLine(l) +
         '&#128021; ' + esc(l.dogs ? dogsLabel(l.dogs) : '? dogs') + ' &middot; ' + esc(planLabel(l.service)) +
         (l.deodorize && l.deodorize !== 'no' ? ' &middot; deodorize' : '') +
         (l.hero && l.hero !== 'no'

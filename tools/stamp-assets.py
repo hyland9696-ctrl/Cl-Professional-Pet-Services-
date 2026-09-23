@@ -33,7 +33,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-ASSETS = ['pricing.js', 'lead-source.js', 'city-view.js', 'meta-pixel.js']
+ASSETS = ['pricing.js', 'lead-source.js', 'city-view.js', 'meta-pixel.js', 'contact-check.js']
 
 # src="/pricing.js"  or  src="/pricing.js?v=1a2b3c4d"  -> capture name + old stamp
 TAG = re.compile(r'src="/(' + '|'.join(re.escape(a) for a in ASSETS) + r')(\?v=[0-9a-f]+)?"')
