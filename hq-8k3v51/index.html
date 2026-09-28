@@ -313,7 +313,11 @@ var STATUSES = [
    yet - they asked for a price today and have not said no. */
 var ANSWER_FILTERS = [
   {k:'interested', label:'\uD83D\uDC4D Interested'},
-  {k:'saidno',     label:'\uD83D\uDC4E Said no'}
+  {k:'saidno',     label:'\uD83D\uDC4E Said no'},
+  /* The list is in date order now, so an overdue follow-up no longer floats
+     to the top on its own. This gathers them instead - a deliberate tap
+     rather than a rule that quietly reshuffled everything else. */
+  {k:'followup',   label:'\uD83D\uDD14 Follow-up due'}
 ];
 var FILTERS = [{k:'all',label:'All'}].concat(STATUSES).concat(ANSWER_FILTERS);
 var TRAFFIC_DAYS = 400;   // ~13 months of traffic history
@@ -638,6 +642,29 @@ function whenText(v, dateOnly){
    #ERROR! / #REF! / #VALUE! and the real content is gone. Saying "no phone
    number" would be a lie - there WAS one, the sheet ate it - so the card
    has to say that plainly and point at where the number still exists. */
+/* When a lead came in, as a number we can sort on.
+
+   Not just new Date(l.created): most rows carry an ISO timestamp, but a
+   lead typed in by hand can hold whatever the person typed, and a cell
+   Sheets decided was a date comes back in its own format. Anything
+   unparseable sorts to the bottom rather than to 1970, which would put
+   the worst rows at the top of a newest-first list. */
+/* A follow-up we said we would do and have not. Closed and passed leads
+   are finished, so they never count however old the date is. */
+function followupDue(l){
+  var st = (l && l.status) || 'new';
+  if (st === 'closed' || st === 'lost') return false;
+  var d = fuParse(l.crmnotes).date;
+  return !!d && d <= new Date().toISOString().slice(0, 10);
+}
+function leadWhen(l){
+  var raw = (l && (l.created || l.ts)) || '';
+  var t = new Date(raw).getTime();
+  if (!isNaN(t)) return t;
+  var m = String(raw).match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+  return -Infinity;
+}
 function isSheetError(v){
   return /^#(ERROR|REF|VALUE|NAME|N\/A|DIV\/0|NUM|NULL)[!?]?/i.test(String(v == null ? '' : v).trim());
 }
@@ -1066,6 +1093,7 @@ function visible(){
     // a price today and have not answered yet.
     if (filter === 'saidno'){ if (quoteState(l) !== 'declined') return false; }
     else if (filter === 'interested'){ if (quoteState(l) === 'declined' || st === 'lost') return false; }
+    else if (filter === 'followup'){ if (!followupDue(l)) return false; }
     else if (filter !== 'all' && st !== filter) return false;
     if (!s) return true;
     // Search the notes too: "spring" should find the person who said ask me
@@ -2778,6 +2806,7 @@ function render(){
   counts.interested = leads.filter(function(l){
     return quoteState(l) !== 'declined' && (l.status || 'new') !== 'lost';
   }).length;
+  counts.followup = leads.filter(followupDue).length;
   // "New" on its own read as more than "Interested", because a refusal we
   // have not acted on yet is also status new. The tile means the calls
   // waiting on us, so it counts the ones worth calling; the chip below still
@@ -2801,19 +2830,21 @@ function render(){
     return;
   }
   var todayK = new Date().toISOString().slice(0, 10);
-  var overdue = function(l){
-    var st = l.status || 'new';
-    if (st === 'closed' || st === 'lost') return false;
-    var fu = fuParse(l.crmnotes).date;
-    return fu && fu <= todayK;
-  };
-  var azPending = function(l){
-    var st = l.status || 'new';
-    return auths[l.id] && st !== 'closed' && st !== 'lost';
-  };
-  v.sort(function(a, b){
-    return ((azPending(b) ? 2 : 0) + (overdue(b) ? 1 : 0)) - ((azPending(a) ? 2 : 0) + (overdue(a) ? 1 : 0));
-  });
+  /* Newest first, always, whichever chip is selected.
+
+     This used to sort by urgency instead - anything overdue or waiting on
+     an authorization was hoisted to the top whatever its date. Under
+     "Called" that is most of the list, because a called lead usually has a
+     follow-up booked, so the order looked arbitrary: leads from months ago
+     sitting above this morning's. An order you cannot predict is worse than
+     one that does not prioritise, because you stop trusting the top of the
+     list means anything.
+
+     Nothing is lost by dropping it. An overdue follow-up still says so in
+     red on its own card, and the "Follow-up due" chip now gathers them, so
+     they are one tap away instead of scattered through the list by a rule
+     nobody could see. */
+  v.sort(function(a, b){ return leadWhen(b) - leadWhen(a); });
   document.getElementById('list').innerHTML = v.map(function(l){
     var st = l.status || 'new';
     var digits = String(l.phone||'').replace(/[^\d+]/g,'');
