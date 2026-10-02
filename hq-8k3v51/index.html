@@ -34,6 +34,7 @@
   .card.s-called{border-left-color:#e6a817;}
   .card.s-closed{border-left-color:#188663;}
   .card.s-lost{border-left-color:#b0b0b0;}
+  .card.s-cancelled{border-left-color:#c0392b;}
   .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
   .who{font-size:16px;font-weight:700;}
   .badge{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;white-space:nowrap;}
@@ -56,6 +57,20 @@
   .stbtns button.on.b-called{background:#e6a817;}
   .stbtns button.on.b-closed{background:#188663;}
   .stbtns button.on.b-lost{background:#8a8a8a;}
+  .stbtns button.on.b-cancelled{background:#c0392b;}
+  .badge.cxl{background:#FBE9E7;color:#c0392b;}
+  /* the insights panel: one row per fact, a bar where a bar helps */
+  .ins h4{font-size:13px;font-weight:800;margin:14px 0 6px;color:#1a1a1a;}
+  .ins h4:first-child{margin-top:4px;}
+  .ins .big{font-size:22px;font-weight:800;color:#0F6E56;}
+  .ins .sub{font-size:11.5px;color:#707070;line-height:1.5;}
+  .ins .bar{display:flex;align-items:center;gap:7px;font-size:12px;color:#444;padding:3px 0;}
+  .ins .bar .lbl{width:92px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ins .bar .trk{flex:1;height:12px;background:#f1f3f2;border-radius:4px;overflow:hidden;}
+  .ins .bar .fil{height:100%;background:#188663;border-radius:4px;}
+  .ins .bar .val{min-width:88px;flex:none;text-align:right;font-weight:700;font-size:11.5px;white-space:nowrap;}
+  .ins select{padding:8px 9px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;font-family:inherit;background:#fff;min-height:40px;}
+  .card select.why{padding:8px 9px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;font-family:inherit;background:#fff;min-height:40px;max-width:100%;}
   .notes{margin-top:10px;display:flex;gap:6px;}
   .notes textarea{flex:1;border:1px solid #ddd;border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;min-height:38px;}
   .notes button{background:#0F6E56;color:#fff;border:none;border-radius:9px;padding:0 14px;font-size:12.5px;cursor:pointer;font-family:inherit;}
@@ -97,6 +112,10 @@
     <div id="offline" style="display:none;background:#FDF3DC;border:1px solid #e6c96a;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#7a5c00;"></div>
     <div id="alerts" style="display:none;margin-bottom:12px;"></div>
     <div class="stats" id="stats"></div>
+    <!-- The one number that changes what you do today: how fast leads are
+         getting their first call. Lives outside the collapsed panel on
+         purpose. -->
+    <div id="speedline" style="display:none;background:#fff;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#444;box-shadow:0 1px 4px rgba(0,0,0,0.06);line-height:1.5;"></div>
     <!-- The dashboards used to sit above the leads and push them two full
          phone screens down - on a page called Lead Tracker, opened to see
          who to call. They are one tap away now, and the tap is remembered,
@@ -117,6 +136,7 @@
     </div>
     <div id="revenue" style="display:none;background:#0F6E56;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;font-weight:600;"></div>
     <div id="roi" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
+    <div id="insights" class="ins" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     </div>
     <script>
       // Apply the remembered choice before anything renders, so the page does
@@ -182,6 +202,7 @@
           <option value="w">Initial clean fee WAIVED</option>
         </select>
         <input id="m-addr" placeholder="Address" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+        <input id="m-ref" placeholder="Referred by (a customer's name - they earn a free deodorize)" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
       </div>
       <button class="copybtn" id="m-savebtn" style="margin-top:8px;" onclick="addManual()">Add manual lead</button>
     </div>
@@ -333,7 +354,12 @@ var STATUSES = [
   {k:'new',    label:'New'},
   {k:'called', label:'Called'},
   {k:'closed', label:'Closed ✓'},
-  {k:'lost',   label:'Not interested'}
+  {k:'lost',   label:'Not interested'},
+  /* A customer who was on the schedule and stopped. Without this the
+     tracker's story ended at "closed", revenue only ever went up, and the
+     "how long does a customer stay" number behind every ad-return figure
+     was a guess someone typed in. Only offered on closed cards. */
+  {k:'cancelled', label:'Cancelled'}
 ];
 /* The status chips are about what WE have done (rung them, closed them).
    These two are about what THEY said, which is a different question and the
@@ -349,7 +375,14 @@ var ANSWER_FILTERS = [
   {k:'followup',   label:'\uD83D\uDD14 Follow-up due'}
 ];
 var FILTERS = [{k:'all',label:'All'}].concat(STATUSES).concat(ANSWER_FILTERS);
-var TRAFFIC_DAYS = 400;   // ~13 months of traffic history
+/* Page views are a row each and were re-downloaded, 13 months of them, on
+   every refresh - and parsed on a phone. The leads list only needs the
+   last 30 days of traffic; the full history is fetched the moment the
+   numbers panel opens, and from then on while it stays open. */
+var TRAFFIC_DAYS = 30;
+var TRAFFIC_DAYS_FULL = 400;
+var trafficDaysLoaded = 0;
+var rowsById = {};        // every row the sheet holds for an id, newest first - the deduped list keeps only the newest
 var QUIET_DAYS = 7;       // a called lead with no follow-up booked goes back on the list after this
 var leads = [], views = [], qviews = [], waitlist = [], outarea = [], auths = {}, spends = {}, config = {}, filter = 'all', KEY = 'clpps-8k3v51';
 /* lastLoadAt = when we last ASKED. lastSyncAt = when real data last came
@@ -379,7 +412,12 @@ function loadLocal(){
   } catch (e) {}
 }
 var statsTs = '';
-function loadLeads(showToast, cb, isRetry){
+function numbersOpen(){
+  var n = document.getElementById('numbers');
+  return !!n && n.style.display !== 'none';
+}
+function loadLeads(showToast, cb, isRetry, daysWanted){
+  var days = daysWanted || (numbersOpen() ? TRAFFIC_DAYS_FULL : TRAFFIC_DAYS);
   if (!isRetry){
     loadLocal();
     render();
@@ -401,13 +439,18 @@ function loadLeads(showToast, cb, isRetry){
   // no-store says it plainly for anything in between.
   lastLoadAt = Date.now();
   fetch(CRM_ENDPOINT + '?action=list&key=' + encodeURIComponent(KEY) +
-        '&days=' + TRAFFIC_DAYS + '&_=' + Date.now(),
+        '&days=' + days + '&_=' + Date.now(),
         { cache: 'no-store' })
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok){ if (cb) cb(false); return; }
       remoteLoaded = true;
+      trafficDaysLoaded = days;
       lastSyncAt = Date.now();
+      // keep every row per id: a win-back mark lives on the declined row,
+      // and the row that replaces it when they come back does not carry it
+      rowsById = {};
+      (d.leads || []).forEach(function(l){ if (l.id){ (rowsById[l.id] = rowsById[l.id] || []).push(l); } });
       document.getElementById('offline').style.display = 'none';
       paintSync();
       var remote = (d.leads || []).filter(function(l){
@@ -614,6 +657,9 @@ function setStatus(id, status){
   var m = fuParse(l.crmnotes), notesChanged = false, extra = '';
   if (status !== 'new' && !m.t1){ m.t1 = new Date().toISOString(); notesChanged = true; }
   if (status === 'closed' && !m.cd){ m.cd = new Date().toISOString().slice(0, 10); notesChanged = true; }
+  if (status === 'cancelled' && !m.cx){ m.cx = new Date().toISOString().slice(0, 10); notesChanged = true; }
+  // un-cancelling: they are back on the schedule, so the leaving date goes
+  if (status === 'closed' && m.cx){ m.cx = ''; m.cxr = ''; notesChanged = true; }
   if (status === 'called' && !m.date){
     var d = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
     m.date = d; notesChanged = true;
@@ -682,7 +728,7 @@ function whenText(v, dateOnly){
    are finished, so they never count however old the date is. */
 function followupDue(l){
   var st = (l && l.status) || 'new';
-  if (st === 'closed' || st === 'lost') return false;
+  if (st === 'closed' || st === 'lost' || st === 'cancelled') return false;
   var d = fuParse(l.crmnotes).date;
   return !!d && d <= new Date().toISOString().slice(0, 10);
 }
@@ -694,10 +740,201 @@ function leadWhen(l){
   if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
   return -Infinity;
 }
+/* ====================================================================
+   INSIGHTS: the things that were in the sheet all along and nobody added up.
+   ==================================================================== */
+var DR_TAGS = [['price','Price too high'],['comparing','Just comparing'],['elsewhere','Went with another company'],
+               ['diy','Doing it themselves'],['timing','Not the right time'],['other','Something else']];
+var CX_TAGS = [['price','Cost'],['moved','Moved away'],['nodog','No dog any more'],['service','Unhappy with the service'],
+               ['competitor','Went to another company'],['other','Something else']];
+/* The site's decline dropdown writes its wording into the notes. Read the
+   tag back out of that wording, so every refusal already on file counts
+   without anyone retyping it. A tag set by hand wins. */
+function drOf(l){
+  var m = fuParse(l.crmnotes);
+  if (m.dr) return m.dr;
+  var t = String(m.text || '').toLowerCase();
+  if (!t) return '';
+  if (/price|expensive|cost|afford|cheaper|too much|budget/.test(t)) return 'price';
+  if (/comparing|shopping|other quotes|quotes right now/.test(t)) return 'comparing';
+  if (/another company|someone else|went with|elsewhere|neighbo/.test(t)) return 'elsewhere';
+  if (/myself|ourselves|do it my|do it our/.test(t)) return 'diy';
+  if (/right time|not now|later|spring|next month|busy|moving/.test(t)) return 'timing';
+  return 'other';
+}
+function setDeclineReason(id, v){
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  var m = fuParse(l.crmnotes); m.dr = v; l.crmnotes = fuCompose(m); l.updated = new Date().toISOString();
+  saveLocal(); render();
+  post({ action:'update', key:KEY, id:id, notes:l.crmnotes }, 'Reason saved');
+}
+function setCancelReason(id, v){
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  var m = fuParse(l.crmnotes); m.cxr = v; l.crmnotes = fuCompose(m); l.updated = new Date().toISOString();
+  saveLocal(); render();
+  post({ action:'update', key:KEY, id:id, notes:l.crmnotes }, 'Reason saved');
+}
+function rewardGiven(id){
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  var m = fuParse(l.crmnotes); m.rw = new Date().toISOString().slice(0, 10); l.crmnotes = fuCompose(m); l.updated = new Date().toISOString();
+  saveLocal(); render();
+  post({ action:'update', key:KEY, id:id, notes:l.crmnotes }, 'Reward marked as given ✓');
+}
+var LEAD_TYPES = { ENQUIRY:1, ACTIVATE:1, DECLINED:1, SAVED:1, COMMERCIAL:1 };
+function isLead(l){ return !!LEAD_TYPES[String(l.type || 'SAVED')]; }
+function wonLead(l){ var st = l.status || 'new'; return st === 'closed' || st === 'cancelled' || quoteState(l) === 'accepted'; }
+function daysAgo(iso){ var t = new Date(iso).getTime(); return isNaN(t) ? 1e9 : (Date.now() - t) / 864e5; }
+function median(arr){ var a = arr.slice().sort(function(x, y){ return x - y; }); return a.length ? a[Math.floor(a.length / 2)] : NaN; }
+function fmtHours(h){
+  if (isNaN(h)) return '–';
+  if (h < 1) return Math.max(1, Math.round(h * 60)) + ' min';
+  if (h < 48) return Math.floor(h) + 'h ' + Math.round((h % 1) * 60) + 'm';
+  return (h / 24).toFixed(1) + ' days';
+}
+/* When each lead first heard from us. [T1:] is stamped at the first status
+   change or logged attempt, so this works on every lead ever filed. */
+function firstTouch(l){
+  var m = fuParse(l.crmnotes);
+  if (m.t1 && !isNaN(new Date(m.t1))) return new Date(m.t1);
+  if (m.attDate) return new Date(m.attDate + 'T12:00:00');
+  return null;
+}
+function speedStats(days){
+  var hrs = [], never = 0, n = 0;
+  leads.forEach(function(l){
+    if (!isLead(l) || daysAgo(l.created) > days) return;
+    // a refusal on the site is the win-back email's job, not a call we owe
+    if (quoteState(l) === 'declined') return;
+    var st = l.status || 'new';
+    n++;
+    var ft = firstTouch(l);
+    if (ft){ hrs.push(Math.max(0, (ft - new Date(l.created)) / 36e5)); }
+    else if (st === 'new' && daysAgo(l.created) * 24 > 1) never++;
+  });
+  var within = function(h){ return hrs.length ? Math.round(100 * hrs.filter(function(x){ return x <= h; }).length / hrs.length) : 0; };
+  return { n: n, contacted: hrs.length, median: median(hrs), in1h: within(1), in24h: within(24), never: never };
+}
+function bar(label, val, max, right){
+  var w = max > 0 ? Math.max(val > 0 ? 3 : 0, Math.round(100 * val / max)) : 0;
+  return '<div class="bar"><span class="lbl" title="' + esc(label) + '">' + esc(label) + '</span> ' +
+    '<div class="trk"><div class="fil" style="width:' + w + '%;"></div></div> <span class="val">' + right + '</span></div>';
+}
+function renderInsights(){
+  var box = document.getElementById('insights');
+  if (!box) return;
+  var W = 90;   // window, days
+  var recent = leads.filter(function(l){ return isLead(l) && daysAgo(l.created) <= W; });
+  var h = '';
+
+  // ---- speed to lead (summary line too) ----
+  var sp = speedStats(30), line = document.getElementById('speedline');
+  if (line){
+    if (sp.contacted){
+      line.style.display = 'block';
+      line.innerHTML = '&#9201; <strong>Median ' + fmtHours(sp.median) + '</strong> from enquiry to first contact this month &middot; ' +
+        sp.in1h + '% inside an hour &middot; ' + sp.in24h + '% inside a day' +
+        (sp.never ? ' &middot; <span style="color:#c0392b;font-weight:700;">' + sp.never + ' never contacted</span>' : '');
+    } else line.style.display = 'none';
+  }
+  h += '<h4>&#9201; Speed to lead <span class="sub">(last 30 days)</span></h4>';
+  h += sp.contacted
+    ? '<div class="big">' + fmtHours(sp.median) + '</div><div class="sub">median from enquiry to the first call or text &middot; ' +
+      sp.in1h + '% reached inside an hour, ' + sp.in24h + '% inside a day &middot; ' + sp.contacted + ' of ' + sp.n + ' contacted' +
+      (sp.never ? ' &middot; <strong style="color:#c0392b;">' + sp.never + ' still never contacted</strong>' : '') +
+      '<br>In home services the first call inside the hour is worth a multiple in close rate. This is the number to beat.</div>'
+    : '<div class="sub">No contacted leads in the last 30 days yet.</div>';
+
+  // ---- why they say no ----
+  var dr = {}, drN = 0;
+  leads.forEach(function(l){ if (!isLead(l) || quoteState(l) !== 'declined' || daysAgo(l.created) > W) return; var t = drOf(l) || 'unknown'; dr[t] = (dr[t] || 0) + 1; drN++; });
+  h += '<h4>&#128078; Why people say no <span class="sub">(' + drN + ' in ' + W + ' days)</span></h4>';
+  if (drN){
+    var drMax = Math.max.apply(null, Object.keys(dr).map(function(k){ return dr[k]; }));
+    DR_TAGS.concat([['unknown','Not recorded']]).forEach(function(t){
+      if (dr[t[0]]) h += bar(t[1], dr[t[0]], drMax, dr[t[0]] + ' (' + Math.round(100 * dr[t[0]] / drN) + '%)');
+    });
+    h += '<div class="sub">Read from what they typed on the site; tap the dropdown on a card to correct one.</div>';
+  } else h += '<div class="sub">Nobody has said no in the last ' + W + ' days.</div>';
+
+  // ---- close rate by ZIP tier, and by source ----
+  var byTier = {}, bySrc = {};
+  recent.forEach(function(l){
+    var tier = l.zip && typeof clppsZipTier === 'function' ? clppsZipTier(String(l.zip).slice(0, 5)) : 'No ZIP';
+    var src = fuParse(l.crmnotes).src || 'Not tagged';
+    [[byTier, tier], [bySrc, src]].forEach(function(p){
+      var b = p[0][p[1]] = p[0][p[1]] || { n: 0, won: 0, no: 0 };
+      b.n++; if (wonLead(l)) b.won++; else if (quoteState(l) === 'declined') b.no++;
+    });
+  });
+  var rateRows = function(obj, order){
+    var keys = Object.keys(obj).sort(function(a, b){ return (order.indexOf(a) + 100) % 100 - (order.indexOf(b) + 100) % 100 || obj[b].n - obj[a].n; });
+    return keys.map(function(k){ var b = obj[k]; var pct = b.n ? Math.round(100 * b.won / b.n) : 0;
+      return bar(k, pct, 100, pct + '% of ' + b.n + (b.no ? ' &middot; ' + b.no + ' no' : '')); }).join('');
+  };
+  h += '<h4>&#128205; Close rate by ZIP tier <span class="sub">(' + W + ' days)</span></h4>';
+  h += recent.length ? rateRows(byTier, ['Premium','Standard','Core','Value','No ZIP']) +
+    '<div class="sub">If Premium closes far below the rest and the no’s are about price, the tier is too high. If Value closes everyone, it is too low.</div>'
+    : '<div class="sub">No leads in the window.</div>';
+  h += '<h4>&#128227; Close rate by source <span class="sub">(' + W + ' days)</span></h4>';
+  h += recent.length ? rateRows(bySrc, ['Google Ads','Meta Ads','Google (organic)','Meta (organic)','Referral','Yard sign','Nextdoor','Other','Not tagged']) : '';
+
+  // ---- manual quotes: what the by-hand path costs ----
+  var man = recent.filter(function(l){ return l.manual === 'YES' || fuParse(l.crmnotes).mr; });
+  var inst = recent.filter(function(l){ return !(l.manual === 'YES' || fuParse(l.crmnotes).mr) && String(l.price || '').indexOf('$') >= 0; });
+  var closeDays = function(arr){ return median(arr.filter(wonLead).map(function(l){ var m = fuParse(l.crmnotes); return m.cd ? daysAgo(l.created) - daysAgo(m.cd + 'T12:00:00') : NaN; }).filter(function(x){ return !isNaN(x) && x >= 0; })); };
+  var wr = function(arr){ return arr.length ? Math.round(100 * arr.filter(wonLead).length / arr.length) : 0; };
+  h += '<h4>&#9888;&#65039; Priced by hand vs. priced on the spot <span class="sub">(' + W + ' days)</span></h4>';
+  if (man.length){
+    var mrBy = {}; man.forEach(function(l){ var r = fuParse(l.crmnotes).mr || (String(l.yard || '').match(/OVER/i) ? 'yard' : 'other'); mrBy[r] = (mrBy[r] || 0) + 1; });
+    h += bar('By hand', wr(man), 100, wr(man) + '% of ' + man.length + (isNaN(closeDays(man)) ? '' : ' &middot; ' + closeDays(man).toFixed(0) + 'd to close'));
+    h += bar('Instant price', wr(inst), 100, wr(inst) + '% of ' + inst.length + (isNaN(closeDays(inst)) ? '' : ' &middot; ' + closeDays(inst).toFixed(0) + 'd to close'));
+    h += '<div class="sub">Why by hand: ' + Object.keys(mrBy).map(function(k){ return ({ yard:'yard over ¼ acre', illinois:'Illinois', '5+ dogs':'5+ dogs', noprice:'site fault' })[k] || k; }).map(function(lbl, i){ return lbl + ' ' + mrBy[Object.keys(mrBy)[i]]; }).join(' &middot; ') +
+      '. Every one of these is a sale that needed a phone call instead of booking itself.</div>';
+  } else h += '<div class="sub">No hand-priced leads in the window.</div>';
+
+  // ---- win-back: did the "we noticed you didn't go ahead" email work? ----
+  var sent = 0, back = 0;
+  leads.forEach(function(l){
+    var rows = rowsById[l.id] || [l];
+    var wasSent = rows.some(function(r){ return /\[WB:/.test(String(r.crmnotes || '')); }) || !!fuParse(l.crmnotes).wb;
+    if (!wasSent) return;
+    sent++; if (wonLead(l)) back++;
+  });
+  h += '<h4>&#128140; Win-back emails</h4>';
+  h += sent ? '<div class="big">' + back + ' of ' + sent + '</div><div class="sub">people who said no, were emailed a day later, and came back' +
+    (back ? ' &middot; ' + Math.round(100 * back / sent) + '%' : '') + '. Counted across every row a lead has had, so a customer who came back is not lost when their card is rewritten.</div>'
+    : '<div class="sub">No win-back emails sent yet. They are offered under &#128078; Said no, a day after a refusal.</div>';
+
+  // ---- referral rewards owed ----
+  var owed = leads.filter(function(l){ var m = fuParse(l.crmnotes); var st = l.status || 'new'; return m.rb && !m.rw && (st === 'closed' || st === 'cancelled'); });
+  h += '<h4>&#129309; Referral rewards owed <span class="sub">(a free deodorize each)</span></h4>';
+  h += owed.length
+    ? owed.map(function(l){ var m = fuParse(l.crmnotes);
+        return '<div class="bar"><span style="flex:1;font-size:12.5px;"><strong>' + esc(m.rb) + '</strong> referred ' + esc(l.name || '') + (m.cd ? ' <span class="sub">(closed ' + esc(m.cd) + ')</span>' : '') + '</span>' +
+          '<button class="copybtn" style="padding:7px 10px;min-height:36px;font-size:12px;" onclick="rewardGiven(\'' + esc(l.id) + '\')">Reward given &#10003;</button></div>'; }).join('') +
+      '<div class="sub">The site promises this. An unpaid one is the quickest way to stop the referrals.</div>'
+    : '<div class="sub">Nothing owed. Put the referrer’s name on a card (Edit &rarr; Referred by) and it shows up here when they close.</div>';
+
+  // ---- when leads arrive ----
+  var wd = [0,0,0,0,0,0,0], hb = [0,0,0,0,0,0];
+  recent.forEach(function(l){ var d = new Date(l.created); if (isNaN(d)) return; wd[d.getDay()]++; hb[Math.floor(d.getHours() / 4)]++; });
+  var wdMax = Math.max.apply(null, wd), hbMax = Math.max.apply(null, hb);
+  h += '<h4>&#128197; When leads arrive <span class="sub">(' + W + ' days, your local time)</span></h4>';
+  if (recent.length){
+    h += ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(function(n, i){ return bar(n, wd[i], wdMax, String(wd[i])); }).join('');
+    h += '<div style="height:6px;"></div>';
+    h += ['12am–4am','4am–8am','8am–noon','noon–4pm','4pm–8pm','8pm–midnight'].map(function(n, i){ return bar(n, hb[i], hbMax, String(hb[i])); }).join('');
+    h += '<div class="sub">When to have someone on the phone, and when to let the ads run.</div>';
+  } else h += '<div class="sub">No leads in the window.</div>';
+
+  box.innerHTML = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128270; Insights</div>' + h;
+}
 /* The dashboards: open or shut, remembered per device. */
 function toggleNumbers(){
   var box = document.getElementById('numbers'), open = box.style.display === 'none';
   box.style.display = open ? 'block' : 'none';
+  // the panel wants the whole history; the list only ever needed a month
+  if (open && trafficDaysLoaded < TRAFFIC_DAYS_FULL) loadLeads(false, null, true, TRAFFIC_DAYS_FULL);
   document.getElementById('numbersArrow').innerHTML = open ? '&#9652;' : '&#9662;';
   document.getElementById('numbersBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
   try { localStorage.setItem('clpps_numbers', open ? 'open' : 'shut'); } catch (e) {}
@@ -815,8 +1052,11 @@ function fuParse(crmnotes){
   // wb = the date we sent them a win-back email after a no.
   // mr = why this lead has no price on it (yard, illinois, 5+ dogs, or
   //      noprice, which means the site's price list failed to load).
-  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '', text: '' };
-  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|MR):([^\]]*)\]\s*/;
+  // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
+  // rb/rw = who referred them, and the date their referrer got the reward.
+  var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
+            cx: '', cxr: '', dr: '', rb: '', rw: '', text: '' };
+  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|MR|CXR|CX|DR|RB|RW):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -831,6 +1071,11 @@ function fuParse(crmnotes){
     else if (hit[1] === 'QA') m.qa = hit[2];
     else if (hit[1] === 'WB') m.wb = hit[2];
     else if (hit[1] === 'MR') m.mr = hit[2];
+    else if (hit[1] === 'CX') m.cx = hit[2];
+    else if (hit[1] === 'CXR') m.cxr = hit[2];
+    else if (hit[1] === 'DR') m.dr = hit[2];
+    else if (hit[1] === 'RB') m.rb = hit[2];
+    else if (hit[1] === 'RW') m.rw = hit[2];
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -850,7 +1095,12 @@ function fuCompose(m){
          (m.rv ? '[RV:' + m.rv + '] ' : '') +
          (m.qa ? '[QA:' + m.qa + '] ' : '') +
          (m.wb ? '[WB:' + m.wb + '] ' : '') +
-         (m.mr ? '[MR:' + m.mr + '] ' : '') + (m.text || '');
+         (m.mr ? '[MR:' + m.mr + '] ' : '') +
+         (m.cx ? '[CX:' + m.cx + '] ' : '') +
+         (m.cxr ? '[CXR:' + m.cxr + '] ' : '') +
+         (m.dr ? '[DR:' + m.dr + '] ' : '') +
+         (m.rb ? '[RB:' + m.rb + '] ' : '') +
+         (m.rw ? '[RW:' + m.rw + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -1003,6 +1253,7 @@ function editLead(id){
   var dogsSel = document.getElementById('m-dogs');
   dogsSel.value = ['1','2','3','4','5','6+'].indexOf(String(l.dogs)) >= 0 ? String(l.dogs) : '';
   document.getElementById('m-ic').value = fuParse(l.crmnotes).ic === 'w' ? 'w' : '';
+  document.getElementById('m-ref').value = fuParse(l.crmnotes).rb || '';
   var srcSel = document.getElementById('m-src'), srcVal = fuParse(l.crmnotes).src;
   srcSel.value = srcVal;
   if (srcSel.value !== srcVal) srcSel.value = '';  // stamp not in the list (e.g. a raw hostname): leave dropdown blank, blank preserves it on save
@@ -1066,7 +1317,8 @@ function addManual(){
     service: document.getElementById('m-service').value,
     address: document.getElementById('m-addr').value.trim(),
     status: 'new', crmnotes: (document.getElementById('m-ic').value === 'w' ? '[IC:w] ' : '') +
-      (document.getElementById('m-src').value ? '[SRC:' + document.getElementById('m-src').value + '] ' : '')
+      (document.getElementById('m-src').value ? '[SRC:' + document.getElementById('m-src').value + '] ' : '') +
+      (document.getElementById('m-ref').value.trim() ? '[RB:' + document.getElementById('m-ref').value.trim().replace(/[\[\]]/g, '') + '] ' : '')
   };
   if (editing){
     lead.created = editing.created || lead.created;
@@ -1075,6 +1327,7 @@ function addManual(){
     var em2 = fuParse(editing.crmnotes || '');
     em2.ic = document.getElementById('m-ic').value === 'w' ? 'w' : '';
     if (document.getElementById('m-src').value) em2.src = document.getElementById('m-src').value;  // blank keeps the existing source
+    if (document.getElementById('m-ref').value.trim()) em2.rb = document.getElementById('m-ref').value.trim().replace(/[\[\]]/g, '');
     lead.crmnotes = fuCompose(em2);
     if (!lead.dogs) lead.dogs = editing.dogs || '';
     if (!lead.service) lead.service = editing.service || '';
@@ -1090,7 +1343,7 @@ function addManual(){
     editing = null;
     document.getElementById('m-savebtn').textContent = 'Add manual lead';
     saveLocal(); render();
-    ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr','m-ic','m-src'].forEach(function(i){ document.getElementById(i).value = ''; });
+    ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr','m-ic','m-src','m-ref'].forEach(function(i){ document.getElementById(i).value = ''; });
     document.getElementById('addPanel').style.display = 'none';
     toast('Lead updated ✓');
     return;
@@ -2263,11 +2516,50 @@ var DEFAULT_REVIEW_LINK = 'https://g.page/r/CY5zKebjSgrdEBM/review';
    years; it is a setting rather than a constant so it can be corrected once
    there is enough history to measure it properly. */
 var DEFAULT_LIFETIME_MONTHS = 36;
-function lifetimeMonths(){
+/* How long a customer stays - the number every "what did the ads earn"
+   figure is multiplied by.
+
+   It used to be a setting someone typed in. Now, once there are enough
+   cancellations to say anything, it is MEASURED: monthly churn is the
+   cancellations over the last six months divided by the customer-months
+   that were at risk, and expected lifetime is one over that. That uses the
+   customers who stayed as well as the ones who left - a median of
+   leavers' tenures alone would be the answer to a different question
+   ("how long do the ones who quit last?") and biased low.
+
+   It is an approximation and says so on the card. Under the threshold the
+   typed setting is used, with the measured figure shown beside it so
+   the gap is visible. */
+function lifetimeInfo(){
   var c = config.lifetime_months;
   var n = c ? parseInt(c.value, 10) : NaN;
-  return (n > 0 && n <= 240) ? n : DEFAULT_LIFETIME_MONTHS;
+  var setting = (n > 0 && n <= 240) ? n : DEFAULT_LIFETIME_MONTHS;
+  var now = Date.now(), active = 0, cancels = [];
+  leads.forEach(function(l){
+    var st = l.status || 'new';
+    if (st === 'closed') active++;
+    if (st === 'cancelled'){
+      var m = fuParse(l.crmnotes);
+      var cd = m.cd || String(l.created || '').slice(0, 10), cx = m.cx || '';
+      var months = (cd && cx) ? Math.max(0, (new Date(cx + 'T12:00:00') - new Date(cd + 'T12:00:00')) / (30.44 * 864e5)) : NaN;
+      cancels.push({ cd: cd, cx: cx, months: months,
+                     recent: cx ? (now - new Date(cx + 'T12:00:00')) / 864e5 <= 183 : false });
+    }
+  });
+  var recent = cancels.filter(function(c){ return c.recent; }).length;
+  var tenures = cancels.map(function(c){ return c.months; }).filter(function(x){ return !isNaN(x); }).sort(function(a, b){ return a - b; });
+  var medianTenure = tenures.length ? tenures[Math.floor(tenures.length / 2)] : NaN;
+  var out = { setting: setting, months: setting, measured: false, cancels: cancels.length, recent: recent,
+              active: active, medianTenure: medianTenure };
+  if (recent >= 3 && active + recent >= 8){
+    var custMonths = (active + recent / 2) * 6;      // customers at risk, over six months
+    var churn = recent / custMonths;                  // per customer, per month
+    out.months = Math.max(1, Math.min(240, Math.round(1 / churn)));
+    out.measured = true;
+  }
+  return out;
 }
+function lifetimeMonths(){ return lifetimeInfo().months; }
 function saveLifetime(){
   var raw = String(document.getElementById('cfg-life').value || '').trim();
   var n = parseInt(raw, 10);
@@ -2417,7 +2709,17 @@ function renderReviews(){
           'style="width:110px;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;"> ' +
         '<span style="font-size:12px;color:#707070;">months</span>' +
         '<button class="copybtn" style="margin-top:8px;display:block;background:#188663;color:#fff;border-color:#188663;" onclick="saveLifetime()">Save</button>' +
-        '<div style="font-size:11px;color:#707070;margin-top:6px;line-height:1.5;">Currently ' + lifetimeMonths() + ' months. ' +
+        '<div style="font-size:11px;color:#707070;margin-top:6px;line-height:1.5;">' +
+          (function(){ var li = lifetimeInfo();
+            return li.measured
+              ? '<strong style="color:#0F6E56;">Measured: ' + li.months + ' months</strong>, from ' + li.recent + ' cancellation' + (li.recent === 1 ? '' : 's') +
+                ' in the last six months against ' + li.active + ' active customers. That number is in use; the box above is only a fallback. '
+              : 'Currently ' + li.months + ' months (your estimate). ' +
+                (li.cancels ? li.cancels + ' cancellation' + (li.cancels === 1 ? '' : 's') + ' on record' +
+                   (!isNaN(li.medianTenure) ? ', staying a median of ' + Math.round(li.medianTenure) + ' months' : '') +
+                   ' - after 3 in six months this switches to a measured figure. '
+                 : 'No cancellations recorded yet - mark a customer Cancelled when they stop, and after a few this becomes a measured figure. ');
+          })() +
           'This is an estimate, not something measured from the tracker &mdash; cancellations are not recorded yet, ' +
           'so if it is optimistic the return figures are too.</div>' +
       '</div>' +
@@ -2455,7 +2757,10 @@ function monthBreakdown(mk){
     var fu = fuParse(l.crmnotes);
     var src = fu.src || 'Not tagged';
     if (String(l.created || '').slice(0, 7) === mk){ bucket(src).leads++; totals.leads++; }
-    if ((l.status || 'new') !== 'closed') return;
+    // a customer who later cancelled still closed in the month they closed:
+    // the ad money won them, however long they stayed
+    var stB = l.status || 'new';
+    if (stB !== 'closed' && stB !== 'cancelled') return;
     var cd = fu.cd || String(l.created || '').slice(0, 10);
     if (String(cd).slice(0, 7) !== mk) return;
     var b = bucket(src);
@@ -2561,6 +2866,7 @@ function renderROI(){
         '<div style="font-size:10.5px;color:#707070;letter-spacing:.04em;">CLOSED THIS MONTH</div>' +
         '<div style="font-size:19px;font-weight:800;color:#0F6E56;">' + money(t.ltv) + '</div>' +
         '<div style="font-size:10.5px;color:#707070;">worth over ' + (LMx % 12 === 0 ? (LMx / 12) + ' year' + (LMx === 12 ? '' : 's') : LMx + ' months') +
+        (lifetimeInfo().measured ? ' (measured)' : ' (your estimate)') +
         ' &middot; ' + money(t.year1) + ' in year one</div></div>' +
     '</div>' +
     (totalSpend > 0 && tooEarly
@@ -2762,12 +3068,14 @@ function priceLabel(l){
 function renderRevenue(){
   var box = document.getElementById('revenue');
   var mo = 0, once = 0, fees = 0, byMonth = {}, items = [], noPrice = [], bySrc = {};
+  var lostMo = 0, lostN = 0;   // cancellations: what walked out, and how many
   var srcOf = function(l){ return fuParse(l.crmnotes).src || 'Unknown'; };
   leads.forEach(function(l){
     var sk = srcOf(l);
     if (!bySrc[sk]) bySrc[sk] = { leads: 0, closed: 0, mo: 0, once: 0, fee: 0 };
     bySrc[sk].leads++;
-    if ((l.status || 'new') !== 'closed') return;
+    var stR = l.status || 'new';
+    if (stR !== 'closed' && stR !== 'cancelled') return;
     bySrc[sk].closed++;
     var pp = parsePrice(l);
     if (!pp){ noPrice.push(l); return; }
@@ -2777,12 +3085,19 @@ function renderRevenue(){
     var when = fu2.cd || String(l.created || '').slice(0, 10) || '';
     var key = when.slice(0, 7);
     if (key){
-      if (!byMonth[key]) byMonth[key] = { mo: 0, once: 0, fee: 0 };
+      if (!byMonth[key]) byMonth[key] = { mo: 0, once: 0, fee: 0, lost: 0 };
       byMonth[key][isMo ? 'mo' : 'once'] += amt;
       byMonth[key].fee += fee;
     }
-    items.push({ name: l.name || '(no name)', amt: amt, isMo: isMo, key: key, fee: fee, waived: isMo && fu2.ic === 'w' });
-    if (isMo) mo += amt; else once += amt;
+    var gone = stR === 'cancelled';
+    if (gone && isMo){
+      lostMo += amt; lostN++;
+      var ck = String(fu2.cx || '').slice(0, 7);
+      if (ck){ if (!byMonth[ck]) byMonth[ck] = { mo: 0, once: 0, fee: 0, lost: 0 }; byMonth[ck].lost += amt; }
+    }
+    items.push({ name: l.name || '(no name)', amt: amt, isMo: isMo, key: key, fee: fee, waived: isMo && fu2.ic === 'w', gone: gone, cx: fu2.cx });
+    // current MRR is what is being paid NOW, so a cancelled customer is out
+    if (isMo){ if (!gone) mo += amt; } else once += amt;
     fees += fee;
     bySrc[sk][isMo ? 'mo' : 'once'] += amt;
     bySrc[sk].fee += fee;
@@ -2797,6 +3112,7 @@ function renderRevenue(){
     if (y === year){ ytdMo += v.mo; ytdOnce += v.once; ytdFee += v.fee; }
     var bits = [];
     if (v.mo) bits.push('+$' + v.mo + '/mo MRR');
+    if (v.lost) bits.push('<span style="color:#FFD6D0;">&minus;$' + v.lost + '/mo cancelled</span>');
     if (v.fee) bits.push('$' + v.fee + ' initial cleans');
     if (v.once) bits.push('$' + v.once + ' one-time');
     return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-weight:400;font-size:12.5px;opacity:0.95;">' +
@@ -2805,8 +3121,8 @@ function renderRevenue(){
   var itemRows = items.sort(function(a, b){ return String(b.key).localeCompare(String(a.key)); }).map(function(it){
     return '<div style="display:flex;justify-content:space-between;font-weight:400;font-size:12px;opacity:0.92;padding:2px 0;">' +
       '<span>' + esc(it.name) + ' <span style="opacity:0.6;">(' + (it.key ? MONTH_NAMES[parseInt(it.key.slice(5, 7), 10) - 1] + ' ' + it.key.slice(0, 4) : '?') + ')</span></span>' +
-      '<span>$' + it.amt + (it.isMo ? '/mo' : ' one-time') +
-      (it.fee ? ' <span style="opacity:0.75;">+ $40 initial</span>' : (it.waived ? ' <span style="opacity:0.6;">(initial waived)</span>' : '')) + '</span></div>';
+      '<span>' + (it.gone ? '<s style="opacity:.7;">' : '') + '$' + it.amt + (it.isMo ? '/mo' : ' one-time') + (it.gone ? '</s> <span style="color:#FFD6D0;">cancelled ' + esc(it.cx || '') + '</span>' : '') +
+      (it.fee && !it.gone ? ' <span style="opacity:0.75;">+ $40 initial</span>' : (it.waived && !it.gone ? ' <span style="opacity:0.6;">(initial waived)</span>' : '')) + '</span></div>';
   }).join('');
   var srcKeys = Object.keys(bySrc).sort(function(a, b){
     return (bySrc[b].mo * 12 + bySrc[b].fee + bySrc[b].once) - (bySrc[a].mo * 12 + bySrc[a].fee + bySrc[a].once) || bySrc[b].leads - bySrc[a].leads;
@@ -2866,6 +3182,7 @@ function renderRevenue(){
 function render(){
   renderRevenue();
   renderROI();
+  renderInsights();
   renderReviews();
   renderAlerts();
   var qp = document.getElementById('qrPanel');
@@ -2879,7 +3196,8 @@ function render(){
   STATUSES.forEach(function(s){ counts[s.k] = leads.filter(function(l){ return (l.status||'new') === s.k; }).length; });
   counts.saidno = leads.filter(function(l){ return quoteState(l) === 'declined'; }).length;
   counts.interested = leads.filter(function(l){
-    return quoteState(l) !== 'declined' && (l.status || 'new') !== 'lost';
+    var st = l.status || 'new';
+    return quoteState(l) !== 'declined' && st !== 'lost' && st !== 'cancelled';
   }).length;
   counts.followup = leads.filter(followupDue).length;
   // "New" on its own read as more than "Interested", because a refusal we
@@ -2935,6 +3253,33 @@ function render(){
     var attLine = fu.att ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#9742;&#65039; ' + fu.att + ' contact attempt' + (fu.att > 1 ? 's' : '') + ' &middot; last ' + esc(fu.attDate) + '</div>' : '';
     var icChip = fu.ic === 'w' ? '<div style="color:#5E35B1;font-size:12px;font-weight:700;margin-top:6px;">&#128142; Initial clean fee: WAIVED</div>' : '';
     var srcChip = fu.src ? '<div style="color:#8a6d1a;font-size:12px;font-weight:600;margin-top:6px;">&#128227; Source: ' + esc(fu.src) + '</div>' : '';
+    var refChip = fu.rb
+      ? '<div style="color:#0F6E56;font-size:12px;font-weight:600;margin-top:6px;">&#129309; Referred by ' + esc(fu.rb) +
+        (fu.rw ? ' <span style="color:#707070;font-weight:400;">&middot; reward given ' + esc(fu.rw) + '</span>'
+               : ((st === 'closed' || st === 'cancelled') ? ' <span style="color:#c0392b;font-weight:700;">&middot; owes them a free deodorize</span>' : '')) + '</div>'
+      : (fu.src === 'Referral' && !fu.rb
+          ? '<div style="color:#8a6d1a;font-size:12px;margin-top:6px;">&#129309; A referral &mdash; tap Edit and put in who referred them, so they get their reward</div>'
+          : '');
+    /* Why they said no. The site asks this in a dropdown and the answer lands
+       in the notes as text; the tag is read from that text until somebody
+       sets it by hand, so every past refusal is already counted. */
+    var whyRow = '';
+    if (quoteState(l) === 'declined'){
+      var drNow = drOf(l), drInferred = !fu.dr && drNow;
+      whyRow = '<div style="margin-top:8px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">Why they said no: ' +
+        '<select class="why" onchange="setDeclineReason(\'' + esc(l.id) + '\', this.value)">' +
+        '<option value=""' + (drNow ? '' : ' selected') + '>not recorded</option>' +
+        DR_TAGS.map(function(t){ return '<option value="' + t[0] + '"' + (drNow === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') +
+        '</select>' + (drInferred ? '<span style="color:#707070;">(read from what they wrote)</span>' : '') + '</div>';
+    }
+    var cxRow = '';
+    if (st === 'cancelled'){
+      cxRow = '<div style="margin-top:8px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">Why they left: ' +
+        '<select class="why" onchange="setCancelReason(\'' + esc(l.id) + '\', this.value)">' +
+        '<option value=""' + (fu.cxr ? '' : ' selected') + '>not recorded</option>' +
+        CX_TAGS.map(function(t){ return '<option value="' + t[0] + '"' + (fu.cxr === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') +
+        '</select></div>';
+    }
     var azBadge = auths[l.id]
       ? '<div style="background:#E1F5EE;color:#0F6E56;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;margin-top:8px;">&#9989; AUTHORIZED the quoted price on ' + esc(auths[l.id]) +
         ((l.status || 'new') !== 'closed' ? ' &mdash; add them in Sweep&amp;Go, send the start date, and mark Closed!' : '') + '</div>'
@@ -2976,8 +3321,8 @@ function render(){
        at a time. The ones that do not apply yet are behind More; nothing
        is removed, and the date inputs stay in the page so Save still finds
        them. */
-    var accepted = l.type === 'ACTIVATE' || !!auths[l.id] || st === 'closed';
-    var passed = st === 'lost';
+    var accepted = l.type === 'ACTIVATE' || !!auths[l.id] || st === 'closed' || st === 'cancelled';
+    var passed = st === 'lost' || st === 'cancelled';
     var finished = st === 'closed' || passed;
     var selling = !accepted && !passed;
     var fuRow = '<div style="margin-top:6px;font-size:12px;color:#555;">Follow up on: <input type="date" id="fu-' + esc(l.id) + '" value="' + esc(fu.date) + '" style="border:1px solid #ddd;border-radius:7px;padding:8px 9px;font-family:inherit;font-size:12px;min-height:40px;"> <span style="color:#707070;">(tap Save after picking)</span></div>';
@@ -3001,7 +3346,9 @@ function render(){
     if (accepted && !passed) main += sdRow; else extra += sdRow;  // booking them in
     return '<div class="card s-' + st + '" id="card-' + esc(l.id) + '">' +
       '<div class="row1"><div class="who">' + esc(l.name || '(no name)') + '</div>' +
-      '<span class="badge ' + (st === 'closed'
+      '<span class="badge ' + (st === 'cancelled'
+          ? 'cxl">CANCELLED' + (fu.cx ? ' &middot; LEFT ' + esc(honoredText(fu.cx + 'T12:00:00')) : '')
+          : st === 'closed'
           ? 'cls">&#10003; CLOSED &middot; ON SCHEDULE'
           : (st === 'lost'
             ? 'lst">PASSED'
@@ -3047,8 +3394,11 @@ function render(){
         '<br><span class="price">' + esc(String(l.price || '').indexOf('$') >= 0 ? l.price : (priceLabel(l) || l.price || '')) + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(honoredText(l.honored)) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' + srcChip + icChip + azBadge + sdBadge + attLine + fuBadge + ageBadge + rvRow +
-      '<div class="stbtns">' + STATUSES.map(function(s){
+      '</div>' + srcChip + refChip + icChip + azBadge + sdBadge + attLine + fuBadge + ageBadge + rvRow + whyRow + cxRow +
+      '<div class="stbtns">' + STATUSES.filter(function(s){
+        // "Cancelled" is a thing that happens to a customer, not a lead
+        return s.k !== 'cancelled' || st === 'closed' || st === 'cancelled';
+      }).map(function(s){
         return '<button class="b-' + s.k + (st === s.k ? ' on' : '') + '" onclick="setStatus(\'' + esc(l.id) + '\',\'' + s.k + '\')">' + s.label + '</button>';
       }).join('') +
       (finished ? '' :
