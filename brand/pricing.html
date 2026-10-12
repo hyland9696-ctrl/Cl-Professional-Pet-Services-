@@ -55,7 +55,23 @@
       *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
         transition-duration:.01ms !important;scroll-behavior:auto !important;}
     }
-</style></head>
+</style>
+<style media="print">
+  /* A heading at the foot of a page with its table on the next is the one
+     thing that makes a printed sheet look wrong. Keep each heading with
+     what follows it, and keep tables and ZIP blocks whole. */
+  h2, h3, .tierhead { break-after: avoid; page-break-after: avoid; }
+  table, .zips, .tierhead { break-inside: avoid; page-break-inside: avoid; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+  /* the one-line intro under a heading belongs to the table beneath it */
+  p.lead { break-after: avoid; page-break-after: avoid; }
+  /* The one-time section can never fit in what is left of the tier page,
+     so start it on a fresh one rather than letting the browser decide. */
+  h2.newpage, .tierhead.newpage { break-before: page; page-break-before: always; }
+  /* the closing notes travel as one block, never split by a page */
+  .foot { break-inside: avoid; page-break-inside: avoid; }
+</style>
+</head>
 <body><div class="sheet">
 
 <div class="noprint"><strong>To save as a PDF:</strong> print this page and choose &ldquo;Save as PDF&rdquo; as the destination. On a phone: share &rarr; Print &rarr; pinch out on the preview &rarr; share &rarr; Save to Files.</div>
@@ -65,7 +81,7 @@
     <h1>Pricing Reference</h1>
     <div class="sub">CL Professional Pet Services &middot; every rate, rule and ZIP tier</div>
   </div>
-  <div class="stamp">Generated September 8, 2026<br>from the live pricing file</div>
+  <div class="stamp">Generated October 12, 2026<br>from the live pricing file</div>
 </div>
 
 <h2>How a price is worked out</h2>
@@ -86,7 +102,7 @@ Every other week costs more than weekly on purpose: half the visits, but each on
 <h2>Every price, by tier</h2>
 <p class="lead">Dollars per month. Add $40 to the first invoice for the initial clean unless it is waived.</p>
 <h3 style="font-size:15px;margin:16px 0 5px;">Value <span class="mult">&times;0.90</span></h3><table><thead><tr><th>Plan</th><th>1 dog</th><th>2 dogs</th><th>3 dogs</th><th>4 dogs</th></tr></thead><tbody><tr><th scope="row">Twice a week</th><td><strong>$139</strong></td><td><strong>$148</strong></td><td><strong>$157</strong></td><td><strong>$167</strong></td></tr><tr><th scope="row">Weekly</th><td><strong>$77</strong></td><td><strong>$82</strong></td><td><strong>$87</strong></td><td><strong>$93</strong></td></tr><tr><th scope="row">Every other week</th><td><strong>$87</strong></td><td><strong>$92</strong></td><td><strong>$97</strong></td><td><strong>$103</strong></td></tr></tbody></table><h3 style="font-size:15px;margin:16px 0 5px;">Core <span class="mult">&times;0.95</span></h3><table><thead><tr><th>Plan</th><th>1 dog</th><th>2 dogs</th><th>3 dogs</th><th>4 dogs</th></tr></thead><tbody><tr><th scope="row">Twice a week</th><td><strong>$146</strong></td><td><strong>$155</strong></td><td><strong>$166</strong></td><td><strong>$176</strong></td></tr><tr><th scope="row">Weekly</th><td><strong>$81</strong></td><td><strong>$86</strong></td><td><strong>$92</strong></td><td><strong>$98</strong></td></tr><tr><th scope="row">Every other week</th><td><strong>$91</strong></td><td><strong>$96</strong></td><td><strong>$102</strong></td><td><strong>$108</strong></td></tr></tbody></table><h3 style="font-size:15px;margin:16px 0 5px;">Standard <span class="mult">&times;1.00</span></h3><table><thead><tr><th>Plan</th><th>1 dog</th><th>2 dogs</th><th>3 dogs</th><th>4 dogs</th></tr></thead><tbody><tr><th scope="row">Twice a week</th><td><strong>$153</strong></td><td><strong>$164</strong></td><td><strong>$175</strong></td><td><strong>$185</strong></td></tr><tr><th scope="row">Weekly</th><td><strong>$85</strong></td><td><strong>$91</strong></td><td><strong>$97</strong></td><td><strong>$103</strong></td></tr><tr><th scope="row">Every other week</th><td><strong>$95</strong></td><td><strong>$101</strong></td><td><strong>$107</strong></td><td><strong>$113</strong></td></tr></tbody></table><h3 style="font-size:15px;margin:16px 0 5px;">Premium <span class="mult">&times;1.10</span></h3><table><thead><tr><th>Plan</th><th>1 dog</th><th>2 dogs</th><th>3 dogs</th><th>4 dogs</th></tr></thead><tbody><tr><th scope="row">Twice a week</th><td><strong>$169</strong></td><td><strong>$180</strong></td><td><strong>$193</strong></td><td><strong>$203</strong></td></tr><tr><th scope="row">Weekly</th><td><strong>$94</strong></td><td><strong>$100</strong></td><td><strong>$107</strong></td><td><strong>$113</strong></td></tr><tr><th scope="row">Every other week</th><td><strong>$104</strong></td><td><strong>$110</strong></td><td><strong>$117</strong></td><td><strong>$123</strong></td></tr></tbody></table>
-<h2>One-time cleanups</h2>
+<h2 class="newpage">One-time cleanups</h2>
 <p class="lead">$75 covers the first 30 minutes on site, then $20 for every extra 15 minutes. Any number of dogs. No ZIP tier. Part blocks round up &mdash; 35 minutes bills as 45.</p>
 <table style="max-width:340px"><thead><tr><th>Time on site</th><th>Price</th></tr></thead><tbody><tr><th scope="row">30 min</th><td><strong>$75</strong></td></tr><tr><th scope="row">45 min</th><td><strong>$95</strong></td></tr><tr><th scope="row">1 hr</th><td><strong>$115</strong></td></tr><tr><th scope="row">1 hr 15 min</th><td><strong>$135</strong></td></tr><tr><th scope="row">1 hr 30 min</th><td><strong>$155</strong></td></tr><tr><th scope="row">1 hr 45 min</th><td><strong>$175</strong></td></tr><tr><th scope="row">2 hr</th><td><strong>$195</strong></td></tr><tr><th scope="row">2 hr 30 min</th><td><strong>$235</strong></td></tr><tr><th scope="row">3 hr</th><td><strong>$275</strong></td></tr></tbody></table>
 
@@ -104,10 +120,10 @@ Every other week costs more than weekly on purpose: half the visits, but each on
 <div class="tierhead"><h3>Core <span class="mult">&times;0.95</span></h3><span class="cnt">1 ZIP</span></div><p class="tnote">Slightly below standard.</p><div class="zips"><span class="zip">63010</span></div>
 <div class="tierhead"><h3>Standard <span class="mult">&times;1.00</span></h3><span class="cnt">23 ZIPs</span></div><p class="tnote">The base rate. No adjustment.</p><div class="zips"><span class="zip">63011</span><span class="zip">63021</span><span class="zip">63026</span><span class="zip">63028</span><span class="zip">63034</span><span class="zip">63043</span><span class="zip">63049</span><span class="zip">63105</span><span class="zip">63117</span><span class="zip">63119</span><span class="zip">63126</span><span class="zip">63128</span><span class="zip">63129</span><span class="zip">63130</span><span class="zip">63132</span><span class="zip">63144</span><span class="zip">63146</span><span class="zip">63301</span><span class="zip">63303</span><span class="zip">63366</span><span class="zip">63368</span><span class="zip">63376</span><span class="zip">63383</span></div>
 <div class="tierhead"><h3>Premium <span class="mult">&times;1.10</span></h3><span class="cnt">13 ZIPs</span></div><p class="tnote">Higher-cost ZIPs.</p><div class="zips"><span class="zip">63005</span><span class="zip">63017</span><span class="zip">63038</span><span class="zip">63040</span><span class="zip">63122</span><span class="zip">63124</span><span class="zip">63127</span><span class="zip">63131</span><span class="zip">63141</span><span class="zip">63304</span><span class="zip">63367</span><span class="zip">63379</span><span class="zip">63385</span></div>
-<div class="tierhead"><h3>Illinois <span class="mult">by hand</span></h3><span class="cnt">15 ZIPs</span></div><p class="tnote">We do cross the river, but the routes over there are thin enough that a table price is more likely to be wrong than right. These come through as normal leads &mdash; name, address, dogs, how often &mdash; and the site tells them we will email a price within one business day. <strong>Do not quote off the tiers above for these.</strong></p><div class="zips"><span class="zip">62002</span><span class="zip">62010</span><span class="zip">62025</span><span class="zip">62026</span><span class="zip">62034</span><span class="zip">62035</span><span class="zip">62040</span><span class="zip">62062</span><span class="zip">62095</span><span class="zip">62220</span><span class="zip">62234</span><span class="zip">62236</span><span class="zip">62249</span><span class="zip">62269</span><span class="zip">62294</span></div>
+<div class="tierhead newpage"><h3>Illinois <span class="mult">by hand</span></h3><span class="cnt">15 ZIPs</span></div><p class="tnote">We do cross the river, but the routes over there are thin enough that a table price is more likely to be wrong than right. These come through as normal leads &mdash; name, address, dogs, how often &mdash; and the site tells them we will email a price within one business day. <strong>Do not quote off the tiers above for these.</strong></p><div class="zips"><span class="zip">62002</span><span class="zip">62010</span><span class="zip">62025</span><span class="zip">62026</span><span class="zip">62034</span><span class="zip">62035</span><span class="zip">62040</span><span class="zip">62062</span><span class="zip">62095</span><span class="zip">62220</span><span class="zip">62234</span><span class="zip">62236</span><span class="zip">62249</span><span class="zip">62269</span><span class="zip">62294</span></div>
 <div class="foot">
 <strong>Where this lives.</strong> Every figure above comes from one file on the website, <code>pricing.js</code>. The public quote wizard and the phone-quote panel in the lead tracker both read it, so they can never disagree with each other. Change a number there and both update together.<br><br>
-<strong>This sheet was generated from that file</strong> on September 21, 2026, so it matches exactly what the website was quoting on that date. If prices change, ask for a fresh copy rather than editing this one.<br><br>
+<strong>This sheet was generated from that file</strong> on October 12, 2026, so it matches exactly what the website was quoting on that date. If prices change, ask for a fresh copy rather than editing this one.<br><br>
 CL Professional Pet Services &middot; (636) 375-4342 &middot; clpropetservices.com
 </div>
 
