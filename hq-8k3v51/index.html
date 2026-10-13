@@ -2642,6 +2642,23 @@ function reviewEmail(id){
     '?subject=' + encodeURIComponent('A quick favor? - CL Professional Pet Services') +
     '&body=' + encodeURIComponent(reviewMsg(l) + '\n\nCorey\nCL Professional Pet Services\n(636) 375-4342');
 }
+function reviewStat(k){ var c = config[k]; return c ? String(c.value || '') : ''; }
+function saveReviewStats(){
+  var r = parseFloat(document.getElementById('rv-rating').value), n = parseInt(document.getElementById('rv-count').value, 10);
+  if (!(r >= 1 && r <= 5)){ toast('Rating is a number from 1 to 5, like 4.9'); return; }
+  if (!(n >= 1)){ toast('How many reviews? A whole number'); return; }
+  var now = new Date().toISOString();
+  config.review_rating = { value: String(Math.round(r * 10) / 10), created: now };
+  config.review_count  = { value: String(n), created: now };
+  saveStatsCache(); renderReviews();
+  [['review_rating', config.review_rating.value], ['review_count', config.review_count.value]].forEach(function(p){
+    post({ action: 'lead', lead: {
+      id: 'cfg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      created: now, type: 'CONFIG', name: p[0], notes: p[1], status: 'config', crmnotes: ''
+    } }, null);
+  });
+  toast('Saved — the website will show ' + config.review_rating.value + ' · ' + n + ' reviews');
+}
 function toggleReviewSettings(){
   var f = document.getElementById('rv-settings');
   f.style.display = f.style.display === 'none' ? 'block' : 'none';
@@ -2702,6 +2719,22 @@ function renderReviews(){
       '<div style="font-size:12px;color:#555;margin-bottom:6px;">Your Google review link (Business Profile &rarr; Ask for reviews &rarr; copy):</div>' +
       '<input id="rv-link" type="url" inputmode="url" placeholder="https://g.page/r/..." value="' + esc(link) + '" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;">' +
       '<button class="copybtn" style="margin-top:8px;background:#188663;color:#fff;border-color:#188663;" onclick="saveReviewLink()">Save link</button>' +
+      /* The rating and count the WEBSITE shows. They were typed into every
+         page and drifted from the real number; now every page reads them
+         from here. Google does not let a website read its own rating
+         without a paid key - if one is ever pasted into the script this
+         updates itself; until then it is a ten-second job when it changes. */
+      '<div style="border-top:1px solid #eee;margin-top:12px;padding-top:10px;">' +
+        '<div style="font-size:12px;color:#555;margin-bottom:6px;">What the website shows for your Google rating. Check your Business Profile and keep this current &mdash; every page reads it from here.</div>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+          '<label style="font-size:12px;color:#555;">Rating <input id="rv-rating" type="number" step="0.1" min="1" max="5" inputmode="decimal" value="' + esc(reviewStat('review_rating')) + '" style="width:72px;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;margin-left:4px;"></label>' +
+          '<label style="font-size:12px;color:#555;">Reviews <input id="rv-count" type="number" step="1" min="1" inputmode="numeric" value="' + esc(reviewStat('review_count')) + '" style="width:84px;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;margin-left:4px;"></label>' +
+          '<button class="copybtn" style="background:#188663;color:#fff;border-color:#188663;" onclick="saveReviewStats()">Save</button>' +
+        '</div>' +
+        '<div style="font-size:11px;color:#707070;margin-top:6px;line-height:1.5;">' +
+          (reviewStat('review_count') ? 'The site is showing ' + esc(reviewStat('review_rating')) + ' &middot; ' + esc(reviewStat('review_count')) + ' reviews (takes up to a day to reach every phone).' : 'Not set yet &mdash; the site is showing the number typed into the page.') +
+        '</div>' +
+      '</div>' +
       '<div style="border-top:1px solid #eee;margin-top:12px;padding-top:10px;">' +
         '<div style="font-size:12px;color:#555;margin-bottom:6px;">How many months does the average customer stay? ' +
           'Every &ldquo;what did the ads earn us&rdquo; figure is built on this number.</div>' +

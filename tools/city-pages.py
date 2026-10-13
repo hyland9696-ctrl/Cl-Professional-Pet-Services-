@@ -150,6 +150,17 @@ def price_block(slug, name, state, zip_, county, big_lots):
   ''' % (js(name), js(name), js(note)) + PRICE_END)
 
 
+def live_reviews(html):
+    """The badge reads its rating and count from the backend (reviews.js),
+    with the typed figure as the fallback. One number, one place."""
+    html = re.sub(r'<div class="badge"><span class="sc">([\d.]+)</span><span class="st">([^<]*)</span><small>on Google<br>(\d+) reviews</small></div>',
+                  r'<div class="badge"><span class="sc" data-review-rating>\1</span><span class="st">\2</span><small>on Google<br><span data-review-count>\3 reviews</span></small></div>',
+                  html, count=1)
+    if 'src="/reviews.js' not in html:
+        html = html.replace('  <script src="/meta-pixel.js', '  <script src="/reviews.js"></script>\n  <script src="/meta-pixel.js', 1)
+    return html
+
+
 def ensure_pricing_script(html):
     """Every city page loads pricing.js so the price line can compute."""
     if 'src="/pricing.js' in html:
@@ -241,6 +252,7 @@ def run(check=False):
             html = path.read_text()
         out = html
         out = ensure_pricing_script(out)
+        out = live_reviews(out)
         out = style_additions(out)
         out = fix_schema(out, name, state)
         out = upsert_block(out, PRICE_START, PRICE_END, price_block(slug, name, state, zip_, county, big),

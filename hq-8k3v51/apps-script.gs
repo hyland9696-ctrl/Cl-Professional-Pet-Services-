@@ -220,8 +220,80 @@ function json_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+/* ============================================================
+   THE GOOGLE RATING ON THE WEBSITE.
+
+   Every page shows "5.0 · N reviews". That used to be typed into sixteen
+   files and drifted from the real number. Now the pages ask here, and this
+   returns whatever is in the two CONFIG rows review_rating / review_count.
+
+   Those rows are set either by hand in the tracker (Reviews → ⚙ Link), or
+   automatically by refreshReviews() below if a Google Places key is
+   pasted in. The key is never sent to the website - only the numbers are.
+   The response is cached for an hour so a busy day on the site is not a
+   busy day on the spreadsheet.
+   ============================================================ */
+var PLACES_API_KEY = '';   // Google Cloud → APIs → Places API (New or Legacy). Restrict it to the Places API only.
+var PLACE_ID       = '';   // the business's Place ID: https://developers.google.com/maps/documentation/places/web-service/place-id
+
+function publicStats_() {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get('public_stats');
+  if (hit) return JSON.parse(hit);
+  var rows = sheet_().getDataRange().getValues();
+  var iType = HEADERS.indexOf('type'), iName = HEADERS.indexOf('name'), iNotes = HEADERS.indexOf('notes'), iCreated = HEADERS.indexOf('created');
+  var best = {};
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][iType]) !== 'CONFIG') continue;
+    var n = String(rows[i][iName] || '');
+    if (n !== 'review_rating' && n !== 'review_count') continue;
+    var when = String(rows[i][iCreated] || '');
+    if (!best[n] || when > best[n].when) best[n] = { when: when, value: String(rows[i][iNotes] == null ? '' : rows[i][iNotes]) };
+  }
+  var rating = best.review_rating ? parseFloat(best.review_rating.value) : NaN;
+  var count  = best.review_count  ? parseInt(best.review_count.value, 10) : NaN;
+  var out = (rating >= 1 && rating <= 5 && count >= 1)
+    ? { ok: true, rating: Math.round(rating * 10) / 10, count: count, updated: (best.review_count || {}).when || '' }
+    : { ok: false, error: 'not set' };
+  cache.put('public_stats', JSON.stringify(out), 3600);
+  return out;
+}
+
+/* OPTIONAL. Reads the live rating and count from Google and stores them.
+   To turn on: fill in PLACES_API_KEY and PLACE_ID above, then in the left
+   sidebar click Triggers (clock icon) → Add Trigger → refreshReviews →
+   time-driven → day timer → pick an hour → Save. A Place Details call with
+   only these two fields is in Google's free monthly allowance many times
+   over at once a day. Leave the key blank and nothing is fetched; the
+   numbers come from the tracker instead. */
+function refreshReviews() {
+  if (!PLACES_API_KEY || !PLACE_ID) { Logger.log('No Places key or Place ID set; nothing fetched.'); return; }
+  var url = 'https://maps.googleapis.com/maps/api/place/details/json?place_id=' + encodeURIComponent(PLACE_ID) +
+            '&fields=rating,user_ratings_total&key=' + encodeURIComponent(PLACES_API_KEY);
+  var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  var d = JSON.parse(res.getContentText() || '{}');
+  var r = d && d.result;
+  if (!r || !(r.rating >= 1) || !(r.user_ratings_total >= 1)) { Logger.log('Google did not return a rating: ' + res.getContentText().slice(0, 200)); return; }
+  var sh = sheet_(), now = new Date().toISOString();
+  [['review_rating', String(r.rating)], ['review_count', String(r.user_ratings_total)]].forEach(function(pair) {
+    sh.appendRow(HEADERS.map(function(h) {
+      if (h === 'id') return 'cfg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      if (h === 'created' || h === 'updated') return now;
+      if (h === 'type') return 'CONFIG';
+      if (h === 'name') return pair[0];
+      if (h === 'notes') return safeCell_(pair[1]);
+      if (h === 'status') return 'config';
+      return '';
+    }));
+  });
+  CacheService.getScriptCache().remove('public_stats');
+  Logger.log('Stored ' + r.rating + ' / ' + r.user_ratings_total + ' reviews.');
+}
+
 function doGet(e) {
   var p = (e && e.parameter) || {};
+  // Public on purpose: it is the number already printed on the website.
+  if (p.action === 'public') return json_(publicStats_());
   if (p.action === 'list') {
     if (p.key !== PIN) return json_({ok:false, error:'bad pin'});
     var sh = sheet_();
@@ -261,10 +333,13 @@ function doPost(e) {
       if (h === 'status') return (h === 'status' && l.status) ? String(l.status) : 'new';
       if (h === 'crmnotes') return safeCell_(l.crmnotes != null ? l.crmnotes : '');
       if (h === 'updated') return new Date().toISOString();
+      // a row with no timestamp could never be the newest of its kind
+      if (h === 'created' && !l.created) return new Date().toISOString();
       return safeCell_(l[h]);
     }));
     try { notifyLead_(l); } catch (e) {}
     try { pushLead_(l); } catch (e) {}
+    if (String(l.type) === 'CONFIG') { try { CacheService.getScriptCache().remove('public_stats'); } catch (e) {} }
     return json_({ok:true});
   }
 
