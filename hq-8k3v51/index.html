@@ -163,6 +163,7 @@
       <button class="copybtn" onclick="toggleNo()" id="noBtn">&#128078; Said no</button>
       <button class="copybtn" onclick="toggleWait()" id="waitBtn">&#128205; Out of area</button>
       <button class="copybtn" onclick="toggleQR()" id="qrBtn">&#128241; Sign scans</button>
+      <button class="copybtn" onclick="toggleTests()" id="testBtn">&#129514; Test leads</button>
       <button class="copybtn" onclick="exportCsv()">&#11015;&#65039; Download CSV</button>
       <button class="copybtn" onclick="copyEmails()">Copy emails</button>
     </div>
@@ -247,6 +248,13 @@
         <button onclick="toggleNo()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
       </div>
       <div id="no-body" style="font-size:13px;line-height:1.6;color:#2B3A34;"></div>
+    </div>
+    <div id="testPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,.07);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-weight:800;font-size:15px;">&#129514; Team phones &amp; test leads</div>
+        <button onclick="toggleTests()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:40px;">Close</button>
+      </div>
+      <div id="test-body" style="font-size:13px;line-height:1.6;color:#2B3A34;"></div>
     </div>
     <div id="qrPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -385,6 +393,7 @@ var trafficDaysLoaded = 0;
 var rowsById = {};        // every row the sheet holds for an id, newest first - the deduped list keeps only the newest
 var QUIET_DAYS = 7;       // a called lead with no follow-up booked goes back on the list after this
 var leads = [], views = [], qviews = [], waitlist = [], outarea = [], auths = {}, spends = {}, config = {}, filter = 'all', KEY = 'clpps-8k3v51';
+var testLeads = [];       // forms sent from team phones: shown, never counted
 /* lastLoadAt = when we last ASKED. lastSyncAt = when real data last came
    back. They differ when the phone is offline or the script is slow, and
    the header shows the second one so "Refreshed" never means "asked and
@@ -453,9 +462,17 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
       (d.leads || []).forEach(function(l){ if (l.id){ (rowsById[l.id] = rowsById[l.id] || []).push(l); } });
       document.getElementById('offline').style.display = 'none';
       paintSync();
+      // A lead from a team phone carries [TM:1]. It is kept, visibly, in its
+      // own list, and never reaches the one every figure is built from.
+      var isTest = function(l){ return /\[TM:1\]/.test(String(l.crmnotes || '')); };
+      testLeads = [];
+      var seenT = {};
+      (d.leads || []).forEach(function(l){
+        if (isTest(l) && l.status !== 'deleted' && l.id && !seenT[l.id]){ seenT[l.id] = 1; testLeads.push(l); }
+      });
       var remote = (d.leads || []).filter(function(l){
         return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.type !== 'AUTH' && l.type !== 'SPEND' &&
-               l.type !== 'CONFIG' && l.type !== 'WAITLIST' && l.type !== 'OUTAREA' && l.status !== 'deleted';
+               l.type !== 'CONFIG' && l.type !== 'WAITLIST' && l.type !== 'OUTAREA' && l.status !== 'deleted' && !isTest(l);
       });
       views = (d.leads || []).filter(function(l){ return l.type === 'VIEW'; });
       qviews = (d.leads || []).filter(function(l){ return l.type === 'QVIEW'; });
@@ -507,6 +524,7 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
       saveStatsCache();
       render();
       renderTraffic();
+      renderTests();
       if (showToast) toast('Up to date ✓');
       if (cb) cb(true);
     })
@@ -1056,7 +1074,7 @@ function fuParse(crmnotes){
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
             cx: '', cxr: '', dr: '', rb: '', rw: '', text: '' };
-  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|MR|CXR|CX|DR|RB|RW):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|MR|CXR|CX|DR|RB|RW|TM):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1076,6 +1094,7 @@ function fuParse(crmnotes){
     else if (hit[1] === 'DR') m.dr = hit[2];
     else if (hit[1] === 'RB') m.rb = hit[2];
     else if (hit[1] === 'RW') m.rw = hit[2];
+    else if (hit[1] === 'TM') m.tm = hit[2];
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -1100,7 +1119,8 @@ function fuCompose(m){
          (m.cxr ? '[CXR:' + m.cxr + '] ' : '') +
          (m.dr ? '[DR:' + m.dr + '] ' : '') +
          (m.rb ? '[RB:' + m.rb + '] ' : '') +
-         (m.rw ? '[RW:' + m.rw + '] ' : '') + (m.text || '');
+         (m.rw ? '[RW:' + m.rw + '] ' : '') +
+         (m.tm ? '[TM:' + m.tm + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -2658,6 +2678,45 @@ function saveReviewStats(){
     } }, null);
   });
   toast('Saved — the website will show ' + config.review_rating.value + ' · ' + n + ' reviews');
+}
+/* ---- team phones: this device, and the test leads the team has sent ---- */
+function isTeamPhone(){ try { return localStorage.getItem('clpps_team') === '1'; } catch (e) { return false; } }
+function setTeamPhone(on){
+  try { if (on) localStorage.setItem('clpps_team', '1'); else localStorage.removeItem('clpps_team'); } catch (e) {}
+  renderTests();
+  toast(on ? 'This phone is a team phone - its visits are not counted' : 'This phone counts as a visitor again');
+}
+function toggleTests(){
+  var p = document.getElementById('testPanel');
+  var opening = p.style.display === 'none';
+  p.style.display = opening ? 'block' : 'none';
+  if (opening){ renderTests(); p.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+}
+function removeTest(id){
+  testLeads = testLeads.filter(function(x){ return x.id !== id; });
+  renderTests();
+  post({ action:'update', key:KEY, id:id, status:'deleted' }, 'Test lead removed');
+}
+function renderTests(){
+  var box = document.getElementById('test-body'), btn = document.getElementById('testBtn');
+  if (btn) btn.innerHTML = '&#129514; Test leads' + (testLeads.length ? ' (' + testLeads.length + ')' : '');
+  if (!box) return;
+  var me = isTeamPhone();
+  var h = '<div style="background:' + (me ? '#E6F2ED' : '#FDF3DC') + ';border-radius:10px;padding:10px 12px;margin-bottom:10px;">' +
+    '<div style="font-weight:700;">This phone: ' + (me ? 'team phone &mdash; its visits are NOT counted' : 'counted as a visitor') + '</div>' +
+    '<div style="font-size:12px;color:#555;margin:4px 0 8px;">Anyone who opens the site to check something is otherwise a &ldquo;visitor&rdquo;, and any form they send is a &ldquo;lead&rdquo;. ' +
+    'Mark every team phone once. Or open <code>clpropetservices.com/?team=1</code> on it &mdash; same thing. <code>?team=0</code> undoes it.</div>' +
+    '<button class="copybtn" onclick="setTeamPhone(' + (me ? 'false' : 'true') + ')">' + (me ? 'Count this phone as a visitor' : 'Mark this phone as a team phone') + '</button></div>';
+  h += '<div style="font-weight:700;margin-bottom:4px;">Test leads sent from team phones</div>';
+  h += '<div style="font-size:12px;color:#707070;margin-bottom:8px;">They arrive here so you can see the funnel worked. None of them is in the list, the counts, the revenue or the ad figures, and none buzzed anyone\'s phone.</div>';
+  if (!testLeads.length){ h += '<div style="color:#707070;">None.</div>'; box.innerHTML = h; return; }
+  h += testLeads.slice().sort(function(a, b){ return leadWhen(b) - leadWhen(a); }).map(function(l){
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid #f0f0f0;">' +
+      '<div><strong>' + esc(l.name || '(no name)') + '</strong> <span style="color:#707070;">' + esc(l.type || '') + ' &middot; ' + esc(String(l.price || '').split(',')[0]) + '</span>' +
+      '<div style="font-size:11.5px;color:#707070;">' + esc(whenText(l.created)) + '</div></div>' +
+      '<button class="copybtn" style="color:#c0392b;border-color:#e0b4ad;padding:7px 10px;min-height:36px;font-size:12px;" onclick="removeTest(\'' + esc(l.id) + '\')">Remove</button></div>';
+  }).join('');
+  box.innerHTML = h;
 }
 function toggleReviewSettings(){
   var f = document.getElementById('rv-settings');

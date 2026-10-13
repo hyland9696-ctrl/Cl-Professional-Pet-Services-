@@ -351,7 +351,7 @@
   </style>
   <script src="/pricing.js?v=0220045d"></script>
   <script defer src="/contact-check.js?v=b4a5b7a1"></script>
-  <script src="/lead-source.js?v=45f52d8c"></script>
+  <script src="/lead-source.js?v=49058023"></script>
   <script defer src="/reviews.js?v=69b6c149"></script>
   <script defer src="/meta-pixel.js?v=38fe5a84"></script>
 </head>
@@ -1054,6 +1054,7 @@
   function vSid(){ try { return clppsVisitId(); } catch (e) { return ''; } }
   function crmView(page){
     if (!CRM_ENDPOINT) return;
+    if (typeof clppsIsTeam === 'function' && clppsIsTeam()) return;   // a team phone is not a visitor
     try {
       var key = 'v_' + page;
       if (sessionStorage.getItem(key)) return;
@@ -1077,6 +1078,13 @@
 
   function crmCapture(lead){
     if (!CRM_ENDPOINT) return;
+    /* A form sent from a team phone is a test. It still goes through - that
+       is how you find out the funnel works - but labelled, so the tracker
+       keeps it out of every number, and silent, so nobody's phone buzzes. */
+    if (typeof clppsIsTeam === 'function' && clppsIsTeam()){
+      lead.crmnotes = '[TM:1] ' + String(lead.crmnotes || '');
+      lead.silent = 1;
+    }
     try {
       fetch(CRM_ENDPOINT, {
         method: 'POST',
@@ -1100,6 +1108,7 @@
   }
   function qViewBeacon(){
     if (!CRM_ENDPOINT) return;
+    if (typeof clppsIsTeam === 'function' && clppsIsTeam()) return;
     try {
       if (sessionStorage.getItem('qv_sent')) return;
       sessionStorage.setItem('qv_sent', '1');
@@ -1637,6 +1646,9 @@
     return payload;
   }
   function qMail(payload, done, fail){
+    if (typeof clppsIsTeam === 'function' && clppsIsTeam() && payload && payload._subject){
+      payload._subject = '[TEST - team phone] ' + payload._subject;
+    }
     fetch('https://formsubmit.co/ajax/' + FORM_EMAIL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },

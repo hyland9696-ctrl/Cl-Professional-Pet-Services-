@@ -61,14 +61,20 @@ able to tell what broke for a real person without opening the file.
 | `test-contact-check.js` | phone and email rules, on their own — no browser |
 | `test-fake-contacts.js` | the same rules as a customer and the office meet them |
 | `test-pricing.js` | every price the engine can quote, and the tier map |
+| `test-lead-order.js` | the tracker lists leads newest first, with follow-ups flagged |
+| `test-tracker-layout.js` | the tracker's cards and panels on a phone screen |
+| `test-tracking.js` | cancellations, decline reasons, speed to lead, close rate by source, referrals |
+| `test-city-pages.js` | every city page exists, interlinks, and shows the engine's price |
+| `test-reviews.js` | the live review count: the tracker setting, the badge, the schema |
+| `test-seo.js` | one H1, titles, descriptions, structured data, sitemap, deferred scripts |
+| `test-team.js` | team phones: no page views, labelled silent test leads, kept out of the numbers |
 
 ## What is missing
 
-The 53 files that were lost covered a great deal more than this: the
-quote wizard end to end, the lead tracker, accessibility, Meta Pixel
-events, the Apps Script backend, cache stamping, the printed price
-sheet. Those are gone and have not been rewritten. The three files here
-are the ones rebuilt since.
+The 53 files that were lost covered more than this: the quote wizard end
+to end, accessibility, Meta Pixel events, the Apps Script backend, the
+printed price sheet. Those have not been rewritten. The files here are
+the ones built since.
 
 If you are about to change something that is not covered, it is worth
 writing the test first — that is how the gap gets closed, a bit at a

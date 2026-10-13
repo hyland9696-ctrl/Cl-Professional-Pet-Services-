@@ -94,6 +94,34 @@ function clppsLeadSource(){
   return src;
 }
 
+/* ============================================================
+   TEAM PHONES.
+
+   Corey tested the Facebook funnel for an afternoon and the tracker counted
+   him as a day of visitors. Anyone on the team who opens the site to check
+   something is a "visitor" and any form they submit is a "lead", and the
+   numbers everyone reads - speed to lead, close rate, ad return - all drift
+   a little further from true each time.
+
+   A phone is marked as a team phone ONCE, either by opening
+   clpropetservices.com/?team=1 on it, or with the switch in the tracker
+   (same site, so the same storage). From then on, from that phone:
+     - page views and price views are never sent;
+     - a submitted form still goes through - that is the point of testing -
+       but lands as a labelled TEST lead, kept out of every figure, with no
+       email or push to the office.
+   ?team=0 undoes it. The flag lives in localStorage, so it survives closing
+   the browser; sessionStorage would have forgotten by the next test.
+   ============================================================ */
+function clppsIsTeam(){
+  try {
+    var q = clppsParam('team');
+    if (q === '1' || q === 'yes'){ localStorage.setItem('clpps_team', '1'); }
+    else if (q === '0' || q === 'no'){ localStorage.removeItem('clpps_team'); }
+    return localStorage.getItem('clpps_team') === '1';
+  } catch (e) { return false; }
+}
+
 /* A short id for this visit, so several page views can be tied together. */
 function clppsVisitId(){
   var s = clppsStore('v_sid');

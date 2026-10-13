@@ -3,6 +3,7 @@
    city page - there is nothing to keep in sync by hand. */
 (function(){
   try {
+    if (typeof clppsIsTeam === 'function' && clppsIsTeam()) return;   // a team phone is not a visitor
     var slug = location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0] || 'home';
     var pg = 'city-' + slug;
     if (clppsStore('v_' + pg)) return;          // once per session per page
