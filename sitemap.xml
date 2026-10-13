@@ -80,5 +80,15 @@
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
+  <url>
+    <loc>https://www.clpropetservices.com/service-areas/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.clpropetservices.com/commercial/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
   <url><loc>https://www.clpropetservices.com/accessibility/</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
 </urlset>

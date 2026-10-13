@@ -41,9 +41,15 @@ const quote = sandbox.q;
     ok(c.slug + ': in the sitemap', sitemap.includes('https://www.clpropetservices.com/' + c.slug + '/</loc>'));
     ok(c.slug + ': linked from the home footer', home.includes('href="/' + c.slug + '/"'));
     ok(c.slug + ': not noindex', !/noindex/.test(html));
+    // parsed, not string-matched: the generator pretty-prints the JSON now
+    // and the first version of this check broke on a space after a colon
+    const biz = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+      .map(m => { try { return JSON.parse(m[1]); } catch (e) { return null; } })
+      .find(o => o && o['@type'] === 'LocalBusiness');
     ok(c.slug + ': the business address is St. Peters, the city is the area served',
-       html.includes('"addressLocality":"St. Peters","addressRegion":"MO"') &&
-       html.includes('"areaServed":{"@type":"City","name":"' + c.name + ', ' + c.state + '"}'));
+       !!biz && biz.address.addressLocality === 'St. Peters' && biz.address.addressRegion === 'MO' &&
+       Array.isArray(biz.areaServed) && biz.areaServed.length === 1 && biz.areaServed[0].name === c.name + ', ' + c.state,
+       biz ? JSON.stringify(biz.areaServed) : 'no LocalBusiness block');
     const others = CITIES.filter(x => x.slug !== c.slug).map(x => 'href="/' + x.slug + '/"');
     ok(c.slug + ': links to every other city', others.every(h => html.includes(h)),
        others.filter(h => !html.includes(h)).join(' '));
