@@ -114,6 +114,8 @@
     .hero h1.hero-kw{font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#0F6E56;margin-bottom:12px;}
     .hero .hero-slogan{font-size:38px;font-weight:700;line-height:1.2;margin-bottom:16px;color:#1a1a1a;}
     .hero p{font-size:16px;color:#555;line-height:1.75;margin-bottom:24px;}
+    .hero .hero-proof{font-size:14px;color:#2B3A34;margin:-6px 0 18px;line-height:1.5;}
+    .hero .hero-proof .stars{color:#F2B01E;letter-spacing:1px;}
     .hero-img{border-radius:16px;overflow:hidden;aspect-ratio:4/3;transition:box-shadow 0.3s;background:#f0fdf8;display:flex;align-items:center;justify-content:center;}
     .hero-img:hover{box-shadow:0 16px 48px rgba(0,0,0,0.15);}
     .hero-img img{width:100%;height:100%;object-fit:cover;transition:transform 0.5s cubic-bezier(0.22,1,0.36,1);}
@@ -225,8 +227,20 @@
       .nav-links{flex-wrap:wrap;justify-content:flex-start;width:100%;gap:2px;}
       .nav-links button{font-size:12px;padding:6px 9px;}
       .page{padding:0 16px 48px;}
-      .hero{grid-template-columns:1fr;}
-      .hero-img{order:-1;}
+      /* The phone fold. At 390px wide the first screen used to be the logo,
+         two rows of menu and the photo; the headline, the rating and the
+         quote button were a screen and a half down. A visitor from an ad
+         was not asked to do anything before they scrolled. The photo is
+         shorter here, the button sits straight under the headline, and the
+         long paragraph and the badges move below it. */
+      .hero{grid-template-columns:1fr;padding:14px 0 24px;gap:16px;}
+      .hero-img{order:-1;aspect-ratio:16/9;}
+      .hero .hero-slogan{font-size:30px;margin-bottom:10px;}
+      .hero-content{display:flex;flex-direction:column;}
+      .hero-content .hero-proof{order:1;margin:0 0 14px;}
+      .hero-content .hero-btns{order:2;margin-bottom:16px;}
+      .hero-content .hero-lead{order:3;margin-bottom:14px;}
+      .hero-content .badges{order:4;}
       .stats{grid-template-columns:1fr 1fr;}
       .about-grid{grid-template-columns:1fr;}
       .quote-layout{grid-template-columns:1fr;}
@@ -313,6 +327,15 @@
     .faq-a p{padding:0 20px 18px;font-size:14px;color:#555;line-height:1.7;}
 
     /* Floating call button */
+    /* A bar that follows a phone visitor down the page once the hero's own
+       button has scrolled away, so the price is always one tap off. Never on
+       the quote page itself, and never on a wide screen. */
+    .sticky-cta{display:none;position:fixed;left:0;right:0;bottom:0;z-index:190;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(255,255,255,0.96);border-top:1px solid #e3e8e5;box-shadow:0 -6px 20px rgba(0,0,0,0.08);}
+    .sticky-cta button{width:100%;min-height:48px;background:#188663;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;}
+    @media (max-width: 760px){
+      body.cta-on .sticky-cta{display:block;}
+      body.cta-on .fab{bottom:84px;}
+    }
     .fab{position:fixed;right:22px;bottom:22px;z-index:200;width:60px;height:60px;border-radius:50%;background:#188663;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(15,110,86,0.45);transition:transform 0.2s,background 0.2s;}
     .fab:hover{transform:scale(1.08);background:#0F6E56;}
     .fab svg{width:26px;height:26px;stroke:#fff;fill:none;stroke-width:2;}
@@ -390,7 +413,8 @@
              the slogan keeps the big type as the line underneath. -->
         <h1 class="hero-kw">Pooper Scooper &amp; Pet Waste Removal in St.&nbsp;Peters, MO</h1>
         <p class="hero-slogan">We deal with poop, so you don't have to.</p>
-        <p>CL Professional Pet Services is a locally owned pet waste removal company covering the greater St. Louis metro: St. Charles, St. Louis, Franklin and surrounding counties, plus the Illinois Metro East. Weekly, bi-weekly, and one-time cleanups that keep your yard clean, healthy, and ready to enjoy.</p>
+        <p class="hero-proof"><span class="stars" aria-hidden="true">&#9733;&#9733;&#9733;&#9733;&#9733;</span> <strong><span data-review-rating>5.0</span> on Google</strong> &middot; <span data-review-count>28 reviews</span> &middot; Licensed &amp; insured</p>
+        <p class="hero-lead">CL Professional Pet Services is a locally owned pet waste removal company covering the greater St. Louis metro: St. Charles, St. Louis, Franklin and surrounding counties, plus the Illinois Metro East. Weekly, bi-weekly, and one-time cleanups that keep your yard clean, healthy, and ready to enjoy.</p>
         <div class="badges">
           <span class="badge">Licensed &amp; Insured</span>
           <span class="badge">Locally Owned</span>
@@ -819,7 +843,7 @@
 
           <div class="q-label">Your ZIP code</div>
           <div class="zip-row">
-            <input id="q-zip" type="text" inputmode="numeric" maxlength="5" placeholder="e.g. 63376" aria-label="ZIP code" oninput="qZipInput()" />
+            <input id="q-zip" autocomplete="postal-code" type="text" inputmode="numeric" maxlength="5" placeholder="e.g. 63376" aria-label="ZIP code" oninput="qZipInput()" />
           </div>
           <div class="zip-msg" id="q-zipmsg" role="status"></div>
 
@@ -1027,6 +1051,7 @@
 
   </main>
 
+  <div class="sticky-cta" id="sticky-cta"><button onclick="showPage('quote')">See my price in 60 seconds &rarr;</button></div>
   <a class="fab" href="tel:+16363754342" aria-label="Call CL Professional Pet Services">
     <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
   </a>
@@ -1958,7 +1983,16 @@
     if (id === 'home') animateStats();
     if (history.replaceState) history.replaceState(null, '', id === 'home' ? '#' : '#' + id);
     window.scrollTo({top:0,behavior:'smooth'});
+    stickyCta();
   }
+  /* shown once the hero's own button has scrolled off, on every tab but the quote */
+  function stickyCta(){
+    try {
+      var on = window.scrollY > 520 && !document.getElementById('page-quote').classList.contains('active');
+      document.body.classList.toggle('cta-on', on);
+    } catch (e) {}
+  }
+  window.addEventListener('scroll', stickyCta, { passive: true });
 
 </script>
 </body>
