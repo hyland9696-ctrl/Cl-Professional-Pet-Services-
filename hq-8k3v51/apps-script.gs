@@ -377,6 +377,33 @@ function doPost(e) {
  * icon) -> Add Trigger -> function weeklyDigest -> time-driven -> week
  * timer -> Monday 7-8am -> Save.
  */
+/* ---- Backups ----------------------------------------------------------
+   The sheet is the whole customer list and history. backupSheet() copies it
+   to a dated file in a Drive folder called "CLPPS Backups" and keeps the
+   newest eight. Run setupBackupTrigger() ONCE (pick it in the toolbar above,
+   press Run, allow Drive when asked) and it happens every Sunday night on
+   its own, starting with a copy right now. */
+function backupSheet() {
+  var ss = sheet_().getParent();
+  var file = DriveApp.getFileById(ss.getId());
+  var folders = DriveApp.getFoldersByName('CLPPS Backups');
+  var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder('CLPPS Backups');
+  var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  file.makeCopy('CLPPS Leads backup ' + stamp, folder);
+  var all = [], it = folder.getFiles();
+  while (it.hasNext()) { var f = it.next(); if (/^CLPPS Leads backup /.test(f.getName())) all.push(f); }
+  all.sort(function(a, b){ return b.getDateCreated() - a.getDateCreated(); });
+  for (var i = 8; i < all.length; i++) all[i].setTrashed(true);
+  return all.length;
+}
+function setupBackupTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if (t.getHandlerFunction() === 'backupSheet') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('backupSheet').timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(23).create();
+  backupSheet();
+}
+
 function weeklyDigest() {
   var sh = sheet_();
   var rows = sh.getDataRange().getValues();

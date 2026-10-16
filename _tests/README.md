@@ -68,6 +68,7 @@ able to tell what broke for a real person without opening the file.
 | `test-reviews.js` | the live review count: the tracker setting, the badge, the schema |
 | `test-seo.js` | one H1, titles, descriptions, structured data, sitemap, deferred scripts |
 | `test-lead-source.js` | every way a Meta or Google visit can arrive and what it must be called; the reason is recorded |
+| `test-tracker-care.js` | editing deodorize and ZIP with a recalculated price, the not-called clock, same-person lines, the health line |
 | `test-team.js` | team phones: no page views, labelled silent test leads, kept out of the numbers |
 
 ## What is missing

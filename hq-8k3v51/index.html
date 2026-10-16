@@ -115,6 +115,7 @@
     <!-- The one number that changes what you do today: how fast leads are
          getting their first call. Lives outside the collapsed panel on
          purpose. -->
+    <div id="health" style="display:none;border-radius:12px;padding:9px 14px;margin-bottom:12px;font-size:12px;line-height:1.5;"></div>
     <div id="speedline" style="display:none;background:#fff;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#444;box-shadow:0 1px 4px rgba(0,0,0,0.06);line-height:1.5;"></div>
     <!-- The dashboards used to sit above the leads and push them two full
          phone screens down - on a page called Lead Tracker, opened to see
@@ -181,6 +182,10 @@
         <input id="m-phone" placeholder="Phone" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
         <input id="m-email" placeholder="Email" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
         <input id="m-price" placeholder="Price (e.g. $81/mo)" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+        <input id="m-zip" placeholder="ZIP" inputmode="numeric" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+        <select id="m-deo" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;">
+          <option value="">Deodorize?</option><option value="no">No deodorize</option><option value="every">Deodorize every visit (+$15 each)</option><option value="eo">Deodorize every other visit</option>
+        </select>
         <select id="m-dogs" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;">
           <option value="">Dogs?</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6+</option>
         </select>
@@ -205,7 +210,10 @@
         <input id="m-addr" placeholder="Address" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
         <input id="m-ref" placeholder="Referred by (a customer's name - they earn a free deodorize)" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
       </div>
-      <button class="copybtn" id="m-savebtn" style="margin-top:8px;" onclick="addManual()">Add manual lead</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">
+        <button class="copybtn" id="m-savebtn" onclick="addManual()">Add manual lead</button>
+        <button class="copybtn" onclick="recalcManual()" title="Work the price out again from ZIP, dogs, service and deodorize">&#8635; Recalculate price</button>
+      </div>
     </div>
     <div id="askPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
@@ -811,6 +819,14 @@ function fmtHours(h){
 }
 /* When each lead first heard from us. [T1:] is stamped at the first status
    change or logged attempt, so this works on every lead ever filed. */
+/* Hours a lead has sat with nobody ringing them, or 0 when it does not
+   apply: not new any more, already attempted, said no on the site. */
+function uncalledHours(l){
+  if ((l.status || 'new') !== 'new' || !l.created) return 0;
+  if (quoteState(l) === 'declined' || firstTouch(l)) return 0;
+  var h = (Date.now() - new Date(l.created).getTime()) / 3600000;
+  return h > 0 ? h : 0;
+}
 function firstTouch(l){
   var m = fuParse(l.crmnotes);
   if (m.t1 && !isNaN(new Date(m.t1))) return new Date(m.t1);
@@ -1261,10 +1277,47 @@ function toggleAdd(){
     document.getElementById('m-savebtn').textContent = 'Add manual lead';
   }
 }
+/* Deodorize is stored as the words the site writes ("every visit
+   ($15/treatment)", "no"); the dropdown works in keys. Both ways. */
+function deoKey(text){
+  var t = String(text || '').toLowerCase();
+  if (!t) return '';
+  if (/every other|\beo\b/.test(t)) return 'eo';
+  if (/^no\b|none/.test(t)) return 'no';
+  if (/every|yes|includ|\$15|treat/.test(t)) return 'every';
+  return 'no';
+}
+function deoText(key){
+  return key === 'eo' ? 'every other visit ($15/treatment)' : key === 'every' ? 'every visit ($15/treatment)' : key === 'no' ? 'no' : '';
+}
+/* The price box is typed by hand, so taking deodorize off a lead used to
+   leave the old, higher price sitting there. This works it out again from
+   what the form says, the same way the website and the phone quote do. */
+function recalcManual(){
+  var zip = document.getElementById('m-zip').value.trim();
+  var svc = document.getElementById('m-service').value;
+  var FREQ = { 'twice a week':'twiceweekly', 'weekly':'weekly', 'every other week':'biweekly', 'one-time':'onetime' };
+  if (!zip){ toast('Enter the ZIP first'); return; }
+  if (!FREQ[svc]){ toast(svc ? 'No automatic price for ' + svc + ' - type it in' : 'Pick the service first'); return; }
+  var dogsV = document.getElementById('m-dogs').value;
+  var dk = document.getElementById('m-deo').value;
+  var r = clppsQuote({ zip: zip, dogs: dogsV === '6+' ? 6 : (parseInt(dogsV, 10) || 1), freq: FREQ[svc],
+                       deo: dk === 'eo' ? 'eo' : dk === 'every' ? 'every' : 'none',
+                       waiveInitial: document.getElementById('m-ic').value === 'w' });
+  if (r.manual){
+    toast(r.reason === 'illinois' ? 'Illinois is priced by hand - type the price' :
+          r.reason === 'yard' ? 'Big yard - priced by hand' : 'Five or more dogs - priced by hand');
+    return;
+  }
+  document.getElementById('m-price').value = '$' + r.total + (r.per || '');
+  toast('Price: $' + r.total + (r.per || '') + (r.deoMo ? ' (includes $' + r.deoMo + ' deodorize)' : ''));
+}
 function editLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
   if (!l) return;
   editing = l;
+  document.getElementById('m-zip').value = l.zip || '';
+  document.getElementById('m-deo').value = deoKey(l.deodorize);
   document.getElementById('m-name').value = l.name || '';
   document.getElementById('m-phone').value = l.phone || '';
   document.getElementById('m-email').value = l.email || '';
@@ -1336,6 +1389,8 @@ function addManual(){
     dogs: document.getElementById('m-dogs').value,
     service: document.getElementById('m-service').value,
     address: document.getElementById('m-addr').value.trim(),
+    zip: document.getElementById('m-zip').value.trim(),
+    deodorize: deoText(document.getElementById('m-deo').value),
     status: 'new', crmnotes: (document.getElementById('m-ic').value === 'w' ? '[IC:w] ' : '') +
       (document.getElementById('m-src').value ? '[SRC:' + document.getElementById('m-src').value + '] ' : '') +
       (document.getElementById('m-ref').value.trim() ? '[RB:' + document.getElementById('m-ref').value.trim().replace(/[\[\]]/g, '') + '] ' : '')
@@ -1351,7 +1406,9 @@ function addManual(){
     lead.crmnotes = fuCompose(em2);
     if (!lead.dogs) lead.dogs = editing.dogs || '';
     if (!lead.service) lead.service = editing.service || '';
-    ['zip','yard','deodorize','hero','manual','honored','notes'].forEach(function(k){ lead[k] = editing[k] || ''; });
+    if (!lead.zip) lead.zip = editing.zip || '';
+    if (!lead.deodorize) lead.deodorize = editing.deodorize || '';   // blank dropdown = unchanged; "No deodorize" takes it off
+    ['yard','hero','manual','honored','notes'].forEach(function(k){ lead[k] = editing[k] || ''; });
     lead.id = editing.id;
     var idx = leads.indexOf(editing);
     markSeen(SEEN_L, lead.id);
@@ -1363,7 +1420,7 @@ function addManual(){
     editing = null;
     document.getElementById('m-savebtn').textContent = 'Add manual lead';
     saveLocal(); render();
-    ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr','m-ic','m-src','m-ref'].forEach(function(i){ document.getElementById(i).value = ''; });
+    ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr','m-ic','m-src','m-ref','m-zip','m-deo'].forEach(function(i){ document.getElementById(i).value = ''; });
     document.getElementById('addPanel').style.display = 'none';
     toast('Lead updated ✓');
     return;
@@ -1372,7 +1429,7 @@ function addManual(){
   leads.unshift(lead);
   saveLocal(); render();
   post({action:'lead', lead:lead});
-  ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr','m-ic','m-src'].forEach(function(i){ document.getElementById(i).value = ''; });
+  ['m-name','m-phone','m-email','m-price','m-dogs','m-service','m-addr','m-ic','m-src','m-ref','m-zip','m-deo'].forEach(function(i){ document.getElementById(i).value = ''; });
   toggleAdd();
   toast('Lead added ✓');
 }
@@ -2263,8 +2320,8 @@ function briefText_(){
   var uncontacted = live.filter(function(l){ return (l.status || 'new') === 'new'; });
   var stale = uncontacted.filter(function(l){
     // already listed above as an acceptance, don't repeat them here
-    return !auths[l.id] && l.created && (Date.now() - new Date(l.created).getTime()) / 3600000 >= 24;
-  });
+    return !auths[l.id] && uncalledHours(l) >= 1;
+  }).sort(function(a, b){ return uncalledHours(b) - uncalledHours(a); });   // longest wait first
   var authPending = live.filter(function(l){
     var st = l.status || 'new';
     return auths[l.id] && st !== 'closed' && st !== 'lost';
@@ -2322,8 +2379,11 @@ function briefText_(){
     L.push(list(authPending));
   }
   if (stale.length){
-    L.push('\u23f0 ' + stale.length + ' lead' + (stale.length === 1 ? '' : 's') + ' waiting over 24h with no contact:');
-    L.push(list(stale));
+    L.push('\u23f0 ' + stale.length + ' lead' + (stale.length === 1 ? '' : 's') + ' not called yet, longest wait first:');
+    L.push(list(stale, function(l){
+      var h = uncalledHours(l);
+      return nm(l) + ' \u2014 ' + (h >= 24 ? Math.floor(h / 24) + ' day' + (Math.floor(h / 24) > 1 ? 's' : '') : Math.round(h) + 'h') + (l.phone ? ' \u2014 ' + l.phone : '');
+    }));
   }
   if (quiet.length){
     L.push('\ud83d\udd07 ' + quiet.length + ' quote' + (quiet.length === 1 ? '' : 's') +
@@ -2717,6 +2777,38 @@ function renderTests(){
       '<button class="copybtn" style="color:#c0392b;border-color:#e0b4ad;padding:7px 10px;min-height:36px;font-size:12px;" onclick="removeTest(\'' + esc(l.id) + '\')">Remove</button></div>';
   }).join('');
   box.innerHTML = h;
+}
+/* ---- is the pipe from the website still connected? ----
+   A lead reaches the office email whatever happens, but if the tracker's
+   link to the sheet ever breaks, visits and leads simply stop appearing
+   here, and the page looks like a quiet week. A line that says how long
+   ago the last visit arrived turns that into something you'd notice the
+   same morning. */
+function agoText(ts){
+  var m = (Date.now() - new Date(ts).getTime()) / 60000;
+  if (!(m >= 0)) return '';
+  if (m < 1) return 'just now';
+  if (m < 60) return Math.round(m) + ' min ago';
+  if (m < 48 * 60) return Math.round(m / 60) + 'h ago';
+  return Math.round(m / 1440) + ' days ago';
+}
+function renderHealth(){
+  var box = document.getElementById('health');
+  if (!box) return;
+  var lastV = '', lastL = '';
+  views.forEach(function(v){ if (v.created && String(v.created) > lastV) lastV = String(v.created); });
+  leads.forEach(function(l){ if (isLead(l) && l.created && String(l.created) > lastL) lastL = String(l.created); });
+  if (!lastV && !lastL){ box.style.display = 'none'; return; }
+  var vh = lastV ? (Date.now() - new Date(lastV).getTime()) / 3600000 : 999;
+  var hour = new Date().getHours();
+  // eight daytime hours with not one visit is not a quiet day, it is a break
+  var worry = vh >= 8 && hour >= 9 && hour <= 21;
+  box.style.cssText += worry
+    ? ';background:#FDF3DC;color:#7a5c00;box-shadow:0 1px 4px rgba(0,0,0,0.06);'
+    : ';background:#fff;color:#707070;box-shadow:0 1px 4px rgba(0,0,0,0.06);';
+  box.innerHTML = (worry ? '<strong>&#9888;&#65039; No website visits recorded for ' + Math.round(vh) + ' hours.</strong> The site may be fine; the link from the site to this tracker may not be. Open clpropetservices.com on a phone that is not marked as a team phone, then pull to refresh here. If the visit does not show, the Apps Script deployment needs looking at.<br>' : '') +
+    '&#128268; Website &rarr; tracker: last visit ' + (lastV ? agoText(lastV) : 'never') + ' &middot; last lead ' + (lastL ? agoText(lastL) : 'never');
+  box.style.display = 'block';
 }
 function toggleReviewSettings(){
   var f = document.getElementById('rv-settings');
@@ -3270,7 +3362,56 @@ function renderRevenue(){
       itemRows + srcRows + dupeRows + warnRows +
     '</div>';
 }
+/* The same person, twice. A phone or email shared with another lead is
+   worth seeing on the card: a repeat shopper, a cancelled customer coming
+   back, a "said no" from the spring now asking again. */
+var dupIdx = {};
+function dupKeys(l){
+  var ks = [];
+  var d = String(l.phone || '').replace(/\D/g, '');
+  if (d.length >= 10) ks.push('p:' + d.slice(-10));
+  var e = String(l.email || '').trim().toLowerCase();
+  if (e && e.indexOf('@') > 0 && !isSheetError(l.email)) ks.push('e:' + e);
+  return ks;
+}
+function buildDupIndex(){
+  dupIdx = {};
+  leads.forEach(function(l){
+    if ((l.status || 'new') === 'deleted') return;
+    dupKeys(l).forEach(function(k){ (dupIdx[k] = dupIdx[k] || []).push(l); });
+  });
+}
+function dupOthers(l){
+  var seen = {}, out = [];
+  dupKeys(l).forEach(function(k){
+    (dupIdx[k] || []).forEach(function(o){
+      if (o.id === l.id || seen[o.id]) return;
+      seen[o.id] = 1; out.push(o);
+    });
+  });
+  return out.sort(function(a, b){ return leadWhen(b) - leadWhen(a); });
+}
+function dupLine(l){
+  var others = dupOthers(l);
+  if (!others.length) return '';
+  var state = function(o){
+    var s = o.status || 'new';
+    if (s === 'closed') return 'closed customer';
+    if (s === 'cancelled') return 'cancelled';
+    if (s === 'lost') return 'passed';
+    if (quoteState(o) === 'declined') return 'said no';
+    return s === 'called' ? 'called' : 'new';
+  };
+  return '<div style="color:#7a5c00;font-size:12px;margin-top:4px;">&#128257; Same ' +
+    (dupKeys(l).some(function(k){ return k.charAt(0) === 'p' && (dupIdx[k] || []).length > 1; }) ? 'phone' : 'email') + ' as ' +
+    others.slice(0, 2).map(function(o){
+      return '<a href="#card-' + esc(o.id) + '" style="color:#7a5c00;font-weight:700;">' + esc(o.name || '(no name)') + '</a> (' +
+        esc(whenText(o.created, true)) + ', ' + state(o) + (o.price ? ', ' + esc(String(o.price).split(',')[0]) : '') + ')';
+    }).join(' and ') + (others.length > 2 ? ' and ' + (others.length - 2) + ' more' : '') + '</div>';
+}
 function render(){
+  buildDupIndex();
+  renderHealth();
   renderRevenue();
   renderROI();
   renderInsights();
@@ -3396,14 +3537,16 @@ function render(){
         fuBadge = '<div style="color:#0F6E56;font-size:12px;font-weight:600;margin-top:6px;">&#128197; Follow-up set for ' + fu.date + '</div>';
       }
     }
+    /* A lead an hour old and a lead a day old used to look the same. Leads
+       answered inside the hour close far more often than ones answered the
+       next day, so the clock starts at one hour, turns red at three. A lead
+       that said no on the site is the win-back email's job, not a call. */
     var ageBadge = '';
-    if (st === 'new' && l.created){
-      var hrs = (Date.now() - new Date(l.created).getTime()) / 3600000;
-      if (hrs >= 24){
-        var days = Math.floor(hrs / 24);
-        ageBadge = '<div style="color:#c0392b;font-size:12px;font-weight:700;margin-top:6px;">&#9200; Waiting ' +
-          (days >= 1 ? days + ' day' + (days > 1 ? 's' : '') : Math.round(hrs) + ' hours') + ' with no call — reach out!</div>';
-      }
+    var waitH = uncalledHours(l);
+    if (waitH >= 1){
+      var days = Math.floor(waitH / 24);
+      var agoTxt = days >= 1 ? days + ' day' + (days > 1 ? 's' : '') : Math.round(waitH) + ' hour' + (Math.round(waitH) === 1 ? '' : 's');
+      ageBadge = '<div style="color:' + (waitH >= 3 ? '#c0392b' : '#b45309') + ';font-size:12px;font-weight:700;margin-top:6px;">&#9200; Not called yet &mdash; came in ' + agoTxt + ' ago' + (waitH >= 3 ? '. Reach out!' : '') + '</div>';
     }
     /* Which controls a card shows depends on where the lead is. Every card
        used to carry all twelve - "Text the first-visit date" on somebody
@@ -3468,6 +3611,7 @@ function render(){
            number, a straight run of digits. Say so on the card rather than
            letting somebody find out by dialling. */
         contactDoubtLine(l) +
+        dupLine(l) +
         '&#128021; ' + esc(l.dogs ? dogsLabel(l.dogs) : '? dogs') + ' &middot; ' + esc(planLabel(l.service)) +
         (l.deodorize && l.deodorize !== 'no' ? ' &middot; deodorize' : '') +
         (l.hero && l.hero !== 'no'
