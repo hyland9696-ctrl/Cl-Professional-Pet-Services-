@@ -24,7 +24,8 @@
       name: pg,
       zip: ref,
       yard: clppsVisitId(),
-      service: clppsLeadSource() || ''
+      service: clppsLeadSource() || '',
+      notes: 'how=' + (typeof clppsSourceHow === 'string' ? clppsSourceHow : '')
     };
     fetch('https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec', {
       method: 'POST',

@@ -47,10 +47,26 @@ function clppsStore(key, val){
 }
 
 function clppsParam(k, search){
-  var s = search || location.search;
-  var m = s.match(new RegExp('[?&]' + k + '=([^&]*)'));
+  /* The hash is searched too. An ad built as /#quote?fbclid=... puts the
+     tag after the # where location.search cannot see it, and the visit
+     used to read as Direct. */
+  var s = search || (location.search + ' ' + location.hash);
+  var m = s.match(new RegExp('[?&]' + k + '=([^&# ]*)'));
   return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
 }
+
+/* Is this page open inside the Facebook or Instagram app's own browser?
+   Those browsers often send no referrer at all, so a tap on a post or an
+   ad with no tag on the link used to land as Direct. The app names
+   itself in the user agent (FBAN, FBAV, Instagram). */
+function clppsInMetaApp(){
+  try { return /FBAN|FBAV|FB_IAB|Instagram/i.test(navigator.userAgent || ''); } catch (e) { return false; }
+}
+
+/* How the source was decided, for the tracker: fbclid, gclid, utm:<x>,
+   ref:<host>, app:meta, none. Lets a doubtful "Direct" be checked instead
+   of argued about. */
+var clppsSourceHow = '';
 
 /* The label a yard sign scan should carry, or '' if this is not one. */
 function clppsSignSource(code){
@@ -64,33 +80,41 @@ function clppsSignSource(code){
    so the answer does not change when they click through to another page. */
 function clppsLeadSource(){
   var cached = clppsStore('lead_src');
-  if (cached) return cached;
-  var src = '';
+  if (cached){ clppsSourceHow = clppsStore('lead_how') || ''; return cached; }
+  var src = '', how = 'none';
   var utm = clppsParam('utm_source').toLowerCase();
 
-  if (clppsParam('gclid')) src = 'Google Ads';
-  else if (clppsParam('fbclid')) src = 'Meta Ads';
+  if (clppsParam('gclid')){ src = 'Google Ads'; how = 'gclid'; }
+  else if (clppsParam('fbclid')){ src = 'Meta Ads'; how = 'fbclid'; }
   else if (utm){
+    how = 'utm:' + utm;
     if (utm.indexOf('yardsign') >= 0 || utm.indexOf('yard-sign') >= 0 ||
         utm.indexOf('yard_sign') >= 0 || utm === 'qr'){
       // utm_campaign carries the city code; without it we still know it
       // was a sign, just not which town.
       src = clppsSignSource(clppsParam('utm_campaign')) || CLPPS_SIGN_LABEL;
     }
-    else if (utm.indexOf('face') >= 0 || utm === 'fb' || utm.indexOf('meta') >= 0 || utm.indexOf('insta') >= 0) src = 'Meta Ads';
+    else if (utm.indexOf('face') >= 0 || utm === 'fb' || utm === 'ig' || utm.indexOf('meta') >= 0 || utm.indexOf('insta') >= 0) src = 'Meta Ads';
     else if (utm.indexOf('goog') >= 0) src = 'Google Ads';
     else src = clppsParam('utm_source');
   } else {
-    var r = '';
-    try { r = document.referrer ? new URL(document.referrer).hostname.toLowerCase().replace(/^www\./, '') : ''; } catch (e) {}
+    var r = '', raw = '';
+    try { raw = String(document.referrer || '').toLowerCase(); } catch (e) {}
+    // the hostname when it parses; the raw string otherwise, so an
+    // android-app://m.facebook.com referrer still says facebook
+    try { r = raw ? new URL(raw).hostname.replace(/^www\./, '') : ''; } catch (e) { r = raw; }
+    if (r) how = 'ref:' + r;
     if (r.indexOf('google') >= 0) src = 'Google (organic)';
-    else if (r.indexOf('facebook') >= 0 || r.indexOf('instagram') >= 0 || r === 'fb.me') src = 'Meta (organic)';
+    else if (r.indexOf('facebook') >= 0 || r.indexOf('instagram') >= 0 || r === 'fb.me' || r.indexOf('fb.me') >= 0) src = 'Meta (organic)';
     else if (r.indexOf('nextdoor') >= 0) src = 'Nextdoor';
     else if (r.indexOf('bing') >= 0 || r.indexOf('duckduckgo') >= 0) src = 'Other search';
     else if (r && r.indexOf('clpropetservices') < 0) src = r;
+    else if (clppsInMetaApp()){ src = 'Meta (organic)'; how = 'app:meta'; }
     else src = 'Direct';
   }
+  clppsSourceHow = how;
   clppsStore('lead_src', src);
+  clppsStore('lead_how', how);
   return src;
 }
 

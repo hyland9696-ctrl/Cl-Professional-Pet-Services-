@@ -3815,13 +3815,21 @@ function renderDetail(){
     var first = s.vs[0];
     var src = first.service || '';
     if (!src){ var rv = s.vs.filter(function(v){ return v.zip; })[0]; src = rv ? srcName2(rv.zip) : 'Direct'; }
+    // why it was called that: the tag on the link, the referrer, the app, or nothing
+    var howM = String(first.notes || '').match(/how=([^\s]*)/);
+    var how = howM ? howM[1] : '';
+    var howText = how === 'fbclid' ? 'Meta click id on the link' : how === 'gclid' ? 'Google click id on the link' :
+                  how.indexOf('utm:') === 0 ? 'utm_source=' + how.slice(4) : how.indexOf('ref:') === 0 ? 'came from ' + how.slice(4) :
+                  how === 'app:meta' ? 'inside the Facebook/Instagram app, no tag on the link' :
+                  how === 'none' ? 'no tag on the link, no referrer' : '';
     var path = s.vs.map(function(v){ return esc(pgName(v.name)); });
     if (s.q) path.push('<span style="color:#8a6d1a;">&#128178; saw ' + esc(s.q.price || 'a price') + '</span>');
     if (s.lead) path.push('<span style="color:#188663;font-weight:700;">&#9989; became a lead' + (s.lead.name ? ': ' + esc(s.lead.name) : '') + '</span>');
     var when = new Date(first.created).toLocaleDateString('en-US', { month:'short', day:'numeric' }) +
       ' ' + new Date(first.created).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
     return '<div style="font-size:12px;color:#555;padding:5px 0;border-bottom:1px solid #f7f7f7;">' +
-      '<span style="color:#707070;">' + when + '</span> &middot; <strong>' + esc(src) + '</strong><br>' +
+      '<span style="color:#707070;">' + when + '</span> &middot; <strong>' + esc(src) + '</strong>' +
+      (howText ? ' <span style="color:#9a9a9a;font-size:11px;">(' + esc(howText) + ')</span>' : '') + '<br>' +
       path.join(' <span style="color:#bbb;">&rarr;</span> ') + '</div>';
   }).join('');
   var journeys = jRows

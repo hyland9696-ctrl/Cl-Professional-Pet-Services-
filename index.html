@@ -351,7 +351,7 @@
   </style>
   <script src="/pricing.js?v=0220045d"></script>
   <script defer src="/contact-check.js?v=b4a5b7a1"></script>
-  <script src="/lead-source.js?v=49058023"></script>
+  <script src="/lead-source.js?v=b8f62c5e"></script>
   <script defer src="/reviews.js?v=69b6c149"></script>
   <script defer src="/meta-pixel.js?v=38fe5a84"></script>
 </head>
@@ -1070,7 +1070,8 @@
         body: JSON.stringify({ action: 'lead', lead: {
           id: 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           created: new Date().toISOString(), type: 'VIEW', name: page, zip: ref,
-          yard: vSid(), service: leadSource() || ''
+          yard: vSid(), service: leadSource() || '',
+          notes: 'how=' + (typeof clppsSourceHow === 'string' ? clppsSourceHow : '')
         } })
       }).catch(function(){});
     } catch (e) {}

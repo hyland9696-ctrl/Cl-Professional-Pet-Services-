@@ -67,6 +67,7 @@ able to tell what broke for a real person without opening the file.
 | `test-city-pages.js` | every city page exists, interlinks, and shows the engine's price |
 | `test-reviews.js` | the live review count: the tracker setting, the badge, the schema |
 | `test-seo.js` | one H1, titles, descriptions, structured data, sitemap, deferred scripts |
+| `test-lead-source.js` | every way a Meta or Google visit can arrive and what it must be called; the reason is recorded |
 | `test-team.js` | team phones: no page views, labelled silent test leads, kept out of the numbers |
 
 ## What is missing
