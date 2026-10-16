@@ -351,7 +351,7 @@
   </style>
   <script src="/pricing.js?v=0220045d"></script>
   <script defer src="/contact-check.js?v=b4a5b7a1"></script>
-  <script src="/lead-source.js?v=b8f62c5e"></script>
+  <script src="/lead-source.js?v=6a3c0e6d"></script>
   <script defer src="/reviews.js?v=69b6c149"></script>
   <script defer src="/meta-pixel.js?v=38fe5a84"></script>
 </head>
@@ -1204,6 +1204,7 @@
     var story = document.getElementById('qw-story').value.trim();
     var payload = {
       _cc: BIZ_EMAIL,
+      _replyto: email,   // so Reply in the inbox goes to the customer, not the form service
       _autoresponse: 'Thanks for reaching out! You are outside our current routes, but we open new areas based on exactly this — people asking. Somebody from our team will contact you personally to talk about your yard and what it would take to get a route running near you. Want to talk sooner? Call or text (636) 375-4342. — CL Professional Pet Services',
       _subject: '📍 OUT OF AREA — wants service in ' + (city || zip) + ' (' + zip + ')',
       Status: 'OUT OF AREA WAITLIST: no route here yet. Call them back personally.',
@@ -1351,6 +1352,7 @@
     var notes = document.getElementById('cf-notes').value.trim();
     var payload = {
       _cc: BIZ_EMAIL,
+      _replyto: email,
       _autoresponse: 'We received your property details and will reach out personally within one business day to talk through a plan. Want to talk now? Call (636) 375-4342. \u2014 CL Professional Pet Services',
       _subject: '🏢 COMMERCIAL INQUIRY: ' + (prop || name) + ' (' + ptype + ')',
       Type: 'COMMERCIAL SERVICE INQUIRY: no pricing quoted, call back personally',
@@ -1420,6 +1422,7 @@
     ])) return;
     var payload = {
       _cc: BIZ_EMAIL,
+      _replyto: email,
       _autoresponse: 'We received your confidential inquiry and will get back to you within two business days. Everything you shared stays private. \u2014 CL Professional Pet Services',
       _subject: '\ud83e\udd1d ACQUISITION INQUIRY: ' + (document.getElementById('sf-biz').value.trim() || name),
       Type: 'BUSINESS ACQUISITION INQUIRY (confidential)',
@@ -1627,6 +1630,7 @@
       : 'Thanks for your quote request! Your price is on screen now, and we’ve saved it for 6 months either way. Questions before you decide? Call or text (636) 375-4342. — CL Professional Pet Services';
     var payload = {
       _cc: BIZ_EMAIL,
+      _replyto: v.email,   // Reply in the inbox goes to the customer
       _autoresponse: auto,
       _subject: subj + v.name + (p.manual ? ' (manual review: ' + qManualReason(p) + ')' : ' at $' + p.total + p.per),
       Status: kind === 'ACTIVATE' ? 'ACTIVATED: accepted Terms of Service, wants to start service'

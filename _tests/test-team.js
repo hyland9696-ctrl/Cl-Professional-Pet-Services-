@@ -32,6 +32,7 @@ async function fillQuote(p, who){
     ok('a normal lead carries no test label and is not silent', lead && !/\[TM:1\]/.test(lead.crmnotes) && !lead.silent, lead && lead.crmnotes);
     const mail = mails.find(m => /QUOTE REQUEST/.test(m._subject));
     ok('and the office email is the normal one', mail && !/TEST/.test(mail._subject), mail && mail._subject);
+    ok('Reply on the office email goes to the customer, not the form service', mail && mail._replyto === 't@gmail.com', mail && mail._replyto);
     await ctx.close();
   }
 

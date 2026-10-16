@@ -22,8 +22,8 @@ var CLPPS_SIGN_CITIES = {
   ofa: { campaign:'ofallon',      city:"O'Fallon",       covers:"O'Fallon, Dardenne Prairie",             page:'/ofallon/'      },
   stc: { campaign:'stcharles',    city:'St. Charles',    covers:'St. Charles',                            page:'/st-charles/'   },
   wnz: { campaign:'wentzville',   city:'Wentzville',     covers:'Wentzville',                             page:'/wentzville/'   },
-  lsl: { campaign:'lakestlouis',  city:'Lake St. Louis', covers:'Lake St. Louis',                          page:'/'              },
-  wld: { campaign:'wildwood',     city:'Wildwood',       covers:'Wildwood, Eureka',                       page:'/'              },
+  lsl: { campaign:'lakestlouis',  city:'Lake St. Louis', covers:'Lake St. Louis',                          page:'/lake-st-louis/' },
+  wld: { campaign:'wildwood',     city:'Wildwood',       covers:'Wildwood, Eureka',                       page:'/wildwood/'     },
   che: { campaign:'chesterfield', city:'Chesterfield',   covers:'Chesterfield, Des Peres',                page:'/chesterfield/' }
 };
 /* Campaign names resolve too, so a utm_campaign=stpeters link tags correctly

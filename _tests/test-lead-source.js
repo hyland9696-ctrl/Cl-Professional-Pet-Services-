@@ -88,6 +88,19 @@ for (const [name, o, src, how] of cases){
     ok(url + ': and says why (' + want.how + ')', v && v.notes === want.how, v && v.notes);
     await ctx.close();
   }
+  // a yard sign scan in a town that has its own page lands on that page,
+  // still tagged as the sign: the printed QR cannot change, the target can
+  for (const [code, slug, city] of [['lsl', 'lake-st-louis', 'Lake St. Louis'], ['wld', 'wildwood', 'Wildwood'], ['stp', 'st-peters', 'St. Peters']]){
+    const ctx = await b.newContext({ viewport:{ width:390, height:844 } });
+    const p = await ctx.newPage();
+    const posts = [];
+    stubNetwork(p, { posts });
+    await p.goto(ORIGIN + '/' + code + '/'); await p.waitForTimeout(900);
+    ok('/' + code + ' forwards to /' + slug + '/', new URL(p.url()).pathname === '/' + slug + '/', p.url());
+    const v = posts.find(l => l && l.type === 'VIEW');
+    ok('/' + code + ': the visit is the ' + city + ' sign, on the city page', v && v.service === 'Yard sign QR (' + city + ')' && v.name === 'city-' + slug, v && (v.service + ' / ' + v.name));
+    await ctx.close();
+  }
   // the tracker shows the reason beside the source in Visitor journeys
   {
     const ctx = await b.newContext({ viewport:{ width:430, height:1400 } });
