@@ -171,6 +171,9 @@ function notifyLead_(l) {
                 ['Hero discount','hero'],['Price','price'],['Manual review','manual'],
                 ['Quote honored until','honored'],['Customer notes','notes']];
   fields.forEach(function(f){ if (l[f[1]]) lines.push(f[0] + ': ' + l[f[1]]); });
+  // where they came from, so the inbox alone says whether the ads are working
+  var srcM = String(l.crmnotes || '').match(/\[SRC:([^\]]*)\]/);
+  if (srcM && srcM[1]) lines.push('How they found us: ' + srcM[1]);
   lines.push('');
   lines.push('Lead tracker: https://www.clpropetservices.com/hq-8k3v51/');
   MailApp.sendEmail({ to: NOTIFY_TO, cc: NOTIFY_CC, subject: subject, body: lines.join('\n') });

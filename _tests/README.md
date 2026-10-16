@@ -69,6 +69,7 @@ able to tell what broke for a real person without opening the file.
 | `test-seo.js` | one H1, titles, descriptions, structured data, sitemap, deferred scripts |
 | `test-lead-source.js` | every way a Meta or Google visit can arrive and what it must be called; the reason is recorded |
 | `test-tracker-care.js` | editing deodorize and ZIP with a recalculated price, the not-called clock, same-person lines, the health line |
+| `test-pixel.js` | what Meta is told and when: PageView, ViewContent, CompleteRegistration once, Lead only on activation |
 | `test-team.js` | team phones: no page views, labelled silent test leads, kept out of the numbers |
 
 ## What is missing

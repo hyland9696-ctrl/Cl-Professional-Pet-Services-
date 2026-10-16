@@ -1785,6 +1785,16 @@
     if (!qEnquiry.filed){
       qEnquiry.filed = true;
       qMail(qPayload('ENQUIRY', p, ''), function(){}, function(){});
+      /* The moment they hand over a name and phone. Meta's Lead event is
+         kept for a confirmed activation, which is right but rare - too rare
+         for an ad set to learn from. CompleteRegistration is the standard
+         event for "filled in the form", fires once per visit, and gives the
+         ads a conversion with enough volume to optimise on. */
+      if (window.clppsTrack) clppsTrack('CompleteRegistration', {
+        content_name: 'Quote requested', content_category: q.freq,
+        status: p.manual ? 'manual' : 'priced',
+        value: p.manual ? 0 : p.total, currency: 'USD'
+      });
     }
     // "Start My Service" is wrong for a single cleanup, and wronger still for
     // a 5-dog yard where there is no price on screen to agree to yet.
