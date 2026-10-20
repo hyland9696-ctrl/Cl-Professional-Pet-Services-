@@ -470,18 +470,26 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
       (d.leads || []).forEach(function(l){ if (l.id){ (rowsById[l.id] = rowsById[l.id] || []).push(l); } });
       document.getElementById('offline').style.display = 'none';
       paintSync();
+      // An id can have several rows: the site writes again when they answer,
+      // the tracker writes again on an edit. The NEWEST row is the lead; the
+      // rest are its history. Newest by created, and on a tie the row the
+      // sheet lists first (it sends newest first).
+      var newestById = {};
+      (d.leads || []).forEach(function(l){
+        if (!l.id) return;
+        var cur = newestById[l.id];
+        if (!cur || String(l.created || '') > String(cur.created || '')) newestById[l.id] = l;
+      });
+      var newestRows = Object.keys(newestById).map(function(k){ return newestById[k]; });
       // A lead from a team phone carries [TM:1]. It is kept, visibly, in its
       // own list, and never reaches the one every figure is built from.
       var isTest = function(l){ return /\[TM:1\]/.test(String(l.crmnotes || '')); };
-      testLeads = [];
-      var seenT = {};
-      (d.leads || []).forEach(function(l){
-        if (isTest(l) && l.status !== 'deleted' && l.id && !seenT[l.id]){ seenT[l.id] = 1; testLeads.push(l); }
-      });
-      var remote = (d.leads || []).filter(function(l){
+      testLeads = newestRows.filter(function(l){ return isTest(l) && l.status !== 'deleted'; });
+      var remote = newestRows.filter(function(l){
         return l.type !== 'VIEW' && l.type !== 'QVIEW' && l.type !== 'AUTH' && l.type !== 'SPEND' &&
                l.type !== 'CONFIG' && l.type !== 'WAITLIST' && l.type !== 'OUTAREA' && l.status !== 'deleted' && !isTest(l);
       });
+      remote = collapseSamePerson(remote);
       views = (d.leads || []).filter(function(l){ return l.type === 'VIEW'; });
       qviews = (d.leads || []).filter(function(l){ return l.type === 'QVIEW'; });
       // People outside the routes: WAITLIST asked us to come to them, OUTAREA
@@ -511,8 +519,11 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
       (d.leads || []).forEach(function(l){
         if (l.type === 'AUTH' && l.zip) auths[l.zip] = String(l.created || '').slice(0, 10);
       });
+      // Dead is a property of the NEWEST row. The old rule killed an id if
+      // any row of it was ever removed, so a person who came back after being
+      // removed could never be seen again.
       var deadIds = {};
-      (d.leads || []).forEach(function(l){ if (l.status === 'deleted') deadIds[l.id] = true; });
+      newestRows.forEach(function(l){ if (l.status === 'deleted') deadIds[l.id] = true; });
       // The sheet is the source of truth: take remote rows (deduped by id,
       // newest wins), keep only local rows the sheet has never seen, and
       // re-push those so every device converges.
@@ -3361,6 +3372,38 @@ function renderRevenue(){
       '<div style="font-size:11.5px;opacity:0.8;font-weight:400;margin-bottom:3px;">Every closed lead being counted:</div>' +
       itemRows + srcRows + dupeRows + warnRows +
     '</div>';
+}
+/* One person, several ids. Before the site keyed a lead on their phone
+   number, every page load minted a new id, so somebody who reloaded or came
+   back from the Facebook app's browser became two or three cards - Stefany,
+   three times in one afternoon. Rows that share a phone and arrived within
+   a day of each other are one person doing one thing: the newest row is
+   the card, the rest become its history, and the card inherits anything
+   the office had already done on the older ones (status, attempts, notes).
+   A row more than a day older is a separate visit and is left alone, with
+   the same-person line below pointing at it. */
+function collapseSamePerson(rows){
+  var byPhone = {};
+  rows.forEach(function(l){
+    var d = String(l.phone || '').replace(/\D/g, '');
+    if (d.length >= 10) (byPhone[d.slice(-10)] = byPhone[d.slice(-10)] || []).push(l);
+  });
+  var drop = {};
+  Object.keys(byPhone).forEach(function(k){
+    var g = byPhone[k].slice().sort(function(a, b){ return String(b.created || '').localeCompare(String(a.created || '')); });
+    var keep = g[0];
+    for (var i = 1; i < g.length; i++){
+      var o = g[i];
+      if (new Date(keep.created).getTime() - new Date(o.created).getTime() > 86400000) break;
+      var kn = fuParse(keep.crmnotes), on = fuParse(o.crmnotes);
+      ['date','att','attDate','t1','cd','sd','qs','rv','wb','cx','cxr','dr','rb','rw','text'].forEach(function(f){ if (!kn[f] && on[f]) kn[f] = on[f]; });
+      keep.crmnotes = fuCompose(kn);
+      if ((keep.status || 'new') === 'new' && o.status && o.status !== 'new') keep.status = o.status;
+      (rowsById[keep.id] = rowsById[keep.id] || []).push(o);
+      drop[o.id] = true;
+    }
+  });
+  return rows.filter(function(l){ return !drop[l.id]; });
 }
 /* The same person, twice. A phone or email shared with another lead is
    worth seeing on the card: a repeat shopper, a cancelled customer coming

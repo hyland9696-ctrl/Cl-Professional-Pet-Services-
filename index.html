@@ -1797,7 +1797,16 @@
       { id:'qf2-addr',  rule: CLPPS_REQ.address, what:'your service address' }
     ])) return;
     var p = qPriceParts();
-    if (!qEnquiry.id) qEnquiry.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    /* One person, one id. The id used to be minted per page load, so a
+       customer who reloaded, or came back from the Facebook app's browser,
+       turned into two or three people in the tracker. Their phone number is
+       the one thing that stays the same, so it IS the id; a second visit
+       writes a newer row under the same id and the tracker shows one card.
+       A number that fails the ten-digit check cannot get here. */
+    if (!qEnquiry.id){
+      var pd = String(document.getElementById('qf2-phone').value || '').replace(/\D/g, '');
+      qEnquiry.id = pd.length >= 10 ? 'p' + pd.slice(-10) : Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
     // File it BEFORE the price appears. If they close the tab on seeing the
     // number, we still have them - that was the whole reason for the change.
     //

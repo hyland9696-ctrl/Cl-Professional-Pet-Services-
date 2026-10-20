@@ -179,6 +179,41 @@ function notifyLead_(l) {
   MailApp.sendEmail({ to: NOTIFY_TO, cc: NOTIFY_CC, subject: subject, body: lines.join('\n') });
 }
 
+/* The newest row the sheet holds for an id, as an object, or null. Newest
+   by created; on a tie the row lower down the sheet (appended later). */
+function latestRow_(sh, id) {
+  if (!id) return null;
+  var rows = sh.getDataRange().getValues();
+  var iId = HEADERS.indexOf('id'), iC = HEADERS.indexOf('created');
+  var best = null, bestKey = '';
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][iId]) !== String(id)) continue;
+    var key = String(rows[i][iC] || '');
+    if (!best || key >= bestKey) { best = rows[i]; bestKey = key; }
+  }
+  if (!best) return null;
+  var o = {};
+  for (var j = 0; j < HEADERS.length; j++) o[HEADERS[j]] = best[j];
+  return o;
+}
+
+/* The notes column carries markers like [FU:date] [ATT:2@date] and then free
+   text. Some the SITE owns and rewrites every time (where they came from,
+   their answer); the rest the OFFICE wrote (follow-up date, attempts, close
+   date, notes) and a fresh row from the site must not lose them. */
+function mergeNotes_(fresh, old) {
+  fresh = String(fresh || ''); old = String(old || '');
+  if (!old) return fresh;
+  var SITE = { SID:1, SRC:1, QA:1, IC:1, MR:1, TM:1 };
+  var re = /^\[([A-Z0-9]+):([^\]]*)\]\s*/;
+  var parse = function(s){ var ms = [], hit; while ((hit = s.match(re))) { ms.push([hit[1], hit[2]]); s = s.slice(hit[0].length); } return { markers: ms, text: s }; };
+  var f = parse(fresh), o = parse(old);
+  var have = {}; f.markers.forEach(function(m){ have[m[0]] = 1; });
+  var carried = o.markers.filter(function(m){ return !SITE[m[0]] && !have[m[0]]; });
+  var text = f.text && o.text && f.text !== o.text ? f.text + ' | ' + o.text : (f.text || o.text || '');
+  return f.markers.concat(carried).map(function(m){ return '[' + m[0] + ':' + m[1] + '] '; }).join('') + text;
+}
+
 /* Google Sheets treats a cell starting with =, +, - or @ as a FORMULA.
    A customer typing their number as +16365550143 - which phones offer as
    the standard international format - made Sheets try to evaluate it and
@@ -332,6 +367,18 @@ function doPost(e) {
   if (body.action === 'lead' && body.lead) {
     var l = body.lead;
     var sh = sheet_();
+    // A row for this id already? The site writes the same person again when
+    // they answer, change their mind, or reload; the tracker writes again on
+    // an edit. The new row must not wipe out what the office has done on the
+    // old one, and the same thing again inside a day is not news.
+    var prev = latestRow_(sh, l.id);
+    if (prev) {
+      l.crmnotes = mergeNotes_(l.crmnotes, prev.crmnotes);
+      if ((!l.status || l.status === 'new') &&
+          (prev.status === 'called' || prev.status === 'closed' || prev.status === 'cancelled')) l.status = prev.status;
+      if (!l.silent && String(prev.type) === String(l.type) &&
+          Date.now() - new Date(prev.created).getTime() < 86400000) l.silent = 1;
+    }
     sh.appendRow(HEADERS.map(function(h){
       if (h === 'status') return (h === 'status' && l.status) ? String(l.status) : 'new';
       if (h === 'crmnotes') return safeCell_(l.crmnotes != null ? l.crmnotes : '');

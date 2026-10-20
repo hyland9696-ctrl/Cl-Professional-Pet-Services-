@@ -98,7 +98,9 @@ async function fill(p, phone, email){
       { id:'c3', type:'ENQUIRY', name:'Typo Tina', phone:'6363754342',
         email:'tina@gmial.com', zip:'63376', dogs:'1', service:'weekly',
         price:'$85/mo', crmnotes:'[QA:w] ', created:now, status:'new' },
-      { id:'c4', type:'ENQUIRY', name:'Perfectly Fine Pat', phone:'6363754342',
+      // their own number: two people sharing a phone in the same minute are
+      // folded into one card now, which is right, but not what this checks
+      { id:'c4', type:'ENQUIRY', name:'Perfectly Fine Pat', phone:'6363754343',
         email:'pat@gmail.com', zip:'63376', dogs:'1', service:'weekly',
         price:'$85/mo', crmnotes:'[QA:w] ', created:now, status:'new' },
     ];
