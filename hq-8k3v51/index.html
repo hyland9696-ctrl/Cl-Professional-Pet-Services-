@@ -164,6 +164,7 @@
       <button class="copybtn" onclick="toggleNo()" id="noBtn">&#128078; Said no</button>
       <button class="copybtn" onclick="toggleWait()" id="waitBtn">&#128205; Out of area</button>
       <button class="copybtn" onclick="toggleQR()" id="qrBtn">&#128241; Sign scans</button>
+      <button class="copybtn" onclick="toggleImport()" id="importBtn">&#11014;&#65039; Import Sweep&amp;Go</button>
       <button class="copybtn" onclick="toggleDeoSeason()" id="deoBtn" title="Deodorize &amp; sanitize is a warm-weather service. Flip this when it drops below 50 or warms back up; the website prices by it.">&#129532; Deodorize season</button>
       <button class="copybtn" onclick="toggleTests()" id="testBtn">&#129514; Test leads</button>
       <button class="copybtn" onclick="exportCsv()">&#11015;&#65039; Download CSV</button>
@@ -264,6 +265,27 @@
         <button onclick="toggleTests()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:40px;">Close</button>
       </div>
       <div id="test-body" style="font-size:13px;line-height:1.6;color:#2B3A34;"></div>
+    </div>
+    <div id="importPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,.07);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="font-weight:800;font-size:15px;">&#11014;&#65039; Import customers from Sweep&amp;Go</div>
+        <button onclick="toggleImport()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:40px;">Close</button>
+      </div>
+      <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:10px;">
+        Export three files from Sweep&amp;Go and pick them here. Nothing leaves your phone until you tap Import; the rows go straight into the lead sheet.
+        Every active subscription becomes a <strong>closed customer</strong> with their price and start date; somebody already in the tracker is updated, not added twice.
+        Run it again any time - it only adds what is new.
+      </div>
+      <div style="display:grid;gap:8px;font-size:12.5px;">
+        <label><strong>1. Residential subscriptions</strong> (Subscriptions &rarr; Residential &rarr; export)<br><input type="file" id="sg-res" accept=".csv,text/csv" style="margin-top:4px;"></label>
+        <label><strong>2. Commercial subscriptions</strong> (optional)<br><input type="file" id="sg-com" accept=".csv,text/csv" style="margin-top:4px;"></label>
+        <label><strong>3. Client list</strong> (Clients &rarr; export; has the phones and emails)<br><input type="file" id="sg-cli" accept=".csv,text/csv" style="margin-top:4px;"></label>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+        <button class="copybtn" onclick="sgPreview()">Preview</button>
+        <button class="copybtn" id="sg-go" onclick="sgImport()" style="display:none;background:#188663;color:#fff;border-color:#188663;">Import</button>
+      </div>
+      <div id="sg-out" style="font-size:12.5px;line-height:1.6;color:#2B3A34;margin-top:10px;"></div>
     </div>
     <div id="qrPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -2766,6 +2788,222 @@ function saveReviewStats(){
     } }, null);
   });
   toast('Saved — the website will show ' + config.review_rating.value + ' · ' + n + ' reviews');
+}
+/* ============================================================
+   IMPORT FROM SWEEP&GO.
+
+   The tracker began in September 2026; the business began in 2024. Every
+   figure here - closed by month, recurring revenue, lifetime value, the
+   ad return - only knew the last couple of months. Sweep&Go holds every
+   customer who has ever paid, so its exports are read here, on the phone,
+   and written into the sheet as closed customers with their real start
+   date and price. The files never go anywhere else.
+
+   Three exports: Residential subscriptions (one row per plan, and a
+   separate row for a deodorize add-on under the same client), Commercial
+   subscriptions (same columns, the header row is blank apart from
+   Address), and the Client list (phones, emails, ZIPs, referral source).
+   Subscriptions are joined to clients on name, then on street address.
+
+   The pure parts - sgParseCsv, sgBuild - take text in and give rows out,
+   so they can be run outside a browser and tested against made-up files.
+   ============================================================ */
+function sgParseCsv(text){
+  var rows = [], row = [], cell = '', q = false, s = String(text || '').replace(/^\uFEFF/, '');
+  for (var i = 0; i < s.length; i++){
+    var c = s[i];
+    if (q){
+      if (c === '"'){ if (s[i + 1] === '"'){ cell += '"'; i++; } else q = false; }
+      else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === ','){ row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r'){
+      if (c === '\r' && s[i + 1] === '\n') i++;
+      row.push(cell); rows.push(row); row = []; cell = '';
+    } else cell += c;
+  }
+  if (cell !== '' || row.length){ row.push(cell); rows.push(row); }
+  return rows.filter(function(r){ return r.some(function(x){ return String(x).trim() !== ''; }); });
+}
+var SG_SUB_COLS = ['Status','Revenue','Revenue Type','Tip','Billing Option','Billing Interval','End of Billing Period','Client Name','Start Date','End Date','Subs. Name','Termination Reason','Termination Comment','Address'];
+function sgNorm(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+function sgStreet(addr){ var m = sgNorm(addr).match(/^(\d+)\s+(\w+)/); return m ? m[1] + ' ' + m[2] : ''; }
+function sgDigits(p){ var d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : ''; }
+function sgNoData(v){ var t = String(v == null ? '' : v).trim(); return (!t || /^no data$/i.test(t)) ? '' : t; }
+/* "Regular Plan - 2d-1xW" -> { dogs:'2', service:'weekly', visitsPerMonth: 4.33 } */
+function sgPlan(name){
+  var n = String(name || '');
+  var dogs = (n.match(/(\d+)\s*d\b/i) || [])[1] || '';
+  var f = (n.match(/-\s*\d*d?-?\s*([0-9]*x?[wmb]w?)\s*$/i) || n.match(/(bw|1xw|2xw|1xm)\s*$/i) || [])[1] || '';
+  f = f.toLowerCase();
+  var service = f === '1xw' ? 'weekly' : f === 'bw' ? 'every other week' : f === '2xw' ? 'twice a week' : f === '1xm' ? 'monthly' : '';
+  // visits per month for a per-visit price; a plan with no frequency in
+  // its name (a commercial account, "Pet waste stations (3)") is billed
+  // once per billing interval, which is monthly
+  var vpm = f === '1xw' ? 52 / 12 : f === 'bw' ? 26 / 12 : f === '2xw' ? 104 / 12 : 1;
+  return { dogs: dogs, service: service, vpm: vpm, isAddon: /deodor|sanit/i.test(n), isPlan: /regular plan|station|commercial/i.test(n) || (!/deodor|sanit/i.test(n)) };
+}
+function sgSubs(text, isCommercial){
+  var rows = sgParseCsv(text);
+  if (!rows.length) return [];
+  var head = rows[0].map(function(h){ return String(h).trim(); });
+  // the commercial export's header is blank apart from Address: same columns
+  var named = head.indexOf('Client Name') >= 0;
+  var col = function(r, name){ var i = named ? head.indexOf(name) : SG_SUB_COLS.indexOf(name); return i >= 0 ? r[i] : ''; };
+  var out = [];
+  rows.slice(named ? 1 : 0).forEach(function(r){
+    if (/^total:?$/i.test(String(r[0]).trim()) || /subscriptions:?$/i.test(String(r[0]).trim())) return;
+    var name = sgNoData(col(r, 'Client Name'));
+    if (!name) return;
+    out.push({ status: sgNoData(col(r, 'Status')), revenue: parseFloat(String(col(r, 'Revenue')).replace(/[^0-9.]/g, '')) || 0,
+               revType: sgNoData(col(r, 'Revenue Type')).toLowerCase(), name: name, start: sgNoData(col(r, 'Start Date')),
+               end: sgNoData(col(r, 'End Date')), sub: sgNoData(col(r, 'Subs. Name')), reason: sgNoData(col(r, 'Termination Reason')),
+               address: sgNoData(col(r, 'Address')), commercial: !!isCommercial });
+  });
+  return out;
+}
+function sgClients(text){
+  var rows = sgParseCsv(text);
+  if (!rows.length) return [];
+  var head = rows[0].map(function(h){ return String(h).trim(); });
+  var col = function(r, name){ var i = head.indexOf(name); return i >= 0 ? sgNoData(r[i]) : ''; };
+  return rows.slice(1).map(function(r){
+    var first = col(r, 'First Name'), last = col(r, 'Last Name');
+    return { name: (first + ' ' + last).replace(/\s+[._-]\s*$/, '').trim(), first: first, last: last, email: col(r, 'Email').toLowerCase(),
+             phone: sgDigits(col(r, 'Cell Phone Number')) || sgDigits(col(r, 'Home Phone Number')), address: col(r, 'Address'), city: col(r, 'City'),
+             zip: (col(r, 'Zip Code').match(/\d{5}/) || [''])[0], source: col(r, 'Referral Source'), created: col(r, 'Created At') };
+  }).filter(function(c){ return c.name; });
+}
+var SG_SOURCES = { 'search engine': 'Google (organic)', 'social media': 'Meta (organic)', 'referred by family or friend': 'Referral', 'other': 'Other' };
+/* The rows to write. existing = the tracker's leads, for matching. */
+function sgBuild(resText, comText, cliText, existing){
+  var subs = sgSubs(resText, false).concat(sgSubs(comText, true));
+  var clients = sgClients(cliText);
+  var byName = {}, byStreet = {};
+  clients.forEach(function(c){ byName[sgNorm(c.name)] = c; var st = sgStreet(c.address); if (st && !byStreet[st]) byStreet[st] = c; });
+  // group subscriptions by client: one plan, any add-ons
+  var groups = {}, order = [];
+  subs.forEach(function(s){
+    var k = sgNorm(s.name) + '|' + sgStreet(s.address);
+    if (!groups[k]){ groups[k] = { name: s.name, address: s.address, plan: null, addons: [], commercial: s.commercial }; order.push(k); }
+    var p = sgPlan(s.sub);
+    if (p.isAddon) groups[k].addons.push(s);
+    else if (!groups[k].plan || (/^active$/i.test(s.status) && !/^active$/i.test(groups[k].plan.status))) groups[k].plan = s;
+  });
+  // the tracker's own leads, by phone and by email
+  var exPhone = {}, exMail = {};
+  (existing || []).forEach(function(l){ var d = sgDigits(l.phone); if (d) exPhone[d] = l; var e = String(l.email || '').trim().toLowerCase(); if (e) exMail[e] = l; });
+  var today = new Date().toISOString().slice(0, 10);
+  var out = [], used = {};
+  order.forEach(function(k){
+    var g = groups[k]; var s = g.plan; if (!s) return;
+    var c = byName[sgNorm(g.name)] || byStreet[sgStreet(g.address)] || null;
+    if (c) used[sgNorm(c.name)] = 1;
+    var p = sgPlan(s.sub);
+    var active = /^(active|paused)$/i.test(s.status);
+    // "per cleanup" x visits a month. A residential per-visit figure over $40
+    // is not a per-visit figure (one account carried $95.33 "per cleanup",
+    // which is a monthly price mislabelled); take it as the month.
+    var perVisit = (s.revType.indexOf('cleanup') >= 0 || s.revType.indexOf('visit') >= 0) && !(!g.commercial && s.revenue > 40);
+    var monthly = perVisit ? s.revenue * p.vpm : s.revenue;
+    var deo = g.addons.reduce(function(a, x){ return a + (/^(active|paused)$/i.test(x.status) ? (x.revType.indexOf('cleanup') >= 0 ? x.revenue * p.vpm : x.revenue) : 0); }, 0);
+    var total = Math.round(monthly + deo);
+    var price = '$' + total + '/mo' + (deo ? ' (includes $' + Math.round(deo) + ' deodorize)' : '') +
+                (perVisit ? ' (billed $' + s.revenue + ' per visit)' : '');
+    var zip = (c && c.zip) || (String(g.address).match(/\b(6\d{4})\b/) || [''])[0];
+    var phone = c ? c.phone : '';
+    var email = c ? c.email : '';
+    var match = (phone && exPhone[phone]) || (email && exMail[email]) || null;
+    var startIso = s.start ? s.start + 'T12:00:00' : '';
+    var startD = s.start ? new Date(startIso) : null;
+    var created = match ? (match.created || (startD ? startD.toISOString() : new Date().toISOString())) : (startD && !isNaN(startD) ? startD.toISOString() : new Date().toISOString());
+    var fu = match ? fuParse(match.crmnotes) : fuParse('');
+    if (!fu.cd && s.start) fu.cd = s.start;
+    if (!fu.ic) fu.ic = 'w';
+    if (!fu.src){ var src = SG_SOURCES[String(c && c.source || '').toLowerCase()]; if (src) fu.src = src; else if (!match) fu.src = 'Sweep&Go import'; }
+    var status = active ? 'closed' : 'cancelled';
+    if (!active){ if (!fu.cx && s.end) fu.cx = s.end; if (!fu.cxr && s.reason) fu.cxr = s.reason; }
+    if (match && (match.status === 'cancelled') && active) status = 'closed';   // back on the books
+    var note = 'Imported from Sweep&Go ' + today + (/^paused$/i.test(s.status) ? ' (paused in Sweep&Go)' : '') + '.';
+    fu.text = fu.text ? (fu.text.indexOf('Imported from Sweep&Go') >= 0 ? fu.text : fu.text + ' ' + note) : note;
+    var id = match ? match.id : (phone ? 'p' + phone : 'sg' + sgNorm(g.name).replace(/\s+/g, '').slice(0, 14));
+    out.push({
+      action: match ? 'update' : 'add',
+      lead: { id: id, created: created, type: match ? (match.type || 'SAVED') : (g.commercial ? 'COMMERCIAL' : 'SAVED'),
+              name: match && match.name ? match.name : (c ? c.name : g.name),
+              phone: (match && match.phone) || (c && c.phone ? c.phone : ''), email: (match && match.email) || email,
+              address: (match && match.address) || g.address || (c ? c.address + ', ' + c.city : ''), zip: (match && match.zip) || zip,
+              service: g.commercial ? 'commercial' : (p.service || (match && match.service) || ''), dogs: p.dogs || (match && match.dogs) || '',
+              yard: (match && match.yard) || '', deodorize: deo ? (deo >= 55 ? 'every visit ($15/treatment)' : 'every other visit ($15/treatment)') : ((match && match.deodorize) || 'no'),
+              hero: (match && match.hero) || '', price: price, manual: '', honored: (match && match.honored) || '', notes: (match && match.notes) || '',
+              status: status, crmnotes: fuCompose(fu), silent: 1 }
+    });
+  });
+  var unmatched = clients.filter(function(c){ return !used[sgNorm(c.name)]; });
+  return { rows: out, unmatched: unmatched, subs: subs.length, clients: clients.length };
+}
+var sgPlanRows = null;
+function toggleImport(){
+  var p = document.getElementById('importPanel');
+  var opening = p.style.display === 'none';
+  p.style.display = opening ? 'block' : 'none';
+  if (opening) p.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function sgRead(id){
+  return new Promise(function(res){
+    var f = document.getElementById(id).files[0];
+    if (!f) return res('');
+    var r = new FileReader(); r.onload = function(){ res(String(r.result || '')); }; r.onerror = function(){ res(''); }; r.readAsText(f);
+  });
+}
+function sgPreview(){
+  var out = document.getElementById('sg-out');
+  Promise.all([sgRead('sg-res'), sgRead('sg-com'), sgRead('sg-cli')]).then(function(t){
+    if (!t[0]){ out.innerHTML = 'Pick the Residential subscriptions file first.'; return; }
+    var b = sgBuild(t[0], t[1], t[2], leads.concat(testLeads));
+    sgPlanRows = b.rows;
+    var adds = b.rows.filter(function(r){ return r.action === 'add'; }), ups = b.rows.filter(function(r){ return r.action === 'update'; });
+    var noPhone = b.rows.filter(function(r){ return !r.lead.phone; });
+    var mrr = b.rows.reduce(function(a, r){ var pp = parsePrice(r.lead); return a + (r.lead.status === 'closed' && pp && pp.isMo ? pp.amt : 0); }, 0);
+    var h = '<div style="font-weight:700;">' + b.subs + ' subscription rows, ' + b.clients + ' clients &rarr; ' + b.rows.length + ' customers</div>' +
+      '<div>&#10133; ' + adds.length + ' new to the tracker &middot; &#128260; ' + ups.length + ' already here, will be updated &middot; ' + money(mrr) + '/mo on the books</div>' +
+      (noPhone.length ? '<div style="color:#b45309;">' + noPhone.length + ' had no phone in the client list (matched by name only): ' + esc(noPhone.map(function(r){ return r.lead.name; }).join(', ')) + '</div>' : '') +
+      (t[2] ? '' : '<div style="color:#b45309;">No client list picked: phones, emails and sources will be blank.</div>') +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;"><tr style="color:#707070;text-align:left;"><th>Customer</th><th>Plan</th><th>Price</th><th>Since</th><th></th></tr>' +
+      b.rows.map(function(r){ var l = r.lead, f = fuParse(l.crmnotes);
+        return '<tr style="border-top:1px solid #f0f0f0;"><td>' + esc(l.name) + (l.zip ? ' <span style="color:#999;">' + esc(l.zip) + '</span>' : '') + '</td><td>' + esc((l.dogs ? l.dogs + 'd ' : '') + planLabel(l.service)) + '</td><td>' + esc(String(l.price).split(' (')[0]) + '</td><td>' + esc(f.cd || '') + '</td><td style="color:' + (r.action === 'add' ? '#188663' : '#2980ef') + ';font-weight:700;">' + (r.action === 'add' ? 'add' : 'update') + (l.status === 'cancelled' ? ' (cancelled)' : '') + '</td></tr>'; }).join('') + '</table>' +
+      (b.unmatched.length ? '<div style="margin-top:10px;"><strong>' + b.unmatched.length + ' in the client list with no active plan</strong> - not imported (one-time jobs, people who never started, or former customers): <span style="color:#707070;">' + esc(b.unmatched.map(function(c){ return c.name; }).join(', ')) + '</span></div>' : '');
+    out.innerHTML = h;
+    document.getElementById('sg-go').style.display = b.rows.length ? 'inline-block' : 'none';
+    document.getElementById('sg-go').textContent = 'Import ' + b.rows.length + ' customers';
+  });
+}
+function sgImport(){
+  if (!sgPlanRows || !sgPlanRows.length){ toast('Preview first'); return; }
+  var rows = sgPlanRows, btn = document.getElementById('sg-go'), out = document.getElementById('sg-out');
+  btn.disabled = true; btn.textContent = 'Importing\u2026';
+  var i = 0, ok = 0, bad = 0;
+  // on the page first, all of them, so it reflects the import before the sheet answers
+  rows.forEach(function(r){
+    var l = r.lead, idx = -1; leads.forEach(function(x, j){ if (x.id === l.id) idx = j; });
+    var copy = JSON.parse(JSON.stringify(l)); delete copy.silent;
+    if (idx >= 0) leads[idx] = copy; else leads.unshift(copy);
+  });
+  saveLocal(); render();
+  var next = function(){
+    if (i >= rows.length){
+      btn.textContent = 'Done: ' + ok + ' written' + (bad ? ', ' + bad + ' failed' : '');
+      sgPlanRows = null;
+      toast(ok + ' customers imported \u2713');
+      setTimeout(function(){ loadLeads(false); }, 1500);
+      return;
+    }
+    var r = rows[i++]; var l = r.lead;
+    fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'lead', lead: l }) })
+      .then(function(x){ return x.json(); }).then(function(d){ if (d && d.ok) ok++; else bad++; }).catch(function(){ bad++; })
+      .then(function(){ btn.textContent = 'Importing ' + i + ' of ' + rows.length + '\u2026'; setTimeout(next, 120); });
+  };
+  next();
 }
 /* ---- the deodorize season switch ----
    Corey stops spraying once it drops below 50F (people shut off their
