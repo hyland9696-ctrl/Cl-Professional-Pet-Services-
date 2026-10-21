@@ -119,16 +119,161 @@ var CLPPS_PRICING = {
     '63039':'Value','63041':'Value','63055':'Value','63056':'Value',
     '63060':'Value','63061':'Value','63068':'Value','63072':'Value',
     '63073':'Value','63077':'Value','63079':'Value','63080':'Value',
-    '63089':'Value','63091':'Value'
+    '63089':'Value','63091':'Value',
+
+    /* ---- Filled in Oct 2026: every county we now get leads from ----
+       Jesse: "make sure that we have all the zip codes and that they're
+       all in the correct tiers by what that kind of area makes." Set
+       against median household income (ACS, via zip-codes.com, Data
+       Commons, incomebyzipcode.com) on the same line Corey's own picks
+       drew: Premium from about $125k, Standard from about $85k, Core
+       from about $65k, Value below. Two adjustments, both already in
+       use above: the furthest-out corridor towns are Premium for the
+       drive (as 63379 Troy and 63385 are), and sparse rural ZIPs with
+       long drives and few houses sit one tier down (as Franklin does).
+       Income beside each where a figure was found; "est." where none
+       was and the tier is a judgement from the neighbours. Anything
+       already listed above was left exactly as decided. */
+
+    // Jefferson County - the I-55 and Highway 30 corridors by income
+    '63012':'Standard',  // Barnhart             $96,099
+    '63052':'Standard',  // Imperial             $92,922
+    '63019':'Core',      // Crystal City         $72,569
+    '63048':'Core',      // Herculaneum          est. ~$70k
+    '63070':'Core',      // Pevely               $65,211
+    '63051':'Core',      // House Springs        $79,940
+    '63053':'Core',      // Kimmswick            est., next to Imperial
+    '63057':'Core',      // Liguori              est., next to Barnhart
+    '63050':'Core',      // Hillsboro            $87,371 but sparse, far
+    '63016':'Core',      // Cedar Hill           $86,359 but sparse, far
+    '63020':'Value',     // De Soto              $70,824, far south
+    '63023':'Value',     // Dittmer              rural
+    '63066':'Value',     // Morse Mill           rural
+    '63065':'Value',     // Mapaville            rural
+    '63087':'Value',     // Valles Mines         rural
+
+    // St. Louis County - the rest of it
+    '63025':'Standard',  // Eureka               est. ~$110k
+    '63088':'Core',      // Valley Park          est. ~$80k
+    '63123':'Core',      // Affton               $77,055
+    '63044':'Core',      // Bridgeton            $77,819
+    '63143':'Core',      // Maplewood            est. ~$65k
+    '63125':'Value',     // Lemay                $61,624
+    '63114':'Value',     // Overland             $55,870
+    '63042':'Value',     // Hazelwood            $49,453
+    '63074':'Value',     // St. Ann              $51,610
+    '63135':'Value',     // Ferguson             $55,179
+    '63134':'Value',     // Berkeley             est.
+    '63121':'Value',     // Normandy             est.
+    '63133':'Value',     // Wellston             est.
+    '63136':'Value',     // Jennings / north     est.
+    '63137':'Value',     // Moline Acres         est.
+    '63138':'Value',     // Spanish Lake         est.
+    '63140':'Value',     // Riverview            est.
+    '63045':'Value',     // Earth City           industrial
+
+    // St. Louis City - the neighbourhoods with yards
+    '63139':'Core',      // St. Louis Hills      est. ~$70k
+    '63109':'Core',      // Lindenwood/Princeton Hts  $64,741
+    '63110':'Core',      // The Hill / Shaw      $62,732
+    '63104':'Core',      // Soulard / Lafayette Sq  $65,011
+    '63108':'Core',      // Central West End     $51,092 but house values high
+    '63116':'Value',     // Tower Grove South    $53,003
+    '63118':'Value',     // Benton Park / Cherokee  $46,537
+    '63111':'Value',     // Carondelet           $32,283
+    '63112':'Value',     // West End             $41,806
+    '63101':'Value','63102':'Value','63103':'Value',   // downtown, no yards
+    '63106':'Value','63107':'Value','63113':'Value',   // north city
+    '63115':'Value','63120':'Value','63147':'Value',
+
+    // St. Charles County - the far west and the river bottoms
+    '63348':'Premium',   // Foristell            $115,661, past Wentzville: the drive
+    '63365':'Premium',   // New Melle            est. ~$120k, far out
+    '63332':'Premium',   // Augusta              $146,146
+    '63341':'Premium',   // Defiance             $170,598
+    '63373':'Value',     // Portage des Sioux    rural, floodplain
+    '63386':'Value',     // West Alton           rural, floodplain
+
+    // Lincoln County - the Highway 61 corridor is Premium for the drive,
+    // like Troy; the rural rest is Standard, far but cheaper to live in
+    '63362':'Premium',   // Moscow Mills         $85,300, the Troy corridor
+    '63389':'Premium',   // Winfield             $92,646, the Troy corridor
+    '63369':'Premium',   // Old Monroe           est., the Troy corridor
+    '63343':'Standard',  // Elsberry             $71,523, far
+    '63347':'Standard',  // Foley                rural
+    '63349':'Standard',  // Hawk Point           rural
+    '63377':'Standard',  // Silex                rural
+
+    // Warren County
+    '63390':'Standard',  // Wright City          $80,152
+    '63381':'Standard',  // Truesdale            est., next to Warrenton
+    '63357':'Value',     // Marthasville         rural, far
+
+    /* ---- Illinois, Oct 2026: priced off the table now ----
+       Enough Illinois leads were landing in "we'll email you a price"
+       that the hand-quote queue became the bottleneck. The 15 ZIPs above
+       (Alton, Edwardsville, Granite City, Collinsville, Belleville ...)
+       keep the tiers they were given; these fill in the rest of Madison,
+       St. Clair and Monroe counties. To go back to hand-pricing the whole
+       state, put '620','622' back in manualPrefixes below. */
+
+    // Madison County
+    '62281':'Premium',   // St. Jacob            $132,000
+    '62097':'Standard',  // Worden               $91,011
+    '62067':'Core',      // Moro                 $72,431
+    '62001':'Core',      // Alhambra             est. ~$75k
+    '62061':'Core',      // Marine               est. ~$80k
+    '62046':'Core',      // Hamel                est. ~$80k
+    '62021':'Core',      // Dorsey               rural
+    '62024':'Value',     // East Alton           $56,761
+    '62018':'Value',     // Cottage Hills        $40,438
+    '62048':'Value',     // Hartford             est. ~$45k
+    '62084':'Value',     // Roxana               est. ~$55k
+    '62087':'Value',     // South Roxana         est.
+    '62060':'Value',     // Madison              est.
+    '62090':'Value',     // Venice               est.
+    '62058':'Value',     // Livingston           rural
+    '62074':'Value',     // New Douglas          rural
+
+    // St. Clair County
+    '62243':'Standard',  // Freeburg             $103,342
+    '62258':'Standard',  // Mascoutah            $94,655
+    '62260':'Standard',  // Millstadt            $91,039
+    '62285':'Standard',  // Smithton             est. ~$95k
+    '62221':'Core',      // Belleville east      $82,271
+    '62208':'Core',      // Fairview Heights     $80,205
+    '62223':'Core',      // Belleville / Swansea $73,700
+    '62226':'Core',      // Belleville west      $70,797
+    '62225':'Core',      // Scott AFB            military housing
+    '62254':'Core',      // Lebanon              est. ~$75k
+    '62264':'Core',      // New Athens           est. ~$65k
+    '62289':'Core',      // Summerfield          est.
+    '62232':'Value',     // Caseyville           $64,269
+    '62239':'Value',     // Dupo                 $61,191
+    '62240':'Value',     // East Carondelet      est.
+    '62257':'Value',     // Marissa              est. ~$55k
+    '62255':'Value',     // Lenzburg             rural
+    '62282':'Value',     // St. Libory           rural
+    '62206':'Value',     // Cahokia              $33,838
+    '62201':'Value','62203':'Value','62204':'Value','62205':'Value','62207':'Value',   // East St. Louis / Centreville
+
+    // Monroe County
+    '62298':'Standard',  // Waterloo             $101,155
+    '62295':'Standard',  // Valmeyer             $87,989
+    '62244':'Core',      // Fults                rural
+    '62248':'Core',      // Hecker               rural
+    '62256':'Core',      // Maeystown            rural
+    '62279':'Core'       // Renault              rural
   },
   // Metro ZIP prefixes we run routes in. Anything outside is "no route yet".
   areaPrefixes: ['630','631','633','620','622'],
-  /* Illinois. We do cross the river, but the routes over there are thin
-     enough that an automatic number is more likely to be wrong than right,
-     so these get a hand-built quote instead. They are still IN the area -
-     the request comes through as a normal lead with all their details, it
-     just says we will send them a price rather than showing one. */
-  manualPrefixes: ['620','622']
+  /* ZIP prefixes that get a hand-built quote instead of a table price.
+     Illinois ('620','622') lived here from Sep to Oct 2026, when the
+     routes over there were thin; it came out when the hand-quote queue
+     became the bottleneck. Empty means everything in the area prices off
+     the table. The hand-quote path itself still works - put a prefix back
+     here and those leads say "we'll email you a price" again. */
+  manualPrefixes: []
 };
 
 /* An unlisted ZIP inside the service area prices as Value. That is a

@@ -91,14 +91,26 @@ ok('5 or more dogs is priced by hand',
    quote({ zip: '63376', dogs: 5, freq: 'weekly' }).manual === true);
 ok('the retired monthly plan never guesses a number',
    quote({ zip: '63376', dogs: 1, freq: 'monthly' }).manual === true);
-['62234', '62025', '62002', '62220'].forEach(z => {
+/* Illinois was hand-priced from Sep to Oct 2026; it prices off the table
+   now, and the hand-quote path is kept for the day it is wanted again. */
+ok('no ZIP prefix is hand-priced at the moment', (P.manualPrefixes || []).length === 0, JSON.stringify(P.manualPrefixes));
+[['62234', 'Core', 81], ['62025', 'Premium', 94], ['62002', 'Value', 77], ['62220', 'Core', 81], ['62298', 'Standard', 85], ['62281', 'Premium', 94]].forEach(([z, tier, price]) => {
   const r = quote({ zip: z, dogs: 1, freq: 'weekly' });
-  ok(z + ' (Illinois) gets no table price', r.manual === true && r.reason === 'illinois');
-  ok(z + ' is still inside the service area', inArea(z) === true);
+  ok(z + ' (Illinois) is ' + tier + ' and prices at $' + price, r.manual === false && r.tier === tier && r.service === price, JSON.stringify([r.tier, r.service]));
+  ok(z + ' is inside the service area', inArea(z) === true);
 });
-ok('no Illinois plan leaks a number',
-   ['weekly','biweekly','twiceweekly','onetime'].every(f =>
-     quote({ zip: '62234', dogs: 2, freq: f }).service === undefined));
+ok('the hand-quote path still works when a prefix is listed', (() => {
+  const saved = P.manualPrefixes; P.manualPrefixes = ['622'];
+  const r = quote({ zip: '62234', dogs: 1, freq: 'weekly' }); P.manualPrefixes = saved;
+  return r.manual === true && r.reason === 'illinois';
+})());
+/* every county we get leads from is placed, not falling through to Value by accident */
+const MUST = ['63012','63052','63019','63070','63050','63020','63025','63088','63123','63042','63074','63135','63139','63109','63104',
+              '63348','63365','63332','63341','63362','63389','63343','63390','63357',
+              '62281','62097','62067','62024','62018','62243','62258','62260','62221','62208','62226','62232','62239','62206','62298','62295','62236'];
+ok('every ZIP in the new counties is placed on purpose', MUST.every(z => P.zips[z]), MUST.filter(z => !P.zips[z]).join(' '));
+ok('the far-out corridors are Premium for the drive, like Troy', ['63348','63362','63389','63379','63385'].every(z => P.zips[z] === 'Premium'));
+ok('Lincoln and Warren rural ZIPs sit below the corridor', P.zips['63343'] === 'Standard' && P.zips['63357'] === 'Value');
 
 /* ---- ZIP decisions that were made deliberately and must not drift ----
    Each of these breaks the pattern around it for a recorded reason. The

@@ -362,7 +362,7 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/pricing.js?v=a92f6fd9"></script>
+<script src="/pricing.js?v=61c6850c"></script>
 <script src="/contact-check.js?v=b4a5b7a1"></script>
 <script>
 var CRM_ENDPOINT = "https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec";
@@ -1094,7 +1094,7 @@ function manualWhy(mr, l){
     // worked back out of the row, for leads filed before [MR:] existed
     if (/OVER 1\/4|over 1\/4/i.test(String(l.yard || ''))) why = 'yard is over &frac14; acre';
     else if (/^5/.test(String(l.dogs || ''))) why = '5 or more dogs';
-    else if (/^(620|622)/.test(String(l.zip || ''))) why = 'Illinois &mdash; we price those by hand';
+    else if (typeof CLPPS_PRICING !== 'undefined' && (CLPPS_PRICING.manualPrefixes || []).indexOf(String(l.zip || '').slice(0, 3)) >= 0) why = 'Illinois &mdash; we price those by hand';
   }
   return why ? ' <span style="color:#707070;">&mdash; ' + why + '</span>' : '';
 }

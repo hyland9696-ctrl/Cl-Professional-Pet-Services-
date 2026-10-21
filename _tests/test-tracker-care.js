@@ -58,13 +58,17 @@ const ago = (h) => new Date(NOW.getTime() - h * 3600000).toISOString();
     const after = (await p.textContent('#card-L1')).replace(/\s+/g, ' ');
     ok('the card no longer says deodorize', !/deodorize/.test(after), after.slice(0, 200));
 
-    // Illinois: the engine will not price it, and says so instead of guessing
+    // five or more dogs: the engine will not price it, and says so instead of guessing
     await p.click('#card-L2 [onclick^="editLead"]'); await p.waitForTimeout(300);
-    await p.fill('#m-zip', '62002');
-    await p.fill('#m-price', '$82/mo');
+    await p.selectOption('#m-dogs', '6+');
+    await p.fill('#m-price', '$150/mo');
     await p.click('button:has-text("Recalculate price")'); await p.waitForTimeout(200);
-    ok('an Illinois ZIP leaves the typed price alone', (await p.inputValue('#m-price')) === '$82/mo');
+    ok('six dogs leaves the typed price alone', (await p.inputValue('#m-price')) === '$150/mo');
     ok('and says it is priced by hand', /priced by hand/.test(await p.textContent('#toast')));
+    // Illinois prices off the table now: Alton is Value
+    await p.selectOption('#m-dogs', '2'); await p.fill('#m-zip', '62002');
+    await p.click('button:has-text("Recalculate price")'); await p.waitForTimeout(200);
+    ok('an Illinois ZIP gets a table price now (Alton, Value, 2 dogs: $82)', (await p.inputValue('#m-price')) === '$82/mo', await p.inputValue('#m-price'));
     await p.click('#m-savebtn'); await p.waitForTimeout(300);
 
     /* ---- the not-called clock ---- */

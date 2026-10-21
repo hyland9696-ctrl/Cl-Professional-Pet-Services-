@@ -209,8 +209,9 @@ def js(text):
 def price_block(slug, name, state, zip_, county, big_lots):
     # Static text first so the line is readable with scripts off and by
     # crawlers; the script then replaces it with the live figure.
+    il_manual = any(p.startswith(('620', '622')) for p in engine_manual_prefixes())
     fallback = ('Illinois yards are priced by hand - send the form and you will have a real quote within one business day.'
-                if state == 'IL' else
+                if (state == 'IL' and il_manual) else
                 'Weekly service here starts around $85 a month for one dog. See the exact figure for your yard in the form.')
     note = (' Many lots here are over a quarter acre; those get a hand-built quote within a business day rather than a table price.'
             if big_lots else '')
@@ -374,6 +375,11 @@ def first_lead(slug):
     return m.group(1) if m else ''
 
 
+def engine_manual_prefixes():
+    import json, subprocess
+    js = "global.window=global;" + (ROOT / 'pricing.js').read_text() + ";console.log(JSON.stringify(CLPPS_PRICING.manualPrefixes||[]))"
+    return json.loads(subprocess.run(['node', '-e', js], capture_output=True, text=True, check=True).stdout)
+
 def hub_page():
     import json, subprocess
     js = ("global.window=global;" + (ROOT / 'pricing.js').read_text() +
@@ -384,9 +390,9 @@ def hub_page():
     by_county = {}
     for slug, name, state, zip_, county, big in CITIES:
         by_county.setdefault(county, []).append((slug, name, state))
-    order = ['St. Charles County', 'St. Louis County', 'Franklin County', 'St. Clair County']
+    order = ['St. Charles County', 'St. Louis County', 'Franklin County', 'St. Clair County', 'Madison County', 'Monroe County', 'Jefferson County']
     body = ['<h1>Pet Waste Removal Service Areas <span>across the St. Louis metro</span></h1>',
-            '<p class="lead">We are based in St. Peters and run scheduled routes through St. Charles County, St. Louis County and into Franklin County, with hand-priced service across the river in Illinois. Every city below has its own page with local prices; every ZIP code we serve is listed underneath.</p>',
+            '<p class="lead">We are based in St. Peters and run scheduled routes through St. Charles, St. Louis, Jefferson, Franklin, Warren and Lincoln counties in Missouri, and across the river through Madison, St. Clair and Monroe counties in Illinois. Every city below has its own page with local prices; every ZIP code we serve is listed underneath.</p>',
             '<div class="btns"><a class="cta big" href="/#quote">Get My Price Online</a><a class="btn2" href="tel:+16363754342">Call (636) 375-4342</a></div>']
     for county in order:
         if county not in by_county: continue
@@ -396,7 +402,7 @@ def hub_page():
             if len(blurb) > 190: blurb = blurb[:187].rsplit(' ', 1)[0] + '&hellip;'
             body.append('<div class="rev"><p><a href="/%s/"><strong>%s, %s</strong></a> &mdash; %s</p></div>' % (slug, name, state, blurb))
     body.append('<h2>Every ZIP code we serve</h2>')
-    body.append('<p class="lead">Type any of these into the <a href="/#quote">quote form</a> and you will see your price on the spot. A Missouri ZIP that is not listed is still in our area if it starts 630, 631 or 633 - it is simply priced at the Value rate until it sends us enough work to look at properly.</p>')
+    body.append('<p class="lead">Type any of these into the <a href="/#quote">quote form</a> and you will see your price on the spot, Missouri or Illinois. A ZIP that is not listed is still in our area if it starts 630, 631, 633, 620 or 622 - it is simply priced at the Value rate until it is placed.</p>')
     for key in ('Value', 'Core', 'Standard', 'Premium'):
         if tiers.get(key):
             body.append('<h3>%s tier</h3><p class="zips">%s</p>' % (key, ' '.join('<code>%s</code>' % z for z in tiers[key])))
