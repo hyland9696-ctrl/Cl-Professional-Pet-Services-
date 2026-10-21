@@ -164,6 +164,7 @@
       <button class="copybtn" onclick="toggleNo()" id="noBtn">&#128078; Said no</button>
       <button class="copybtn" onclick="toggleWait()" id="waitBtn">&#128205; Out of area</button>
       <button class="copybtn" onclick="toggleQR()" id="qrBtn">&#128241; Sign scans</button>
+      <button class="copybtn" onclick="toggleDeoSeason()" id="deoBtn" title="Deodorize &amp; sanitize is a warm-weather service. Flip this when it drops below 50 or warms back up; the website prices by it.">&#129532; Deodorize season</button>
       <button class="copybtn" onclick="toggleTests()" id="testBtn">&#129514; Test leads</button>
       <button class="copybtn" onclick="exportCsv()">&#11015;&#65039; Download CSV</button>
       <button class="copybtn" onclick="copyEmails()">Copy emails</button>
@@ -184,7 +185,7 @@
         <input id="m-price" placeholder="Price (e.g. $81/mo)" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
         <input id="m-zip" placeholder="ZIP" inputmode="numeric" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
         <select id="m-deo" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;">
-          <option value="">Deodorize?</option><option value="no">No deodorize</option><option value="every">Deodorize every visit (+$15 each)</option><option value="eo">Deodorize every other visit</option>
+          <option value="">Deodorize?</option><option value="no">No deodorize</option><option value="every">Deodorize every visit (+$15 each)</option><option value="eo">Deodorize every other visit</option><option value="later">Wants deodorize when the season reopens (not priced)</option>
         </select>
         <select id="m-dogs" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;">
           <option value="">Dogs?</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6+</option>
@@ -361,7 +362,7 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/pricing.js?v=0220045d"></script>
+<script src="/pricing.js?v=a92f6fd9"></script>
 <script src="/contact-check.js?v=b4a5b7a1"></script>
 <script>
 var CRM_ENDPOINT = "https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec";
@@ -544,6 +545,7 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
       render();
       renderTraffic();
       renderTests();
+      renderDeoBtn();
       if (showToast) toast('Up to date ✓');
       if (cb) cb(true);
     })
@@ -950,6 +952,15 @@ function renderInsights(){
     (back ? ' &middot; ' + Math.round(100 * back / sent) + '%' : '') + '. Counted across every row a lead has had, so a customer who came back is not lost when their card is rewritten.</div>'
     : '<div class="sub">No win-back emails sent yet. They are offered under &#128078; Said no, a day after a refusal.</div>';
 
+  // ---- deodorize: who said yes while the season was off ----
+  var deoWait = leads.filter(function(l){ var st = l.status || 'new'; return wantsDeoLater(l) && st !== 'lost' && st !== 'cancelled' && quoteState(l) !== 'declined'; });
+  h += '<h4>&#129532; Deodorize when the season reopens <span class="sub">(season is ' + deoSeason().toUpperCase() + ')</span></h4>';
+  h += deoWait.length
+    ? '<div class="big">' + deoWait.length + '</div><div class="sub">said yes to deodorize while it was paused. ' +
+      (deoSeason() === 'on' ? 'The season is on now: add it to their service and update their price.' : 'When you flip the season on, this is who to add it for.') + '</div>' +
+      deoWait.map(function(l){ return '<div class="bar"><span style="flex:1;font-size:12.5px;"><strong>' + esc(l.name || '(no name)') + '</strong> <span class="sub">' + esc(String(l.deodorize).replace(/^WANTS IT WHEN THE SEASON REOPENS:\s*/i, '')) + (l.phone ? ' &middot; ' + esc(l.phone) : '') + '</span></span></div>'; }).join('')
+    : '<div class="sub">Nobody waiting. A yes to deodorize while the season is off lands here.</div>';
+
   // ---- referral rewards owed ----
   var owed = leads.filter(function(l){ var m = fuParse(l.crmnotes); var st = l.status || 'new'; return m.rb && !m.rw && (st === 'closed' || st === 'cancelled'); });
   h += '<h4>&#129309; Referral rewards owed <span class="sub">(a free deodorize each)</span></h4>';
@@ -1293,13 +1304,15 @@ function toggleAdd(){
 function deoKey(text){
   var t = String(text || '').toLowerCase();
   if (!t) return '';
+  if (/season reopens/.test(t)) return 'later';
   if (/every other|\beo\b/.test(t)) return 'eo';
   if (/^no\b|none/.test(t)) return 'no';
   if (/every|yes|includ|\$15|treat/.test(t)) return 'every';
   return 'no';
 }
 function deoText(key){
-  return key === 'eo' ? 'every other visit ($15/treatment)' : key === 'every' ? 'every visit ($15/treatment)' : key === 'no' ? 'no' : '';
+  return key === 'eo' ? 'every other visit ($15/treatment)' : key === 'every' ? 'every visit ($15/treatment)'
+       : key === 'later' ? 'WANTS IT WHEN THE SEASON REOPENS: every visit ($15/treatment)' : key === 'no' ? 'no' : '';
 }
 /* The price box is typed by hand, so taking deodorize off a lead used to
    leave the old, higher price sitting there. This works it out again from
@@ -2478,7 +2491,9 @@ function pqSet(key, val, el){
 }
 function pqQuote(){
   var zip = String(document.getElementById('pq-zip').value || '').trim();
-  return clppsQuote({ zip: zip, dogs: pq.dogs, freq: pq.freq, deo: pq.deo, waiveInitial: pq.ic === 'w', minutes: pq.min });
+  var r = clppsQuote({ zip: zip, dogs: pq.dogs, freq: pq.freq, deo: deoSeason() === 'on' ? pq.deo : 'none', waiveInitial: pq.ic === 'w', minutes: pq.min });
+  r.deoLater = deoSeason() !== 'on' && pq.deo !== 'none';
+  return r;
 }
 function pqCalc(){
   var zip = String(document.getElementById('pq-zip').value || '').trim();
@@ -2544,6 +2559,7 @@ function pqCalc(){
                  ' &rarr; <strong>$' + r.service + '</strong>');
     }
     if (r.deoMo) lines.push('+ $' + r.deoMo + '/mo deodorize (' + r.treatments + ' &times; $' + CLPPS_PRICING.deodorize + ')');
+    if (r.deoLater) lines.push('Deodorize: <strong>season is OFF</strong> &mdash; added at $' + CLPPS_PRICING.deodorize + ' a treatment when it reopens, not in this price');
     lines.push(r.initial ? 'First invoice <strong>$' + r.first + '</strong> (includes $' + CLPPS_PRICING.initialClean + ' initial clean)' : 'Initial clean <strong>waived</strong> &mdash; first invoice $' + r.first);
   }
   var PQ_LABELS = { twiceweekly:'Twice a week', weekly:'Weekly', biweekly:'Every other week', onetime:'One-time cleanup' };
@@ -2564,7 +2580,8 @@ function pqSubmit(kind){
   else price = '$' + r.total + (r.per ? '/mo' : ' one-time');
   var PQ_SVC = { twiceweekly:'twice a week', weekly:'weekly', biweekly:'every other week', onetime:'one-time' };
   var svc = PQ_SVC[pq.freq];
-  var deoTxt = pq.deo === 'none' ? 'no' : (pq.deo === 'every' ? 'every visit ($15/treatment)' : 'every other visit ($15/treatment)');
+  var deoTxt = pq.deo === 'none' ? 'no' : (deoSeason() !== 'on' ? 'WANTS IT WHEN THE SEASON REOPENS: ' : '') +
+               (pq.deo === 'every' ? 'every visit ($15/treatment)' : 'every other visit ($15/treatment)');
   var src = document.getElementById('pq-src').value;
   var tierNote = pq.freq === 'onetime'
     ? 'Phone quote \u00b7 ' + r.minutes + ' min on site'
@@ -2750,6 +2767,40 @@ function saveReviewStats(){
   });
   toast('Saved — the website will show ' + config.review_rating.value + ' · ' + n + ' reviews');
 }
+/* ---- the deodorize season switch ----
+   Corey stops spraying once it drops below 50F (people shut off their
+   outdoor taps) and starts again when it warms up. A weather call, so a
+   switch rather than a date. The website reads it within the hour: OFF
+   means the quote wizard still asks, but prices nothing and marks a yes as
+   "when the season reopens"; the phone quote here does the same. */
+function deoSeason(){
+  var c = config.deo_season ? String(config.deo_season.value).toLowerCase() : '';
+  if (c === 'on' || c === 'off') return c;
+  return (typeof CLPPS_PRICING !== 'undefined' && CLPPS_PRICING.deoSeasonDefault === 'on') ? 'on' : 'off';
+}
+function renderDeoBtn(){
+  var b = document.getElementById('deoBtn');
+  if (!b) return;
+  var on = deoSeason() === 'on';
+  b.innerHTML = '&#129532; Deodorize season: <strong style="color:' + (on ? '#188663' : '#b45309') + ';">' + (on ? 'ON' : 'OFF') + '</strong>';
+}
+function toggleDeoSeason(){
+  var on = deoSeason() === 'on';
+  var msg = on
+    ? 'Turn deodorize OFF for the season?\n\nThe website stops adding it to prices within the hour. People can still say they want it when it reopens, and you get a list of them under Insights.'
+    : 'Turn deodorize ON?\n\nThe website starts pricing it in again within the hour ($15 a treatment), and so does the phone quote here.';
+  if (!confirm(msg)) return;
+  var v = on ? 'off' : 'on', now = new Date().toISOString();
+  config.deo_season = { value: v, created: now };
+  saveStatsCache(); renderDeoBtn(); render();
+  try { if (document.getElementById('pq-zip')) pqCalc(); } catch (e) {}   // the phone quote follows the switch
+  post({ action: 'lead', lead: {
+    id: 'cfg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    created: now, type: 'CONFIG', name: 'deo_season', notes: v, status: 'config', crmnotes: ''
+  } }, 'Deodorize season is ' + v.toUpperCase() + ' \u2014 the website follows within the hour');
+}
+/* leads who said yes to deodorize while the season was off */
+function wantsDeoLater(l){ return /season reopens/i.test(String(l.deodorize || '')); }
 /* ---- team phones: this device, and the test leads the team has sent ---- */
 function isTeamPhone(){ try { return localStorage.getItem('clpps_team') === '1'; } catch (e) { return false; } }
 function setTeamPhone(on){
@@ -3656,7 +3707,7 @@ function render(){
         contactDoubtLine(l) +
         dupLine(l) +
         '&#128021; ' + esc(l.dogs ? dogsLabel(l.dogs) : '? dogs') + ' &middot; ' + esc(planLabel(l.service)) +
-        (l.deodorize && l.deodorize !== 'no' ? ' &middot; deodorize' : '') +
+        (l.deodorize && l.deodorize !== 'no' ? (wantsDeoLater(l) ? ' &middot; <span style="color:#b45309;font-weight:700;">deodorize when the season reopens</span>' : ' &middot; deodorize') : '') +
         (l.hero && l.hero !== 'no'
           ? '<br>&#127894; Hero discount claimed' +
             // name the branch: it is what has to be checked against their ID

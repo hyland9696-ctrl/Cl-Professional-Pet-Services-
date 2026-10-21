@@ -1,4 +1,5 @@
-/* The Google rating and review count shown on every page.
+/* The Google rating and review count shown on every page, and the
+   deodorize season switch the quote wizard prices by.
 
    They used to be typed into sixteen files: "5.0 · 28 reviews". Corey
    noticed the number on the site was not the number on Google, and no
@@ -24,9 +25,14 @@
   }
   function run(){
   var ENDPOINT = 'https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec';
-  var KEY = 'clpps_reviews', TTL = 24 * 3600 * 1000;
+  var KEY = 'clpps_public', TTL = 3600 * 1000;   // an hour: the season switch has to reach the quote the same day
 
   function apply(d){
+    // the deodorize season: on, off, or unset (the price list's default)
+    if (d.deo === 'on' || d.deo === 'off'){
+      window.CLPPS_DEO_SEASON = d.deo;
+      try { document.dispatchEvent(new CustomEvent('clpps-public', { detail: d })); } catch (e) {}
+    }
     var rating = parseFloat(d.rating), count = parseInt(d.count, 10);
     if (!(rating >= 1 && rating <= 5) || !(count >= 1)) return;
     var rTxt = rating.toFixed(1);
@@ -50,7 +56,7 @@
 
   var cached = null;
   try { cached = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
-  if (cached && cached.at && Date.now() - cached.at < TTL && cached.count){
+  if (cached && cached.at && Date.now() - cached.at < TTL && (cached.count || cached.deo)){
     apply(cached);
     return;
   }
@@ -58,9 +64,9 @@
     fetch(ENDPOINT + '?action=public&_=' + Date.now(), { cache: 'no-store' })
       .then(function(r){ return r.json(); })
       .then(function(d){
-        if (!d || !d.ok || !d.count) return;
+        if (!d || !d.ok) return;
         apply(d);
-        try { localStorage.setItem(KEY, JSON.stringify({ rating: d.rating, count: d.count, at: Date.now() })); } catch (e) {}
+        try { localStorage.setItem(KEY, JSON.stringify({ rating: d.rating, count: d.count, deo: d.deo, at: Date.now() })); } catch (e) {}
       })
       .catch(function(){});
   } catch (e) {}

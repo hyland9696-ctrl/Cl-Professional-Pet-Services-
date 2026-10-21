@@ -284,15 +284,20 @@ function publicStats_() {
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][iType]) !== 'CONFIG') continue;
     var n = String(rows[i][iName] || '');
-    if (n !== 'review_rating' && n !== 'review_count') continue;
+    if (n !== 'review_rating' && n !== 'review_count' && n !== 'deo_season') continue;
     var when = String(rows[i][iCreated] || '');
     if (!best[n] || when > best[n].when) best[n] = { when: when, value: String(rows[i][iNotes] == null ? '' : rows[i][iNotes]) };
   }
   var rating = best.review_rating ? parseFloat(best.review_rating.value) : NaN;
   var count  = best.review_count  ? parseInt(best.review_count.value, 10) : NaN;
-  var out = (rating >= 1 && rating <= 5 && count >= 1)
-    ? { ok: true, rating: Math.round(rating * 10) / 10, count: count, updated: (best.review_count || {}).when || '' }
-    : { ok: false, error: 'not set' };
+  // Always ok: the deodorize season switch rides along even when the review
+  // figures were never set, and the site checks each field for itself.
+  var deo = best.deo_season ? String(best.deo_season.value).toLowerCase() : '';
+  var out = { ok: true,
+              rating: (rating >= 1 && rating <= 5 && count >= 1) ? Math.round(rating * 10) / 10 : null,
+              count: (rating >= 1 && rating <= 5 && count >= 1) ? count : null,
+              deo: (deo === 'on' || deo === 'off') ? deo : '',
+              updated: (best.review_count || {}).when || '' };
   cache.put('public_stats', JSON.stringify(out), 3600);
   return out;
 }

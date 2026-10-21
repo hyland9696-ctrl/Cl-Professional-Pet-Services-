@@ -42,6 +42,12 @@ var CLPPS_PRICING = {
   waiveInitialClean: true,
   waiveInitialFrom: '2026-09-09',
   deodorize: 15,        // per treatment
+  /* Deodorize & sanitize is a warm-weather service: once it drops below
+     about 50F people shut off their outdoor taps and it stops. That is a
+     weather call, not a date, so the switch lives in the lead tracker
+     (Deodorize season: ON/OFF) and the website reads it. This is only the
+     answer when the website cannot reach the tracker's backend. */
+  deoSeasonDefault: 'off',
   maxDogs: 4,           // 5+ is a custom quote
   zips: {
     '63376':'Standard','63301':'Standard','63303':'Standard','63304':'Premium',
@@ -148,6 +154,20 @@ function clppsOnetime(minutes){
   if (!m || m < P.onetimeMinutes) m = P.onetimeMinutes;
   var extra = Math.ceil((m - P.onetimeMinutes) / P.onetimeBlock);
   return { minutes: m, blocks: extra, price: P.onetime + extra * P.onetimeBlockPrice };
+}
+
+/* Is deodorize being done right now? 'on' or 'off'. The tracker's switch,
+   fetched by reviews.js and remembered for an hour, wins; otherwise the
+   default above. */
+function clppsDeoSeason(){
+  try {
+    if (typeof window !== 'undefined'){
+      if (window.CLPPS_DEO_SEASON === 'on' || window.CLPPS_DEO_SEASON === 'off') return window.CLPPS_DEO_SEASON;
+      var c = JSON.parse(localStorage.getItem('clpps_public') || 'null');
+      if (c && (c.deo === 'on' || c.deo === 'off')) return c.deo;
+    }
+  } catch (e) {}
+  return CLPPS_PRICING.deoSeasonDefault === 'on' ? 'on' : 'off';
 }
 
 /* opts: { zip, dogs (1-4, or 5 = custom), freq: 'twiceweekly'|'weekly'|'biweekly'|'onetime',

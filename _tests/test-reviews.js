@@ -36,7 +36,9 @@ const row = (HEAD, o) => HEAD.map(h => o[h] || '');
 {
   const { api } = loadScript([]);
   const out = JSON.parse(api.doGet({ parameter: { action: 'public' } }).body);
-  ok('backend: with nothing set it says so rather than inventing a number', out.ok === false, JSON.stringify(out));
+  // the answer is always ok now, because the deodorize season switch rides
+  // along with it; the review figures are null rather than invented
+  ok('backend: with nothing set the figures are null rather than invented', out.ok === true && out.rating === null && out.count === null, JSON.stringify(out));
 }
 {
   const t = loadScript([]);

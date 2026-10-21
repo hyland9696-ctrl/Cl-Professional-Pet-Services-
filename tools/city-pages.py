@@ -115,7 +115,7 @@ def business_schema(page_url, area_name=None, area_state='MO'):
         ('Every-other-week pooper scooper service', 'Steady upkeep for lighter loads.', P['biweekly'], 'MONTH'),
         ('Twice-a-week pooper scooper service', 'For busy yards that stay spotless.', P['twice'], 'MONTH'),
         ('One-time yard cleanup', 'Spring cleanups, move-outs, party prep. Priced by time on site.', P['onetime'], None),
-        ('Deodorize & sanitize treatment', 'Pet-safe odor treatment, per visit.', P['deo'], None),
+        ('Deodorize & sanitize treatment', 'Pet-safe odor treatment, per visit. Seasonal: paused once it drops below 50F.', P['deo'], None),
     ]
     cities_served = [{"@type": "City", "name": "%s, %s" % (n, st)} for _, n, st, *_ in CITIES]
     counties = ["St. Charles County, MO", "St. Louis County, MO", "St. Louis City, MO", "Franklin County, MO",

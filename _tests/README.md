@@ -71,6 +71,7 @@ able to tell what broke for a real person without opening the file.
 | `test-tracker-care.js` | editing deodorize and ZIP with a recalculated price, the not-called clock, same-person lines, the health line |
 | `test-mobile-fold.js` | the first phone screen: headline, rating and quote button above the fold; the sticky price bar |
 | `test-same-person.js` | one person, one card: the phone number is the id; same-phone rows within a day fold into one; the backend keeps office notes |
+| `test-deo-season.js` | the deodorize season switch: OFF asks but prices nothing and marks a yes for later; ON prices it; phone quote and pages follow |
 | `test-pixel.js` | what Meta is told and when: PageView, ViewContent, CompleteRegistration once, Lead only on activation |
 | `test-team.js` | team phones: no page views, labelled silent test leads, kept out of the numbers |
 
