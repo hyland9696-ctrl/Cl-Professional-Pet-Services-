@@ -109,8 +109,10 @@ const MUST = ['63012','63052','63019','63070','63050','63020','63025','63088','6
               '63348','63365','63332','63341','63362','63389','63343','63390','63357',
               '62281','62097','62067','62024','62018','62243','62258','62260','62221','62208','62226','62232','62239','62206','62298','62295','62236'];
 ok('every ZIP in the new counties is placed on purpose', MUST.every(z => P.zips[z]), MUST.filter(z => !P.zips[z]).join(' '));
-ok('the far-out corridors are Premium for the drive, like Troy', ['63348','63362','63389','63379','63385'].every(z => P.zips[z] === 'Premium'));
-ok('Lincoln and Warren rural ZIPs sit below the corridor', P.zips['63343'] === 'Standard' && P.zips['63357'] === 'Value');
+ok('the far-out St. Charles towns are Premium for the drive', ['63348','63385','63304'].every(z => P.zips[z] === 'Premium'));
+ok('Lincoln County follows the income data: Troy, Moscow Mills, Winfield Standard; the rural rest Core',
+   ['63379','63362','63389','63369'].every(z => P.zips[z] === 'Standard') && ['63343','63347','63349','63377'].every(z => P.zips[z] === 'Core'));
+ok('Warren rural sits at Value', P.zips['63357'] === 'Value');
 
 /* ---- ZIP decisions that were made deliberately and must not drift ----
    Each of these breaks the pattern around it for a recorded reason. The
@@ -119,7 +121,7 @@ ok('Lincoln and Warren rural ZIPs sit below the corridor', P.zips['63343'] === '
 [['63005', 'Premium', 'a Franklin County ZIP, but it is Chesterfield/Wildwood at $198k'],
  ['63304', 'Premium', 'furthest-out territory - Premium pays for the drive, not the postcode'],
  ['63385', 'Premium', 'same reason'],
- ['63379', 'Premium', 'same reason'],
+ ['63379', 'Standard', 'Troy - Lincoln County went onto the income data in Oct 2026 ($86,844)'],
  ['63141', 'Premium', 'Creve Coeur, $133k'],
  ['63146', 'Standard', 'Creve Coeur west, $84k - NOT the same place as 63141'],
  ['63127', 'Premium', 'Sunset Hills - just under the income line, priced up on purpose'],

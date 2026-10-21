@@ -67,12 +67,13 @@ var CLPPS_PRICING = {
        them back, change these three to 'Standard' - nothing else depends
        on it. */
     '63090':'Value','63084':'Value','63069':'Value',
-    /* 63304, 63385 and 63379 are Premium despite mid-range incomes
-       ($114k, $112k, $91k). That is deliberate and Corey confirmed it:
-       they are the furthest-out territory we run, so Premium there is
-       paying for the drive, not the postcode. Do not "correct" them to
-       match income - the tier carries two things, not one. */
-    '63379':'Premium','62220':'Core','62269':'Standard','62236':'Premium',
+    /* 63304 and 63385 are Premium despite mid-range incomes ($114k,
+       $112k). That is deliberate and Corey confirmed it: they are far-out
+       territory, so Premium there is paying for the drive, not the
+       postcode. 63379 Troy sat with them until Oct 2026, when Jesse asked
+       for Lincoln County to follow the income data instead: Troy is
+       $86,844, Standard. To put the drive premium back, make it 'Premium'. */
+    '63379':'Standard','62220':'Core','62269':'Standard','62236':'Premium',
     // Wildwood: 63038 and 63040 are Wildwood only; 63005 is shared with
     // Chesterfield, which is already Premium on 63017.
     '63038':'Premium','63040':'Premium','63005':'Premium',
@@ -128,9 +129,10 @@ var CLPPS_PRICING = {
        Commons, incomebyzipcode.com) on the same line Corey's own picks
        drew: Premium from about $125k, Standard from about $85k, Core
        from about $65k, Value below. Two adjustments, both already in
-       use above: the furthest-out corridor towns are Premium for the
-       drive (as 63379 Troy and 63385 are), and sparse rural ZIPs with
-       long drives and few houses sit one tier down (as Franklin does).
+       use above: the furthest-out St. Charles towns are Premium for the
+       drive (as 63385 Wentzville-west and 63348 Foristell are), and
+       sparse rural ZIPs with long drives and few houses sit one tier
+       down (as Franklin does). Lincoln County is on the data alone.
        Income beside each where a figure was found; "est." where none
        was and the tier is a judgement from the neighbours. Anything
        already listed above was left exactly as decided. */
@@ -194,15 +196,15 @@ var CLPPS_PRICING = {
     '63373':'Value',     // Portage des Sioux    rural, floodplain
     '63386':'Value',     // West Alton           rural, floodplain
 
-    // Lincoln County - the Highway 61 corridor is Premium for the drive,
-    // like Troy; the rural rest is Standard, far but cheaper to live in
-    '63362':'Premium',   // Moscow Mills         $85,300, the Troy corridor
-    '63389':'Premium',   // Winfield             $92,646, the Troy corridor
-    '63369':'Premium',   // Old Monroe           est., the Troy corridor
-    '63343':'Standard',  // Elsberry             $71,523, far
-    '63347':'Standard',  // Foley                rural
-    '63349':'Standard',  // Hawk Point           rural
-    '63377':'Standard',  // Silex                rural
+    // Lincoln County - on the income data, as Jesse asked (Oct 2026):
+    // the Highway 61 towns are Standard, the rural rest Core
+    '63362':'Standard',  // Moscow Mills         $85,300
+    '63389':'Standard',  // Winfield             $92,646
+    '63369':'Standard',  // Old Monroe           est., between the two
+    '63343':'Core',      // Elsberry             $71,523
+    '63347':'Core',      // Foley                rural, est. ~$70k
+    '63349':'Core',      // Hawk Point           rural, est. ~$70k
+    '63377':'Core',      // Silex                rural, est. ~$70k
 
     // Warren County
     '63390':'Standard',  // Wright City          $80,152
