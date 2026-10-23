@@ -74,6 +74,35 @@ ok('the site still has no file that would turn Jekyll off', !fs.existsSync(path.
     await p.close();
   }
 
+  /* ---- a backend that has not been redeployed answers no to a POST list; the page falls back to GET ---- */
+  {
+    const ctx = await b.newContext({ viewport:{ width:430, height:1400 } });
+    const p = await ctx.newPage();
+    const now = new Date().toISOString();
+    const rows = [{ id:'g1', type:'ENQUIRY', name:'Get Gloria', phone:'6363754342', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'new', crmnotes:'[QA:w] ', created: now },
+                  { id:'v1', type:'VIEW', name:'home', zip:'', yard:'s1', service:'Direct', notes:'how=none', created: now }];
+    stubNetwork(p, {});
+    await p.route('**/script.google.com/**', r => {
+      if (r.request().method() === 'POST') return r.fulfill({ contentType:'application/json', body: '{"ok":false}' });   // the old script
+      return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: rows }) });
+    });
+    await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(1200);
+    ok('the leads load anyway, by GET', /Get Gloria/.test(await p.textContent('#list')));
+    ok('no scary banner', (await p.$eval('#offline', e => getComputedStyle(e).display)) === 'none' && !/999 hours/.test(await p.textContent('#health')));
+    await ctx.close();
+  }
+  /* ---- and when neither way works, the page says so instead of going quiet ---- */
+  {
+    const ctx = await b.newContext({ viewport:{ width:430, height:1400 } });
+    const p = await ctx.newPage();
+    stubNetwork(p, {});
+    await p.route('**/script.google.com/**', r => r.fulfill({ contentType:'application/json', body: '{"ok":false,"error":"nope"}' }));
+    await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(1200);
+    ok('the page says the database would not send the list', /would not send the list \(nope\)/.test(await p.textContent('#offline')));
+    ok('and the health line stays quiet rather than inventing hours', (await p.$eval('#health', e => getComputedStyle(e).display)) === 'none');
+    await ctx.close();
+  }
+
   await b.close();
   done();
 })();

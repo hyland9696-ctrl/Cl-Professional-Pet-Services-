@@ -484,11 +484,29 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
   // no-store says it plainly for anything in between.
   lastLoadAt = Date.now();
   if (!KEY){ needKey(''); if (cb) cb(false); return; }
-  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, cache: 'no-store',
+  // The list is asked for by POST, which keeps the key out of the address
+  // bar. A backend that has not been redeployed since that change answers
+  // "no" to a POST list, so the old GET is tried next - the page must never
+  // go quiet because the script is a version behind.
+  var byPost = fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, cache: 'no-store',
         body: JSON.stringify({ action: 'list', key: KEY, days: days, _: Date.now() }) })
     .then(function(r){ return r.json(); })
+    .catch(function(){ return { ok: false, error: 'network' }; });
+  byPost.then(function(d){
+      if (d && d.ok && d.leads) return d;
+      if (d && d.error === 'bad pin') return d;
+      return fetch(CRM_ENDPOINT + '?action=list&key=' + encodeURIComponent(KEY) + '&days=' + days + '&_=' + Date.now(), { cache: 'no-store' })
+        .then(function(r){ return r.json(); });
+    })
     .then(function(d){
-      if (!d.ok){ if (d.error === 'bad pin') badKey(); if (cb) cb(false); return; }
+      if (!d.ok){
+        if (d.error === 'bad pin') badKey();
+        var ob0 = document.getElementById('offline');
+        ob0.style.display = 'block';
+        ob0.innerHTML = '&#9888;&#65039; The database answered but would not send the list' + (d.error ? ' (' + esc(d.error) + ')' : '') +
+          (whenText(statsTs) ? ' &mdash; showing your last synced copy from ' + whenText(statsTs) : '') + '. Tap Refresh to try again.';
+        if (cb) cb(false); return;
+      }
       // an id is ours to make (letters, digits, - and _); anything else was
       // posted by hand and would land inside an onclick handler
       d.leads = (d.leads || []).filter(function(l){ return !l.id || /^[A-Za-z0-9_-]{1,64}$/.test(String(l.id)); });
@@ -3118,15 +3136,17 @@ function renderHealth(){
   var lastV = '', lastL = '';
   views.forEach(function(v){ if (v.created && String(v.created) > lastV) lastV = String(v.created); });
   leads.forEach(function(l){ if (isLead(l) && l.created && String(l.created) > lastL) lastL = String(l.created); });
-  if (!lastV && !lastL){ box.style.display = 'none'; return; }
-  var vh = lastV ? (Date.now() - new Date(lastV).getTime()) / 3600000 : 999;
+  // nothing to say until the sheet has actually answered: a page running on
+  // its saved copy knows nothing about today's visits
+  if (!remoteLoaded || (!lastV && !lastL)){ box.style.display = 'none'; return; }
+  var vh = lastV ? (Date.now() - new Date(lastV).getTime()) / 3600000 : (trafficDaysLoaded || 30) * 24;
   var hour = new Date().getHours();
   // eight daytime hours with not one visit is not a quiet day, it is a break
   var worry = vh >= 8 && hour >= 9 && hour <= 21;
   box.style.cssText += worry
     ? ';background:#FDF3DC;color:#7a5c00;box-shadow:0 1px 4px rgba(0,0,0,0.06);'
     : ';background:#fff;color:#707070;box-shadow:0 1px 4px rgba(0,0,0,0.06);';
-  box.innerHTML = (worry ? '<strong>&#9888;&#65039; No website visits recorded for ' + Math.round(vh) + ' hours.</strong> The site may be fine; the link from the site to this tracker may not be. Open clpropetservices.com on a phone that is not marked as a team phone, then pull to refresh here. If the visit does not show, the Apps Script deployment needs looking at.<br>' : '') +
+  box.innerHTML = (worry ? '<strong>&#9888;&#65039; No website visits recorded ' + (lastV ? 'for ' + Math.round(vh) + ' hours' : 'in the last ' + (trafficDaysLoaded || 30) + ' days') + '.</strong> The site may be fine; the link from the site to this tracker may not be. Open clpropetservices.com on a phone that is not marked as a team phone, then pull to refresh here. If the visit does not show, the Apps Script deployment needs looking at.<br>' : '') +
     '&#128268; Website &rarr; tracker: last visit ' + (lastV ? agoText(lastV) : 'never') + ' &middot; last lead ' + (lastL ? agoText(lastL) : 'never');
   box.style.display = 'block';
 }
