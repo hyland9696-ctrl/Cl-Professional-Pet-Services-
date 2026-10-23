@@ -58,8 +58,15 @@ for (let d = 0; d < 40; d++) ROWS.push({ id:'v' + d, type:'VIEW', name:'Home', y
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   const fetches = [], posts = [];
   await p.clock.install({ time: NOW });
+  // this test stubs the network itself; the tracker still wants its password
+  await p.addInitScript(() => { try { localStorage.setItem('clpps_key', 'test-key'); } catch (e) {} });
   p.route('**/script.google.com/**', r => {
-    if (r.request().method() === 'POST'){ try { posts.push(JSON.parse(r.request().postData())); } catch (e) {} return r.fulfill({ contentType:'application/json', body:'{"ok":true}' }); }
+    if (r.request().method() === 'POST'){
+      let body = {}; try { body = JSON.parse(r.request().postData()); } catch (e) {}
+      // the list is fetched by POST now; record it the way the old GET was
+      if (body.action === 'list'){ fetches.push('list?days=' + body.days); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: ROWS }) }); }
+      posts.push(body); return r.fulfill({ contentType:'application/json', body:'{"ok":true}' });
+    }
     fetches.push(r.request().url());
     return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: ROWS }) });
   });

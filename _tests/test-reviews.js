@@ -51,9 +51,11 @@ const row = (HEAD, o) => HEAD.map(h => o[h] || '');
   ok('backend: no PIN needed - it is the number already printed on the site', !('error' in out));
   ok('backend: the answer is cached', !!t.cache.public_stats);
   // saving a new count from the tracker clears the cache so the site sees it within the hour
-  t.api.doPost({ postData: { contents: JSON.stringify({ action: 'lead', lead: { id:'c5', type:'CONFIG', name:'review_count', notes:'42', status:'config', created:'2026-10-14T00:00:00Z' } }) } });
+  // settings rows need the key now; the stub answers 'sheet' for every script property, so that is the key
+  t.api.doPost({ postData: { contents: JSON.stringify({ action: 'lead', key: 'sheet', lead: { id:'c5', type:'CONFIG', name:'review_count', notes:'42', status:'config', created:'2026-10-14T00:00:00Z' } }) } });
   // and one with NO timestamp at all, which the backend must stamp itself
-  t.api.doPost({ postData: { contents: JSON.stringify({ action: 'lead', lead: { id:'c6', type:'CONFIG', name:'review_rating', notes:'4.8', status:'config' } }) } });
+  t.api.doPost({ postData: { contents: JSON.stringify({ action: 'lead', key: 'sheet', lead: { id:'c6', type:'CONFIG', name:'review_rating', notes:'4.8', status:'config' } }) } });
+  ok('backend: a settings row WITHOUT the key is refused', JSON.parse(t.api.doPost({ postData: { contents: JSON.stringify({ action: 'lead', lead: { id:'c7', type:'CONFIG', name:'review_count', notes:'1', status:'config' } }) } }).body).ok === false);
   ok('backend: a config save drops the cache', !t.cache.public_stats);
   const again = JSON.parse(t.api.doGet({ parameter: { action: 'public' } }).body);
   ok('backend: and the next read has the new count', again.count === 42, JSON.stringify(again));

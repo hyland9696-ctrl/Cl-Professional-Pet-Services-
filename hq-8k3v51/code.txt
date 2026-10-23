@@ -7,7 +7,33 @@
  * "CLPPS Leads" in your Google Drive and stores everything there.
  */
 
-var PIN = 'clpps-8k3v51';   // built-in key the tracker page sends automatically
+/* The tracker password. Run setupTrackerKey() once (pick it in the toolbar,
+   press Run, read the key in the execution log) and type that key into the
+   tracker on each phone. Until it has been run, the old built-in key still
+   works so nothing breaks on the day the new code goes live. */
+var LEGACY_PIN = 'clpps-8k3v51';
+function pin_() {
+  try { var k = PropertiesService.getScriptProperties().getProperty('TRACKER_KEY'); if (k) return k; } catch (e) {}
+  return LEGACY_PIN;
+}
+function setupTrackerKey() {
+  var key = Utilities.getUuid().replace(/-/g, '').slice(0, 20);
+  PropertiesService.getScriptProperties().setProperty('TRACKER_KEY', key);
+  Logger.log('TRACKER PASSWORD (type this into the tracker on each phone, once): ' + key);
+  return key;
+}
+/* Limits on what an anonymous post can do. The lead endpoint has to be open
+   (the public quote form uses it), so it is kept small and slow instead. */
+var MAX_POST_BYTES = 20000, MAX_LEADS_PER_MINUTE = 200;
+function clip_(v, n) { v = v == null ? '' : String(v); return v.length > n ? v.slice(0, n) : v; }
+function floodGate_() {
+  try {
+    var cache = CacheService.getScriptCache(), k = 'rl_' + Math.floor(Date.now() / 60000);
+    var n = parseInt(cache.get(k) || '0', 10) + 1;
+    cache.put(k, String(n), 120);
+    return n > MAX_LEADS_PER_MINUTE;
+  } catch (e) { return false; }
+}
 
 var HEADERS = ['id','created','type','name','phone','email','address','zip','service',
                'dogs','yard','deodorize','hero','price','manual','honored','notes',
@@ -145,6 +171,12 @@ function notifyLead_(l) {
     var cache = CacheService.getScriptCache(), nk = 'ntf_' + String(l.id || '') + '_' + t;
     if (l.id && cache.get(nk)) return;
     if (l.id) cache.put(nk, '1', 6 * 3600);
+    // and never more than sixty lead emails in an hour, whoever is posting:
+    // past that it is a flood, and the daily mail quota is what keeps the
+    // real ones arriving
+    var hk = 'ntf_h' + Math.floor(Date.now() / 3600000), hn = parseInt(cache.get(hk) || '0', 10) + 1;
+    cache.put(hk, String(hn), 7200);
+    if (hn > 60) return;
   } catch (e) {}
   var subject, intro;
   if (t === 'AUTH') {
@@ -345,8 +377,15 @@ function doGet(e) {
   var p = (e && e.parameter) || {};
   // Public on purpose: it is the number already printed on the website.
   if (p.action === 'public') return json_(publicStats_());
-  if (p.action === 'list') {
-    if (p.key !== PIN) return json_({ok:false, error:'bad pin'});
+  if (p.action === 'list') return list_(p);
+  return json_({ok:true, service:'CLPPS lead tracker'});
+}
+
+/* The lead list. Reached by POST from the tracker (the key stays out of
+   the address bar and the logs) and by GET for older pages. */
+function list_(p) {
+  {
+    if (p.key !== pin_()) return json_({ok:false, error:'bad pin'});
     var sh = sheet_();
     var rows = sh.getDataRange().getValues();
     // Every site visit is a row, so the analytics rows outgrow the real leads
@@ -370,16 +409,44 @@ function doGet(e) {
     leads.reverse(); // newest first
     return json_({ok:true, leads:leads, windowDays: days > 0 ? days : null, olderRowsSkipped: skipped});
   }
-  return json_({ok:true, service:'CLPPS lead tracker'});
 }
 
 function doPost(e) {
   var body;
+  if (!e || !e.postData || e.postData.length > MAX_POST_BYTES) return json_({ok:false, error:'too big'});
   try { body = JSON.parse(e.postData.contents); } catch (err) { return json_({ok:false}); }
+  if (body.action === 'list') return list_({ key: body.key, days: body.days });
 
   if (body.action === 'lead' && body.lead) {
     var l = body.lead;
+    if (typeof l !== 'object') return json_({ok:false});
+    if (floodGate_()) return json_({ok:false, error:'busy'});
     var sh = sheet_();
+    // Anyone can post a lead - the public quote form does - so what an
+    // unsigned post may say is limited. Only the tracker, which signs with
+    // the key, can write settings and spend, set a status, or back-date.
+    var trusted = !!body.key && body.key === pin_();
+    var t0 = String(l.type || '');
+    if (!trusted) {
+      if (t0 === 'CONFIG' || t0 === 'SPEND') return json_({ok:false, error:'bad pin'});
+      delete l.status;
+      var when0 = new Date(l.created || '');
+      if (isNaN(when0.getTime()) || when0.getTime() > Date.now() + 600000) l.created = new Date().toISOString();
+    }
+    if (l.id != null && !/^[A-Za-z0-9_-]{1,64}$/.test(String(l.id))) return json_({ok:false, error:'bad id'});
+    // The site keys a lead on the phone number, so one person is one card.
+    // But a closed customer asking again months later, or somebody new on
+    // the same number, is a new lead, not a rewrite of the old one.
+    if (!trusted && /^p\d{10}$/.test(String(l.id || ''))) {
+      var prior = latestRow_(sh, l.id);
+      if (prior && (prior.status === 'closed' || prior.status === 'cancelled' ||
+                    Date.now() - new Date(prior.created).getTime() > 180 * 86400000)) {
+        l.id = l.id + '-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMM');
+      }
+    }
+    // nothing longer than a sheet cell needs to be; a 10,000-character "name"
+    // is somebody's script, not somebody's name
+    HEADERS.forEach(function(h){ if (l[h] != null) l[h] = clip_(l[h], h === 'crmnotes' || h === 'notes' ? 4000 : 400); });
     // A row for this id already? The site writes the same person again when
     // they answer, change their mind, or reload; the tracker writes again on
     // an edit. The new row must not wipe out what the office has done on the
@@ -407,7 +474,7 @@ function doPost(e) {
   }
 
   if (body.action === 'update') {
-    if (body.key !== PIN) return json_({ok:false, error:'bad pin'});
+    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
     var sh2 = sheet_();
     var data = sh2.getDataRange().getValues();
     var idCol = HEADERS.indexOf('id');
@@ -485,6 +552,7 @@ function weeklyDigest() {
     var status = rows[i][HEADERS.indexOf('status')];
     var id = String(rows[i][HEADERS.indexOf('id')] || '');
     var notes = String(rows[i][HEADERS.indexOf('crmnotes')] || '');
+    if (status === 'deleted' || /\[TM:1\]/.test(notes)) continue;   // removed, or a team phone's test
     if (created >= cut) {
       if (type === 'VIEW') views++;
       else if (type === 'QVIEW') qviews++;

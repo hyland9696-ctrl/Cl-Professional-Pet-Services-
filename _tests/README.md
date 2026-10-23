@@ -73,6 +73,7 @@ able to tell what broke for a real person without opening the file.
 | `test-same-person.js` | one person, one card: the phone number is the id; same-phone rows within a day fold into one; the backend keeps office notes |
 | `test-deo-season.js` | the deodorize season switch: OFF asks but prices nothing and marks a yes for later; ON prices it; phone quote and pages follow |
 | `test-sweepandgo.js` | the Sweep&Go import: joins subscriptions to clients, folds add-ons, converts per-visit billing, updates existing leads without losing notes |
+| `test-security.js` | the password screen, no key in the page or the address bar, hostile form data shown as text, bad ids dropped, backend caps |
 | `test-pixel.js` | what Meta is told and when: PageView, ViewContent, CompleteRegistration once, Lead only on activation |
 | `test-team.js` | team phones: no page views, labelled silent test leads, kept out of the numbers |
 

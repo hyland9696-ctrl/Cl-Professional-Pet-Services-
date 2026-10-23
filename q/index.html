@@ -58,7 +58,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
     }
 </style>
   <script src="/pricing.js?v=f175ea9f"></script>
-  <script src="/meta-pixel.js?v=38fe5a84"></script>
 </head>
 <body>
 <div class="top">
@@ -163,15 +162,22 @@ var QP = {};
     document.getElementById('q-price').textContent = 'Custom';
     document.getElementById('q-sub').textContent = 'We price larger properties personally. The number below gets you a fast answer.';
   }
-  var rows = '';
-  if (P.d)  rows += '<div class="dline"><span>Dogs</span><span>' + P.d + '</span></div>';
-  if (P.sv) rows += '<div class="dline"><span>Schedule</span><span>' + svc + '</span></div>';
-  if (P.deo) rows += '<div class="dline"><span>Deodorize &amp; sanitize</span><span>' + P.deo + '</span></div>';
-  if (P.ic === 'w' && !once) rows += '<div class="dline"><span>Initial clean fee</span>' +
-    '<span><s style="opacity:.55;">$' + IC_FEE + '</s> <strong style="color:#188663;">FREE &#10004;</strong></span></div>';
-  else if (!once && !isNaN(amt)) rows += '<div class="dline"><span>Initial clean (first invoice)</span><span>$' + IC_FEE + ' one-time</span></div>';
-  if (P.a)  rows += '<div class="dline"><span>Service address</span><span>' + P.a + '</span></div>';
-  document.getElementById('q-details').innerHTML = rows;
+  // Every value here comes from the address bar, so each is placed as text
+  // and never as markup: a link somebody edited cannot put code on the page.
+  var det = document.getElementById('q-details');
+  det.innerHTML = '';
+  function dline(label, value, html){
+    var d = document.createElement('div'); d.className = 'dline';
+    var a = document.createElement('span'); a.textContent = label;
+    var b = document.createElement('span'); if (html) b.innerHTML = html; else b.textContent = value;
+    d.appendChild(a); d.appendChild(b); det.appendChild(d);
+  }
+  if (P.d)  dline('Dogs', P.d);
+  if (P.sv) dline('Schedule', svc);
+  if (P.deo) dline('Deodorize & sanitize', P.deo);
+  if (P.ic === 'w' && !once) dline('Initial clean fee', '', '<s style="opacity:.55;">$' + IC_FEE + '</s> <strong style="color:#188663;">FREE &#10004;</strong>');
+  else if (!once && !isNaN(amt)) dline('Initial clean (first invoice)', '$' + IC_FEE + ' one-time');
+  if (P.a)  dline('Service address', P.a);
   if (P.u){
     var pr = P.u.split('-');
     var du = new Date(parseInt(pr[0],10), parseInt(pr[1],10)-1, parseInt(pr[2],10));

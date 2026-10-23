@@ -1,0 +1,12 @@
+# GitHub Pages builds this site with Jekyll. Everything not listed here is
+# published at clpropetservices.com. These are working files, not pages.
+exclude:
+  - tools
+  - _tests
+  - brand/pricing.html
+  - README.md
+  - AGENTS.md
+  - CLAUDE.md
+  - package.json
+  - package-lock.json
+  - node_modules

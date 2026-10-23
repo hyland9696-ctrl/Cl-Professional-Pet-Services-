@@ -99,6 +99,16 @@
 </head>
 <body>
 
+<div id="login" style="display:none;position:fixed;inset:0;z-index:500;background:#0F6E56;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:#fff;border-radius:16px;padding:22px 18px;max-width:360px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.3);">
+    <div style="font-weight:800;font-size:17px;margin-bottom:6px;">Lead Tracker</div>
+    <div style="font-size:13px;color:#555;line-height:1.5;margin-bottom:12px;">Enter the tracker password once on this phone. It is remembered here and sent with every save; it is not in the page.</div>
+    <input id="login-key" type="password" autocomplete="current-password" placeholder="Tracker password" onkeydown="if(event.key==='Enter')saveKey()" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ccc;border-radius:10px;font-size:16px;font-family:inherit;">
+    <div id="login-msg" style="color:#c0392b;font-size:12.5px;min-height:18px;margin:6px 0;"></div>
+    <button onclick="saveKey()" style="width:100%;background:#188663;color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;min-height:46px;">Open the tracker</button>
+    <div style="font-size:11.5px;color:#707070;margin-top:10px;line-height:1.5;">The password is set by running <code>setupTrackerKey</code> in the Apps Script project; it shows in the execution log. Ask Jesse.</div>
+  </div>
+</div>
 <div id="app">
   <header>
     <img src="../images/logo.png" alt="">
@@ -106,6 +116,7 @@
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
       <button onclick="loadLeads(true)">&#8635; Refresh</button>
       <span id="syncAge" style="font-size:10.5px;opacity:.85;"></span>
+      <button onclick="forgetKey()" title="Forget the tracker password on this phone" style="background:none;border:none;color:#fff;opacity:.7;font-size:10.5px;cursor:pointer;font-family:inherit;padding:10px 0;min-height:36px;">sign out</button>
     </div>
   </header>
   <div class="wrap">
@@ -236,7 +247,7 @@
           <button onclick="gptSave()" style="background:#188663;color:#fff;border:none;border-radius:8px;padding:9px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Save key</button>
           <button onclick="gptClear()" style="background:#fff;color:#c0392b;border:1px solid #e0b4ad;border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Remove key</button>
         </div>
-        <div style="font-size:11px;color:#707070;margin-top:7px;line-height:1.55;">Questions are sent to OpenAI with a summary of your leads and figures &mdash; names, services, prices and dates. Phone numbers, emails and addresses are never sent.</div>
+        <div style="font-size:11px;color:#707070;margin-top:7px;line-height:1.55;">Questions are sent to OpenAI with a summary of your leads and figures &mdash; names, services, prices, dates and sources. Phone numbers, emails, addresses and your own notes are never sent.</div>
       </div>
       <div id="ask-log" style="max-height:340px;overflow-y:auto;padding:2px;"></div>
       <div class="chips" id="ask-sugg" style="margin:8px 0 6px;"></div>
@@ -423,7 +434,39 @@ var TRAFFIC_DAYS_FULL = 400;
 var trafficDaysLoaded = 0;
 var rowsById = {};        // every row the sheet holds for an id, newest first - the deduped list keeps only the newest
 var QUIET_DAYS = 7;       // a called lead with no follow-up booked goes back on the list after this
-var leads = [], views = [], qviews = [], waitlist = [], outarea = [], auths = {}, spends = {}, config = {}, filter = 'all', KEY = 'clpps-8k3v51';
+var leads = [], views = [], qviews = [], waitlist = [], outarea = [], auths = {}, spends = {}, config = {}, filter = 'all';
+/* The key the backend wants with every read and write. It used to be typed
+   into this page, which anyone can view the source of, so anyone who found
+   the page could read and change every customer. It lives on each phone now,
+   typed once, and the page carries nothing. */
+var KEY = '';
+try { KEY = localStorage.getItem('clpps_key') || ''; } catch (e) {}
+function needKey(msg){
+  var box = document.getElementById('login');
+  if (!box) return;
+  document.getElementById('login-msg').textContent = msg || '';
+  box.style.display = 'flex';
+  setTimeout(function(){ try { document.getElementById('login-key').focus(); } catch (e) {} }, 50);
+}
+function saveKey(){
+  var v = String(document.getElementById('login-key').value || '').trim();
+  if (!v){ document.getElementById('login-msg').textContent = 'Type the tracker password.'; return; }
+  KEY = v;
+  try { localStorage.setItem('clpps_key', v); } catch (e) {}
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('login-key').value = '';
+  loadLeads(true);
+}
+function forgetKey(){
+  KEY = '';
+  try { localStorage.removeItem('clpps_key'); } catch (e) {}
+  needKey('');
+}
+function badKey(){
+  KEY = '';
+  try { localStorage.removeItem('clpps_key'); } catch (e) {}
+  needKey('That password was not accepted. Check it and try again.');
+}
 var testLeads = [];       // forms sent from team phones: shown, never counted
 /* lastLoadAt = when we last ASKED. lastSyncAt = when real data last came
    back. They differ when the phone is offline or the script is slow, and
@@ -478,12 +521,15 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
   // The changing parameter means no cached entry can ever match, and
   // no-store says it plainly for anything in between.
   lastLoadAt = Date.now();
-  fetch(CRM_ENDPOINT + '?action=list&key=' + encodeURIComponent(KEY) +
-        '&days=' + days + '&_=' + Date.now(),
-        { cache: 'no-store' })
+  if (!KEY){ needKey(''); if (cb) cb(false); return; }
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, cache: 'no-store',
+        body: JSON.stringify({ action: 'list', key: KEY, days: days, _: Date.now() }) })
     .then(function(r){ return r.json(); })
     .then(function(d){
-      if (!d.ok){ if (cb) cb(false); return; }
+      if (!d.ok){ if (d.error === 'bad pin') badKey(); if (cb) cb(false); return; }
+      // an id is ours to make (letters, digits, - and _); anything else was
+      // posted by hand and would land inside an onclick handler
+      d.leads = (d.leads || []).filter(function(l){ return !l.id || /^[A-Za-z0-9_-]{1,64}$/.test(String(l.id)); });
       remoteLoaded = true;
       trafficDaysLoaded = days;
       lastSyncAt = Date.now();
@@ -959,7 +1005,7 @@ function renderInsights(){
     var mrBy = {}; man.forEach(function(l){ var r = fuParse(l.crmnotes).mr || (String(l.yard || '').match(/OVER/i) ? 'yard' : 'other'); mrBy[r] = (mrBy[r] || 0) + 1; });
     h += bar('By hand', wr(man), 100, wr(man) + '% of ' + man.length + (isNaN(closeDays(man)) ? '' : ' &middot; ' + closeDays(man).toFixed(0) + 'd to close'));
     h += bar('Instant price', wr(inst), 100, wr(inst) + '% of ' + inst.length + (isNaN(closeDays(inst)) ? '' : ' &middot; ' + closeDays(inst).toFixed(0) + 'd to close'));
-    h += '<div class="sub">Why by hand: ' + Object.keys(mrBy).map(function(k){ return ({ yard:'yard over ¼ acre', illinois:'Illinois', '5+ dogs':'5+ dogs', noprice:'site fault' })[k] || k; }).map(function(lbl, i){ return lbl + ' ' + mrBy[Object.keys(mrBy)[i]]; }).join(' &middot; ') +
+    h += '<div class="sub">Why by hand: ' + Object.keys(mrBy).map(function(k){ return ({ yard:'yard over ¼ acre', illinois:'Illinois', '5+ dogs':'5+ dogs', noprice:'site fault' })[k] || esc(k); }).map(function(lbl, i){ return lbl + ' ' + mrBy[Object.keys(mrBy)[i]]; }).join(' &middot; ') +
       '. Every one of these is a sale that needed a phone call instead of booking itself.</div>';
   } else h += '<div class="sub">No hand-priced leads in the window.</div>';
 
@@ -1113,7 +1159,7 @@ function manualWhy(mr, l){
   else if (mr === 'yard') why = 'yard is over &frac14; acre';
   else if (mr === '5+ dogs') why = '5 or more dogs';
   else if (mr === 'monthly plan retired') why = 'they asked for the monthly plan, which we retired';
-  else if (mr) why = mr;
+  else if (mr) why = esc(mr);   // the site writes the reason, but anyone can post one
   else {
     // worked back out of the row, for leads filed before [MR:] existed
     if (/OVER 1\/4|over 1\/4/i.test(String(l.yard || ''))) why = 'yard is over &frac14; acre';
@@ -1308,9 +1354,10 @@ function saveNote(id){
 }
 function post(body, okMsg){
   if (!CRM_ENDPOINT) return;
+  if (!body.key) body.key = KEY;   // every write from this page is signed; the backend trusts status and dates only when it is
   fetch(CRM_ENDPOINT, {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(body)})
     .then(function(r){ return r.json(); })
-    .then(function(d){ toast(d.ok ? okMsg : 'Save failed'); })
+    .then(function(d){ if (d && d.error === 'bad pin'){ badKey(); return; } toast(d.ok ? okMsg : 'Save failed'); })
     .catch(function(){ toast('Save failed, check connection'); });
 }
 var editing = null;
@@ -1501,7 +1548,9 @@ function csvValue(l, c){
 }
 function exportCsv(){
   if (!leads.length){ toast('Nothing to download yet'); return; }
-  var esc = function(v){ v = String(v == null ? '' : v); return '"' + v.replace(/"/g, '""') + '"'; };
+  // a value starting =, +, - or @ would run as a formula when the CSV is
+  // opened in Excel; a leading apostrophe makes it text there too
+  var esc = function(v){ v = String(v == null ? '' : v); if (/^[=+\-@]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; };
   var rows = [CSV_COLS.join(',')];
   leads.forEach(function(l){
     rows.push(CSV_COLS.map(function(c){ return esc(csvValue(l, c)); }).join(','));
@@ -1545,7 +1594,7 @@ function visible(){
   });
 }
 function esc(x){
-  return String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function parsePrice(l){
@@ -1690,15 +1739,15 @@ function gptContext(){
     var f = fuParse(l.crmnotes);
     var q = quoteState(l);
     var answer = q === 'accepted' ? 'SAID YES to the quote'
-               : q === 'declined' ? 'SAID NO to the quote' + (f.text ? ' because: ' + f.text : '')
+               : q === 'declined' ? 'SAID NO to the quote' + (f.dr ? ' (' + f.dr + ')' : '')
                : q === 'waiting'  ? 'shown a price, has not answered yet' : '';
     return [l.name || '(no name)', l.status || 'new', answer, planLabel(l.service), dogsLabel(l.dogs), l.price || 'no price',
             l.zip || '', f.src ? 'from ' + f.src : 'source unknown',
             'created ' + String(l.created || '').slice(0, 10),
             f.cd ? 'closed ' + f.cd : '', f.sd ? 'first visit ' + f.sd : '',
             auths[l.id] ? 'ACCEPTED QUOTE ' + auths[l.id] : '',
-            f.date ? 'follow up ' + f.date : '', f.wb ? 'we emailed them a follow-up on ' + f.wb : '',
-            f.text && q !== 'declined' ? 'notes: ' + f.text : ''
+            f.date ? 'follow up ' + f.date : '', f.wb ? 'we emailed them a follow-up on ' + f.wb : ''
+            // the office's own notes (gate codes, what was agreed) stay here
            ].filter(Boolean).join(' | ');
   }).join('\n');
   var v30 = views.filter(function(v){ return new Date(v.created) >= new Date(now - 30 * 86400000); }).length;
@@ -1783,8 +1832,13 @@ function askPush(who, html){
   var mine = who === 'me';
   var d = document.createElement('div');
   d.style.cssText = 'display:flex;justify-content:' + (mine ? 'flex-end' : 'flex-start') + ';margin-bottom:7px;';
-  d.innerHTML = '<div style="max-width:86%;background:' + (mine ? '#0F6E56' : '#F1F5F3') + ';color:' + (mine ? '#fff' : '#22302B') +
-    ';border-radius:12px;padding:9px 12px;font-size:13.5px;line-height:1.6;white-space:pre-wrap;">' + html + '</div>';
+  // text, never markup: answers are built from customer names and notes,
+  // which come from the public form. pre-wrap keeps the line breaks.
+  var bubble = document.createElement('div');
+  bubble.style.cssText = 'max-width:86%;background:' + (mine ? '#0F6E56' : '#F1F5F3') + ';color:' + (mine ? '#fff' : '#22302B') +
+    ';border-radius:12px;padding:9px 12px;font-size:13.5px;line-height:1.6;white-space:pre-wrap;';
+  if (who === 'bot-wait'){ bubble.innerHTML = html; } else { bubble.textContent = String(html || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'"); }
+  d.appendChild(bubble);
   log.appendChild(d);
   log.scrollTop = log.scrollHeight;
 }
@@ -1796,7 +1850,7 @@ function askSend(preset){
   el.value = '';
   if (gptEnabled()){
     var log = document.getElementById('ask-log');
-    askPush('bot', '<span id="gpt-wait" style="opacity:.6;">Thinking\u2026</span>');
+    askPush('bot-wait', '<span id="gpt-wait" style="opacity:.6;">Thinking\u2026</span>');
     var bubble = log.lastChild;
     gptAsk(qq, function(answer, err){
       if (answer){ bubble.querySelector('div').innerHTML = esc(answer); }
@@ -1941,7 +1995,7 @@ function askAnswer(qRaw){
     live.forEach(function(l){
       if ((l.status || 'new') !== 'closed') return;
       var pp = parsePrice(l); if (!pp) return;
-      if (pp.isMo){ mrrAll += pp.amt; if (fuParse(l.crmnotes).ic !== 'w') feesAll += 40; } else onceAll += pp.amt;
+      if (pp.isMo){ mrrAll += pp.amt; if (fuParse(l.crmnotes).ic !== 'w') feesAll += CLPPS_PRICING.initialClean; } else onceAll += pp.amt;
     });
     var sp2 = CHANNELS.reduce(function(a, c){ return a + spendFor(mk, c.k); }, 0);
     var o2 = monthLabel(mk) + ' so far:\n  ' + mb2.totals.closed + ' closed' +
@@ -2707,7 +2761,9 @@ function saveLifetime(){
 }
 function reviewLink(){
   var c = config.review_link;
-  return c ? (c.value || '') : DEFAULT_REVIEW_LINK;   // saved value wins, even if blanked on purpose
+  if (!c) return DEFAULT_REVIEW_LINK;
+  var v = String(c.value || '');
+  return v === '' ? '' : (/^https:\/\/[^\s"'<>]+$/.test(v) ? v : DEFAULT_REVIEW_LINK);   // blanked on purpose stays blank; junk falls back
 }
 function saveReviewLink(){
   var v = String(document.getElementById('rv-link').value || '').trim();
@@ -3001,7 +3057,7 @@ function sgImport(){
       return;
     }
     var r = rows[i++]; var l = r.lead;
-    fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'lead', lead: l }) })
+    fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'lead', key: KEY, lead: l }) })
       .then(function(x){ return x.json(); }).then(function(d){ if (d && d.ok) ok++; else bad++; }).catch(function(){ bad++; })
       .then(function(){ btn.textContent = 'Importing ' + i + ' of ' + rows.length + '\u2026'; setTimeout(next, 120); });
   };
@@ -3232,9 +3288,9 @@ function money(n){ return '$' + Math.round(n).toLocaleString(); }
 
 /* Every closed deal in a month, split by where the lead came from. */
 function monthBreakdown(mk){
-  var by = {}, totals = { mrr: 0, fees: 0, once: 0, leads: 0, closed: 0 };
+  var by = {}, totals = { mrr: 0, fees: 0, once: 0, leads: 0, closed: 0, cxv: 0, cxy1: 0 };
   var bucket = function(s){
-    if (!by[s]) by[s] = { src: s, leads: 0, closed: 0, mrr: 0, fees: 0, once: 0 };
+    if (!by[s]) by[s] = { src: s, leads: 0, closed: 0, mrr: 0, fees: 0, once: 0, cxv: 0, cxy1: 0 };
     return by[s];
   };
   CHANNELS.forEach(function(c){ bucket(c.k); });   // paid channels always listed
@@ -3253,8 +3309,14 @@ function monthBreakdown(mk){
     var pp = parsePrice(l);
     if (!pp) return;
     if (pp.isMo){
-      b.mrr += pp.amt; totals.mrr += pp.amt;
-      if (fu.ic !== 'w'){ b.fees += 40; totals.fees += 40; }
+      // a customer who has already left is worth what they actually paid,
+      // not the average lifetime; the average is for the ones still here
+      if (stB === 'cancelled' && fu.cx){
+        var ten = Math.max(1, Math.round((new Date(fu.cx + 'T12:00:00') - new Date(String(cd).slice(0, 10) + 'T12:00:00')) / (30.44 * 864e5)));
+        b.cxv += pp.amt * ten; totals.cxv += pp.amt * ten;
+        b.cxy1 += pp.amt * Math.min(12, ten); totals.cxy1 += pp.amt * Math.min(12, ten);
+      } else { b.mrr += pp.amt; totals.mrr += pp.amt; }
+      if (fu.ic !== 'w'){ b.fees += CLPPS_PRICING.initialClean; totals.fees += CLPPS_PRICING.initialClean; }
     } else {
       b.once += pp.amt; totals.once += pp.amt;
     }
@@ -3265,11 +3327,11 @@ function monthBreakdown(mk){
   // more". Reporting only the first is what made the ads look weak.
   var LM = lifetimeMonths();
   Object.keys(by).forEach(function(k){
-    by[k].year1 = by[k].mrr * 12 + by[k].fees + by[k].once;
-    by[k].ltv   = by[k].mrr * LM + by[k].fees + by[k].once;
+    by[k].year1 = by[k].mrr * 12 + by[k].cxy1 + by[k].fees + by[k].once;
+    by[k].ltv   = by[k].mrr * LM + by[k].cxv + by[k].fees + by[k].once;
   });
-  totals.year1 = totals.mrr * 12 + totals.fees + totals.once;
-  totals.ltv   = totals.mrr * LM + totals.fees + totals.once;
+  totals.year1 = totals.mrr * 12 + totals.cxy1 + totals.fees + totals.once;
+  totals.ltv   = totals.mrr * LM + totals.cxv + totals.fees + totals.once;
   return { by: by, totals: totals };
 }
 function spendFor(mk, ch){ return (spends[mk + '|' + ch] || {}).amt || 0; }
@@ -3866,9 +3928,9 @@ function render(){
     var fuBadge = '';
     if (fu.date && (l.status || 'new') !== 'closed' && (l.status || 'new') !== 'lost'){
       if (fu.date <= todayK){
-        fuBadge = '<div style="color:#c0392b;font-size:12px;font-weight:700;margin-top:6px;">&#128276; Follow-up due ' + (fu.date === todayK ? 'TODAY' : fu.date) + '</div>';
+        fuBadge = '<div style="color:#c0392b;font-size:12px;font-weight:700;margin-top:6px;">&#128276; Follow-up due ' + (fu.date === todayK ? 'TODAY' : esc(fu.date)) + '</div>';
       } else {
-        fuBadge = '<div style="color:#0F6E56;font-size:12px;font-weight:600;margin-top:6px;">&#128197; Follow-up set for ' + fu.date + '</div>';
+        fuBadge = '<div style="color:#0F6E56;font-size:12px;font-weight:600;margin-top:6px;">&#128197; Follow-up set for ' + esc(fu.date) + '</div>';
       }
     }
     /* A lead an hour old and a lead a day old used to look the same. Leads
