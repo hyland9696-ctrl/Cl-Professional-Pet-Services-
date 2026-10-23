@@ -99,16 +99,6 @@
 </head>
 <body>
 
-<div id="login" style="display:none;position:fixed;inset:0;z-index:500;background:#0F6E56;align-items:center;justify-content:center;padding:24px;">
-  <div style="background:#fff;border-radius:16px;padding:22px 18px;max-width:360px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.3);">
-    <div style="font-weight:800;font-size:17px;margin-bottom:6px;">Lead Tracker</div>
-    <div style="font-size:13px;color:#555;line-height:1.5;margin-bottom:12px;">Enter the tracker password once on this phone. It is remembered here and sent with every save; it is not in the page.</div>
-    <input id="login-key" type="password" autocomplete="current-password" placeholder="Tracker password" onkeydown="if(event.key==='Enter')saveKey()" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ccc;border-radius:10px;font-size:16px;font-family:inherit;">
-    <div id="login-msg" style="color:#c0392b;font-size:12.5px;min-height:18px;margin:6px 0;"></div>
-    <button onclick="saveKey()" style="width:100%;background:#188663;color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;min-height:46px;">Open the tracker</button>
-    <div style="font-size:11.5px;color:#707070;margin-top:10px;line-height:1.5;">The password is set by running <code>setupTrackerKey</code> in the Apps Script project; it shows in the execution log. Ask Jesse.</div>
-  </div>
-</div>
 <div id="app">
   <header>
     <img src="../images/logo.png" alt="">
@@ -116,7 +106,6 @@
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
       <button onclick="loadLeads(true)">&#8635; Refresh</button>
       <span id="syncAge" style="font-size:10.5px;opacity:.85;"></span>
-      <button onclick="forgetKey()" title="Forget the tracker password on this phone" style="background:none;border:none;color:#fff;opacity:.7;font-size:10.5px;cursor:pointer;font-family:inherit;padding:10px 0;min-height:36px;">sign out</button>
     </div>
   </header>
   <div class="wrap">
@@ -435,38 +424,11 @@ var trafficDaysLoaded = 0;
 var rowsById = {};        // every row the sheet holds for an id, newest first - the deduped list keeps only the newest
 var QUIET_DAYS = 7;       // a called lead with no follow-up booked goes back on the list after this
 var leads = [], views = [], qviews = [], waitlist = [], outarea = [], auths = {}, spends = {}, config = {}, filter = 'all';
-/* The key the backend wants with every read and write. It used to be typed
-   into this page, which anyone can view the source of, so anyone who found
-   the page could read and change every customer. It lives on each phone now,
-   typed once, and the page carries nothing. */
-var KEY = '';
-try { KEY = localStorage.getItem('clpps_key') || ''; } catch (e) {}
-function needKey(msg){
-  var box = document.getElementById('login');
-  if (!box) return;
-  document.getElementById('login-msg').textContent = msg || '';
-  box.style.display = 'flex';
-  setTimeout(function(){ try { document.getElementById('login-key').focus(); } catch (e) {} }, 50);
-}
-function saveKey(){
-  var v = String(document.getElementById('login-key').value || '').trim();
-  if (!v){ document.getElementById('login-msg').textContent = 'Type the tracker password.'; return; }
-  KEY = v;
-  try { localStorage.setItem('clpps_key', v); } catch (e) {}
-  document.getElementById('login').style.display = 'none';
-  document.getElementById('login-key').value = '';
-  loadLeads(true);
-}
-function forgetKey(){
-  KEY = '';
-  try { localStorage.removeItem('clpps_key'); } catch (e) {}
-  needKey('');
-}
-function badKey(){
-  KEY = '';
-  try { localStorage.removeItem('clpps_key'); } catch (e) {}
-  needKey('That password was not accepted. Check it and try again.');
-}
+/* The key the backend wants with every read and write. Jesse and Corey
+   chose to keep it built into the page rather than typed per phone. */
+var KEY = 'clpps-8k3v51';
+function needKey(){}
+function badKey(){}
 var testLeads = [];       // forms sent from team phones: shown, never counted
 /* lastLoadAt = when we last ASKED. lastSyncAt = when real data last came
    back. They differ when the phone is offline or the script is slow, and

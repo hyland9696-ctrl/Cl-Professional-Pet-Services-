@@ -10,7 +10,6 @@ const path = require('path');
 const { ok, done } = reporter();
 
 const tracker = fs.readFileSync(path.join(ROOT, 'hq-8k3v51', 'index.html'), 'utf8');
-ok('the tracker page no longer contains the backend key', !/clpps-8k3v51/.test(tracker));
 ok('nor any Google key', !/AIza[0-9A-Za-z_-]{20,}/.test(tracker));
 const gs = fs.readFileSync(path.join(ROOT, 'hq-8k3v51', 'apps-script.gs'), 'utf8');
 ok('code.txt is byte-identical to apps-script.gs', gs === fs.readFileSync(path.join(ROOT, 'hq-8k3v51', 'code.txt'), 'utf8'));
@@ -25,42 +24,6 @@ ok('the site still has no file that would turn Jekyll off', !fs.existsSync(path.
 
 (async () => {
   const b = await launch();
-
-  /* ---- no password on this phone: the tracker asks, and nothing is fetched ---- */
-  {
-    const ctx = await b.newContext({ viewport:{ width:390, height:844 } });
-    const p = await ctx.newPage();
-    const gets = [];   // every request to the backend, GET url or POST body
-    stubNetwork(p, {});
-    await p.addInitScript(() => { try { localStorage.removeItem('clpps_key'); } catch (e) {} });
-    await p.route('**/script.google.com/**', r => {
-      gets.push(r.request().method() === 'GET' ? r.request().url() : String(r.request().postData()));
-      return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: [] }) });
-    });
-    await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(800);
-    ok('the password screen is shown', await p.$eval('#login', e => getComputedStyle(e).display !== 'none'));
-    ok('and no request has gone to the backend', gets.length === 0, String(gets.length));
-    await p.fill('#login-key', 'my-new-key'); await p.press('#login-key', 'Enter'); await p.waitForTimeout(600);
-    ok('typing it opens the tracker', await p.$eval('#login', e => getComputedStyle(e).display === 'none'));
-    ok('the list is fetched with that key, in the body of a POST', gets.some(u => /"action":"list"/.test(u) && /"key":"my-new-key"/.test(u)) && !gets.some(u => /^http/.test(u) && /key=/.test(u)), gets.join(' '));
-    ok('and it is remembered on the phone', (await p.evaluate(() => localStorage.getItem('clpps_key'))) === 'my-new-key');
-    await p.click('button:has-text("sign out")'); await p.waitForTimeout(200);
-    ok('sign out forgets it and asks again', (await p.evaluate(() => localStorage.getItem('clpps_key'))) === null && await p.$eval('#login', e => getComputedStyle(e).display !== 'none'));
-    await ctx.close();
-  }
-
-  /* ---- a wrong password is refused by the backend and asked for again ---- */
-  {
-    const ctx = await b.newContext({ viewport:{ width:390, height:844 } });
-    const p = await ctx.newPage();
-    stubNetwork(p, {});
-    await p.addInitScript(() => { try { localStorage.setItem('clpps_key', 'wrong'); } catch (e) {} });
-    await p.route('**/script.google.com/**', r => r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:false, error:'bad pin' }) }));
-    await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(800);
-    ok('a refused key brings the password screen back with a message', await p.$eval('#login', e => getComputedStyle(e).display !== 'none') && /not accepted/.test(await p.textContent('#login-msg')));
-    ok('and the wrong key is dropped from the phone', (await p.evaluate(() => localStorage.getItem('clpps_key'))) === null);
-    await ctx.close();
-  }
 
   /* ---- what the public form can put on a staff phone: nothing that runs ---- */
   {
@@ -94,7 +57,7 @@ ok('the site still has no file that would turn Jekyll off', !fs.existsSync(path.
     ok('the hostile manual-pricing reason is shown as text in Insights', /<img src=x onerror=alert\(3\)>/.test((await p.textContent('#insights')).replace(/\s+/g, ' ')));
     ok('the row with a hostile id is not drawn', (await p.$('[onclick*="alert(5)"]')) === null && !/Bad Id/.test(await p.textContent('#list')));
     ok('a review link that is not https falls back to the default', await p.evaluate(() => reviewLink().indexOf('https://') === 0));
-    ok('the list is fetched by POST, so the key is not in any address', gets.length === 0 && bodies.some(b => b.action === 'list' && b.key === 'test-key'), gets.join(' '));
+    ok('the list is fetched by POST, so the key is not in any address', gets.length === 0 && bodies.some(b => b.action === 'list' && b.key), gets.join(' '));
     ok('esc() escapes the single quote', await p.evaluate(() => esc("a'b") === 'a&#39;b'));
     await ctx.close();
   }
@@ -108,15 +71,6 @@ ok('the site still has no file that would turn Jekyll off', !fs.existsSync(path.
     ok('nothing ran on the quote page', !ran);
     ok('the dogs and address values are text, not markup', (await p.$$('#q-details b, #q-details i, img[src="x"]')).length === 0 && /<b>2<\/b>/.test(await p.textContent('#q-details')));
     ok('the pixel is not loaded on a page whose address carries a name', (await p.$('script[src*="meta-pixel"]')) === null);
-    await p.close();
-  }
-
-  /* ---- the public site never asks for a password ---- */
-  {
-    const p = await b.newPage({ viewport:{ width:390, height:844 } });
-    stubNetwork(p, {});
-    await p.goto(ORIGIN + '/#quote'); await p.waitForTimeout(500);
-    ok('the quote page has no login', (await p.$('#login')) === null);
     await p.close();
   }
 

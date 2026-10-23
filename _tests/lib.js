@@ -76,8 +76,6 @@ function loadSiteScript(name) {
 /* The outside world, stubbed. Nothing in these tests may touch the real
    spreadsheet, the real inbox or Facebook. */
 function stubNetwork(page, collect) {
-  // the tracker asks for its password once per phone; the tests have one
-  page.addInitScript(() => { try { localStorage.setItem('clpps_key', 'test-key'); } catch (e) {} });
   const posts = (collect && collect.posts) || [];
   const mails = (collect && collect.mails) || [];
   page.route('**/script.google.com/**', r => {
