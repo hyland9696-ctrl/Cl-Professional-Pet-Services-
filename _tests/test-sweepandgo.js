@@ -67,10 +67,13 @@ fs.writeFileSync(CLI, [
   ok('new versus already-here', /7 new to the tracker · 🔄 1 already here/.test(out), out.slice(0, 200));
   ok('the client with no plan is listed, not imported', /1 in the client list with no active plan/.test(out) && /Never Started/.test(out));
   ok('only the commercial account is missing a phone (it is not in the client list)', /1 had no phone[^:]*: Greens HOA/.test(out), out.slice(0, 400));
-  await p.click('#sg-go'); await p.waitForTimeout(8 * 200 + 1500);
-  // the import's own writes are silent; the stub's reload re-pushes rows the
-  // fake sheet "never saw", which a real sheet would not do
+  await p.click('#sg-go');
+  // snapshot as soon as the import says Done: a moment later the page
+  // reloads and re-pushes rows the fake sheet "never saw", which a real
+  // sheet would not do
+  await p.waitForFunction(() => /^Done/.test(document.getElementById('sg-go').textContent), null, { timeout: 15000 });
   const sent = posts.filter(x => x.action === 'lead' && x.lead && x.lead.silent === 1).map(x => x.lead);
+  await p.waitForTimeout(1800);
   ok('eight rows are written, all silent', sent.length === 8, String(sent.length));
   const by = {}; sent.forEach(l => { by[l.name] = l; });
 

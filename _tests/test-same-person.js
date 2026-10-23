@@ -96,6 +96,26 @@ const { ok, done } = reporter();
     await ctx.close();
   }
 
+  /* ---- a lead this phone remembers but the sheet does not is re-pushed silently ---- */
+  {
+    const ctx = await b.newContext({ viewport:{ width:430, height:1400 } });
+    const p = await ctx.newPage();
+    const posts = [];
+    await p.addInitScript(() => {
+      try { localStorage.setItem('clpps_leads', JSON.stringify([{ id:'local1', type:'ENQUIRY', name:'Cached Cathy', phone:'6363754399', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'new', crmnotes:'[QA:w] ', created: new Date().toISOString() }])); } catch (e) {}
+    });
+    stubNetwork(p, {});
+    await p.route('**/script.google.com/**', r => {
+      if (r.request().method() === 'POST'){ try { posts.push(JSON.parse(r.request().postData())); } catch (e) {} }
+      return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: [] }) });
+    });
+    await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(1200);
+    const rp = posts.find(x => x.action === 'lead' && x.lead && x.lead.id === 'local1');
+    ok('the cached lead is pushed back to the sheet', !!rp);
+    ok('and silently: it was never news to the office', rp && rp.lead.silent === 1, rp && JSON.stringify(rp.lead.silent));
+    await ctx.close();
+  }
+
   await b.close();
   done();
 })();

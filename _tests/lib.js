@@ -23,7 +23,7 @@ function chromePath() {
                         .sort((a, b) => (parseInt(b.replace(/\D/g, ''), 10) || 0) -
                                         (parseInt(a.replace(/\D/g, ''), 10) || 0));
     for (const d of dirs) {
-      for (const rel of ['chrome-linux/chrome', 'chrome-mac/Chromium.app/Contents/MacOS/Chromium']) {
+      for (const rel of ['chrome-linux/chrome', 'chrome-linux64/chrome', 'chrome-mac/Chromium.app/Contents/MacOS/Chromium']) {
         const p = path.join(r, d, rel);
         if (fs.existsSync(p)) return p;
       }

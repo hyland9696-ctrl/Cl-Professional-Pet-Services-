@@ -557,7 +557,9 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
         if (!seen[l.id] && !deadIds[l.id]){
           seen[l.id] = true;
           merged.push(l);
-          post({action:'lead', lead:l});
+          // a row this phone already knows about is never news to the office
+          var copy = JSON.parse(JSON.stringify(l)); copy.silent = 1;
+          post({action:'lead', lead:copy});
         }
       });
       leads = merged;

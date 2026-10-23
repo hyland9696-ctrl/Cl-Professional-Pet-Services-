@@ -138,6 +138,14 @@ function notifyLead_(l) {
   // still has to be written so the sheet stays current, but mailing it again
   // means one undecided customer fills the inbox on their own.
   if (l.silent) return;
+  // Belt and braces: whatever asked for this email, the same lead's same
+  // kind of email goes out at most once every six hours. A customer who
+  // reloads the quote page four times is one lead, not four.
+  try {
+    var cache = CacheService.getScriptCache(), nk = 'ntf_' + String(l.id || '') + '_' + t;
+    if (l.id && cache.get(nk)) return;
+    if (l.id) cache.put(nk, '1', 6 * 3600);
+  } catch (e) {}
   var subject, intro;
   if (t === 'AUTH') {
     subject = '\u2705 QUOTE AUTHORIZED: ' + (l.name || 'Customer') + (l.price ? ' at ' + l.price : '');
