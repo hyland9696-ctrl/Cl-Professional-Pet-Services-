@@ -57,6 +57,25 @@ CITIES = [
     ('st-louis',         'St. Louis',        'MO', '63105', 'St. Louis County',   False),
     ('pacific',          'Pacific',          'MO', '63069', 'Franklin County',    False),
     ('belleville-il',    'Belleville',       'IL', '62220', 'St. Clair County',   False),
+    # Added Nov 2026: every town with customers on the books or a priced ZIP
+    # and no page of its own. Jesse: "make sure all pages are about that city".
+    ('weldon-spring',    'Weldon Spring',    'MO', '63304', 'St. Charles County', True),
+    ('eureka',           'Eureka',           'MO', '63025', 'St. Louis County',   True),
+    ('hazelwood',        'Hazelwood',        'MO', '63042', 'St. Louis County',   False),
+    ('maryland-heights', 'Maryland Heights', 'MO', '63043', 'St. Louis County',   False),
+    ('kirkwood',         'Kirkwood',         'MO', '63122', 'St. Louis County',   False),
+    ('ladue',            'Ladue',            'MO', '63124', 'St. Louis County',   True),
+    ('des-peres',        'Des Peres',        'MO', '63131', 'St. Louis County',   False),
+    ('fenton',           'Fenton',           'MO', '63026', 'St. Louis County',   False),
+    ('manchester',       'Manchester',       'MO', '63021', 'St. Louis County',   False),
+    ('arnold',           'Arnold',           'MO', '63010', 'Jefferson County',   False),
+    ('troy',             'Troy',             'MO', '63379', 'Lincoln County',     True),
+    ('edwardsville-il',  'Edwardsville',     'IL', '62025', 'Madison County',     False),
+    ('alton-il',         'Alton',            'IL', '62002', 'Madison County',     False),
+    ('collinsville-il',  'Collinsville',     'IL', '62234', 'Madison County',     False),
+    ('ofallon-il',       "O'Fallon",         'IL', '62269', 'St. Clair County',   False),
+    ('columbia-il',      'Columbia',         'IL', '62236', 'Monroe County',      True),
+    ('waterloo-il',      'Waterloo',         'IL', '62298', 'Monroe County',      True),
 ]
 
 # The hand-written part of a NEW page: two lead paragraphs that could only
@@ -77,6 +96,74 @@ COPY = {
     'creve-coeur': [
         "Creve Coeur is where our St. Louis County route meets the city: the neighborhoods between Olive Boulevard and Ladue Road, around Creve Coeur Park and along Lindbergh, with the kind of established, tree-lined yards that collect more than a new subdivision ever does.",
         "Both halves of Creve Coeur are on our list - the 63141 side and the 63146 side - and the form knows which is which, so the number it shows is the number we charge. Mature yards with privacy fences are our bread and butter."
+    ],
+    'weldon-spring': [
+        "Weldon Spring is on the way to everywhere we go: Highway 40 and Highway 94 run right through it, so Whitmoor, the subdivisions off Independence Road and the streets behind Francis Howell High are on a weekly route already. Several Whitmoor Drive neighbors are customers, which is the surest sign a street is easy for us to serve well.",
+        "Yards here lean large, especially around the country club and toward the Busch Conservation Area, so the honest line is this: a lot up to a quarter acre gets its price on screen in the form below, and a bigger one gets a real quote from us within a business day. Either way, haul-away and photo proof after every visit."
+    ],
+    'eureka': [
+        "Eureka is the southern end of our west-county route, down Highway 109 from Wildwood and along I-44, and the trucks are in Rockwood Parc, Forest Run and the subdivisions off Williams Road every week. Customers in both already, so a new yard here slots in rather than starting a route from scratch.",
+        "Between the Meramec, Route 66 State Park and the bigger lots toward Allenton, Eureka yards come in every size. Up to a quarter acre, the form below shows your price in under a minute; larger than that, we look at the lot properly and send a real number within a business day."
+    ],
+    'hazelwood': [
+        "Hazelwood is north county proper: the neighborhoods between Howdershell Road and Lindbergh, around Hazelwood Central and east toward the airport, with fenced yards built for dogs and the Florissant route next door. Riderwood and Lynn Haven are on our list, so your street probably is too.",
+        "Hazelwood is a Value-tier ZIP, which means the lowest price on our table, and the form below shows it for your yard in under a minute. Weekly is the plan most Hazelwood customers pick; every other week is there if the yard is small or the dog is."
+    ],
+    'maryland-heights': [
+        "Maryland Heights sits where our St. Charles County route crosses the river into St. Louis County, so the streets off Dorsett Road, around Creve Coeur Lake Park and up toward Westport are passed twice a week on the way to somewhere else. Millwell Drive has been on the schedule for over a year.",
+        "Mostly established subdivisions with privacy fences and a dog or two, which is exactly the yard a weekly scoop was built for. Maryland Heights prices at our Standard rate, and the form below shows your number instantly for any lot up to a quarter acre."
+    ],
+    'kirkwood': [
+        "Kirkwood is old trees, deep lots and dogs with a lot of yard to use: the streets between Manchester and Big Bend, around Kirkwood Park and the Magic House, out Geyer and Dougherty Ferry. Our Des Peres and Sunset Hills customers are minutes away, so Kirkwood is on the same weekly loop.",
+        "Those deep Kirkwood lots are why people call us: more ground than a weekend has time for. Up to a quarter acre the form prices your yard on the spot; the bigger Kirkwood properties get a hand-built quote within a business day, and either way every visit ends with a latched gate and a photo."
+    ],
+    'ladue': [
+        "Ladue is the heart of our central-county route: the lanes off Lindbergh and Clayton Road, around Tilles Park and Ladue Horton Watkins, where a yard can be a quarter acre or two. We are already on Rio Vista and in the streets around it every week.",
+        "Many Ladue lots run well over a quarter acre, so most Ladue yards get a quote built by hand rather than a table price: fill in the form and we look at the property and send a real number within a business day. For the smaller lots, the price is on screen right away. Discreet, insured, gate always latched."
+    ],
+    'des-peres': [
+        "Des Peres is Manchester Road, West County Center and the quiet subdivisions behind them along Dougherty Ferry and Ballas, and it is already a stop on our weekly west-county route. Chaltenham is on the schedule, and the streets around Des Peres Park are a short hop from it.",
+        "Established yards, good fences, families with two dogs: Des Peres is a straightforward yard to serve well. It prices at our Premium tier, the number is on screen in under a minute for a lot up to a quarter acre, and photo proof follows every visit so you know it was done."
+    ],
+    'fenton': [
+        "Fenton is the Meramec side of our south-county route, off Highway 30 and Highway 141, from Gravois Bluffs out to Fenton City Park and the subdivisions along Old Gravois. Our Valley Park and High Ridge customers are minutes away, so Fenton is on the same weekly loop.",
+        "Fenton prices at our Standard rate and the form below shows your number instantly for any yard up to a quarter acre. Weekly is the most popular plan here; every other week is the economical choice for a smaller yard or an older dog."
+    ],
+    'manchester': [
+        "Manchester shares a ZIP with Ballwin and shares our route with it too: the neighborhoods off Manchester Road and Highway 141, around Paul A. Schroeder Park and up toward Clarkson. We have been in these streets weekly for a long time, which is why the price is the same as Ballwin's.",
+        "Fenced subdivision yards under a quarter acre are the Manchester norm, so the form below has your exact price in under a minute. Already have a scooper? Compare the price and the photo proof after every visit; we think it holds up."
+    ],
+    'arnold': [
+        "Arnold is the top of Jefferson County and the start of our I-55 route south: the neighborhoods off Jeffco Boulevard and Highway 141, around Arnold City Park and the Rec Center, and out Richardson Road. Imperial and Barnhart are the next stops, so Arnold is served weekly, not once in a while.",
+        "Arnold prices at our Core tier, a little under Standard, and the form below shows your number in under a minute for a yard up to a quarter acre. Haul-away is included on every visit, which matters when the nearest bin is a long driveway away."
+    ],
+    'troy': [
+        "Troy is the far north end of our routes, up Highway 61 past Moscow Mills, and we are there every week: Glen Court is on the schedule, and the subdivisions off Highway 47 and around the Lincoln County fairgrounds are the same trip. A Troy yard joins a route that already runs, which is what keeps the price the same as St. Peters.",
+        "Lots here run bigger than in the suburbs, so two things are true: a yard up to a quarter acre gets its price on screen in the form below, and anything larger, acreage especially, gets a real quote from us within a business day. Every visit, waste hauled away and a photo to prove it."
+    ],
+    'edwardsville-il': [
+        "Edwardsville is our main stop across the river in Madison County: the streets around SIUE, Leclaire and the subdivisions off Route 159 and Governors' Parkway, with Glen Carbon and Maryville on the same loop. Van Etten families on the Tanzanite Trail side are already customers.",
+        "Illinois yards price off the same table as Missouri now, and Edwardsville sits at our Premium tier. Type your ZIP in the form below and the number is on screen in under a minute, for any yard up to a quarter acre; larger lots toward Moro and the county line get a real quote within a business day."
+    ],
+    'alton-il': [
+        "Alton is the river town at the top of the Metro East, and our Madison County route runs up Route 3 and the Great River Road to get there: the streets above the riverfront, around Alton High and out toward Godfrey, plus Oakhurst and the neighborhoods behind it where we already have customers.",
+        "Alton is a Value-tier ZIP, the lowest price on our table, and the form below shows it for your yard instantly. Older houses here often mean older fences and gates; we latch every one and send a photo after every visit, so you never wonder whether the dog can get out."
+    ],
+    'collinsville-il': [
+        "Collinsville is the middle of our Metro East route, at the I-55 and I-70 split: the neighborhoods up the hill from Route 159, around Woodland Park and Collinsville High, with Maryville and Caseyville a few minutes either side. We pass the catsup bottle most weeks.",
+        "Collinsville prices at our Core tier, a little under Standard, and the form below shows your number in under a minute for a yard up to a quarter acre. Weekly is the plan most Collinsville customers choose; every other week is there for a smaller yard."
+    ],
+    'ofallon-il': [
+        "O'Fallon, Illinois is the biggest town on our St. Clair County route and the one we reach first off I-64: the subdivisions off Route 50 and Green Mount Road, around O'Fallon Township High and Family Sports Park, with Shiloh sharing the ZIP and Scott Air Force Base families a few minutes east.",
+        "O'Fallon IL prices at our Standard rate, the same as St. Peters, and the form below shows your exact number instantly for any yard up to a quarter acre. Military and first responder discounts apply here as everywhere we work; mention it when we call."
+    ],
+    'columbia-il': [
+        "Columbia is the Monroe County end of our Illinois route, down Route 3 from Dupo: Main Street and the bluffs, the newer subdivisions off Admiral Parkway and Bluffside, and the big lots toward the county line. A fast drive from the Jefferson Barracks bridge, which is why it can be weekly.",
+        "Columbia lots run large, so two things are true: a yard up to a quarter acre gets its price on screen in the form below, and acreage gets a real quote from us within a business day. Columbia sits at our Premium tier; every visit includes haul-away and a photo."
+    ],
+    'waterloo-il': [
+        "Waterloo is the courthouse square, Rogers Street and the subdivisions spreading out along Route 3 and Route 156, and it is the furthest south we run in Illinois: a Columbia customer and a Waterloo customer are the same trip, which is what makes a weekly route here work.",
+        "Many Waterloo yards are well over a quarter acre, so most get a quote built by hand: fill in the form and we look at the lot and send a real number within a business day. For the in-town lots, the price is on screen in under a minute, at our Standard rate."
     ],
     'ballwin': [
         "Ballwin and Manchester are the backbone of our west-county route - the long-settled neighborhoods off Manchester Road, Clayton Road and Holloway, around Vlasis Park, where yards are big enough to need help and fenced enough to keep a dog in all day.",
@@ -390,7 +477,7 @@ def hub_page():
     by_county = {}
     for slug, name, state, zip_, county, big in CITIES:
         by_county.setdefault(county, []).append((slug, name, state))
-    order = ['St. Charles County', 'St. Louis County', 'Franklin County', 'St. Clair County', 'Madison County', 'Monroe County', 'Jefferson County']
+    order = ['St. Charles County', 'St. Louis County', 'Jefferson County', 'Franklin County', 'Lincoln County', 'Madison County', 'St. Clair County', 'Monroe County']
     body = ['<h1>Pet Waste Removal Service Areas <span>across the St. Louis metro</span></h1>',
             '<p class="lead">We are based in St. Peters and run scheduled routes through St. Charles, St. Louis, Jefferson, Franklin, Warren and Lincoln counties in Missouri, and across the river through Madison, St. Clair and Monroe counties in Illinois. Every city below has its own page with local prices; every ZIP code we serve is listed underneath.</p>',
             '<div class="btns"><a class="cta big" href="/#quote">Get My Price Online</a><a class="btn2" href="tel:+16363754342">Call (636) 375-4342</a></div>']

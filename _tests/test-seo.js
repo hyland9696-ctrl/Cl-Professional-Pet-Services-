@@ -87,7 +87,7 @@ ok('the footer links the hub and the commercial page', /href="\/service-areas\/"
 // the hub page
 const hub = fs.readFileSync(path.join(ROOT, 'service-areas', 'index.html'), 'utf8');
 const cityLinks = [...hub.matchAll(/href="\/([a-z-]+)\/"><strong>/g)].map(m => m[1]);
-ok('the hub links every city page', cityLinks.length === 15, cityLinks.join(' '));
+ok('the hub links every city page', cityLinks.length === 32, cityLinks.join(' '));
 ok('the hub lists the ZIP codes we serve, from the engine', /<code>63376<\/code>/.test(hub) && /<code>63141<\/code>/.test(hub));
 ok('the hub lists Illinois ZIPs in their tiers, not as priced by hand', !/priced by hand/.test(hub) && /<code>62234<\/code>/.test(hub) && /<code>62298<\/code>/.test(hub));
 ok('the hub is grouped by county', /<h2>St\. Charles County<\/h2>/.test(hub) && /<h2>St\. Louis County<\/h2>/.test(hub));

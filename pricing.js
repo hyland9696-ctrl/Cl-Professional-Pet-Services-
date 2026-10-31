@@ -49,6 +49,16 @@ var CLPPS_PRICING = {
      answer when the website cannot reach the tracker's backend. */
   deoSeasonDefault: 'off',
   maxDogs: 4,           // 5+ is a custom quote
+  /* Every price decision, dated, so the tracker can compare the quotes
+     before and after it. Add a line here whenever a price or a tier moves;
+     nothing else needs touching. */
+  changes: [
+    { date: '2026-09-08', what: 'Monthly (once-a-month) plan retired' },
+    { date: '2026-09-09', what: '$40 initial clean waived for new recurring customers' },
+    { date: '2026-10-13', what: 'Franklin County towns moved to Value' },
+    { date: '2026-10-21', what: 'Illinois priced off the table; 128 ZIPs placed in tiers' },
+    { date: '2026-10-21', what: 'Lincoln County moved onto the income data (Troy to Standard)' }
+  ],
   zips: {
     '63376':'Standard','63301':'Standard','63303':'Standard','63304':'Premium',
     '63366':'Standard','63368':'Standard','63385':'Premium','63367':'Premium',

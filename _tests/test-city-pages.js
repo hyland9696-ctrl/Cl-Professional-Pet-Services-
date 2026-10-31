@@ -17,7 +17,7 @@ const gen = fs.readFileSync(path.join(ROOT, 'tools', 'city-pages.py'), 'utf8');
 // and the first version of this regex stopped at it and silently skipped that city
 const CITIES = [...gen.matchAll(/\('([a-z-]+)',\s*(?:"([^"]+)"|'([^']+)'),\s*'([A-Z]{2})',\s*'(\d{5})'/g)]
   .map(m => ({ slug: m[1], name: m[2] || m[3], state: m[4], zip: m[5] }));
-ok('the generator lists all fifteen cities (O\'Fallon included)', CITIES.length === 15 && CITIES.some(c => c.slug === 'ofallon'), CITIES.map(c => c.slug).join(' '));
+ok('the generator lists all thirty-two cities (O\'Fallon included)', CITIES.length === 32 && CITIES.some(c => c.slug === 'ofallon'), CITIES.map(c => c.slug).join(' '));
 
 ok('the generator says every page is in step with the list', (() => {
   try { execFileSync('python3', [path.join(ROOT, 'tools', 'city-pages.py'), '--check'], { stdio: 'pipe' }); return true; }
@@ -80,8 +80,19 @@ const quote = sandbox.q;
     ok(slug + ': has copy that is actually about ' + slug, must.test(html));
     ok(slug + ': does not still claim to be headquartered there', !/headquartered right here in/.test(html));
   }
+  // every page is about the town it is for: the two opening paragraphs name
+  // it, and only St. Peters claims to be where the business lives
+  for (const c of CITIES){
+    const html = fs.readFileSync(path.join(ROOT, c.slug, 'index.html'), 'utf8');
+    const leads = [...html.matchAll(/<p class="lead">([\s\S]*?)<\/p>/g)].slice(0, 2).map(m => m[1]).join(' ');
+    const first = c.name.split(' ')[0].replace("'", "");
+    ok(c.slug + ': the opening paragraphs are about ' + c.name, new RegExp(first.replace('.', '\\.')).test(leads.replace(/&rsquo;|&#39;|'/g, '')), leads.slice(0, 120));
+    if (c.slug !== 'st-peters') ok(c.slug + ': does not claim to be headquartered there', !/headquartered right here in/.test(html));
+    const h1 = ((html.match(/<h1[^>]*>[\s\S]*?<\/h1>/) || [''])[0]).replace(/&rsquo;|&#39;|'/g, '');
+    ok(c.slug + ': the H1 names the town', new RegExp(first.replace('.', '\\.')).test(h1), h1.slice(0, 120));
+  }
   // big-lot towns are honest about the quarter-acre rule up front
-  for (const slug of ['lake-st-louis', 'wildwood']){
+  for (const slug of ['lake-st-louis', 'wildwood', 'ladue', 'troy', 'columbia-il', 'waterloo-il']){
     const html = fs.readFileSync(path.join(ROOT, slug, 'index.html'), 'utf8');
     ok(slug + ': says up front that bigger lots get a hand-built quote', /quarter acre/.test(html));
   }

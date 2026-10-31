@@ -75,6 +75,7 @@ able to tell what broke for a real person without opening the file.
 | `test-sweepandgo.js` | the Sweep&Go import: joins subscriptions to clients, folds add-ons, converts per-visit billing, updates existing leads without losing notes |
 | `test-security.js` | the key stays out of the address bar, hostile form data shown as text, bad ids dropped, backend caps |
 | `test-territory.js` | the Territory map and lists: bubbles per ZIP, strongholds with neighbours, conversion, dead zones, streets with two or more customers |
+| `test-history.js` | this month against last year, what each price change did, reviews gained by month; the revenue card folds |
 | `test-pixel.js` | what Meta is told and when: PageView, ViewContent, CompleteRegistration once, Lead only on activation |
 | `test-team.js` | team phones: no page views, labelled silent test leads, kept out of the numbers |
 

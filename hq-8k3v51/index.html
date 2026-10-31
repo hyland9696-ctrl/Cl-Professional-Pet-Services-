@@ -52,6 +52,7 @@
      under it hides when folded. The numbers panel was one long scroll. */
   .fold > :first-child{cursor:pointer;position:relative;padding-right:24px;user-select:none;}
   .fold > :first-child::after{content:'\25BE';position:absolute;right:2px;top:0;color:#9aa5a0;font-size:14px;line-height:1.2;}
+  #revenue.fold > :first-child::after{color:rgba(255,255,255,.75);}
   .fold.folded > :first-child{margin-bottom:0 !important;}
   .fold.folded > :first-child::after{content:'\25B8';}
   .fold.folded > :not(:first-child){display:none !important;}
@@ -142,6 +143,8 @@
       <div id="terr-legend" style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:#555;margin-bottom:10px;align-items:center;"></div>
       <div id="terr-body"></div>
     </div>
+    <div id="season" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
+    <div id="pricelog" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="traffic" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);display:none;">
       <div style="font-weight:800;font-size:14px;margin-bottom:10px;">&#128202; Site traffic</div>
       <div class="stats" id="t-nums" style="margin-bottom:10px;"></div>
@@ -402,7 +405,7 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/pricing.js?v=f175ea9f"></script>
+<script src="/pricing.js?v=b057ab30"></script>
 <script src="/contact-check.js?v=b4a5b7a1"></script>
 <script>
 var CRM_ENDPOINT = "https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec";
@@ -448,6 +451,7 @@ var KEY = 'clpps-8k3v51';
 function needKey(){}
 function badKey(){}
 var testLeads = [];       // forms sent from team phones: shown, never counted
+var reviewCounts = [];    // {n, at}: every review count ever saved, oldest first
 /* lastLoadAt = when we last ASKED. lastSyncAt = when real data last came
    back. They differ when the phone is offline or the script is slow, and
    the header shows the second one so "Refreshed" never means "asked and
@@ -563,6 +567,12 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
       // only typed the ZIP. Both are demand, neither is a lead.
       waitlist = (d.leads || []).filter(function(l){ return l.type === 'WAITLIST' && l.status !== 'deleted'; });
       outarea  = (d.leads || []).filter(function(l){ return l.type === 'OUTAREA'; });
+      // every review count ever saved, dated: reviews gained per month
+      reviewCounts = [];
+      (d.leads || []).forEach(function(l){
+        if (l.type === 'CONFIG' && l.name === 'review_count' && l.created){ var n = parseInt(l.notes, 10); if (n >= 1) reviewCounts.push({ n: n, at: String(l.created) }); }
+      });
+      reviewCounts.sort(function(a, b){ return a.at.localeCompare(b.at); });
       // Saved settings (newest row wins), e.g. the Google review link.
       config = {};
       (d.leads || []).forEach(function(l){
@@ -3480,8 +3490,135 @@ function renderTerritory(){
     card('&#127968; Neighbours', 'streets with two or more customers already - the easiest doors to knock on',
       nb.slice(0, 10).map(function(x){ return '<div style="padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;"><strong>' + esc(x.street.replace(/\b\w/g, function(c){ return c.toUpperCase(); })) + '</strong> <span style="color:#707070;">' + esc(x.b.town) + ' ' + x.b.zip + '</span> &middot; ' + x.names.length + ' customers <span style="color:#707070;">(' + esc(x.names.join(', ')) + ')</span></div>'; }), 'nb');
 }
+/* ============================================================
+   THIS MONTH AGAINST LAST YEAR. The history goes back to March 2024 now,
+   so a slow month can be judged against the same month a year ago rather
+   than against last month. New recurring customers by the month they
+   closed; quotes by the month they came in.
+   ============================================================ */
+function monthAdd(mk, n){ var y = parseInt(mk.slice(0, 4), 10), m = parseInt(mk.slice(5, 7), 10) - 1 + n; return (y + Math.floor(m / 12)) + '-' + ('0' + (((m % 12) + 12) % 12 + 1)).slice(-2); }
+function monthShort(mk){ return new Date(mk + '-15T12:00:00').toLocaleDateString('en-US', { month: 'short' }); }
+function seasonStats(){
+  var cust = {}, quotes = {};
+  leads.forEach(function(l){
+    if (!isLead(l) || !isRecurring(l)) return;
+    var st = l.status || 'new', fu = fuParse(l.crmnotes);
+    var qm = String(l.created || '').slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(qm)) quotes[qm] = (quotes[qm] || 0) + 1;
+    if (st === 'closed' || st === 'cancelled'){
+      var cm = (fu.cd || String(l.created || '')).slice(0, 7);
+      if (/^\d{4}-\d{2}$/.test(cm)) cust[cm] = (cust[cm] || 0) + 1;
+    }
+  });
+  return { cust: cust, quotes: quotes };
+}
+function renderSeason(){
+  var box = document.getElementById('season'); if (!box) return;
+  var s = seasonStats(), now = monthKeyOf(new Date()), ago = monthAdd(now, -12);
+  var c1 = s.cust[now] || 0, c0 = s.cust[ago] || 0, q1 = s.quotes[now] || 0, q0 = s.quotes[ago] || 0;
+  var haveLast = Object.keys(s.cust).some(function(k){ return k <= ago; }) || Object.keys(s.quotes).some(function(k){ return k <= ago; });
+  var delta = function(a, b){ if (!b) return a ? '<span style="color:#188663;">new</span>' : ''; var d = Math.round(100 * (a - b) / b); return '<span style="color:' + (d >= 0 ? '#188663' : '#c0392b') + ';">' + (d >= 0 ? '+' : '') + d + '%</span>'; };
+  // twelve months, this year against last year, as paired bars
+  var months = []; for (var i = 11; i >= 0; i--) months.push(monthAdd(now, -i));
+  var maxC = 1; months.forEach(function(m){ maxC = Math.max(maxC, s.cust[m] || 0, s.cust[monthAdd(m, -12)] || 0); });
+  var bars = months.map(function(m){
+    var a = s.cust[m] || 0, b = s.cust[monthAdd(m, -12)] || 0;
+    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;">' +
+      '<div style="display:flex;align-items:flex-end;gap:1px;height:54px;">' +
+        '<div title="' + monthShort(m) + ' last year: ' + b + '" style="width:7px;height:' + Math.max(b ? 3 : 0, Math.round(54 * b / maxC)) + 'px;background:#cfd8d3;border-radius:2px 2px 0 0;"></div>' +
+        '<div title="' + monthShort(m) + ': ' + a + '" style="width:7px;height:' + Math.max(a ? 3 : 0, Math.round(54 * a / maxC)) + 'px;background:' + (m === now ? '#188663' : '#7fbfa5') + ';border-radius:2px 2px 0 0;"></div></div>' +
+      '<div style="font-size:9px;color:#707070;">' + monthShort(m).charAt(0) + '</div></div>';
+  }).join('');
+  var yr = function(k){ return k.slice(0, 4); };
+  var ytd = 0, ytdLast = 0;
+  Object.keys(s.cust).forEach(function(k){ if (yr(k) === yr(now) && k <= now) ytd += s.cust[k]; if (yr(k) === yr(ago) && k <= ago) ytdLast += s.cust[k]; });
+  box.innerHTML =
+    '<div style="font-weight:800;font-size:14px;margin-bottom:8px;">&#128197; This month against last year</div>' +
+    (haveLast ? '' : '<div style="font-size:12px;color:#707070;margin-bottom:8px;">No history a year back yet; the comparison fills in as the months go by.</div>') +
+    '<div class="stats" style="margin-bottom:10px;">' +
+      '<div class="stat"><div class="n" style="color:#188663">' + c1 + '</div><div class="l">new customers ' + monthShort(now) + '<br><span style="font-size:10.5px;">' + c0 + ' in ' + monthShort(ago) + ' ' + yr(ago) + ' ' + delta(c1, c0) + '</span></div></div>' +
+      '<div class="stat"><div class="n" style="color:#2980ef">' + q1 + '</div><div class="l">quotes ' + monthShort(now) + '<br><span style="font-size:10.5px;">' + q0 + ' in ' + monthShort(ago) + ' ' + yr(ago) + ' ' + delta(q1, q0) + '</span></div></div>' +
+      '<div class="stat"><div class="n">' + ytd + '</div><div class="l">new customers ' + yr(now) + ' so far<br><span style="font-size:10.5px;">' + ytdLast + ' by ' + monthShort(ago) + ' ' + yr(ago) + ' ' + delta(ytd, ytdLast) + '</span></div></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:3px;align-items:flex-end;">' + bars + '</div>' +
+    '<div style="font-size:10.5px;color:#707070;margin-top:4px;"><span style="display:inline-block;width:9px;height:9px;background:#7fbfa5;border-radius:2px;vertical-align:-1px;"></span> new recurring customers each month, last twelve &nbsp; <span style="display:inline-block;width:9px;height:9px;background:#cfd8d3;border-radius:2px;vertical-align:-1px;"></span> the same month a year earlier</div>';
+}
+
+/* ============================================================
+   PRICE CHANGES. Every dated line in CLPPS_PRICING.changes gets the
+   thirty days before it set against the thirty days after: quotes that
+   came in, how many were won. The only way to know whether a price move
+   worked, rather than remembering that it felt like it did.
+   ============================================================ */
+function renderPriceLog(){
+  var box = document.getElementById('pricelog'); if (!box) return;
+  var changes = (typeof CLPPS_PRICING !== 'undefined' && CLPPS_PRICING.changes) || [];
+  var W = 30 * 864e5, now = Date.now();
+  var win = function(from, to){
+    var q = 0, w = 0;
+    leads.forEach(function(l){
+      if (!isLead(l) || !isRecurring(l)) return;
+      var t = new Date(l.created).getTime(); if (!(t >= from && t < to)) return;
+      q++; if (terrWon(l)) w++;
+    });
+    return { q: q, w: w, rate: q ? Math.round(100 * w / q) : NaN };
+  };
+  var rows = changes.slice().sort(function(a, b){ return b.date.localeCompare(a.date); }).map(function(c){
+    var t = new Date(c.date + 'T00:00:00').getTime();
+    var before = win(t - W, t), after = win(t, Math.min(now, t + W));
+    var daysAfter = Math.min(30, Math.floor((now - t) / 864e5));
+    var verdict = daysAfter < 7 ? '<span style="color:#707070;">too soon to say</span>'
+      : (before.q < 3 || after.q < 3) ? '<span style="color:#707070;">too few quotes to say</span>'
+      : after.rate > before.rate + 5 ? '<span style="color:#188663;font-weight:700;">closing more</span>'
+      : after.rate < before.rate - 5 ? '<span style="color:#c0392b;font-weight:700;">closing less</span>'
+      : '<span style="color:#707070;">about the same</span>';
+    var cell = function(x){ return x.q ? x.w + ' of ' + x.q + (isNaN(x.rate) ? '' : ' (' + x.rate + '%)') : '&mdash;'; };
+    return '<div style="padding:7px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;"><span><strong>' + esc(c.what) + '</strong><br><span style="color:#707070;font-size:11.5px;">' + esc(niceDate(c.date)) + '</span></span><span style="text-align:right;white-space:nowrap;">' + verdict + '</span></div>' +
+      '<div style="display:flex;gap:14px;color:#555;font-size:11.5px;margin-top:3px;"><span>30 days before: ' + cell(before) + '</span><span>' + daysAfter + ' days after: ' + cell(after) + '</span></div></div>';
+  });
+  box.innerHTML = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#127991;&#65039; Price changes and what they did</div>' +
+    '<div style="font-size:11.5px;color:#707070;margin-bottom:6px;">Quotes won, the month before each change against the month after. A new line appears here every time a price or a tier moves.</div>' +
+    (rows.length ? rows.join('') : '<div style="font-size:12.5px;color:#9aa5a0;">No price changes recorded.</div>');
+}
+
+/* ============================================================
+   REVIEWS GAINED. Every time the review count is saved the tracker keeps
+   the date, so the count can be read back by month and set against the
+   review requests sent (the [RV:date] stamps). Whether asking works.
+   ============================================================ */
+function reviewTrendHtml(){
+  var now = monthKeyOf(new Date()), months = [];
+  for (var i = 5; i >= 0; i--) months.push(monthAdd(now, -i));
+  var asked = {};
+  leads.forEach(function(l){ var rv = fuParse(l.crmnotes).rv; if (rv && rv !== 'skip' && /^\d{4}-\d{2}/.test(rv)) asked[rv.slice(0, 7)] = (asked[rv.slice(0, 7)] || 0) + 1; });
+  var lastBefore = function(mk){ var v = null; reviewCounts.forEach(function(r){ if (r.at.slice(0, 7) < mk) v = r.n; }); return v; };
+  var lastIn = function(mk){ var v = null; reviewCounts.forEach(function(r){ if (r.at.slice(0, 7) === mk) v = r.n; }); return v; };
+  var any = false;
+  var rows = months.map(function(mk){
+    var a = asked[mk] || 0, before = lastBefore(mk), inM = lastIn(mk);
+    var gained = (inM != null && before != null) ? inM - before : null;
+    if (a || gained != null) any = true;
+    return '<tr><td style="padding:3px 0;color:#555;">' + monthShort(mk) + ' ' + mk.slice(0, 4) + '</td><td style="text-align:right;padding:3px 6px;">' + (a || '&mdash;') + '</td>' +
+      '<td style="text-align:right;padding:3px 0;' + (gained > 0 ? 'color:#188663;font-weight:700;' : '') + '">' + (gained == null ? '<span style="color:#9aa5a0;">not updated</span>' : (gained >= 0 ? '+' : '') + gained) + '</td></tr>';
+  }).join('');
+  if (!any) return '';
+  var total = reviewCounts.length ? reviewCounts[reviewCounts.length - 1].n : null;
+  return '<div style="border-top:1px solid #eee;margin-top:10px;padding-top:8px;">' +
+    '<div style="font-weight:700;font-size:13px;">Reviews gained, by month</div>' +
+    '<div style="font-size:11px;color:#707070;margin-bottom:4px;">Requests sent against reviews that actually arrived' + (total ? ' &middot; ' + total + ' on Google now' : '') + '. &ldquo;Not updated&rdquo; means nobody put the new Google count into the tracker that month.</div>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:12.5px;"><tr style="color:#707070;font-size:11px;"><th style="text-align:left;font-weight:600;">month</th><th style="text-align:right;font-weight:600;padding:0 6px;">asked</th><th style="text-align:right;font-weight:600;">gained</th></tr>' + rows + '</table></div>';
+}
+function renderReviewTrend(){
+  var box = document.getElementById('reviews'); if (!box) return;
+  var old = document.getElementById('rv-trend'); if (old) old.remove();
+  var h = reviewTrendHtml(); if (!h) return;
+  var el = document.createElement('div'); el.id = 'rv-trend'; el.innerHTML = h; box.appendChild(el);
+  if (box.style.display === 'none') box.style.display = 'block';
+}
+
 /* ---- fold-up cards in the numbers panel ---- */
-var FOLD_CARDS = ['territory', 'traffic', 'roi', 'insights', 'reviews'];
+var FOLD_CARDS = ['territory', 'season', 'pricelog', 'traffic', 'revenue', 'roi', 'insights', 'reviews'];
 function foldKey(card){ return card.id || card.getAttribute('data-fold') || ''; }
 function foldState(key){ try { return localStorage.getItem('clpps_fold_' + key); } catch (e) { return null; } }
 function foldApply(card, openByDefault){
@@ -4158,15 +4295,14 @@ function renderRevenue(){
   var warnRows = noPrice.map(function(l){
     return '<div style="font-weight:400;font-size:12px;color:#ffd9a0;padding:2px 0;">&#9888;&#65039; ' + esc(l.name || '(no name)') + ' is closed but has NO price - not counted. Fix with Edit.</div>';
   }).join('');
-  box.style.cursor = 'pointer';
-  box.onclick = function(){
-    var d = document.getElementById('rev-detail');
-    if (d) d.style.display = d.style.display === 'none' ? 'block' : 'none';
-  };
+  // the heading folds the card like every other; the math opens from its own line
+  box.style.cursor = '';
+  box.onclick = null;
   box.innerHTML =
-    '<div style="font-size:14px;">&#128176; Revenue closed from this site <span style="float:right;font-weight:400;font-size:11px;opacity:0.7;">tap for the math &#9660;</span></div>' +
-    '<div style="font-size:19px;margin:4px 0 2px;">$' + mo.toLocaleString() + '/mo current MRR' +
-      ' <span style="opacity:0.75;font-weight:400;font-size:12.5px;">(~$' + (mo * 12).toLocaleString() + ' a year)</span></div>' +
+    '<div style="font-size:14px;">&#128176; Revenue closed from this site</div>' +
+    '<div style="font-size:19px;margin:4px 0 2px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;"><span>$' + mo.toLocaleString() + '/mo current MRR' +
+      ' <span style="opacity:0.75;font-weight:400;font-size:12.5px;">(~$' + (mo * 12).toLocaleString() + ' a year)</span></span>' +
+      '<button onclick="var d=document.getElementById(\'rev-detail\');d.style.display=d.style.display===\'none\'?\'block\':\'none\';this.textContent=d.style.display===\'none\'?\'the math \u25BE\':\'hide the math \u25B4\';" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:6px 10px;min-height:34px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;">the math &#9662;</button></div>' +
     ((once || fees) ? '<div style="font-weight:400;font-size:12.5px;opacity:0.9;">plus ' +
       [fees ? '$' + fees.toLocaleString() + ' in initial cleans' : '', once ? '$' + once.toLocaleString() + ' in one-time jobs' : '']
         .filter(Boolean).join(' and ') + ' all-time</div>' : '') +
@@ -4268,7 +4404,10 @@ function render(){
   renderROI();
   renderInsights();
   renderTerritory();
+  renderSeason();
+  renderPriceLog();
   renderReviews();
+  renderReviewTrend();
   renderAlerts();
   var qp = document.getElementById('qrPanel');
   if (qp && qp.style.display !== 'none') renderQR();
