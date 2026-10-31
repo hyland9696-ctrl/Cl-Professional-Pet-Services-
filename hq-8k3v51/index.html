@@ -3323,7 +3323,17 @@ function terrStreetMap(rows){
    remembered on this phone, and drawn as a small pin. One lookup a second,
    so the first time takes a minute or two for a hundred customers; after
    that only new ones are looked up. */
+/* terrHomesOn: false, 'customers', or 'everyone' (open quotes and the ones
+   who said no as well, so a dead street is visible next to a good one) */
 var terrHomesOn = false, terrGeo = {}, terrGeoBusy = false, terrHomesLayer = null;
+var HOME_STYLE = { customer: ['#188663', 'customer'], cancelled: ['#b45309', 'cancelled'], open: ['#2980ef', 'open quote'], no: ['#c0392b', 'said no / not interested'] };
+function homeKind(l){
+  var st = l.status || 'new';
+  if (st === 'closed') return 'customer';
+  if (st === 'cancelled') return 'cancelled';
+  if (st === 'lost' || quoteState(l) === 'declined') return 'no';
+  return 'open';
+}
 try { terrGeo = JSON.parse(localStorage.getItem('clpps_geo') || '{}') || {}; } catch (e) { terrGeo = {}; }
 function terrHomesButton(){
   var old = document.getElementById('terr-homes-btn'); if (old) old.remove();
@@ -3331,8 +3341,22 @@ function terrHomesButton(){
   var btn = document.createElement('button');
   btn.id = 'terr-homes-btn';
   btn.style.cssText = 'position:absolute;left:8px;top:8px;z-index:500;font-family:inherit;font-size:11px;font-weight:700;padding:6px 9px;min-height:32px;border-radius:8px;border:1px solid #cfd8d3;background:' + (terrHomesOn ? '#188663' : '#fff') + ';color:' + (terrHomesOn ? '#fff' : '#2B3A34') + ';cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);';
-  btn.innerHTML = terrHomesOn ? '&#128205; Homes on' : '&#128205; Show homes';
-  btn.onclick = function(){ terrHomesOn = !terrHomesOn; terrHomesButton(); if (terrHomesOn) terrDrawHomes(); else if (terrHomesLayer) terrHomesLayer.clearLayers(); };
+  btn.innerHTML = terrHomesOn === 'everyone' ? '&#128205; Everyone' : terrHomesOn ? '&#128205; Customers' : '&#128205; Show homes';
+  // off -> customers -> everyone -> off
+  btn.onclick = function(){
+    terrHomesOn = !terrHomesOn ? 'customers' : terrHomesOn === 'customers' ? 'everyone' : false;
+    terrHomesButton();
+    if (terrHomesOn) terrDrawHomes(); else if (terrHomesLayer) terrHomesLayer.clearLayers();
+    var lg = document.getElementById('terr-homes-legend'); if (lg) lg.remove();
+    if (terrHomesOn){
+      var leg = document.createElement('div'); leg.id = 'terr-homes-legend';
+      leg.style.cssText = 'position:absolute;left:8px;top:46px;z-index:500;font-size:10.5px;color:#2B3A34;background:rgba(255,255,255,.92);border-radius:8px;padding:5px 8px;line-height:1.7;box-shadow:0 1px 4px rgba(0,0,0,.12);';
+      leg.innerHTML = Object.keys(HOME_STYLE).filter(function(k){ return terrHomesOn === 'everyone' || k === 'customer'; }).map(function(k){
+        return '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + HOME_STYLE[k][0] + ';margin-right:5px;vertical-align:-1px;"></span>' + HOME_STYLE[k][1];
+      }).join('<br>');
+      box.appendChild(leg);
+    }
+  };
   box.appendChild(btn);
 }
 function terrGeoKey(l){ return String(l.address || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
@@ -3340,17 +3364,23 @@ function terrDrawHomes(){
   if (!terrLeaflet || !window.L) return;
   if (!terrHomesLayer) terrHomesLayer = L.layerGroup().addTo(terrLeaflet);
   terrHomesLayer.clearLayers();
-  var homes = leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed' && isRecurring(l) && l.address; });
+  var homes = leads.filter(function(l){
+    if (!isLead(l) || !l.address || !isRecurring(l)) return false;
+    return terrHomesOn === 'everyone' ? (l.status || 'new') !== 'deleted' : (l.status || 'new') === 'closed';
+  });
   var todo = [];
+  // customers drawn last, so they sit on top where a street has both
+  homes.sort(function(a, b){ return (homeKind(a) === 'customer' ? 1 : 0) - (homeKind(b) === 'customer' ? 1 : 0); });
   homes.forEach(function(l){
     var k = terrGeoKey(l), g = terrGeo[k];
     if (g && g.lat){
-      L.circleMarker([g.lat, g.lng], { radius: 5, color: '#0F6E56', weight: 1.5, fillColor: '#188663', fillOpacity: .9 })
-        .bindPopup('<strong>' + esc(l.name || '') + '</strong><br>' + esc(String(l.address || '').split(',')[0]) + (l.price ? '<br>' + esc(String(l.price).split(' (')[0]) : '') + '<br><a href="#" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;">Open their card &rarr;</a>').addTo(terrHomesLayer);
+      var kind = homeKind(l), col = HOME_STYLE[kind][0];
+      L.circleMarker([g.lat, g.lng], { radius: kind === 'customer' ? 5 : 4, color: col, weight: 1.5, fillColor: col, fillOpacity: kind === 'customer' ? .9 : .6 })
+        .bindPopup('<strong>' + esc(l.name || '') + '</strong> <span style="color:' + col + ';">' + HOME_STYLE[kind][1] + '</span><br>' + esc(String(l.address || '').split(',')[0]) + (l.price ? '<br>' + esc(String(l.price).split(' (')[0]) : '') + '<br><a href="#" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;">Open their card &rarr;</a>').addTo(terrHomesLayer);
     } else if (!g) todo.push(l);
   });
   var btn = document.getElementById('terr-homes-btn');
-  if (btn) btn.innerHTML = '&#128205; Homes on' + (todo.length ? ' &middot; finding ' + todo.length + '&hellip;' : ' &middot; ' + (homes.length - todo.length));
+  if (btn) btn.innerHTML = '&#128205; ' + (terrHomesOn === 'everyone' ? 'Everyone' : 'Customers') + (todo.length ? ' &middot; finding ' + todo.length + '&hellip;' : ' &middot; ' + (homes.length - todo.length));
   if (!todo.length || terrGeoBusy) return;
   terrGeoBusy = true;
   var i = 0;
@@ -3363,7 +3393,7 @@ function terrDrawHomes(){
       .catch(function(){ /* try again another day */ })
       .then(function(){
         try { localStorage.setItem('clpps_geo', JSON.stringify(terrGeo)); } catch (e) {}
-        var b2 = document.getElementById('terr-homes-btn'); if (b2) b2.innerHTML = '&#128205; Homes on &middot; finding ' + (todo.length - i) + '&hellip;';
+        var b2 = document.getElementById('terr-homes-btn'); if (b2) b2.innerHTML = '&#128205; ' + (terrHomesOn === 'everyone' ? 'Everyone' : 'Customers') + ' &middot; finding ' + (todo.length - i) + '&hellip;';
         setTimeout(next, 1100);
       });
   };
