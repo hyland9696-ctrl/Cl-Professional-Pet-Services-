@@ -3300,20 +3300,24 @@ function terrStreetMap(rows){
   if (!terrLeaflet){
     box.innerHTML = '';
     terrLeaflet = L.map(box, { scrollWheelZoom: false, attributionControl: true, zoomControl: true });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 17, attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(terrLeaflet);
+    // OpenStreetMap's own tiles: no key, every street and subdivision named
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(terrLeaflet);
     terrLeaflet.layerGroup = L.layerGroup().addTo(terrLeaflet);
   }
   terrLeaflet.layerGroup.clearLayers();
   var maxC = Math.max.apply(null, pts.map(function(b){ return b.customers; })) || 1;
-  var bounds = [];
+  var bounds = [], core = [];
+  // radius in metres, so a bubble is a patch of ground: small when the whole
+  // metro is on screen, big when you are zoomed in on one town
   pts.forEach(function(b){
-    var p = ZIP_PTS[b.zip], c = terrColour(b), r = b.customers ? 9 + 26 * Math.sqrt(b.customers / maxC) : 6;
+    var p = ZIP_PTS[b.zip], c = terrColour(b), r = b.customers ? 500 + 1500 * Math.sqrt(b.customers / maxC) : 350;
     bounds.push([p[0], p[1]]);
-    L.circleMarker([p[0], p[1]], { radius: r, color: c, weight: 1.5, fillColor: c, fillOpacity: b.customers ? .5 : .3 })
+    if (b.customers >= 2) core.push([p[0], p[1]]);
+    L.circle([p[0], p[1]], { radius: r, color: c, weight: 1.5, fillColor: c, fillOpacity: b.customers ? .45 : .3 })
       .bindPopup('<strong>' + esc(b.town) + ' ' + b.zip + '</strong><br>' + esc(terrBlurb(b)) + '<br><a href="#" onclick="terrPick(\'' + b.zip + '\');return false;">Who is here &rarr;</a>').addTo(terrLeaflet.layerGroup);
-    if (b.customers) L.marker([p[0], p[1]], { icon: L.divIcon({ className: '', html: '<div style="color:#fff;font-weight:800;font-size:' + (r > 16 ? 13 : 10) + 'px;text-align:center;line-height:' + (2 * r) + 'px;width:' + (2 * r) + 'px;text-shadow:0 0 2px rgba(0,0,0,.4);">' + b.customers + '</div>', iconSize: [2 * r, 2 * r], iconAnchor: [r, r] }), interactive: false }).addTo(terrLeaflet.layerGroup);
+    if (b.customers) L.marker([p[0], p[1]], { icon: L.divIcon({ className: '', html: '<div style="color:#fff;font-weight:800;font-size:12px;text-align:center;line-height:24px;width:24px;text-shadow:0 0 3px rgba(0,0,0,.6);">' + b.customers + '</div>', iconSize: [24, 24], iconAnchor: [12, 12] }), interactive: false }).addTo(terrLeaflet.layerGroup);
   });
-  if (!terrLeaflet.fitted){ terrLeaflet.fitBounds(bounds, { padding: [24, 24] }); terrLeaflet.fitted = true; }
+  if (!terrLeaflet.fitted){ terrLeaflet.fitBounds(core.length >= 3 ? core : bounds, { padding: [20, 20] }); terrLeaflet.fitted = true; }
   terrHomesButton();
   if (terrHomesOn) terrDrawHomes();
 }
@@ -3340,7 +3344,7 @@ function terrHomesButton(){
   var box = document.getElementById('terr-map'); if (!box) return;
   var btn = document.createElement('button');
   btn.id = 'terr-homes-btn';
-  btn.style.cssText = 'position:absolute;left:8px;top:8px;z-index:500;font-family:inherit;font-size:11px;font-weight:700;padding:6px 9px;min-height:32px;border-radius:8px;border:1px solid #cfd8d3;background:' + (terrHomesOn ? '#188663' : '#fff') + ';color:' + (terrHomesOn ? '#fff' : '#2B3A34') + ';cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);';
+  btn.style.cssText = 'position:absolute;right:8px;top:8px;z-index:500;font-family:inherit;font-size:11px;font-weight:700;padding:6px 9px;min-height:32px;border-radius:8px;border:1px solid #cfd8d3;background:' + (terrHomesOn ? '#188663' : '#fff') + ';color:' + (terrHomesOn ? '#fff' : '#2B3A34') + ';cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);';
   btn.innerHTML = terrHomesOn === 'everyone' ? '&#128205; Everyone' : terrHomesOn ? '&#128205; Customers' : '&#128205; Show homes';
   // off -> customers -> everyone -> off
   btn.onclick = function(){
@@ -3350,7 +3354,7 @@ function terrHomesButton(){
     var lg = document.getElementById('terr-homes-legend'); if (lg) lg.remove();
     if (terrHomesOn){
       var leg = document.createElement('div'); leg.id = 'terr-homes-legend';
-      leg.style.cssText = 'position:absolute;left:8px;top:46px;z-index:500;font-size:10.5px;color:#2B3A34;background:rgba(255,255,255,.92);border-radius:8px;padding:5px 8px;line-height:1.7;box-shadow:0 1px 4px rgba(0,0,0,.12);';
+      leg.style.cssText = 'position:absolute;right:8px;top:46px;z-index:500;font-size:10.5px;color:#2B3A34;background:rgba(255,255,255,.92);border-radius:8px;padding:5px 8px;line-height:1.7;box-shadow:0 1px 4px rgba(0,0,0,.12);';
       leg.innerHTML = Object.keys(HOME_STYLE).filter(function(k){ return terrHomesOn === 'everyone' || k === 'customer'; }).map(function(k){
         return '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + HOME_STYLE[k][0] + ';margin-right:5px;vertical-align:-1px;"></span>' + HOME_STYLE[k][1];
       }).join('<br>');
