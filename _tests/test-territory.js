@@ -23,6 +23,10 @@ const { ok, done } = reporter();
     L('a4', 'Dan D', '63376', '40 Julie Ln, St. Peters, Missouri 63376', 'closed', { crmnotes:'[CD:2026-05-01] [QA:a] ' }),
     L('a5', 'Eve E', '63376', '1294 Poseidon Ct, St. Peters, Missouri 63376', 'closed', { crmnotes:'[CD:2026-05-01] [QA:a] ' }),
     L('a6', 'Fay F', '63376', '2 Elm St, St. Peters, Missouri 63376', 'lost', { crmnotes:'[QA:d] price' }),
+    // a one-time cleanup in St. Peters: a sale, not a route - noted, never a bubble
+    L('a7', 'Once Olga', '63376', '9 Scenic Drive, St. Peters, Missouri 63376', 'closed', { service:'one-time', price:'$95 one-time', crmnotes:'[CD:2026-05-02] [QA:a] ' }),
+    // somebody in O'Fallon who said yes on the website and then did not go ahead: Not interested
+    L('b3', 'Flaky Fred', '63366', '7 Elm Ct, O\'Fallon, Missouri 63366', 'lost', { type:'ACTIVATE', crmnotes:'[QA:a] ' }),
     // O'Fallon next door: two customers
     L('b1', 'Gus G', '63366', '1513 Byron Pl, O\'Fallon, Missouri 63366', 'closed', { crmnotes:'[CD:2026-06-01] [QA:a] ' }),
     L('b2', 'Hal H', '63366', '205 Tyndale Dr, O\'Fallon, Missouri 63366', 'closed', { crmnotes:'[CD:2026-06-01] [QA:a] ' }),
@@ -53,7 +57,10 @@ const { ok, done } = reporter();
   const dots = await p.$$eval('#terr-map .terr-dot', els => els.map(e => ({ zip: e.getAttribute('data-zip'), r: parseFloat(e.querySelector('circle').getAttribute('r')), fill: e.querySelector('circle').getAttribute('fill'), n: (e.querySelector('text') || {}).textContent })));
   ok('the drawn map has a bubble for every ZIP with activity', dots.length === 5, dots.map(d => d.zip).join(','));
   const sp = dots.find(d => d.zip === '63376'), al = dots.find(d => d.zip === '62002'), fl = dots.find(d => d.zip === '63031'), ch = dots.find(d => d.zip === '63017');
-  ok('St. Peters is the biggest bubble and shows its five customers', sp && sp.n === '5' && dots.every(d => d.r <= sp.r), JSON.stringify(sp));
+  ok('St. Peters is the biggest bubble and shows its five recurring customers (the one-time job is not one)', sp && sp.n === '5' && dots.every(d => d.r <= sp.r), JSON.stringify(sp));
+  ok('the one-time job is noted in the bubble text, not counted', /1 one-time job/.test(await p.$eval('#terr-map .terr-dot[data-zip="63376"] title', e => e.textContent)));
+  const of = dots.find(d => d.zip === '63366');
+  ok("O'Fallon: the accepted-then-not-interested lead is a loss, so two of three won", of && of.n === '2' && of.fill === '#188663' && /2 customers · \$170\/mo · 67% of 3 quotes won/.test(await p.$eval('#terr-map .terr-dot[data-zip="63366"] title', e => e.textContent)), await p.$eval('#terr-map .terr-dot[data-zip="63366"] title', e => e.textContent));
   ok('St. Peters is green: five of six quotes won', sp.fill === '#188663');
   ok('Alton is red: four quotes, none won', al && al.fill === '#c0392b' && !al.n, JSON.stringify(al));
   ok('Florissant, where people only looked, is red too', fl && fl.fill === '#c0392b');
@@ -62,7 +69,15 @@ const { ok, done } = reporter();
   ok('the biggest areas are labelled by town', /St\. Peters/.test(await p.textContent('#terr-map svg')));
 
   const body = (await p.textContent('#terr-body')).replace(/\s+/g, ' ');
-  ok('the summary counts customers and ZIPs', /9 customers across 3 ZIP codes/.test(body), body.slice(0, 120));
+  ok('the summary counts recurring customers and ZIPs', /9 recurring customers across 3 ZIP codes/.test(body), body.slice(0, 120));
+  /* ---- tap a bubble: who is in it ---- */
+  await p.click('#terr-map .terr-dot[data-zip="63366"]'); await p.waitForTimeout(400);
+  const pick = (await p.textContent('#terr-pick')).replace(/\s+/g, ' ');
+  ok("tapping O'Fallon lists everyone there with their state", /Gus G/.test(pick) && /Hal H/.test(pick) && /Flaky Fred.*not interested/.test(pick), pick.slice(0, 300));
+  await p.click('#terr-pick a:has-text("Flaky Fred")'); await p.waitForTimeout(1500);
+  ok('tapping a name jumps to their card and lights it up', await p.$eval('#card-b3', e => { const r = e.getBoundingClientRect(); return /242, 176, 30|F2B01E/i.test(e.style.boxShadow) && r.top > -50 && r.top < 1700; }), await p.$eval('#card-b3', e => e.style.boxShadow + ' @ ' + e.getBoundingClientRect().top));
+  await p.click('button:has-text("Territory")'); await p.waitForTimeout(500);
+  ok('the homes button only appears with the street map, which cannot load offline', (await p.$('#terr-homes-btn')) === null);
   const strong = body.split('Strongholds')[1].split('Where the quotes convert')[0];
   ok('St. Peters leads the strongholds, with O\'Fallon counted as nearby', /^.*St\. Peters 63376[^\n]*5 \+2 nearby/.test(strong.replace(/\s+/g, ' ')), strong.slice(0, 200));
   ok('with its monthly revenue', /\$431\/mo/.test(strong), strong.slice(0, 200));

@@ -3123,16 +3123,33 @@ function streetOf(addr){
 }
 function kmBetween(a, b){ var R = 6371, dLat = (b[0] - a[0]) * Math.PI / 180, dLng = (b[1] - a[1]) * Math.PI / 180; var x = Math.sin(dLat / 2), y = Math.sin(dLng / 2); var h = x * x + Math.cos(a[0] * Math.PI / 180) * Math.cos(b[0] * Math.PI / 180) * y * y; return 2 * R * Math.asin(Math.sqrt(h)); }
 /* Everything the map and the lists are built from. Pure: leads, qviews in; a table out. */
+/* A recurring plan, as opposed to a one-time cleanup. The map is about
+   routes, and a one-time job is not on a route. */
+function isRecurring(l){
+  var pp = parsePrice(l);
+  if (pp) return pp.isMo;
+  return !/one/i.test(String(l.service || ''));
+}
+/* Won, for the map: on the books or was. Somebody moved to Not interested
+   is not a win, whatever they said on the website the day they asked. */
+function terrWon(l){
+  var st = l.status || 'new';
+  if (st === 'lost' || st === 'deleted') return false;
+  return st === 'closed' || st === 'cancelled' || quoteState(l) === 'accepted';
+}
 function territoryStats(){
   var by = {};
-  var z = function(k){ if (!by[k]) by[k] = { zip: k, town: '', customers: 0, mrr: 0, leads: 0, won: 0, lost: 0, looks: 0, streets: {}, names: [] }; return by[k]; };
+  var z = function(k){ if (!by[k]) by[k] = { zip: k, town: '', customers: 0, mrr: 0, leads: 0, won: 0, lost: 0, looks: 0, onetime: 0, streets: {}, people: [] }; return by[k]; };
   leads.forEach(function(l){
     if (!isLead(l)) return;
     var k = zipOf(l); if (!k) return;
     var b = z(k); if (!b.town) b.town = townOf(k, l);
     var st = l.status || 'new';
+    var rec = isRecurring(l);
+    if (!rec){ if (st === 'closed') b.onetime++; return; }   // one-time jobs are noted, never bubbles
     b.leads++;
-    if (wonLead(l)) b.won++; else if (quoteState(l) === 'declined' || st === 'lost') b.lost++;
+    if (terrWon(l)) b.won++; else if (quoteState(l) === 'declined' || st === 'lost') b.lost++;
+    b.people.push(l);
     if (st === 'closed'){
       b.customers++;
       var pp = parsePrice(l); if (pp && pp.isMo) b.mrr += pp.amt;
@@ -3161,7 +3178,7 @@ function terrColour(b){
 }
 function terrBlurb(b){
   var r = isNaN(b.rate) ? 'no quotes yet' : Math.round(b.rate * 100) + '% of ' + b.leads + ' quote' + (b.leads === 1 ? '' : 's') + ' won';
-  return b.customers + ' customer' + (b.customers === 1 ? '' : 's') + (b.mrr ? ' · ' + money(b.mrr) + '/mo' : '') + ' · ' + r + (b.looks ? ' · ' + b.looks + ' looked at a price' : '') + (b.tier ? ' · ' + b.tier : '');
+  return b.customers + ' customer' + (b.customers === 1 ? '' : 's') + (b.mrr ? ' · ' + money(b.mrr) + '/mo' : '') + ' · ' + r + (b.looks ? ' · ' + b.looks + ' looked at a price' : '') + (b.onetime ? ' · ' + b.onetime + ' one-time job' + (b.onetime === 1 ? '' : 's') : '') + (b.tier ? ' · ' + b.tier : '');
 }
 /* The SVG map: a bubble per ZIP over the metro, drawn from the centre points. */
 /* The roads everyone navigates by, as rough polylines, so the picture reads
@@ -3241,7 +3258,7 @@ function terrSvg(rows){
   sorted.slice().reverse().forEach(function(b){
     if (!inView(ZIP_PTS[b.zip][0], ZIP_PTS[b.zip][1])) return;
     var p = ZIP_PTS[b.zip], r = rOf(b), c = terrColour(b);
-    h += '<g class="terr-dot" data-zip="' + b.zip + '" style="cursor:pointer;"><title>' + esc(b.town + ' ' + b.zip + ': ' + terrBlurb(b)) + '</title>' +
+    h += '<g class="terr-dot" data-zip="' + b.zip + '" onclick="terrPick(\'' + b.zip + '\')" style="cursor:pointer;"><title>' + esc(b.town + ' ' + b.zip + ': ' + terrBlurb(b)) + '</title>' +
       '<circle cx="' + X(p[1]).toFixed(1) + '" cy="' + Y(p[0]).toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + c + '" fill-opacity="' + (b.customers ? '.55' : '.35') + '" stroke="' + c + '" stroke-width="1.5"/>' +
       (b.customers ? '<text x="' + X(p[1]).toFixed(1) + '" y="' + (Y(p[0]) + 4).toFixed(1) + '" text-anchor="middle" font-size="' + (r > 14 ? 13 : 10) + '" font-weight="800" fill="#fff">' + b.customers + '</text>' : '') + '</g>';
   });
@@ -3293,10 +3310,100 @@ function terrStreetMap(rows){
     var p = ZIP_PTS[b.zip], c = terrColour(b), r = b.customers ? 9 + 26 * Math.sqrt(b.customers / maxC) : 6;
     bounds.push([p[0], p[1]]);
     L.circleMarker([p[0], p[1]], { radius: r, color: c, weight: 1.5, fillColor: c, fillOpacity: b.customers ? .5 : .3 })
-      .bindPopup('<strong>' + esc(b.town) + ' ' + b.zip + '</strong><br>' + esc(terrBlurb(b))).addTo(terrLeaflet.layerGroup);
+      .bindPopup('<strong>' + esc(b.town) + ' ' + b.zip + '</strong><br>' + esc(terrBlurb(b)) + '<br><a href="#" onclick="terrPick(\'' + b.zip + '\');return false;">Who is here &rarr;</a>').addTo(terrLeaflet.layerGroup);
     if (b.customers) L.marker([p[0], p[1]], { icon: L.divIcon({ className: '', html: '<div style="color:#fff;font-weight:800;font-size:' + (r > 16 ? 13 : 10) + 'px;text-align:center;line-height:' + (2 * r) + 'px;width:' + (2 * r) + 'px;text-shadow:0 0 2px rgba(0,0,0,.4);">' + b.customers + '</div>', iconSize: [2 * r, 2 * r], iconAnchor: [r, r] }), interactive: false }).addTo(terrLeaflet.layerGroup);
   });
   if (!terrLeaflet.fitted){ terrLeaflet.fitBounds(bounds, { padding: [24, 24] }); terrLeaflet.fitted = true; }
+  terrHomesButton();
+  if (terrHomesOn) terrDrawHomes();
+}
+/* ---- the customers' actual homes on the street map ----
+   Each recurring customer's address is looked up once on OpenStreetMap's
+   geocoder (the same one the website uses for address suggestions),
+   remembered on this phone, and drawn as a small pin. One lookup a second,
+   so the first time takes a minute or two for a hundred customers; after
+   that only new ones are looked up. */
+var terrHomesOn = false, terrGeo = {}, terrGeoBusy = false, terrHomesLayer = null;
+try { terrGeo = JSON.parse(localStorage.getItem('clpps_geo') || '{}') || {}; } catch (e) { terrGeo = {}; }
+function terrHomesButton(){
+  var old = document.getElementById('terr-homes-btn'); if (old) old.remove();
+  var box = document.getElementById('terr-map'); if (!box) return;
+  var btn = document.createElement('button');
+  btn.id = 'terr-homes-btn';
+  btn.style.cssText = 'position:absolute;left:8px;top:8px;z-index:500;font-family:inherit;font-size:11px;font-weight:700;padding:6px 9px;min-height:32px;border-radius:8px;border:1px solid #cfd8d3;background:' + (terrHomesOn ? '#188663' : '#fff') + ';color:' + (terrHomesOn ? '#fff' : '#2B3A34') + ';cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);';
+  btn.innerHTML = terrHomesOn ? '&#128205; Homes on' : '&#128205; Show homes';
+  btn.onclick = function(){ terrHomesOn = !terrHomesOn; terrHomesButton(); if (terrHomesOn) terrDrawHomes(); else if (terrHomesLayer) terrHomesLayer.clearLayers(); };
+  box.appendChild(btn);
+}
+function terrGeoKey(l){ return String(l.address || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+function terrDrawHomes(){
+  if (!terrLeaflet || !window.L) return;
+  if (!terrHomesLayer) terrHomesLayer = L.layerGroup().addTo(terrLeaflet);
+  terrHomesLayer.clearLayers();
+  var homes = leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed' && isRecurring(l) && l.address; });
+  var todo = [];
+  homes.forEach(function(l){
+    var k = terrGeoKey(l), g = terrGeo[k];
+    if (g && g.lat){
+      L.circleMarker([g.lat, g.lng], { radius: 5, color: '#0F6E56', weight: 1.5, fillColor: '#188663', fillOpacity: .9 })
+        .bindPopup('<strong>' + esc(l.name || '') + '</strong><br>' + esc(String(l.address || '').split(',')[0]) + (l.price ? '<br>' + esc(String(l.price).split(' (')[0]) : '') + '<br><a href="#" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;">Open their card &rarr;</a>').addTo(terrHomesLayer);
+    } else if (!g) todo.push(l);
+  });
+  var btn = document.getElementById('terr-homes-btn');
+  if (btn) btn.innerHTML = '&#128205; Homes on' + (todo.length ? ' &middot; finding ' + todo.length + '&hellip;' : ' &middot; ' + (homes.length - todo.length));
+  if (!todo.length || terrGeoBusy) return;
+  terrGeoBusy = true;
+  var i = 0;
+  var next = function(){
+    if (!terrHomesOn || i >= todo.length){ terrGeoBusy = false; if (terrHomesOn) terrDrawHomes(); return; }
+    var l = todo[i++], k = terrGeoKey(l);
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=' + encodeURIComponent(String(l.address || '').replace(/,\s*USA$/i, '')), { headers: { 'Accept': 'application/json' } })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ var hit = d && d[0]; terrGeo[k] = hit ? { lat: parseFloat(hit.lat), lng: parseFloat(hit.lon) } : { lat: 0, lng: 0, miss: 1 }; })
+      .catch(function(){ /* try again another day */ })
+      .then(function(){
+        try { localStorage.setItem('clpps_geo', JSON.stringify(terrGeo)); } catch (e) {}
+        var b2 = document.getElementById('terr-homes-btn'); if (b2) b2.innerHTML = '&#128205; Homes on &middot; finding ' + (todo.length - i) + '&hellip;';
+        setTimeout(next, 1100);
+      });
+  };
+  next();
+}
+/* Jump to one lead's card, whatever the list is filtered to. */
+function jumpToLead(id){
+  filter = 'all';
+  try { document.getElementById('search').value = ''; } catch (e) {}
+  render();
+  var el = document.getElementById('card-' + id);
+  if (el){ el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.boxShadow = '0 0 0 3px #F2B01E'; setTimeout(function(){ el.style.boxShadow = ''; }, 2500); }
+}
+var terrPicked = '';
+function terrPick(zip){
+  terrPicked = (terrPicked === zip) ? '' : zip;
+  renderTerritory();
+  var el = document.getElementById('terr-pick');
+  if (el && terrPicked) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function terrPickHtml(rows){
+  if (!terrPicked) return '';
+  var b = rows.filter(function(r){ return r.zip === terrPicked; })[0];
+  if (!b) return '';
+  var who = function(l){
+    var st = l.status || 'new', pp = parsePrice(l);
+    var tag = st === 'closed' ? '<span style="color:#188663;font-weight:700;">customer</span>' : st === 'cancelled' ? '<span style="color:#b45309;">cancelled</span>' :
+              st === 'lost' ? '<span style="color:#c0392b;">not interested</span>' : quoteState(l) === 'declined' ? '<span style="color:#c0392b;">said no</span>' :
+              quoteState(l) === 'accepted' ? '<span style="color:#2980ef;">wants to start</span>' : '<span style="color:#707070;">' + esc(st) + '</span>';
+    return '<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
+      '<span><a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(l.name || '(no name)') + '</a>' +
+      ' <span style="color:#707070;">' + esc(String(l.address || '').split(',')[0]) + '</span></span>' +
+      '<span style="white-space:nowrap;">' + tag + (pp ? ' <span style="color:#707070;">' + (pp.isMo ? '$' + pp.amt + '/mo' : '$' + pp.amt) + '</span>' : '') + '</span></div>';
+  };
+  var ppl = b.people.slice().sort(function(a, c){ var o = { closed: 0, cancelled: 1 }; return (o[a.status] == null ? 2 : o[a.status]) - (o[c.status] == null ? 2 : o[c.status]); });
+  return '<div id="terr-pick" style="background:#F7F9F8;border:1px solid #E4EBE7;border-radius:12px;padding:10px 12px;margin-top:8px;">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-weight:800;">' + esc(b.town) + ' <span style="color:#707070;font-weight:400;">' + b.zip + (b.tier ? ' · ' + b.tier : '') + '</span></div>' +
+    '<button onclick="terrPick(\'\')" style="background:none;border:none;color:#707070;font-size:12px;cursor:pointer;font-family:inherit;min-height:36px;">close</button></div>' +
+    '<div style="font-size:12px;color:#555;margin-bottom:4px;">' + esc(terrBlurb(b)) + '. Tap a name to go to their card; change the status there and the map follows.</div>' +
+    (ppl.length ? ppl.map(who).join('') : '<div style="font-size:12.5px;color:#9aa5a0;">Only price looks here so far.</div>') + '</div>';
 }
 function renderTerritory(){
   var box = document.getElementById('terr-body'); if (!box) return;
@@ -3327,8 +3434,8 @@ function renderTerritory(){
   nb.sort(function(a, b){ return b.names.length - a.names.length; });
   var totalC = rows.reduce(function(a, b){ return a + b.customers; }, 0), totalZ = rows.filter(function(b){ return b.customers; }).length;
   var top3 = strong.slice(0, 3).reduce(function(a, b){ return a + b.customers; }, 0);
-  box.innerHTML =
-    '<div style="font-size:12.5px;color:#2B3A34;line-height:1.6;">' + totalC + ' customers across ' + totalZ + ' ZIP codes' +
+  box.innerHTML = terrPickHtml(rows) +
+    '<div style="font-size:12.5px;color:#2B3A34;line-height:1.6;margin-top:8px;">' + totalC + ' recurring customer' + (totalC === 1 ? '' : 's') + ' across ' + totalZ + ' ZIP codes' +
       (strong.length >= 3 ? '; <strong>' + Math.round(100 * top3 / Math.max(1, totalC)) + '%</strong> of them in the top three areas (' + strong.slice(0, 3).map(function(b){ return esc(b.town); }).join(', ') + ')' : '') + '.</div>' +
     card('&#127942; Strongholds', 'most customers, with the neighbouring ZIPs counted in - the tightest-knit routes',
       strong.map(function(b){ return line(b, b.customers + (b.near ? ' <span style="color:#707070;font-weight:400;">+' + b.near + ' nearby</span>' : '') + (b.mrr ? '<br><span style="color:#188663;">' + money(b.mrr) + '/mo</span>' : ''), b.leads ? Math.round(100 * b.won / b.leads) + '% of ' + b.leads + ' quotes won' : ''); }), 'strong') +
