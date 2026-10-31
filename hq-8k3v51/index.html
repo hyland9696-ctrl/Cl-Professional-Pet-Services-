@@ -126,6 +126,15 @@
       <span>&#128202; Traffic, revenue &amp; ad spend</span><span id="numbersArrow" aria-hidden="true">&#9662;</span>
     </button>
     <div id="numbers" style="display:none;">
+    <div id="territory" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;">
+        <div style="font-weight:800;font-size:15px;">&#128506;&#65039; Territory</div>
+        <div style="font-size:11px;color:#707070;">where the customers are, where the quotes convert, where they don&rsquo;t</div>
+      </div>
+      <div id="terr-map" style="position:relative;height:340px;margin:10px -4px 8px;border-radius:12px;overflow:hidden;background:#EEF3F0;"></div>
+      <div id="terr-legend" style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:#555;margin-bottom:10px;align-items:center;"></div>
+      <div id="terr-body"></div>
+    </div>
     <div id="traffic" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);display:none;">
       <div style="font-weight:800;font-size:14px;margin-bottom:10px;">&#128202; Site traffic</div>
       <div class="stats" id="t-nums" style="margin-bottom:10px;"></div>
@@ -164,6 +173,7 @@
       <button class="copybtn" onclick="toggleNo()" id="noBtn">&#128078; Said no</button>
       <button class="copybtn" onclick="toggleWait()" id="waitBtn">&#128205; Out of area</button>
       <button class="copybtn" onclick="toggleQR()" id="qrBtn">&#128241; Sign scans</button>
+      <button class="copybtn" onclick="openTerritory()">&#128506;&#65039; Territory</button>
       <button class="copybtn" onclick="toggleImport()" id="importBtn">&#11014;&#65039; Import Sweep&amp;Go</button>
       <button class="copybtn" onclick="toggleDeoSeason()" id="deoBtn" title="Deodorize &amp; sanitize is a warm-weather service. Flip this when it drops below 50 or warms back up; the website prices by it.">&#129532; Deodorize season</button>
       <button class="copybtn" onclick="toggleTests()" id="testBtn">&#129514; Test leads</button>
@@ -3043,6 +3053,229 @@ function sgImport(){
   };
   next();
 }
+/* ============================================================
+   TERRITORY. Jesse: "which areas we have the tightest-knit, where we are
+   excelling and selling the most, and which ones are the dead areas."
+
+   One bubble per ZIP: size is how many customers are there, colour is how
+   the quotes there convert. Under it, the strongholds, the areas that
+   convert best, the dead zones (people looking, nobody buying), and the
+   streets where there are already neighbours - the gold for a route.
+
+   The map is drawn here as SVG from a table of ZIP centre points, so it
+   works offline and in the tests; when the phone can fetch Leaflet and a
+   street basemap, the same bubbles are laid over real streets instead.
+   ============================================================ */
+var ZIP_PTS = {
+  '63376':[38.780,-90.610,'St. Peters'],'63301':[38.820,-90.540,'St. Charles'],'63303':[38.765,-90.540,'St. Charles'],'63304':[38.715,-90.630,'Cottleville / Weldon Spring'],
+  '63366':[38.835,-90.705,"O'Fallon"],'63368':[38.750,-90.720,"O'Fallon / Dardenne Prairie"],'63367':[38.780,-90.785,'Lake St. Louis'],'63385':[38.810,-90.860,'Wentzville'],
+  '63348':[38.820,-90.955,'Foristell'],'63365':[38.705,-90.880,'New Melle'],'63332':[38.580,-90.880,'Augusta'],'63341':[38.650,-90.800,'Defiance'],
+  '63373':[38.925,-90.350,'Portage des Sioux'],'63386':[38.870,-90.220,'West Alton'],
+  '63017':[38.655,-90.560,'Chesterfield'],'63005':[38.655,-90.650,'Chesterfield'],'63011':[38.600,-90.555,'Ballwin'],'63021':[38.580,-90.545,'Manchester'],
+  '63038':[38.580,-90.680,'Wildwood'],'63040':[38.580,-90.620,'Wildwood'],'63025':[38.500,-90.640,'Eureka'],'63026':[38.510,-90.450,'Fenton'],
+  '63088':[38.550,-90.495,'Valley Park'],'63049':[38.470,-90.540,'High Ridge'],'63141':[38.670,-90.450,'Creve Coeur'],'63146':[38.695,-90.470,'Creve Coeur'],
+  '63043':[38.725,-90.455,'Maryland Heights'],'63044':[38.760,-90.420,'Bridgeton'],'63042':[38.790,-90.370,'Hazelwood'],'63074':[38.725,-90.385,'St. Ann'],
+  '63114':[38.700,-90.365,'Overland'],'63132':[38.675,-90.375,'Olivette'],'63124':[38.640,-90.380,'Ladue'],'63131':[38.615,-90.440,'Des Peres'],
+  '63122':[38.580,-90.420,'Kirkwood'],'63127':[38.535,-90.410,'Sunset Hills'],'63126':[38.550,-90.380,'Crestwood'],'63128':[38.500,-90.380,'South County'],
+  '63129':[38.460,-90.330,'Oakville'],'63123':[38.550,-90.325,'Affton'],'63125':[38.520,-90.295,'Lemay'],'63119':[38.590,-90.350,'Webster Groves'],
+  '63144':[38.620,-90.350,'Brentwood'],'63117':[38.630,-90.330,'Richmond Heights'],'63105':[38.645,-90.330,'Clayton'],'63130':[38.665,-90.325,'University City'],
+  '63143':[38.610,-90.320,'Maplewood'],'63031':[38.805,-90.335,'Florissant'],'63033':[38.790,-90.280,'Florissant'],'63034':[38.830,-90.290,'Florissant'],
+  '63135':[38.750,-90.300,'Ferguson'],'63136':[38.740,-90.260,'Jennings'],'63137':[38.750,-90.215,'Moline Acres'],'63138':[38.790,-90.215,'Spanish Lake'],
+  '63121':[38.705,-90.300,'Normandy'],'63134':[38.740,-90.340,'Berkeley'],'63133':[38.675,-90.300,'Wellston'],'63045':[38.760,-90.460,'Earth City'],
+  '63139':[38.610,-90.290,'St. Louis Hills'],'63109':[38.585,-90.295,'Lindenwood Park'],'63110':[38.625,-90.265,'The Hill / Shaw'],'63104':[38.610,-90.215,'Soulard'],
+  '63108':[38.645,-90.255,'Central West End'],'63116':[38.580,-90.265,'Tower Grove South'],'63118':[38.595,-90.225,'Benton Park'],'63111':[38.560,-90.250,'Carondelet'],
+  '63112':[38.660,-90.285,'West End'],'63101':[38.630,-90.195,'Downtown'],'63102':[38.635,-90.185,'Downtown'],'63103':[38.635,-90.215,'Midtown'],
+  '63106':[38.645,-90.210,'North City'],'63107':[38.665,-90.215,'North City'],'63113':[38.660,-90.245,'North City'],'63115':[38.675,-90.240,'North City'],
+  '63120':[38.690,-90.260,'North City'],'63147':[38.695,-90.215,'Baden'],
+  '63090':[38.550,-91.010,'Washington'],'63084':[38.440,-91.000,'Union'],'63069':[38.480,-90.750,'Pacific'],'63073':[38.580,-90.780,'St. Albans'],'63055':[38.550,-90.850,'Labadie'],
+  '63010':[38.430,-90.380,'Arnold'],'63052':[38.370,-90.380,'Imperial'],'63012':[38.340,-90.410,'Barnhart'],'63028':[38.210,-90.400,'Festus'],'63019':[38.220,-90.380,'Crystal City'],
+  '63070':[38.280,-90.400,'Pevely'],'63048':[38.265,-90.380,'Herculaneum'],'63051':[38.410,-90.570,'House Springs'],'63050':[38.230,-90.560,'Hillsboro'],'63016':[38.350,-90.650,'Cedar Hill'],'63020':[38.140,-90.560,'De Soto'],
+  '63379':[38.980,-90.980,'Troy'],'63362':[38.945,-90.920,'Moscow Mills'],'63389':[39.000,-90.740,'Winfield'],'63369':[38.930,-90.760,'Old Monroe'],
+  '63383':[38.810,-91.140,'Warrenton'],'63390':[38.830,-91.020,'Wright City / Innsbrook'],'63357':[38.630,-91.060,'Marthasville'],
+  '62002':[38.900,-90.170,'Alton'],'62035':[38.955,-90.200,'Godfrey'],'62010':[38.905,-90.040,'Bethalto'],'62095':[38.860,-90.090,'Wood River'],'62024':[38.880,-90.100,'East Alton'],
+  '62025':[38.810,-89.960,'Edwardsville'],'62026':[38.790,-89.970,'Edwardsville'],'62034':[38.755,-89.980,'Glen Carbon'],'62062':[38.725,-89.955,'Maryville'],'62040':[38.720,-90.120,'Granite City'],
+  '62234':[38.675,-89.985,'Collinsville'],'62294':[38.730,-89.885,'Troy IL'],'62249':[38.740,-89.680,'Highland'],'62281':[38.715,-89.770,'St. Jacob'],
+  '62269':[38.590,-89.910,"O'Fallon IL / Shiloh"],'62208':[38.600,-89.990,'Fairview Heights'],'62220':[38.510,-89.985,'Belleville'],'62221':[38.525,-89.930,'Belleville'],
+  '62223':[38.540,-90.040,'Swansea'],'62226':[38.540,-90.000,'Belleville'],'62225':[38.540,-89.850,'Scott AFB'],'62232':[38.635,-90.025,'Caseyville'],
+  '62236':[38.440,-90.200,'Columbia'],'62298':[38.335,-90.150,'Waterloo'],'62243':[38.430,-89.910,'Freeburg'],'62258':[38.490,-89.790,'Mascoutah'],'62260':[38.460,-90.090,'Millstadt'],
+  '62285':[38.400,-89.990,'Smithton'],'62239':[38.520,-90.210,'Dupo'],'62206':[38.565,-90.165,'Cahokia'],'62205':[38.610,-90.130,'East St. Louis'],'62201':[38.630,-90.150,'East St. Louis'],
+  '62203':[38.595,-90.070,'East St. Louis'],'62204':[38.630,-90.100,'East St. Louis'],'62207':[38.590,-90.130,'East St. Louis']
+};
+function zipOf(l){ var m = String(l.zip || '').match(/\b(6[23]\d{3})\b/) || String(l.address || '').match(/\b(6[23]\d{3})\b/); return m ? m[1] : ''; }
+function townOf(zip, l){
+  if (ZIP_PTS[zip]) return ZIP_PTS[zip][2];
+  var m = String(l && l.address || '').match(/,\s*([^,]+?),\s*(?:MO|IL|Missouri|Illinois)\b/i);
+  return m ? m[1].trim() : (zip || 'unknown');
+}
+/* "316 Old Forester Dr., Lake St. Louis, MO 63367" -> "old forester dr" */
+function streetOf(addr){
+  var s = String(addr || '').split(',')[0].toLowerCase().replace(/[.#]/g, '').replace(/\s+/g, ' ').trim();
+  s = s.replace(/^\d+[a-z]?\s+/, '').replace(/\s+(apt|unit|ste|suite|lot)\s.*$/, '');
+  return s.length > 3 ? s : '';
+}
+function kmBetween(a, b){ var R = 6371, dLat = (b[0] - a[0]) * Math.PI / 180, dLng = (b[1] - a[1]) * Math.PI / 180; var x = Math.sin(dLat / 2), y = Math.sin(dLng / 2); var h = x * x + Math.cos(a[0] * Math.PI / 180) * Math.cos(b[0] * Math.PI / 180) * y * y; return 2 * R * Math.asin(Math.sqrt(h)); }
+/* Everything the map and the lists are built from. Pure: leads, qviews in; a table out. */
+function territoryStats(){
+  var by = {};
+  var z = function(k){ if (!by[k]) by[k] = { zip: k, town: '', customers: 0, mrr: 0, leads: 0, won: 0, lost: 0, looks: 0, streets: {}, names: [] }; return by[k]; };
+  leads.forEach(function(l){
+    if (!isLead(l)) return;
+    var k = zipOf(l); if (!k) return;
+    var b = z(k); if (!b.town) b.town = townOf(k, l);
+    var st = l.status || 'new';
+    b.leads++;
+    if (wonLead(l)) b.won++; else if (quoteState(l) === 'declined' || st === 'lost') b.lost++;
+    if (st === 'closed'){
+      b.customers++;
+      var pp = parsePrice(l); if (pp && pp.isMo) b.mrr += pp.amt;
+      var s = streetOf(l.address);
+      if (s) (b.streets[s] = b.streets[s] || []).push(l.name || '(no name)');
+    }
+  });
+  qviews.forEach(function(q){ var k = zipOf(q); if (k){ var b = z(k); if (!b.town) b.town = townOf(k, q); b.looks++; } });
+  var rows = Object.keys(by).map(function(k){ return by[k]; });
+  // how tight-knit: customers here plus half of those in the ZIPs around it.
+  // Twelve kilometres: suburban ZIP centres out here sit eight to twelve apart,
+  // so this is "the next town over", not the other side of the metro.
+  rows.forEach(function(b){
+    var p = ZIP_PTS[b.zip]; b.near = 0;
+    if (p) rows.forEach(function(o){ if (o !== b && ZIP_PTS[o.zip] && kmBetween(p, ZIP_PTS[o.zip]) <= 12) b.near += o.customers; });
+    b.cluster = b.customers + b.near * 0.5;
+    b.rate = b.leads ? b.won / b.leads : NaN;
+    b.tier = typeof clppsZipTier === 'function' ? clppsZipTier(b.zip) : '';
+  });
+  return rows;
+}
+function terrColour(b){
+  if (b.customers === 0 && b.leads + b.looks >= 3) return '#c0392b';      // people looking, nobody buying
+  if (!b.leads) return '#9aa5a0';
+  return b.rate >= 0.5 ? '#188663' : b.rate >= 0.25 ? '#e0a800' : '#c0392b';
+}
+function terrBlurb(b){
+  var r = isNaN(b.rate) ? 'no quotes yet' : Math.round(b.rate * 100) + '% of ' + b.leads + ' quote' + (b.leads === 1 ? '' : 's') + ' won';
+  return b.customers + ' customer' + (b.customers === 1 ? '' : 's') + (b.mrr ? ' · ' + money(b.mrr) + '/mo' : '') + ' · ' + r + (b.looks ? ' · ' + b.looks + ' looked at a price' : '') + (b.tier ? ' · ' + b.tier : '');
+}
+/* The SVG map: a bubble per ZIP over the metro, drawn from the centre points. */
+function terrSvg(rows){
+  var W = 720, H = 440, pts = rows.filter(function(b){ return ZIP_PTS[b.zip] && (b.customers || b.leads || b.looks); });
+  if (!pts.length) return '<div style="padding:40px 16px;text-align:center;color:#707070;font-size:13px;">No customers or quotes with a ZIP yet.</div>';
+  var lats = pts.map(function(b){ return ZIP_PTS[b.zip][0]; }), lngs = pts.map(function(b){ return ZIP_PTS[b.zip][1]; });
+  var minLat = Math.min.apply(null, lats) - 0.05, maxLat = Math.max.apply(null, lats) + 0.05, minLng = Math.min.apply(null, lngs) - 0.08, maxLng = Math.max.apply(null, lngs) + 0.08;
+  // keep the aspect honest at this latitude: a degree of longitude is about 0.78 of a degree of latitude
+  var spanLng = (maxLng - minLng) * 0.78, spanLat = maxLat - minLat;
+  var scale = Math.min((W - 40) / spanLng, (H - 40) / spanLat);
+  var ox = (W - spanLng * scale) / 2, oy = (H - spanLat * scale) / 2;
+  var X = function(lng){ return ox + (lng - minLng) * 0.78 * scale; }, Y = function(lat){ return H - oy - (lat - minLat) * scale; };
+  var maxC = Math.max.apply(null, pts.map(function(b){ return b.customers; })) || 1;
+  var rOf = function(b){ return b.customers ? 7 + 26 * Math.sqrt(b.customers / maxC) : 5; };
+  // the two rivers, roughly, so the picture reads as the metro and not as dots
+  var river = function(coords){ return '<polyline fill="none" stroke="#bcd5e8" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" opacity=".9" points="' + coords.map(function(c){ return X(c[1]).toFixed(1) + ',' + Y(c[0]).toFixed(1); }).join(' ') + '"/>'; };
+  var mississippi = [[39.05,-90.46],[38.95,-90.37],[38.87,-90.18],[38.80,-90.17],[38.70,-90.18],[38.63,-90.18],[38.55,-90.22],[38.45,-90.33],[38.35,-90.37],[38.25,-90.40],[38.15,-90.36]];
+  var missouri = [[38.63,-91.20],[38.58,-91.00],[38.56,-90.85],[38.62,-90.72],[38.68,-90.66],[38.75,-90.55],[38.80,-90.47],[38.86,-90.40],[38.87,-90.28],[38.83,-90.17]];
+  var sorted = pts.slice().sort(function(a, b){ return b.customers - a.customers; });
+  var labels = sorted.slice(0, 9);
+  var h = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;display:block;font-family:inherit;" role="img" aria-label="Customers by ZIP across the St. Louis metro">' +
+    '<rect width="' + W + '" height="' + H + '" fill="#EEF3F0"/>' + river(mississippi) + river(missouri) +
+    '<text x="' + (X(-90.25) + 4) + '" y="' + Y(39.0) + '" font-size="11" fill="#8fb3cc">Mississippi</text>' +
+    '<text x="' + X(-91.0) + '" y="' + (Y(38.58) - 8) + '" font-size="11" fill="#8fb3cc">Missouri</text>';
+  sorted.slice().reverse().forEach(function(b){
+    var p = ZIP_PTS[b.zip], r = rOf(b), c = terrColour(b);
+    h += '<g class="terr-dot" data-zip="' + b.zip + '" style="cursor:pointer;"><title>' + esc(b.town + ' ' + b.zip + ': ' + terrBlurb(b)) + '</title>' +
+      '<circle cx="' + X(p[1]).toFixed(1) + '" cy="' + Y(p[0]).toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + c + '" fill-opacity="' + (b.customers ? '.55' : '.35') + '" stroke="' + c + '" stroke-width="1.5"/>' +
+      (b.customers ? '<text x="' + X(p[1]).toFixed(1) + '" y="' + (Y(p[0]) + 4).toFixed(1) + '" text-anchor="middle" font-size="' + (r > 14 ? 13 : 10) + '" font-weight="800" fill="#fff">' + b.customers + '</text>' : '') + '</g>';
+  });
+  // labels for the biggest areas, each placed only if it would not sit on
+  // top of one already drawn; the short town name, not "X / Y"
+  var placed = [];
+  labels.forEach(function(b){
+    var p = ZIP_PTS[b.zip], r = rOf(b), lx = X(p[1]), ly = Y(p[0]) - r - 5, name = String(b.town).split(' / ')[0];
+    var w = name.length * 6.2;
+    if (placed.some(function(q){ return Math.abs(q.y - ly) < 13 && Math.abs(q.x - lx) < (q.w + w) / 2 + 6; })) return;
+    placed.push({ x: lx, y: ly, w: w });
+    h += '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" font-size="11" font-weight="700" fill="#2B3A34" paint-order="stroke" stroke="#EEF3F0" stroke-width="3">' + esc(name) + '</text>';
+  });
+  return h + '</svg>';
+}
+var terrLeaflet = null, terrLeafletTried = false;
+/* The same bubbles over real streets, when the phone can fetch the library. Quietly nothing when it cannot. */
+function terrStreetMap(rows){
+  if (terrLeafletTried && !window.L) return;
+  if (!terrLeafletTried){
+    terrLeafletTried = true;
+    var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
+    var js = document.createElement('script'); js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    js.onload = function(){ try { terrStreetMap(territoryStats()); } catch (e) {} };
+    js.onerror = function(){};
+    document.head.appendChild(js); return;
+  }
+  if (!window.L) return;
+  var box = document.getElementById('terr-map');
+  var pts = rows.filter(function(b){ return ZIP_PTS[b.zip] && (b.customers || b.leads || b.looks); });
+  if (!pts.length) return;
+  if (!terrLeaflet){
+    box.innerHTML = '';
+    terrLeaflet = L.map(box, { scrollWheelZoom: false, attributionControl: true, zoomControl: true });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 16, attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(terrLeaflet);
+    terrLeaflet.layerGroup = L.layerGroup().addTo(terrLeaflet);
+  }
+  terrLeaflet.layerGroup.clearLayers();
+  var maxC = Math.max.apply(null, pts.map(function(b){ return b.customers; })) || 1;
+  var bounds = [];
+  pts.forEach(function(b){
+    var p = ZIP_PTS[b.zip], c = terrColour(b), r = b.customers ? 9 + 26 * Math.sqrt(b.customers / maxC) : 6;
+    bounds.push([p[0], p[1]]);
+    L.circleMarker([p[0], p[1]], { radius: r, color: c, weight: 1.5, fillColor: c, fillOpacity: b.customers ? .5 : .3 })
+      .bindPopup('<strong>' + esc(b.town) + ' ' + b.zip + '</strong><br>' + esc(terrBlurb(b))).addTo(terrLeaflet.layerGroup);
+    if (b.customers) L.marker([p[0], p[1]], { icon: L.divIcon({ className: '', html: '<div style="color:#fff;font-weight:800;font-size:' + (r > 16 ? 13 : 10) + 'px;text-align:center;line-height:' + (2 * r) + 'px;width:' + (2 * r) + 'px;text-shadow:0 0 2px rgba(0,0,0,.4);">' + b.customers + '</div>', iconSize: [2 * r, 2 * r], iconAnchor: [r, r] }), interactive: false }).addTo(terrLeaflet.layerGroup);
+  });
+  terrLeaflet.fitBounds(bounds, { padding: [24, 24] });
+}
+function renderTerritory(){
+  var box = document.getElementById('terr-body'); if (!box) return;
+  var rows = territoryStats();
+  if (!terrLeaflet) document.getElementById('terr-map').innerHTML = terrSvg(rows);
+  terrStreetMap(rows);
+  document.getElementById('terr-legend').innerHTML =
+    '<span><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#188663;opacity:.6;vertical-align:-2px;"></span> half or more of quotes won</span>' +
+    '<span><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#e0a800;opacity:.6;vertical-align:-2px;"></span> a quarter to a half</span>' +
+    '<span><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#c0392b;opacity:.6;vertical-align:-2px;"></span> under a quarter, or looking but not buying</span>' +
+    '<span style="color:#707070;">bubble size = customers · tap one</span>';
+  var card = function(title, sub, items){
+    return '<div style="border:1px solid #e3e8e5;border-radius:12px;padding:10px 12px;margin-top:10px;">' +
+      '<div style="font-weight:800;font-size:13.5px;">' + title + '</div><div style="font-size:11.5px;color:#707070;margin-bottom:6px;">' + sub + '</div>' +
+      (items.length ? items.join('') : '<div style="font-size:12.5px;color:#9aa5a0;">Nothing here yet.</div>') + '</div>';
+  };
+  var line = function(b, right, extra){
+    return '<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
+      '<span><strong>' + esc(b.town) + '</strong> <span style="color:#707070;">' + b.zip + (b.tier ? ' · ' + b.tier : '') + '</span>' + (extra ? '<br><span style="color:#707070;font-size:11.5px;">' + extra + '</span>' : '') + '</span>' +
+      '<span style="text-align:right;white-space:nowrap;font-weight:700;">' + right + '</span></div>';
+  };
+  var strong = rows.filter(function(b){ return b.customers; }).sort(function(a, b){ return b.cluster - a.cluster || b.mrr - a.mrr; }).slice(0, 8);
+  var conv = rows.filter(function(b){ return b.leads >= 3; }).sort(function(a, b){ return b.rate - a.rate || b.leads - a.leads; }).slice(0, 8);
+  var dead = rows.filter(function(b){ return b.customers === 0 && b.leads + b.looks >= 3; }).sort(function(a, b){ return (b.leads + b.looks) - (a.leads + a.looks); }).slice(0, 8);
+  var nb = [];
+  rows.forEach(function(b){ Object.keys(b.streets).forEach(function(s){ if (b.streets[s].length >= 2) nb.push({ b: b, street: s, names: b.streets[s] }); }); });
+  nb.sort(function(a, b){ return b.names.length - a.names.length; });
+  var totalC = rows.reduce(function(a, b){ return a + b.customers; }, 0), totalZ = rows.filter(function(b){ return b.customers; }).length;
+  var top3 = strong.slice(0, 3).reduce(function(a, b){ return a + b.customers; }, 0);
+  box.innerHTML =
+    '<div style="font-size:12.5px;color:#2B3A34;line-height:1.6;">' + totalC + ' customers across ' + totalZ + ' ZIP codes' +
+      (strong.length >= 3 ? '; <strong>' + Math.round(100 * top3 / Math.max(1, totalC)) + '%</strong> of them in the top three areas (' + strong.slice(0, 3).map(function(b){ return esc(b.town); }).join(', ') + ')' : '') + '.</div>' +
+    card('&#127942; Strongholds', 'most customers, with the neighbouring ZIPs counted in - the tightest-knit routes',
+      strong.map(function(b){ return line(b, b.customers + (b.near ? ' <span style="color:#707070;font-weight:400;">+' + b.near + ' nearby</span>' : '') + (b.mrr ? '<br><span style="color:#188663;">' + money(b.mrr) + '/mo</span>' : ''), b.leads ? Math.round(100 * b.won / b.leads) + '% of ' + b.leads + ' quotes won' : ''); })) +
+    card('&#127919; Where the quotes convert', 'areas with three or more quotes, best close rate first',
+      conv.map(function(b){ var pct = Math.round(100 * b.rate); return line(b, '<span style="color:' + terrColour(b) + ';">' + pct + '%</span> <span style="color:#707070;font-weight:400;">of ' + b.leads + '</span>', b.customers + ' customer' + (b.customers === 1 ? '' : 's') + (b.lost ? ', ' + b.lost + ' said no' : '')); })) +
+    card('&#128564; Dead zones', 'people look at a price or ask for one, and nobody has signed up - worth a look at the price tier or the ad',
+      dead.map(function(b){ return line(b, '<span style="color:#c0392b;">0 won</span>', (b.leads ? b.leads + ' quote' + (b.leads === 1 ? '' : 's') : '') + (b.leads && b.looks ? ', ' : '') + (b.looks ? b.looks + ' price look' + (b.looks === 1 ? '' : 's') : '') + (b.lost ? ' · ' + b.lost + ' said no' : '')); })) +
+    card('&#127968; Neighbours', 'streets with two or more customers already - the easiest doors to knock on',
+      nb.slice(0, 10).map(function(x){ return '<div style="padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;"><strong>' + esc(x.street.replace(/\b\w/g, function(c){ return c.toUpperCase(); })) + '</strong> <span style="color:#707070;">' + esc(x.b.town) + ' ' + x.b.zip + '</span> &middot; ' + x.names.length + ' customers <span style="color:#707070;">(' + esc(x.names.join(', ')) + ')</span></div>'; }));
+}
+function openTerritory(){
+  var box = document.getElementById('numbers');
+  if (box.style.display === 'none') toggleNumbers();
+  renderTerritory();
+  document.getElementById('territory').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 /* ---- the deodorize season switch ----
    Corey stops spraying once it drops below 50F (people shut off their
    outdoor taps) and starts again when it warms up. A weather call, so a
@@ -3793,6 +4026,7 @@ function render(){
   renderRevenue();
   renderROI();
   renderInsights();
+  renderTerritory();
   renderReviews();
   renderAlerts();
   var qp = document.getElementById('qrPanel');
