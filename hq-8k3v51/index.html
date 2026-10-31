@@ -48,6 +48,13 @@
      15px tall. Pad the hit area without moving the text. */
   .meta a{color:#0F6E56;font-weight:600;text-decoration:none;display:inline-block;padding:8px 0;margin:-8px 0;}
   .price{font-size:15px;font-weight:800;color:#0F6E56;}
+  /* Fold-up cards: the first child is the heading and the handle; everything
+     under it hides when folded. The numbers panel was one long scroll. */
+  .fold > :first-child{cursor:pointer;position:relative;padding-right:24px;user-select:none;}
+  .fold > :first-child::after{content:'\25BE';position:absolute;right:2px;top:0;color:#9aa5a0;font-size:14px;line-height:1.2;}
+  .fold.folded > :first-child{margin-bottom:0 !important;}
+  .fold.folded > :first-child::after{content:'\25B8';}
+  .fold.folded > :not(:first-child){display:none !important;}
   .stbtns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
   .stbtns button{border:1px solid #ddd;background:#fafafa;border-radius:9px;padding:10px 12px;min-height:40px;font-size:12px;cursor:pointer;font-family:inherit;color:#555;}
   .stbtns a{min-height:40px;display:inline-flex;align-items:center;}
@@ -131,7 +138,7 @@
         <div style="font-weight:800;font-size:15px;">&#128506;&#65039; Territory</div>
         <div style="font-size:11px;color:#707070;">where the customers are, where the quotes convert, where they don&rsquo;t</div>
       </div>
-      <div id="terr-map" style="position:relative;height:340px;margin:10px -4px 8px;border-radius:12px;overflow:hidden;background:#EEF3F0;"></div>
+      <div id="terr-map" style="position:relative;height:400px;margin:10px -4px 8px;border-radius:12px;overflow:hidden;background:#EEF3F0;"></div>
       <div id="terr-legend" style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:#555;margin-bottom:10px;align-items:center;"></div>
       <div id="terr-body"></div>
     </div>
@@ -152,6 +159,7 @@
       // Apply the remembered choice before anything renders, so the page does
       // not open shut and then jump open.
       (function(){ try {
+        if (typeof foldInit === 'function') foldInit();
         if (localStorage.getItem('clpps_numbers') === 'open'){
           document.getElementById('numbers').style.display = 'block';
           document.getElementById('numbersArrow').innerHTML = '&#9652;';
@@ -3156,11 +3164,43 @@ function terrBlurb(b){
   return b.customers + ' customer' + (b.customers === 1 ? '' : 's') + (b.mrr ? ' · ' + money(b.mrr) + '/mo' : '') + ' · ' + r + (b.looks ? ' · ' + b.looks + ' looked at a price' : '') + (b.tier ? ' · ' + b.tier : '');
 }
 /* The SVG map: a bubble per ZIP over the metro, drawn from the centre points. */
+/* The roads everyone navigates by, as rough polylines, so the picture reads
+   as the metro at a glance. Interstates heavier, state routes lighter. */
+var TERR_ROADS = [
+  ['I-70', 3, [[38.83,-91.02],[38.81,-90.86],[38.79,-90.78],[38.80,-90.70],[38.78,-90.60],[38.79,-90.50],[38.76,-90.42],[38.73,-90.38],[38.70,-90.30],[38.63,-90.19],[38.62,-90.12],[38.67,-89.99],[38.72,-89.88],[38.74,-89.68]]],
+  ['I-64', 3, [[38.80,-90.86],[38.75,-90.75],[38.73,-90.68],[38.70,-90.62],[38.66,-90.56],[38.65,-90.46],[38.64,-90.38],[38.64,-90.32],[38.63,-90.20],[38.60,-90.05],[38.59,-89.91],[38.55,-89.84]]],
+  ['I-44', 3, [[38.48,-90.75],[38.50,-90.64],[38.53,-90.50],[38.54,-90.42],[38.56,-90.36],[38.60,-90.28],[38.63,-90.20]]],
+  ['I-55', 3, [[38.62,-90.20],[38.57,-90.24],[38.50,-90.33],[38.43,-90.38],[38.37,-90.38],[38.28,-90.40],[38.22,-90.40],[38.14,-90.44]]],
+  ['I-55', 3, [[38.63,-90.15],[38.68,-90.10],[38.70,-90.02],[38.75,-89.95],[38.81,-89.93],[38.88,-89.84]]],
+  ['I-270', 2.2, [[38.76,-90.17],[38.78,-90.30],[38.77,-90.37],[38.75,-90.45],[38.70,-90.47],[38.63,-90.47],[38.58,-90.46],[38.55,-90.42]]],
+  ['I-255', 2.2, [[38.55,-90.42],[38.50,-90.37],[38.47,-90.33],[38.47,-90.25],[38.52,-90.17],[38.59,-90.07],[38.64,-90.04],[38.70,-90.02]]],
+  ['370', 1.6, [[38.80,-90.47],[38.80,-90.56],[38.78,-90.62]]],
+  ['364', 1.6, [[38.70,-90.45],[38.72,-90.55],[38.74,-90.62],[38.75,-90.70],[38.76,-90.78]]],
+  ['61', 1.6, [[38.82,-90.86],[38.94,-90.92],[38.98,-90.98]]],
+  ['40/61', 1.6, [[38.68,-90.66],[38.60,-90.64],[38.56,-90.68],[38.53,-90.73]]],
+  ['67', 1.6, [[38.90,-90.17],[38.86,-90.25],[38.80,-90.30],[38.75,-90.33],[38.70,-90.33]]],
+  ['21', 1.4, [[38.60,-90.30],[38.50,-90.40],[38.43,-90.48],[38.35,-90.55],[38.23,-90.56]]],
+  ['159', 1.4, [[38.90,-90.07],[38.81,-89.96],[38.75,-89.98],[38.67,-89.99],[38.60,-89.99],[38.52,-89.98]]],
+  ['3', 1.4, [[38.90,-90.17],[38.80,-90.17],[38.72,-90.15],[38.64,-90.15],[38.56,-90.17],[38.44,-90.20],[38.34,-90.15]]]
+];
+var terrZoom = 'core';   // 'core' (the St. Charles / west county heartland) or 'metro' (everyone)
+function terrSetZoom(z){ terrZoom = z; renderTerritory(); }
 function terrSvg(rows){
-  var W = 720, H = 440, pts = rows.filter(function(b){ return ZIP_PTS[b.zip] && (b.customers || b.leads || b.looks); });
+  var W = 720, H = 460, pts = rows.filter(function(b){ return ZIP_PTS[b.zip] && (b.customers || b.leads || b.looks); });
   if (!pts.length) return '<div style="padding:40px 16px;text-align:center;color:#707070;font-size:13px;">No customers or quotes with a ZIP yet.</div>';
   var lats = pts.map(function(b){ return ZIP_PTS[b.zip][0]; }), lngs = pts.map(function(b){ return ZIP_PTS[b.zip][1]; });
-  var minLat = Math.min.apply(null, lats) - 0.05, maxLat = Math.max.apply(null, lats) + 0.05, minLng = Math.min.apply(null, lngs) - 0.08, maxLng = Math.max.apply(null, lngs) + 0.08;
+  var minLat, maxLat, minLng, maxLng;
+  if (terrZoom === 'core'){
+    // the box that holds most of the customers: tight around them, outliers left off
+    var byC = pts.filter(function(b){ return b.customers; }).sort(function(a, b){ return b.customers - a.customers; });
+    var total = byC.reduce(function(a, b){ return a + b.customers; }, 0), acc = 0, core = [];
+    byC.forEach(function(b){ if (acc < total * 0.85 || core.length < 6){ core.push(b); acc += b.customers; } });
+    if (!core.length) core = pts;
+    var cl = core.map(function(b){ return ZIP_PTS[b.zip][0]; }), cg = core.map(function(b){ return ZIP_PTS[b.zip][1]; });
+    minLat = Math.min.apply(null, cl) - 0.06; maxLat = Math.max.apply(null, cl) + 0.06; minLng = Math.min.apply(null, cg) - 0.10; maxLng = Math.max.apply(null, cg) + 0.10;
+  } else {
+    minLat = Math.min.apply(null, lats) - 0.05; maxLat = Math.max.apply(null, lats) + 0.05; minLng = Math.min.apply(null, lngs) - 0.08; maxLng = Math.max.apply(null, lngs) + 0.08;
+  }
   // keep the aspect honest at this latitude: a degree of longitude is about 0.78 of a degree of latitude
   var spanLng = (maxLng - minLng) * 0.78, spanLat = maxLat - minLat;
   var scale = Math.min((W - 40) / spanLng, (H - 40) / spanLat);
@@ -3173,12 +3213,33 @@ function terrSvg(rows){
   var mississippi = [[39.05,-90.46],[38.95,-90.37],[38.87,-90.18],[38.80,-90.17],[38.70,-90.18],[38.63,-90.18],[38.55,-90.22],[38.45,-90.33],[38.35,-90.37],[38.25,-90.40],[38.15,-90.36]];
   var missouri = [[38.63,-91.20],[38.58,-91.00],[38.56,-90.85],[38.62,-90.72],[38.68,-90.66],[38.75,-90.55],[38.80,-90.47],[38.86,-90.40],[38.87,-90.28],[38.83,-90.17]];
   var sorted = pts.slice().sort(function(a, b){ return b.customers - a.customers; });
-  var labels = sorted.slice(0, 9);
+  var labels = sorted.slice(0, 14);
+  var inView = function(lat, lng){ return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng; };
   var h = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;display:block;font-family:inherit;" role="img" aria-label="Customers by ZIP across the St. Louis metro">' +
-    '<rect width="' + W + '" height="' + H + '" fill="#EEF3F0"/>' + river(mississippi) + river(missouri) +
-    '<text x="' + (X(-90.25) + 4) + '" y="' + Y(39.0) + '" font-size="11" fill="#8fb3cc">Mississippi</text>' +
-    '<text x="' + X(-91.0) + '" y="' + (Y(38.58) - 8) + '" font-size="11" fill="#8fb3cc">Missouri</text>';
+    '<defs><clipPath id="terr-clip"><rect width="' + W + '" height="' + H + '"/></clipPath></defs>' +
+    '<rect width="' + W + '" height="' + H + '" fill="#EEF3F0"/><g clip-path="url(#terr-clip)">' + river(mississippi) + river(missouri);
+  // roads, then their names at the first point that is on screen
+  TERR_ROADS.forEach(function(rd){
+    var major = rd[1] >= 3;
+    h += '<polyline fill="none" stroke="' + (major ? '#f0b64d' : '#d9d9d9') + '" stroke-width="' + rd[1] + '" stroke-linejoin="round" stroke-linecap="round" opacity=".9" points="' + rd[2].map(function(c){ return X(c[1]).toFixed(1) + ',' + Y(c[0]).toFixed(1); }).join(' ') + '"/>';
+  });
+  TERR_ROADS.forEach(function(rd){
+    var on = rd[2].filter(function(c){ return inView(c[0], c[1]); });
+    if (on.length < 2) return;
+    var c = on[Math.floor(on.length / 2)], major = rd[1] >= 3;
+    h += '<text x="' + X(c[1]).toFixed(1) + '" y="' + (Y(c[0]) - 4).toFixed(1) + '" font-size="' + (major ? 10 : 9) + '" font-weight="700" fill="' + (major ? '#b7791f' : '#9a9a9a') + '" paint-order="stroke" stroke="#EEF3F0" stroke-width="3">' + rd[0] + '</text>';
+  });
+  if (inView(39.0, -90.25)) h += '<text x="' + (X(-90.25) + 4) + '" y="' + Y(39.0) + '" font-size="11" fill="#8fb3cc">Mississippi</text>';
+  if (inView(38.60, -90.95)) h += '<text x="' + X(-90.95) + '" y="' + (Y(38.58) - 8) + '" font-size="11" fill="#8fb3cc">Missouri River</text>';
+  // every ZIP we price is a faint dot with its town, so empty areas are visible as empty
+  Object.keys(ZIP_PTS).forEach(function(z){
+    var p = ZIP_PTS[z]; if (!inView(p[0], p[1])) return;
+    if (pts.some(function(b){ return b.zip === z; })) return;
+    h += '<g><title>' + esc(p[2] + ' ' + z + ': nothing yet') + '</title><circle cx="' + X(p[1]).toFixed(1) + '" cy="' + Y(p[0]).toFixed(1) + '" r="2.5" fill="#b8c2bd"/>' +
+      (terrZoom === 'core' ? '<text x="' + (X(p[1]) + 5).toFixed(1) + '" y="' + (Y(p[0]) + 3).toFixed(1) + '" font-size="8" fill="#9aa5a0">' + esc(String(p[2]).split(' / ')[0]) + '</text>' : '') + '</g>';
+  });
   sorted.slice().reverse().forEach(function(b){
+    if (!inView(ZIP_PTS[b.zip][0], ZIP_PTS[b.zip][1])) return;
     var p = ZIP_PTS[b.zip], r = rOf(b), c = terrColour(b);
     h += '<g class="terr-dot" data-zip="' + b.zip + '" style="cursor:pointer;"><title>' + esc(b.town + ' ' + b.zip + ': ' + terrBlurb(b)) + '</title>' +
       '<circle cx="' + X(p[1]).toFixed(1) + '" cy="' + Y(p[0]).toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + c + '" fill-opacity="' + (b.customers ? '.55' : '.35') + '" stroke="' + c + '" stroke-width="1.5"/>' +
@@ -3189,12 +3250,19 @@ function terrSvg(rows){
   var placed = [];
   labels.forEach(function(b){
     var p = ZIP_PTS[b.zip], r = rOf(b), lx = X(p[1]), ly = Y(p[0]) - r - 5, name = String(b.town).split(' / ')[0];
+    if (!inView(p[0], p[1])) return;
     var w = name.length * 6.2;
     if (placed.some(function(q){ return Math.abs(q.y - ly) < 13 && Math.abs(q.x - lx) < (q.w + w) / 2 + 6; })) return;
     placed.push({ x: lx, y: ly, w: w });
     h += '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" font-size="11" font-weight="700" fill="#2B3A34" paint-order="stroke" stroke="#EEF3F0" stroke-width="3">' + esc(name) + '</text>';
   });
-  return h + '</svg>';
+  h += '</g></svg>';
+  var off = terrZoom === 'core' ? pts.filter(function(b){ return !inView(ZIP_PTS[b.zip][0], ZIP_PTS[b.zip][1]); }) : [];
+  return h +
+    '<div style="position:absolute;top:8px;right:8px;display:flex;gap:4px;">' +
+      '<button onclick="terrSetZoom(\'core\')" style="font-family:inherit;font-size:11px;font-weight:700;padding:6px 9px;min-height:32px;border-radius:8px;border:1px solid #cfd8d3;background:' + (terrZoom === 'core' ? '#188663' : '#fff') + ';color:' + (terrZoom === 'core' ? '#fff' : '#2B3A34') + ';cursor:pointer;">Heartland</button>' +
+      '<button onclick="terrSetZoom(\'metro\')" style="font-family:inherit;font-size:11px;font-weight:700;padding:6px 9px;min-height:32px;border-radius:8px;border:1px solid #cfd8d3;background:' + (terrZoom === 'metro' ? '#188663' : '#fff') + ';color:' + (terrZoom === 'metro' ? '#fff' : '#2B3A34') + ';cursor:pointer;">Whole metro</button></div>' +
+    (off.length ? '<div style="position:absolute;left:8px;bottom:8px;font-size:10.5px;color:#555;background:rgba(255,255,255,.85);border-radius:8px;padding:4px 8px;">' + off.reduce(function(a, b){ return a + b.customers; }, 0) + ' more customer' + (off.reduce(function(a, b){ return a + b.customers; }, 0) === 1 ? '' : 's') + ' in ' + off.length + ' further-out ZIP' + (off.length === 1 ? '' : 's') + ' &middot; tap Whole metro</div>' : '');
 }
 var terrLeaflet = null, terrLeafletTried = false;
 /* The same bubbles over real streets, when the phone can fetch the library. Quietly nothing when it cannot. */
@@ -3215,7 +3283,7 @@ function terrStreetMap(rows){
   if (!terrLeaflet){
     box.innerHTML = '';
     terrLeaflet = L.map(box, { scrollWheelZoom: false, attributionControl: true, zoomControl: true });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 16, attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(terrLeaflet);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 17, attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(terrLeaflet);
     terrLeaflet.layerGroup = L.layerGroup().addTo(terrLeaflet);
   }
   terrLeaflet.layerGroup.clearLayers();
@@ -3228,7 +3296,7 @@ function terrStreetMap(rows){
       .bindPopup('<strong>' + esc(b.town) + ' ' + b.zip + '</strong><br>' + esc(terrBlurb(b))).addTo(terrLeaflet.layerGroup);
     if (b.customers) L.marker([p[0], p[1]], { icon: L.divIcon({ className: '', html: '<div style="color:#fff;font-weight:800;font-size:' + (r > 16 ? 13 : 10) + 'px;text-align:center;line-height:' + (2 * r) + 'px;width:' + (2 * r) + 'px;text-shadow:0 0 2px rgba(0,0,0,.4);">' + b.customers + '</div>', iconSize: [2 * r, 2 * r], iconAnchor: [r, r] }), interactive: false }).addTo(terrLeaflet.layerGroup);
   });
-  terrLeaflet.fitBounds(bounds, { padding: [24, 24] });
+  if (!terrLeaflet.fitted){ terrLeaflet.fitBounds(bounds, { padding: [24, 24] }); terrLeaflet.fitted = true; }
 }
 function renderTerritory(){
   var box = document.getElementById('terr-body'); if (!box) return;
@@ -3240,9 +3308,10 @@ function renderTerritory(){
     '<span><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#e0a800;opacity:.6;vertical-align:-2px;"></span> a quarter to a half</span>' +
     '<span><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#c0392b;opacity:.6;vertical-align:-2px;"></span> under a quarter, or looking but not buying</span>' +
     '<span style="color:#707070;">bubble size = customers · tap one</span>';
-  var card = function(title, sub, items){
-    return '<div style="border:1px solid #e3e8e5;border-radius:12px;padding:10px 12px;margin-top:10px;">' +
-      '<div style="font-weight:800;font-size:13.5px;">' + title + '</div><div style="font-size:11.5px;color:#707070;margin-bottom:6px;">' + sub + '</div>' +
+  var card = function(title, sub, items, key){
+    var st = foldState(key), shut = st === null ? key !== 'strong' : st === 'shut';
+    return '<div class="fold' + (shut ? ' folded' : '') + '" data-fold="' + key + '" style="border:1px solid #e3e8e5;border-radius:12px;padding:10px 12px;margin-top:10px;">' +
+      '<div style="font-weight:800;font-size:13.5px;">' + title + ' <span style="font-weight:400;color:#707070;font-size:12px;">(' + items.length + ')</span></div><div style="font-size:11.5px;color:#707070;margin-bottom:6px;">' + sub + '</div>' +
       (items.length ? items.join('') : '<div style="font-size:12.5px;color:#9aa5a0;">Nothing here yet.</div>') + '</div>';
   };
   var line = function(b, right, extra){
@@ -3262,18 +3331,48 @@ function renderTerritory(){
     '<div style="font-size:12.5px;color:#2B3A34;line-height:1.6;">' + totalC + ' customers across ' + totalZ + ' ZIP codes' +
       (strong.length >= 3 ? '; <strong>' + Math.round(100 * top3 / Math.max(1, totalC)) + '%</strong> of them in the top three areas (' + strong.slice(0, 3).map(function(b){ return esc(b.town); }).join(', ') + ')' : '') + '.</div>' +
     card('&#127942; Strongholds', 'most customers, with the neighbouring ZIPs counted in - the tightest-knit routes',
-      strong.map(function(b){ return line(b, b.customers + (b.near ? ' <span style="color:#707070;font-weight:400;">+' + b.near + ' nearby</span>' : '') + (b.mrr ? '<br><span style="color:#188663;">' + money(b.mrr) + '/mo</span>' : ''), b.leads ? Math.round(100 * b.won / b.leads) + '% of ' + b.leads + ' quotes won' : ''); })) +
+      strong.map(function(b){ return line(b, b.customers + (b.near ? ' <span style="color:#707070;font-weight:400;">+' + b.near + ' nearby</span>' : '') + (b.mrr ? '<br><span style="color:#188663;">' + money(b.mrr) + '/mo</span>' : ''), b.leads ? Math.round(100 * b.won / b.leads) + '% of ' + b.leads + ' quotes won' : ''); }), 'strong') +
     card('&#127919; Where the quotes convert', 'areas with three or more quotes, best close rate first',
-      conv.map(function(b){ var pct = Math.round(100 * b.rate); return line(b, '<span style="color:' + terrColour(b) + ';">' + pct + '%</span> <span style="color:#707070;font-weight:400;">of ' + b.leads + '</span>', b.customers + ' customer' + (b.customers === 1 ? '' : 's') + (b.lost ? ', ' + b.lost + ' said no' : '')); })) +
+      conv.map(function(b){ var pct = Math.round(100 * b.rate); return line(b, '<span style="color:' + terrColour(b) + ';">' + pct + '%</span> <span style="color:#707070;font-weight:400;">of ' + b.leads + '</span>', b.customers + ' customer' + (b.customers === 1 ? '' : 's') + (b.lost ? ', ' + b.lost + ' said no' : '')); }), 'conv') +
     card('&#128564; Dead zones', 'people look at a price or ask for one, and nobody has signed up - worth a look at the price tier or the ad',
-      dead.map(function(b){ return line(b, '<span style="color:#c0392b;">0 won</span>', (b.leads ? b.leads + ' quote' + (b.leads === 1 ? '' : 's') : '') + (b.leads && b.looks ? ', ' : '') + (b.looks ? b.looks + ' price look' + (b.looks === 1 ? '' : 's') : '') + (b.lost ? ' · ' + b.lost + ' said no' : '')); })) +
+      dead.map(function(b){ return line(b, '<span style="color:#c0392b;">0 won</span>', (b.leads ? b.leads + ' quote' + (b.leads === 1 ? '' : 's') : '') + (b.leads && b.looks ? ', ' : '') + (b.looks ? b.looks + ' price look' + (b.looks === 1 ? '' : 's') : '') + (b.lost ? ' · ' + b.lost + ' said no' : '')); }), 'dead') +
     card('&#127968; Neighbours', 'streets with two or more customers already - the easiest doors to knock on',
-      nb.slice(0, 10).map(function(x){ return '<div style="padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;"><strong>' + esc(x.street.replace(/\b\w/g, function(c){ return c.toUpperCase(); })) + '</strong> <span style="color:#707070;">' + esc(x.b.town) + ' ' + x.b.zip + '</span> &middot; ' + x.names.length + ' customers <span style="color:#707070;">(' + esc(x.names.join(', ')) + ')</span></div>'; }));
+      nb.slice(0, 10).map(function(x){ return '<div style="padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;"><strong>' + esc(x.street.replace(/\b\w/g, function(c){ return c.toUpperCase(); })) + '</strong> <span style="color:#707070;">' + esc(x.b.town) + ' ' + x.b.zip + '</span> &middot; ' + x.names.length + ' customers <span style="color:#707070;">(' + esc(x.names.join(', ')) + ')</span></div>'; }), 'nb');
+}
+/* ---- fold-up cards in the numbers panel ---- */
+var FOLD_CARDS = ['territory', 'traffic', 'roi', 'insights', 'reviews'];
+function foldKey(card){ return card.id || card.getAttribute('data-fold') || ''; }
+function foldState(key){ try { return localStorage.getItem('clpps_fold_' + key); } catch (e) { return null; } }
+function foldApply(card, openByDefault){
+  card.classList.add('fold');
+  var st = foldState(foldKey(card));
+  var shut = st === null ? !openByDefault : st === 'shut';
+  card.classList.toggle('folded', shut);
+}
+function foldInit(){
+  // every card starts open; a tap folds it and the phone remembers. The
+  // long lists inside Territory are the exception - they start folded.
+  FOLD_CARDS.forEach(function(id){ var el = document.getElementById(id); if (el) foldApply(el, true); });
+  var panel = document.getElementById('numbers');
+  if (!panel || panel.foldWired) return;
+  panel.foldWired = true;
+  panel.addEventListener('click', function(ev){
+    if (ev.target.closest('button, a, input, select, textarea, .terr-dot')) return;
+    var card = ev.target.closest('.fold'); if (!card) return;
+    var head = card.firstElementChild; if (!head || !head.contains(ev.target)) return;
+    card.classList.toggle('folded');
+    try { localStorage.setItem('clpps_fold_' + foldKey(card), card.classList.contains('folded') ? 'shut' : 'open'); } catch (e) {}
+    if (card.id === 'territory' && terrLeaflet) setTimeout(function(){ try { terrLeaflet.invalidateSize(); } catch (e) {} }, 60);
+  });
 }
 function openTerritory(){
   var box = document.getElementById('numbers');
   if (box.style.display === 'none') toggleNumbers();
+  var t = document.getElementById('territory');
+  t.classList.remove('folded');
+  try { localStorage.setItem('clpps_fold_territory', 'open'); } catch (e) {}
   renderTerritory();
+  if (terrLeaflet) setTimeout(function(){ try { terrLeaflet.invalidateSize(); } catch (e) {} }, 60);
   document.getElementById('territory').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 /* ---- the deodorize season switch ----
@@ -4021,6 +4120,7 @@ function dupLine(l){
     }).join(' and ') + (others.length > 2 ? ' and ' + (others.length - 2) + ' more' : '') + '</div>';
 }
 function render(){
+  foldInit();
   buildDupIndex();
   renderHealth();
   renderRevenue();

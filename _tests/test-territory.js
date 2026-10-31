@@ -45,6 +45,11 @@ const { ok, done } = reporter();
   await p.click('button:has-text("Territory")'); await p.waitForTimeout(900);
 
   ok('the Territory card is open and in view', await p.$eval('#numbers', e => e.style.display !== 'none') && await p.$eval('#territory', e => e.getBoundingClientRect().top < 120));
+  // the heartland view is the default: the far-out ZIPs are off the edge and counted in a note
+  ok('the heartland view is the default and the far-out ZIPs are noted below the map', /Heartland/.test(await p.textContent('#terr-map')) && /further-out ZIP/.test(await p.textContent('#terr-map')));
+  ok('Alton is off the heartland map', (await p.$$('#terr-map .terr-dot[data-zip="62002"]')).length === 0);
+  await p.click('#terr-map button:has-text("Whole metro")'); await p.waitForTimeout(400);
+  ok('Whole metro brings everyone on', !/further-out ZIP/.test(await p.textContent('#terr-map')));
   const dots = await p.$$eval('#terr-map .terr-dot', els => els.map(e => ({ zip: e.getAttribute('data-zip'), r: parseFloat(e.querySelector('circle').getAttribute('r')), fill: e.querySelector('circle').getAttribute('fill'), n: (e.querySelector('text') || {}).textContent })));
   ok('the drawn map has a bubble for every ZIP with activity', dots.length === 5, dots.map(d => d.zip).join(','));
   const sp = dots.find(d => d.zip === '63376'), al = dots.find(d => d.zip === '62002'), fl = dots.find(d => d.zip === '63031'), ch = dots.find(d => d.zip === '63017');
@@ -53,7 +58,7 @@ const { ok, done } = reporter();
   ok('Alton is red: four quotes, none won', al && al.fill === '#c0392b' && !al.n, JSON.stringify(al));
   ok('Florissant, where people only looked, is red too', fl && fl.fill === '#c0392b');
   ok('Chesterfield at two of three is green', ch && ch.fill === '#188663' && ch.n === '2');
-  ok('the rivers are drawn so it reads as the metro', (await p.$$('#terr-map polyline')).length === 2);
+  ok('the rivers and the highways are drawn so it reads as the metro', (await p.$$('#terr-map polyline')).length >= 17, String((await p.$$('#terr-map polyline')).length));
   ok('the biggest areas are labelled by town', /St\. Peters/.test(await p.textContent('#terr-map svg')));
 
   const body = (await p.textContent('#terr-body')).replace(/\s+/g, ' ');
@@ -71,6 +76,26 @@ const { ok, done } = reporter();
   ok('Oak Lane does not: one customer and one open quote', !/Oak Ln/.test(nb));
   ok('the legend explains the colours', /half or more of quotes won/.test(await p.textContent('#terr-legend')));
   ok('a bubble has a tooltip with the numbers', /5 customers · \$431\/mo · 83% of 6 quotes won/.test(await p.$eval('#terr-map .terr-dot[data-zip="63376"] title', e => e.textContent)));
+  /* ---- the drawn map's detail ---- */
+  ok('the highways are named', /I-70/.test(await p.textContent('#terr-map svg')) && /I-64/.test(await p.textContent('#terr-map svg')));
+  ok('ZIPs with nothing yet are faint dots, so empty areas are visible as empty', /nothing yet/.test(await p.$eval('#terr-map svg', e => e.innerHTML)));
+  await p.click('#terr-map button:has-text("Heartland")'); await p.waitForTimeout(400);
+  ok('back to the heartland on request, with the note again', /further-out ZIP/.test(await p.textContent('#terr-map')));
+
+  /* ---- fold-up cards ---- */
+  const folded = (sel) => p.$eval(sel, e => e.classList.contains('folded'));
+  ok('the numbers cards all start open', !(await folded('#territory')) && !(await folded('#insights')) && !(await folded('#roi')));
+  ok('inside Territory, Strongholds is open and the rest start folded', !(await folded('[data-fold="strong"]')) && (await folded('[data-fold="dead"]')) && (await folded('[data-fold="nb"]')));
+  ok('a folded card shows only its heading', (await p.$eval('[data-fold="dead"]', e => [...e.children].slice(1).every(c => getComputedStyle(c).display === 'none'))));
+  await p.click('[data-fold="dead"] > div:first-child'); await p.waitForTimeout(200);
+  ok('tapping the heading unfolds it', !(await folded('[data-fold="dead"]')) && /Alton 62002/.test(await p.textContent('[data-fold="dead"]')));
+  // (the traffic card only shows once there are visits; Insights is always there)
+  await p.click('#insights > div:first-child'); await p.waitForTimeout(200);
+  ok('tapping a numbers card heading folds it', await folded('#insights'));
+  ok('and only its heading stays visible', await p.$eval('#insights', e => [...e.children].slice(1).every(c => getComputedStyle(c).display === 'none')));
+  ok('and the choice is remembered', (await p.evaluate(() => [localStorage.getItem('clpps_fold_dead'), localStorage.getItem('clpps_fold_insights')])).join(',') === 'open,shut');
+  await p.reload(); await p.waitForTimeout(1200);
+  ok('after a reload the cards come back the way they were left', (await folded('#insights')) && !(await folded('[data-fold="dead"]')) && !(await folded('#roi')));
   ok('no page errors', errs.length === 0, errs.join('; '));
   await ctx.close(); await b.close();
   done();
