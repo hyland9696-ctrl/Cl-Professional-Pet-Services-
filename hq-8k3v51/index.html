@@ -674,7 +674,15 @@ function renderAlerts(){
     alertsPrimed = true;
     return;
   }
-  var newAuth = Object.keys(auths).filter(function(id){ return sa.indexOf(id) < 0; });
+  // an acceptance is news for somebody still being sold to; a customer who
+  // is already closed re-opening their old quote link and ticking the box
+  // again is not (it happened: two closed customers, one morning)
+  var newAuth = Object.keys(auths).filter(function(id){
+    if (sa.indexOf(id) >= 0) return false;
+    var l = leads.filter(function(x){ return x.id === id; })[0];
+    var st = l ? (l.status || 'new') : 'new';
+    return st !== 'closed' && st !== 'cancelled' && st !== 'lost';
+  });
   var newLead = leads.filter(function(l){
     return sl.indexOf(l.id) < 0 && !auths[l.id] && (l.status || 'new') === 'new';
   });
