@@ -216,7 +216,13 @@ function notifyLead_(l) {
   if (srcM && srcM[1]) lines.push('How they found us: ' + srcM[1]);
   lines.push('');
   lines.push('Lead tracker: https://www.clpropetservices.com/hq-8k3v51/');
-  MailApp.sendEmail({ to: NOTIFY_TO, cc: NOTIFY_CC, subject: subject, body: lines.join('\n') });
+  // The email goes out from the account the script runs under, which is a
+  // personal Gmail. The sender NAME is ours to set, so the inbox reads
+  // "CLPPS Lead Tracker" rather than somebody's address, and Reply goes to
+  // the customer.
+  var mail = { to: NOTIFY_TO, cc: NOTIFY_CC, subject: subject, body: lines.join('\n'), name: 'CLPPS Lead Tracker' };
+  if (l.email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(l.email))) mail.replyTo = String(l.email);
+  MailApp.sendEmail(mail);
 }
 
 /* The newest row the sheet holds for an id, as an object, or null. Newest
