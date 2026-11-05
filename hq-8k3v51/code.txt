@@ -83,7 +83,28 @@ var NOTIFY_CC = 'info@clpropetservices.com';
 
    Leave both blank and nothing is sent; the emails carry on as normal.
    ============================================================ */
-var PUSH_NTFY_TOPIC    = '';   // e.g. 'clpps-leads-7f3a91c4bd'
+/* Push notifications go through ntfy.sh, which is free and needs no account:
+   the phone's ntfy app subscribes to a topic name, and anything posted to
+   that name arrives as a notification. The topic name is the only secret -
+   whoever knows it can read the leads - so it lives in a script property,
+   never in this file. Run setupPush() once: it makes a random topic, stores
+   it and prints it in the execution log; type that into the ntfy app on
+   each phone. */
+var PUSH_NTFY_TOPIC    = '';   // left blank on purpose: see setupPush()
+function pushTopic_() {
+  try { var t = PropertiesService.getScriptProperties().getProperty('NTFY_TOPIC'); if (t) return t; } catch (e) {}
+  return PUSH_NTFY_TOPIC;
+}
+function setupPush() {
+  var topic = 'clpps-' + Utilities.getUuid().replace(/-/g, '').slice(0, 16);
+  PropertiesService.getScriptProperties().setProperty('NTFY_TOPIC', topic);
+  Logger.log('PUSH TOPIC (subscribe to this in the ntfy app on each phone): ' + topic);
+  try {
+    UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(topic), { method: 'post', contentType: 'text/plain; charset=utf-8',
+      payload: 'Push is on. New leads will arrive here, with one tap to the tracker.', headers: { 'Title': 'CLPPS Lead Tracker', 'Tags': 'white_check_mark' }, muteHttpExceptions: true });
+  } catch (e) {}
+  return topic;
+}
 var PUSH_OVER_USER     = '';   // Pushover user key
 var PUSH_OVER_TOKEN    = '';   // Pushover application token
 var PUSH_TRACKER_URL   = 'https://www.clpropetservices.com/hq-8k3v51/';
@@ -121,9 +142,10 @@ function pushLead_(l) {
   // an activation is worth waking somebody up for; a refusal is not
   var urgent = (t === 'ACTIVATE' || t === 'AUTH');
 
-  if (PUSH_NTFY_TOPIC) {
+  var topic = pushTopic_();
+  if (topic) {
     try {
-      UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(PUSH_NTFY_TOPIC), {
+      UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(topic), {
         method: 'post',
         contentType: 'text/plain; charset=utf-8',
         payload: body,

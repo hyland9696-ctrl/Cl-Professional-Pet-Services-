@@ -122,6 +122,10 @@ function clppsLeadSource(){
   if (ad) clppsStore('lead_ad', ad.slice(0, 60));
   return src;
 }
+/* A customer's referral link is clpropetservices.com/?ref=<code>. Remembered
+   for the visit so the quote they go on to ask for carries it. */
+(function(){ try { var r = clppsParam('ref').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30); if (r) clppsStore('lead_ref', r); } catch (e) {} })();
+function clppsLeadRef(){ try { return clppsStore('lead_ref') || ''; } catch (e) { return ''; } }
 /* The campaign and ad names remembered for this visit, or ''. */
 function clppsLeadCampaign(){ try { return clppsStore('lead_camp') || ''; } catch (e) { return ''; } }
 function clppsLeadAd(){ try { return clppsStore('lead_ad') || ''; } catch (e) { return ''; } }

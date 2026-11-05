@@ -77,6 +77,7 @@ able to tell what broke for a real person without opening the file.
 | `test-territory.js` | the Territory map and lists: bubbles per ZIP, strongholds with neighbours, conversion, dead zones, streets with two or more customers |
 | `test-history.js` | this month against last year, what each price change did, reviews gained by month; the revenue card folds |
 | `test-care2.js` | money left on the table, behind on payment, which ad, the story line, expiring quotes, win-back for closed accounts, who did what |
+| `test-care3.js` | a referral link for every customer (site `?ref=` to tracker), the text-us button, the save offer before an account closes, service days and the Schedule card, the Deodorize card |
 | `test-pixel.js` | what Meta is told and when: PageView, ViewContent, CompleteRegistration once, Lead only on activation |
 | `test-team.js` | team phones: no page views, labelled silent test leads, kept out of the numbers |
 

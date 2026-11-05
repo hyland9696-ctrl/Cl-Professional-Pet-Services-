@@ -103,6 +103,9 @@ for (let d = 0; d < 40; d++) ROWS.push({ id:'v' + d, type:'VIEW', name:'Home', y
   ok('a new lead is NOT offered an Account closed button', !/Account closed/.test(nora));
   ok('a closed customer IS', /Account closed/.test(won));
   await p.click('#card-L9 .stbtns button.b-cancelled'); await p.waitForTimeout(400);
+  // one save offer first (test-care3 covers it); closing is the second tap
+  ok('an active customer gets a save offer before the account closes', (await p.$('#save-L9')) !== null);
+  await p.click('#save-L9 button:has-text("Close it without offering")'); await p.waitForTimeout(400);
   const cxPost = posts.find(x => x.action === 'update' && x.id === 'L9' && x.status === 'cancelled');
   ok('tapping it stamps the leaving date on the row', cxPost && /\[CX:2026-10-02\]/.test(cxPost.notes), cxPost && cxPost.notes);
   ok('and the card asks why the account closed', /Why the account closed/.test(await card('L9')));
