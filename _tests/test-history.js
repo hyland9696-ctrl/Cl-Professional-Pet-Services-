@@ -42,6 +42,7 @@ const iso = (d) => new Date(d + 'T12:00:00Z').toISOString();
   await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(1200);
   await p.evaluate(() => { try { localStorage.setItem('clpps_numbers', 'open'); } catch (e) {} });
   await p.click('#numbersBtn'); await p.waitForTimeout(1200);
+  await p.evaluate(() => foldAll(true)); await p.waitForTimeout(200);   // the cards start closed now
 
   /* ---- this month against last year ---- */
   const season = (await p.textContent('#season')).replace(/\s+/g, ' ');

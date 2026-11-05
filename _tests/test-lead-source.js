@@ -115,6 +115,7 @@ for (const [name, o, src, how] of cases){
     await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(1200);
     await p.evaluate(() => { try { localStorage.setItem('clpps_numbers', '1'); } catch (e) {} });
     await p.click('#numbersBtn'); await p.waitForTimeout(1500);
+    await p.evaluate(() => foldAll(true)); await p.waitForTimeout(150);   // the cards start closed now
     await p.click('#t-nums .stat'); await p.waitForTimeout(500);   // the journeys live in the tapped-open detail
     const t = (await p.textContent('#t-detail')).replace(/\s+/g, ' ');
     ok('journeys say why a Meta Ads visit is Meta Ads', /Meta Ads \(Meta click id on the link\)/.test(t), t.slice(0, 300));

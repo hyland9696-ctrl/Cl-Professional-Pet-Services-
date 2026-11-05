@@ -51,6 +51,7 @@ ok('the site still has no file that would turn Jekyll off', !fs.existsSync(path.
     await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(1200);
     await p.evaluate(() => { try { localStorage.setItem('clpps_numbers', '1'); } catch (e) {} });
     await p.click('#numbersBtn'); await p.waitForTimeout(800);
+    await p.evaluate(() => foldAll(true)); await p.waitForTimeout(150);   // the cards start closed now
     ok('nothing injected ran', !ran && errs.length === 0, errs.join('; '));
     ok('no injected image element exists anywhere on the page', (await p.$$('img[src="x"]')).length === 0);
     ok('the hostile name is shown as text', /<img src=x/.test(await p.textContent('#card-x1')));

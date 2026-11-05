@@ -99,7 +99,14 @@ const { ok, done } = reporter();
 
   /* ---- fold-up cards ---- */
   const folded = (sel) => p.$eval(sel, e => e.classList.contains('folded'));
-  ok('the numbers cards all start open', !(await folded('#territory')) && !(await folded('#insights')) && !(await folded('#roi')));
+  // Territory was opened by its button; the other cards start closed, each with a line on its heading
+  ok('the other numbers cards start closed', !(await folded('#territory')) && (await folded('#insights')) && (await folded('#roi')));
+  ok('a closed card carries its summary on the heading', /\d+ customers in \d+ ZIPs/.test(await p.$eval('#territory .fsum', e => e.textContent)) && /to ask|nobody due/.test(await p.$eval('#reviews .fsum', e => e.textContent)), await p.$eval('#territory .fsum', e => e.textContent));
+  await p.click('#foldbar button:has-text("Open all")'); await p.waitForTimeout(200);
+  ok('Open all opens every card', !(await folded('#insights')) && !(await folded('#roi')));
+  await p.click('#foldbar button:has-text("Close all")'); await p.waitForTimeout(200);
+  ok('Close all closes every card', (await folded('#territory')) && (await folded('#insights')));
+  await p.click('#foldbar button:has-text("Open all")'); await p.waitForTimeout(200);
   ok('inside Territory, Strongholds is open and the rest start folded', !(await folded('[data-fold="strong"]')) && (await folded('[data-fold="dead"]')) && (await folded('[data-fold="nb"]')));
   ok('a folded card shows only its heading', (await p.$eval('[data-fold="dead"]', e => [...e.children].slice(1).every(c => getComputedStyle(c).display === 'none'))));
   await p.click('[data-fold="dead"] > div:first-child'); await p.waitForTimeout(200);

@@ -119,6 +119,7 @@ async function toPrice(p, deo){
     // the list for spring
     await p.evaluate(() => { try { localStorage.setItem('clpps_numbers', '1'); } catch (e) {} });
     await p.click('#numbersBtn'); await p.waitForTimeout(800);
+    await p.evaluate(() => foldAll(true)); await p.waitForTimeout(150);   // the cards start closed now
     const ins = (await p.textContent('#insights')).replace(/\s+/g, ' ');
     ok('Insights lists who said yes while it was off', /Deodorize when the season reopens/.test(ins) && /Waiting Wanda/.test(ins) && !/No Ned/.test(ins.split('Deodorize when the season reopens')[1].split('Referral')[0]), ins.slice(0, 300));
 

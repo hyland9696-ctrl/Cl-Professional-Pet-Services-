@@ -56,6 +56,9 @@
   .fold.folded > :first-child{margin-bottom:0 !important;}
   .fold.folded > :first-child::after{content:'\25B8';}
   .fold.folded > :not(:first-child){display:none !important;}
+  .fsum{font-size:11px;font-weight:600;color:#707070;margin-left:8px;white-space:nowrap;}
+  .fold > :first-child .fsum{display:none;}
+  .fold.folded > :first-child .fsum{display:inline;}
   .stbtns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
   .stbtns button{border:1px solid #ddd;background:#fafafa;border-radius:9px;padding:10px 12px;min-height:40px;font-size:12px;cursor:pointer;font-family:inherit;color:#555;}
   .stbtns a{min-height:40px;display:inline-flex;align-items:center;}
@@ -134,6 +137,10 @@
       <span>&#128202; Traffic, revenue &amp; ad spend</span><span id="numbersArrow" aria-hidden="true">&#9662;</span>
     </button>
     <div id="numbers" style="display:none;">
+    <div id="foldbar" style="display:flex;justify-content:flex-end;gap:6px;margin:-4px 0 8px;">
+      <button onclick="foldAll(true)" style="background:none;border:1px solid #e3e8e5;border-radius:8px;padding:6px 10px;min-height:34px;font-size:11.5px;font-weight:700;color:#0F6E56;cursor:pointer;font-family:inherit;">Open all</button>
+      <button onclick="foldAll(false)" style="background:none;border:1px solid #e3e8e5;border-radius:8px;padding:6px 10px;min-height:34px;font-size:11.5px;font-weight:700;color:#0F6E56;cursor:pointer;font-family:inherit;">Close all</button>
+    </div>
     <div id="territory" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;">
         <div style="font-weight:800;font-size:15px;">&#128506;&#65039; Territory</div>
@@ -480,6 +487,7 @@ function toast(m){
   setTimeout(function(){ t.classList.remove('show'); }, 2200);
 }
 function saveLocal(){
+  routeCache = null;
   try { localStorage.setItem('clpps_leads', JSON.stringify(leads)); } catch (e) {}
 }
 function saveStatsCache(){
@@ -890,7 +898,7 @@ function dayParse(text){
 function setDay(id, v){
   var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
   var m = fuParse(l.crmnotes); m.day = dayParse(v); stampBy(m); l.crmnotes = fuCompose(m); l.updated = new Date().toISOString();
-  saveLocal(); render();
+  routeTouched(); saveLocal(); render();
   post({ action:'update', key:KEY, id:id, notes:l.crmnotes }, m.day ? 'Service day: ' + dayText(m.day) : 'Service day cleared');
 }
 /* ---- a referral link for every customer ----
@@ -1338,6 +1346,7 @@ function toggleNumbers(){
   try { localStorage.setItem('clpps_numbers', open ? 'open' : 'shut'); } catch (e) {}
 }
 /* The controls a card does not need for where its lead is, tucked away. */
+function openMore(id){ var box = document.getElementById('more-' + id); if (box && box.style.display === 'none') toggleMore(id); if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 function toggleMore(id){
   var box = document.getElementById('more-' + id), btn = document.getElementById('morebtn-' + id);
   if (!box) return;
@@ -2769,6 +2778,14 @@ function briefText_(){
   var L = [];
   L.push('CLPPS DAILY BRIEF \u2014 ' + day);
   L.push('');
+  try {
+    var tp = dayPlan(todayKey());
+    if (tp.stops.length){
+      L.push('TODAY\u2019S ROUTE \u2014 ' + tp.stops.length + ' stops, ' + tp.dogs + ' dogs, ~' + Math.round(tp.miles) + ' road mi, about ' + hoursText(tp.total) + ' (' + clockText(tp.start) + ' to ' + clockText(tp.end) + '), ' + money(tp.money) + ' in visits');
+      L.push(tp.stops.map(function(x, i){ var f = fuParse(x.l.crmnotes); return '  ' + (i + 1) + '. ' + clockText(x.arrive) + ' ' + (x.l.name || '(no name)') + ' \u2014 ' + (String(x.l.address || '').split(',')[0] || townOf(zipOf(x.l), x.l)) + ' \u2014 ' + dogsLabel(x.l.dogs) + (hasDeo(x.l) ? ', deo' : '') + (f.text ? ' \u2014 ' + f.text.slice(0, 60) : ''); }).join('\n'));
+      L.push('');
+    }
+  } catch (e) {}
   L.push('NEEDS ATTENTION');
   if (authPending.length){
     L.push('\u2705 ' + authPending.length + ' accepted their quote and still need to be set up:');
@@ -3922,22 +3939,265 @@ function scheduleStats(){
   });
   return { by: by, unset: unset };
 }
+/* ---- routes ----
+   Jesse: "if we move this person to this day, it's closer to this person,
+   so that makes our trip distance closer." Each day's stops are put in a
+   short order (nearest next, then untangled), from the yard and back, and
+   every stop is tried on every other day to find the moves that take
+   miles off the week. Distances are straight lines; roads run longer. */
+var MI = 0.621371;
+function routePt(l){
+  var g = terrGeo[terrGeoKey(l)]; if (g && g.lat) return { pt: [g.lat, g.lng], approx: false };
+  var z = ZIP_PTS[zipOf(l)]; if (z) return { pt: [z[0], z[1]], approx: true };
+  return null;
+}
+function routeBase(){
+  var v = config.route_base ? String(config.route_base.value || '') : '';
+  var m = v.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)\|(.*)$/);
+  if (m) return { pt: [parseFloat(m[1]), parseFloat(m[2])], addr: m[3] };
+  return { pt: [ZIP_PTS['63376'][0], ZIP_PTS['63376'][1]], addr: '' };
+}
+function setRouteBase(){
+  var v = prompt('Where does the truck start and finish the day? (an address)', routeBase().addr || '');
+  if (v === null) return; v = String(v).trim().replace(/[|\[\]]/g, ''); if (!v) return;
+  toast('Finding it\u2026');
+  fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=' + encodeURIComponent(v), { headers: { 'Accept': 'application/json' } })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var hit = d && d[0]; if (!hit){ toast('Could not find that address'); return; }
+      var val = parseFloat(hit.lat).toFixed(5) + ',' + parseFloat(hit.lon).toFixed(5) + '|' + v, now = new Date().toISOString();
+      config.route_base = { value: val, created: now }; saveStatsCache(); render();
+      post({ action: 'lead', lead: { id: 'cfg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), created: now, type: 'CONFIG', name: 'route_base', notes: val, status: 'config', crmnotes: '' } }, 'Start address saved');
+    })
+    .catch(function(){ toast('Could not look that up right now'); });
+}
+function tour(stops, base){
+  if (!stops.length) return { order: [], miles: 0 };
+  var left = stops.slice(), out = [], cur = base;
+  while (left.length){ var bi = 0, bd = Infinity; for (var j = 0; j < left.length; j++){ var d = kmBetween(cur, left[j].pt); if (d < bd){ bd = d; bi = j; } } var pick = left.splice(bi, 1)[0]; out.push(pick); cur = pick.pt; }
+  var R = [{ pt: base }].concat(out, [{ pt: base }]), better = true, passes = 0;
+  while (better && passes++ < 40){
+    better = false;
+    for (var i = 1; i < R.length - 2; i++) for (var k = i + 1; k < R.length - 1; k++){
+      var delta = kmBetween(R[i - 1].pt, R[k].pt) + kmBetween(R[i].pt, R[k + 1].pt) - kmBetween(R[i - 1].pt, R[i].pt) - kmBetween(R[k].pt, R[k + 1].pt);
+      if (delta < -1e-6){ R = R.slice(0, i).concat(R.slice(i, k + 1).reverse(), R.slice(k + 1)); better = true; }
+    }
+  }
+  var km = 0; for (var q = 1; q < R.length; q++) km += kmBetween(R[q - 1].pt, R[q].pt);
+  return { order: R.slice(1, -1), miles: km * MI };
+}
+var routeCache = null;
+function routePlan(){
+  if (routeCache && routeCache.n === leads.length && routeCache.t === lastRouteTouch) return routeCache.plan;
+  var base = routeBase().pt, days = {}, unmapped = [], approx = 0, pinned = 0;
+  DAYS.forEach(function(d){ days[d[0]] = []; });
+  activeRecurring().forEach(function(l){
+    var fu = fuParse(l.crmnotes), ks = dayKeys(fu.day); if (!ks.length) return;
+    var p = routePt(l); if (!p){ unmapped.push(l); return; }
+    if (p.approx) approx++; else pinned++;
+    ks.forEach(function(k){ days[k].push({ l: l, pt: p.pt, approx: p.approx, vpw: visitsPerWeek(l), fixed: ks.length > 1 }); });
+  });
+  var tours = {}, weekMiles = 0;
+  DAYS.forEach(function(d){ tours[d[0]] = tour(days[d[0]], base); weekMiles += tours[d[0]].miles; });
+  // every stop tried on every other day that already has a route
+  var moves = [];
+  DAYS.forEach(function(d){
+    var k = d[0];
+    days[k].forEach(function(s){
+      if (s.fixed) return;
+      var without = tour(days[k].filter(function(x){ return x !== s; }), base).miles, best = null;
+      DAYS.forEach(function(d2){
+        var k2 = d2[0]; if (k2 === k || !days[k2].length) return;
+        var withS = tour(days[k2].concat([s]), base).miles;
+        var saving = (tours[k].miles + tours[k2].miles) - (without + withS);
+        if (saving >= 1 && (!best || saving > best.saving)) best = { l: s.l, from: k, to: k2, saving: saving, weekly: saving * Math.min(s.vpw, 1), approx: s.approx };
+      });
+      if (best) moves.push(best);
+    });
+  });
+  moves.sort(function(a, b){ return b.weekly - a.weekly; });
+  var plan = { days: days, tours: tours, weekMiles: weekMiles, moves: moves, unmapped: unmapped, approx: approx, pinned: pinned, base: routeBase() };
+  routeCache = { n: leads.length, t: lastRouteTouch, plan: plan };
+  return plan;
+}
+var lastRouteTouch = 0;
+function routeTouched(){ lastRouteTouch = Date.now(); routeCache = null; }
+/* Jesse: "when we get a new Wentzville person it will just automatically
+   recommend that person get added on Thursday." The day whose route
+   grows the least when this home is added, with the reason in words:
+   the run it joins, or the stop it sits beside. */
+function bestDays(l){
+  var p = routePt(l); if (!p) return null;
+  var rp = routePlan(), base = rp.base.pt, town = townOf(zipOf(l), l), out = [];
+  DAYS.forEach(function(d){
+    var k = d[0], stops = rp.days[k].filter(function(x){ return x.l.id !== l.id; });
+    if (!stops.length) return;
+    var added = tour(stops.concat([{ l: l, pt: p.pt }]), base).miles - tour(stops, base).miles;
+    var sameTown = stops.filter(function(x){ return townOf(zipOf(x.l), x.l) === town; }).length;
+    var nearest = null, nd = Infinity;
+    stops.forEach(function(x){ var dd = kmBetween(x.pt, p.pt) * MI; if (dd < nd){ nd = dd; nearest = x.l; } });
+    out.push({ day: k, added: added, stops: stops.length, sameTown: sameTown, nearest: nearest, nearMiles: nd, approx: p.approx });
+  });
+  if (!out.length) return null;
+  out.sort(function(a, b){ return a.added - b.added || b.sameTown - a.sameTown; });
+  return out;
+}
+function bestDayWhy(b, l){
+  var town = townOf(zipOf(l), l);
+  if (b.sameTown >= 2) return 'your ' + town + ' run, ' + b.sameTown + ' stops there';
+  if (b.nearest && b.nearMiles < 3) return 'next to ' + String(b.nearest.name || '').trim().split(' ')[0] + ', ' + (b.nearMiles < 1 ? 'under a mile' : Math.round(b.nearMiles) + ' mi') + ' away';
+  return b.stops + ' stop' + (b.stops === 1 ? '' : 's') + ' that day';
+}
+function bestDayRow(l){
+  var bd; try { bd = bestDays(l); } catch (e) { bd = null; }
+  if (!bd) return '';
+  var twice = /twice/i.test(String(l.service || ''));
+  var picks = twice ? bd.filter(function(x, i){ return i === 0 || x.day !== bd[0].day; }).slice(0, 2) : bd.slice(0, 1);
+  var val = picks.map(function(x){ return x.day; }).join(',');
+  var fmt = function(x){ return '<strong>' + dayLabel(x.day) + '</strong> <span style="font-weight:400;">(' + esc(bestDayWhy(x, l)) + ', adds ~' + (x.added < 10 ? x.added.toFixed(1) : Math.round(x.added)) + ' mi)</span>'; };
+  return '<div style="background:#E6F2ED;border-radius:9px;padding:8px 11px;margin-top:8px;font-size:12.5px;color:#0F6E56;font-weight:700;">&#128663; Best day' + (twice ? 's' : '') + ': ' + picks.map(fmt).join(' + ') +
+    (bd[1] && !twice ? '<div style="font-weight:400;color:#555;font-size:12px;margin-top:2px;">next best ' + dayLabel(bd[1].day) + ', adds ~' + (bd[1].added < 10 ? bd[1].added.toFixed(1) : Math.round(bd[1].added)) + ' mi</div>' : '') +
+    (bd[0].approx ? '<div style="font-weight:400;color:#9aa5a0;font-size:11px;">placed at the ZIP centre until the home is pinned</div>' : '') +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
+      '<button onclick="setDay(\'' + esc(l.id) + '\',\'' + val + '\')" style="background:#188663;color:#fff;border:none;border-radius:8px;padding:8px 12px;min-height:38px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#10003; Put them on ' + esc(dayText(val)) + '</button>' +
+      '<button onclick="openMore(\'' + esc(l.id) + '\')" style="background:none;color:#0F6E56;border:1px solid #0F6E56;border-radius:8px;padding:8px 10px;min-height:38px;font-size:12px;cursor:pointer;font-family:inherit;">Pick another day</button>' +
+    '</div></div>';
+}
+var routeGeoBusy = false;
+function routeGeocode(){
+  if (routeGeoBusy) return;
+  var todo = activeRecurring().filter(function(l){ return l.address && !terrGeo[terrGeoKey(l)]; }).slice(0, 80);
+  if (!todo.length){ toast('Every home with an address is pinned'); return; }
+  routeGeoBusy = true;
+  var i = 0, sp = function(t){ var e = document.getElementById('route-geo'); if (e) e.textContent = t; };
+  var next = function(){
+    if (i >= todo.length){ routeGeoBusy = false; routeTouched(); render(); return; }
+    var l = todo[i++], k = terrGeoKey(l);
+    sp('Pinning ' + i + ' of ' + todo.length + '\u2026');
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=' + encodeURIComponent(String(l.address || '').replace(/,\s*USA$/i, '')), { headers: { 'Accept': 'application/json' } })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ var hit = d && d[0]; terrGeo[k] = hit ? { lat: parseFloat(hit.lat), lng: parseFloat(hit.lon) } : { lat: 0, lng: 0, miss: 1 }; })
+      .catch(function(){})
+      .then(function(){ try { localStorage.setItem('clpps_geo', JSON.stringify(terrGeo)); } catch (e) {} setTimeout(next, 1100); });
+  };
+  next();
+}
+/* ---- the day plan ----
+   Jesse: "a breakdown of the days, an estimated how many miles we're
+   driving that day and an estimate of how long it'll take to knock out
+   everything for that day." Straight-line miles times a road factor,
+   minutes per stop plus minutes per extra dog, a start time: four
+   assumptions, all editable, all kept on the phone. */
+var ASSUME_DEFAULT = { mph: 25, base: 8, perDog: 3, deo: 2, start: '08:00', road: 1.3 };
+function routeAssume(){
+  var a = {}; try { a = JSON.parse(localStorage.getItem('clpps_route_assume') || '{}') || {}; } catch (e) {}
+  var out = {}; Object.keys(ASSUME_DEFAULT).forEach(function(k){ out[k] = a[k] != null && a[k] !== '' ? a[k] : ASSUME_DEFAULT[k]; });
+  ['mph', 'base', 'perDog', 'deo', 'road'].forEach(function(k){ out[k] = parseFloat(out[k]); if (!(out[k] > 0)) out[k] = ASSUME_DEFAULT[k]; });
+  if (!/^\d{1,2}:\d{2}$/.test(String(out.start))) out.start = ASSUME_DEFAULT.start;
+  return out;
+}
+function saveAssume(){
+  var a = { mph: document.getElementById('as-mph').value, base: document.getElementById('as-base').value, perDog: document.getElementById('as-dog').value, deo: ASSUME_DEFAULT.deo, start: document.getElementById('as-start').value, road: ASSUME_DEFAULT.road };
+  try { localStorage.setItem('clpps_route_assume', JSON.stringify(a)); } catch (e) {}
+  render(); toast('Day plan assumptions saved');
+}
+function visitValue(l){ var pp = parsePrice(l); if (!pp || !pp.isMo) return 0; return pp.amt / (visitsPerWeek(l) * 4.33); }
+function stopMinutes(l, a){ return a.base + Math.max(0, (parseInt(l.dogs, 10) || 1) - 1) * a.perDog + (hasDeo(l) ? a.deo : 0); }
+function clockText(mins){ var h = Math.floor(mins / 60) % 24, m = Math.round(mins % 60); var ap = h >= 12 ? 'pm' : 'am'; var hh = h % 12 || 12; return hh + ':' + (m < 10 ? '0' : '') + m + ap; }
+function hoursText(mins){ var h = Math.floor(mins / 60), m = Math.round(mins % 60); return h ? h + 'h' + (m ? ' ' + m + 'm' : '') : m + 'm'; }
+function dayPlan(k){
+  var rp = routePlan(), a = routeAssume(), tr = rp.tours[k], base = rp.base.pt;
+  var sm = String(a.start).split(':'), t = parseInt(sm[0], 10) * 60 + parseInt(sm[1], 10), prev = base, stops = [], miles = 0, drive = 0, onsite = 0, money = 0, dogs = 0;
+  tr.order.forEach(function(x){
+    var leg = kmBetween(prev, x.pt) * MI * a.road, dmin = leg / a.mph * 60;
+    t += dmin; miles += leg; drive += dmin;
+    var mins = stopMinutes(x.l, a), v = visitValue(x.l);
+    stops.push({ l: x.l, approx: x.approx, leg: leg, arrive: t, mins: mins, value: v });
+    t += mins; onsite += mins; money += v; dogs += parseInt(x.l.dogs, 10) || 0;
+    prev = x.pt;
+  });
+  var home = kmBetween(prev, base) * MI * a.road, hmin = home / a.mph * 60;
+  if (stops.length){ miles += home; drive += hmin; t += hmin; }
+  return { k: k, stops: stops, miles: miles, drive: drive, onsite: onsite, total: drive + onsite, money: money, dogs: dogs, start: parseInt(sm[0], 10) * 60 + parseInt(sm[1], 10), end: t, approx: stops.some(function(x){ return x.approx; }) };
+}
+var schedDay = null;
+function pickSchedDay(k){ schedDay = k; render(); var el = document.getElementById('dayplan'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+function todayKey(){ return ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()]; }
+function renderDayPlan(rp){
+  var a = routeAssume(), plans = {}, withStops = [];
+  DAYS.forEach(function(d){ plans[d[0]] = dayPlan(d[0]); if (plans[d[0]].stops.length) withStops.push(d[0]); });
+  if (!withStops.length) return '';
+  var today = todayKey(), k = schedDay && plans[schedDay] && plans[schedDay].stops.length ? schedDay : (plans[today].stops.length ? today : withStops[0]);
+  var P = plans[k];
+  var weekMiles = 0, weekMin = 0, weekMoney = 0; withStops.forEach(function(d){ weekMiles += plans[d].miles; weekMin += plans[d].total; weekMoney += plans[d].money; });
+  var h = '<div id="dayplan" class="fold" data-fold="sched-day" style="background:#F3F8F5;border-radius:10px;padding:8px 10px;margin-bottom:10px;">' +
+    '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;cursor:pointer;"><strong>&#128197; Day plan</strong><span style="color:#555;">' + hoursText(weekMin) + ' &middot; ~' + Math.round(weekMiles) + ' road mi &middot; ' + money(weekMoney) + ' a week</span></div>' +
+    '<div class="fold-body">' +
+    // the week, one line a day
+    '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px;"><tr style="color:#707070;text-align:left;"><th>Day</th><th>Stops</th><th>Dogs</th><th>Road mi</th><th>Hours</th><th>Brings in</th></tr>' +
+    withStops.map(function(d){ var p = plans[d]; return '<tr onclick="pickSchedDay(\'' + d + '\')" style="border-top:1px solid #e6ece8;cursor:pointer;' + (d === k ? 'font-weight:700;color:#0F6E56;' : '') + '"><td>' + dayLabel(d) + (d === today ? ' <span style="font-size:10px;color:#188663;">today</span>' : '') + '</td><td>' + p.stops.length + '</td><td>' + p.dogs + '</td><td>~' + Math.round(p.miles) + '</td><td>' + hoursText(p.total) + '</td><td>' + money(p.money) + '</td></tr>'; }).join('') + '</table>' +
+    // the chosen day
+    '<div style="display:flex;gap:4px;flex-wrap:wrap;margin:10px 0 6px;">' + withStops.map(function(d){ return '<button onclick="pickSchedDay(\'' + d + '\')" style="padding:6px 10px;min-height:34px;font-size:12px;border-radius:8px;border:1px solid ' + (d === k ? '#188663' : '#cfd8d3') + ';background:' + (d === k ? '#188663' : '#fff') + ';color:' + (d === k ? '#fff' : '#2B3A34') + ';font-weight:700;cursor:pointer;font-family:inherit;">' + dayLabel(d) + '</button>'; }).join('') + '</div>' +
+    '<div class="stats" style="margin-bottom:6px;grid-template-columns:1fr 1fr;">' +
+      '<div><div class="big">' + P.stops.length + '</div><div class="sub">stops &middot; ' + P.dogs + ' dogs</div></div>' +
+      '<div><div class="big">~' + Math.round(P.miles) + '</div><div class="sub">road miles &middot; ' + hoursText(P.drive) + ' driving</div></div>' +
+      '<div><div class="big">' + hoursText(P.total) + '</div><div class="sub">' + clockText(P.start) + ' &rarr; ' + clockText(P.end) + ' &middot; ' + hoursText(P.onsite) + ' on site</div></div>' +
+      '<div><div class="big">' + money(P.money) + '</div><div class="sub">this day&rsquo;s visits</div></div>' +
+    '</div>' +
+    P.stops.map(function(x, i){ return '<div style="display:flex;gap:8px;align-items:baseline;font-size:12.5px;padding:3px 0;border-top:1px solid #e6ece8;">' +
+      '<span style="min-width:48px;color:#707070;font-size:11.5px;">' + clockText(x.arrive) + '</span>' +
+      '<span style="flex:1;">' + (i + 1) + '. ' + (x.approx ? '~' : '') + '<a href="#card-' + esc(x.l.id) + '" onclick="jumpToLead(\'' + esc(x.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(x.l.name || '(no name)') + '</a> <span style="color:#707070;">' + esc(String(x.l.address || '').split(',')[0] || townOf(zipOf(x.l), x.l)) + ' &middot; ' + esc(dogsLabel(x.l.dogs)) + (hasDeo(x.l) ? ' &middot; deo' : '') + (visitsPerWeek(x.l) < 1 ? ' &middot; ' + esc(planLabel(x.l.service)) : '') + '</span></span>' +
+      '<span style="white-space:nowrap;color:#707070;font-size:11.5px;">' + (x.leg >= 0.1 ? '+' + (x.leg < 10 ? x.leg.toFixed(1) : Math.round(x.leg)) + ' mi &middot; ' : '') + x.mins + ' min &middot; $' + Math.round(x.value) + '</span></div>'; }).join('') +
+    '<div style="font-size:11.5px;color:#707070;padding:4px 0;border-top:1px solid #e6ece8;">then ~' + Math.round(P.miles - P.stops.reduce(function(a2, x){ return a2 + x.leg; }, 0)) + ' mi back, home by ' + clockText(P.end) + (P.approx ? '. ~ means the home is placed at its ZIP centre; pin the homes for real legs.' : '') + '</div>' +
+    // assumptions
+    '<div class="fold folded" data-fold="sched-assume" style="margin-top:8px;"><div style="font-size:12px;color:#555;cursor:pointer;">&#9881;&#65039; Assumptions: ' + a.mph + ' mph on the road, ' + a.base + ' min a stop + ' + a.perDog + ' min per extra dog, start ' + esc(a.start) + '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;font-size:12px;">' +
+        '<label>Average mph<br><input id="as-mph" type="number" inputmode="decimal" value="' + a.mph + '" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:8px;font-size:13px;"></label>' +
+        '<label>Minutes a stop<br><input id="as-base" type="number" inputmode="decimal" value="' + a.base + '" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:8px;font-size:13px;"></label>' +
+        '<label>Minutes per extra dog<br><input id="as-dog" type="number" inputmode="decimal" value="' + a.perDog + '" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:8px;font-size:13px;"></label>' +
+        '<label>Start time<br><input id="as-start" type="time" value="' + esc(a.start) + '" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:8px;font-size:13px;"></label>' +
+      '</div><div style="margin-top:6px;"><button onclick="saveAssume()" style="padding:6px 10px;min-height:34px;font-size:12px;">Save</button> <span style="font-size:11px;color:#9aa5a0;">Road miles are straight-line &times; 1.3. Time your next real day and tune these to match.</span></div></div>' +
+    '</div></div>';
+  return h;
+}
 function renderSchedule(){
   var box = document.getElementById('schedule'); if (!box) return;
   var s = scheduleStats(), total = activeRecurring().length, placed = total - s.unset.length;
+  var rp = routePlan();
   var maxN = 1; DAYS.forEach(function(d){ maxN = Math.max(maxN, s.by[d[0]].n); });
   var person = function(l){ var pp = parsePrice(l); return '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(l.name || '(no name)') + '</a> <span style="color:#707070;">' + esc(dogsLabel(l.dogs)) + (visitsPerWeek(l) !== 1 ? ' &middot; ' + esc(planLabel(l.service)) : '') + (pp ? ' &middot; $' + pp.amt : '') + (String(l.deodorize || '').match(/every/i) && !wantsDeoLater(l) ? ' &middot; deo' : '') + '</span>'; };
   var h = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128197; Schedule</div>' +
     '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">Active recurring customers by service day, grouped by town. ' + placed + ' of ' + total + ' placed on a day' + (total && !placed ? ' &mdash; set the day on each active card and this fills in' : '') + '.</div>';
   if (placed){
+    h += renderDayPlan(rp);
+    h += '<div class="fold" data-fold="sched-routes" style="background:#F3F8F5;border-radius:10px;padding:8px 10px;margin-bottom:10px;">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;cursor:pointer;"><strong>&#128663; Routes</strong><span style="color:#555;">~' + Math.round(rp.weekMiles) + ' mi a week' + (rp.moves.length ? ' &middot; <span style="color:#188663;font-weight:700;">' + rp.moves.length + ' move' + (rp.moves.length === 1 ? '' : 's') + ' worth making</span>' : '') + '</span></div>' +
+      '<div class="fold-body" style="font-size:12.5px;color:#555;">' +
+        '<div style="margin-top:6px;">Start and finish: <strong>' + (rp.base.addr ? esc(rp.base.addr) : 'the middle of St. Peters') + '</strong> <button onclick="setRouteBase()" style="padding:4px 8px;min-height:30px;font-size:11.5px;margin-left:4px;">' + (rp.base.addr ? 'Change' : 'Set the start address') + '</button></div>' +
+        '<div style="margin-top:6px;">' + rp.pinned + ' home' + (rp.pinned === 1 ? '' : 's') + ' pinned to the street, ' + rp.approx + ' placed at the ZIP centre' + (rp.unmapped.length ? ', ' + rp.unmapped.length + ' with no ZIP' : '') + '. ' +
+          (rp.approx ? '<button onclick="routeGeocode()" style="padding:4px 8px;min-height:30px;font-size:11.5px;">Pin the homes</button> <span id="route-geo" style="color:#9aa5a0;"></span>' : '<span style="color:#188663;">All pinned.</span>') + '</div>' +
+        '<div style="font-size:11px;color:#9aa5a0;margin-top:4px;">Miles are straight lines between stops, from the start and back; roads run longer, but the comparisons hold. A move is worth making when it takes a mile or more off the week.</div>' +
+        (rp.moves.length
+          ? '<div style="margin-top:8px;font-weight:700;color:#333;">Moves that cut the driving</div>' + rp.moves.slice(0, 8).map(function(m){
+              return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #e6ece8;">' +
+                '<span>' + (m.approx ? '~' : '') + '<a href="#card-' + esc(m.l.id) + '" onclick="jumpToLead(\'' + esc(m.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(m.l.name || '(no name)') + '</a> <span style="color:#707070;">' + esc(townOf(zipOf(m.l), m.l)) + '</span>: ' + dayLabel(m.from) + ' &rarr; <strong>' + dayLabel(m.to) + '</strong> <span style="color:#188663;font-weight:700;">saves ~' + (m.weekly < 10 ? m.weekly.toFixed(1) : Math.round(m.weekly)) + ' mi/wk</span></span>' +
+                '<button onclick="setDay(\'' + esc(m.l.id) + '\',\'' + m.to + '\')" style="padding:5px 9px;min-height:32px;font-size:11.5px;white-space:nowrap;">Move to ' + dayLabel(m.to) + '</button></div>'; }).join('')
+          : '<div style="margin-top:8px;color:#188663;font-weight:700;">No single move would save a mile a week. The days are laid out well.</div>') +
+      '</div></div>';
     h += '<div style="display:flex;gap:4px;align-items:flex-end;height:56px;margin-bottom:4px;">' + DAYS.map(function(d){ var b = s.by[d[0]]; return '<div title="' + b.label + ': ' + b.n + '" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;"><div style="font-size:10.5px;color:#555;">' + (b.n || '') + '</div><div style="width:100%;background:' + (b.n ? '#188663' : '#e8ece9') + ';border-radius:4px 4px 0 0;height:' + Math.max(3, Math.round(40 * b.n / maxN)) + 'px;"></div></div>'; }).join('') + '</div>' +
       '<div style="display:flex;gap:4px;margin-bottom:10px;">' + DAYS.map(function(d){ return '<div style="flex:1;text-align:center;font-size:10.5px;color:#707070;">' + d[1] + '</div>'; }).join('') + '</div>';
     DAYS.forEach(function(d){
       var b = s.by[d[0]]; if (!b.n) return;
       var towns = Object.keys(b.towns).sort(function(a, c){ return b.towns[c].length - b.towns[a].length; });
+      var tr = rp.tours[d[0]], seen = {};
+      var ordered = tr.order.map(function(x){ seen[x.l.id] = 1; return x; });
       h += '<div class="fold folded" data-fold="sched-' + d[0] + '" style="border-top:1px solid #f3f5f4;padding:6px 0;">' +
-        '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;cursor:pointer;"><strong>' + b.label + '</strong><span style="color:#555;">' + b.n + ' stop' + (b.n === 1 ? '' : 's') + ' &middot; ' + b.dogs + ' dog' + (b.dogs === 1 ? '' : 's') + ' &middot; ' + money(b.mrr) + '/mo &middot; ' + towns.length + ' town' + (towns.length === 1 ? '' : 's') + '</span></div>' +
-        '<div class="fold-body">' + towns.map(function(t){ return '<div style="font-size:12.5px;margin-top:4px;"><div style="font-weight:700;color:#333;">' + esc(t) + ' <span style="color:#9aa5a0;font-weight:400;">' + b.towns[t].length + '</span></div>' + b.towns[t].map(function(l){ return '<div style="padding:2px 0 2px 10px;">' + person(l) + '</div>'; }).join('') + '</div>'; }).join('') + '</div></div>';
+        '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;cursor:pointer;"><strong>' + b.label + '</strong><span style="color:#555;">' + b.n + ' stop' + (b.n === 1 ? '' : 's') + ' &middot; ' + b.dogs + ' dog' + (b.dogs === 1 ? '' : 's') + ' &middot; ' + money(b.mrr) + '/mo' + (tr.miles ? ' &middot; ~' + Math.round(tr.miles) + ' mi' : ' &middot; ' + towns.length + ' town' + (towns.length === 1 ? '' : 's')) + '</span></div>' +
+        '<div class="fold-body">' +
+        (ordered.length ? '<div class="sub" style="font-size:11px;color:#9aa5a0;margin:2px 0 2px 10px;">Shortest order from ' + (rp.base.addr ? 'the start address' : 'St. Peters') + ' and back, ~' + Math.round(tr.miles) + ' mi straight-line' + (ordered.some(function(x){ return x.approx; }) ? '; ~ marks a home placed at its ZIP centre' : '') + '</div>' +
+          ordered.map(function(x, i){ return '<div style="font-size:12.5px;padding:2px 0 2px 10px;"><span style="display:inline-block;min-width:18px;color:#9aa5a0;">' + (i + 1) + '</span>' + (x.approx ? '~' : '') + person(x.l) + ' <span style="color:#9aa5a0;">&middot; ' + esc(townOf(zipOf(x.l), x.l)) + '</span></div>'; }).join('') : '') +
+        towns.map(function(t){ return b.towns[t].filter(function(l){ return !seen[l.id]; }).map(function(l){ return '<div style="font-size:12.5px;padding:2px 0 2px 10px;">' + person(l) + ' <span style="color:#9aa5a0;">&middot; ' + esc(t) + ' &middot; no ZIP to place them</span></div>'; }).join(''); }).join('') +
+        '</div></div>';
     });
   }
   if (s.unset.length){
@@ -3946,7 +4206,7 @@ function renderSchedule(){
   }
   if (!total) h += '<div style="font-size:12.5px;color:#9aa5a0;">No active recurring customers yet.</div>';
   box.innerHTML = h;
-  box.querySelectorAll('.fold[data-fold]').forEach(function(c){ foldApply(c, false); });
+  box.querySelectorAll('.fold[data-fold]').forEach(function(c){ var k = c.getAttribute('data-fold'); foldApply(c, k === 'sched-routes' || k === 'sched-day'); });
 }
 
 /* ============================================================
@@ -4130,9 +4390,10 @@ function foldApply(card, openByDefault){
   card.classList.toggle('folded', shut);
 }
 function foldInit(){
-  // every card starts open; a tap folds it and the phone remembers. The
-  // long lists inside Territory are the exception - they start folded.
-  FOLD_CARDS.forEach(function(id){ var el = document.getElementById(id); if (el) foldApply(el, true); });
+  // every card starts closed, with its one-line summary on the heading; a
+  // tap opens it and the phone remembers. Jesse: "make sure we're not
+  // filling up the screen with too much information".
+  FOLD_CARDS.forEach(function(id){ var el = document.getElementById(id); if (el) foldApply(el, false); });
   var panel = document.getElementById('numbers');
   if (!panel || panel.foldWired) return;
   panel.foldWired = true;
@@ -4144,6 +4405,46 @@ function foldInit(){
     try { localStorage.setItem('clpps_fold_' + foldKey(card), card.classList.contains('folded') ? 'shut' : 'open'); } catch (e) {}
     if (card.id === 'territory' && terrLeaflet) setTimeout(function(){ try { terrLeaflet.invalidateSize(); } catch (e) {} }, 60);
   });
+}
+function foldAll(open){
+  FOLD_CARDS.forEach(function(id){
+    var el = document.getElementById(id); if (!el) return;
+    el.classList.toggle('folded', !open);
+    try { localStorage.setItem('clpps_fold_' + id, open ? 'open' : 'shut'); } catch (e) {}
+  });
+  if (open && terrLeaflet) setTimeout(function(){ try { terrLeaflet.invalidateSize(); } catch (e) {} }, 60);
+}
+/* The one line a closed card shows on its heading. */
+function foldSum(id, html){
+  var c = document.getElementById(id); if (!c) return;
+  var h = c.firstElementChild; if (!h) return;
+  var sp = h.querySelector('.fsum');
+  if (!sp){ sp = document.createElement('span'); sp.className = 'fsum'; h.appendChild(sp); }
+  sp.innerHTML = html || '';
+}
+function renderFoldSums(){
+  try {
+    var ts = territoryStats(), cust = 0, zips = 0;
+    Object.keys(ts).forEach(function(k){ if (ts[k].customers){ cust += ts[k].customers; zips++; } });
+    foldSum('territory', cust + ' customer' + (cust === 1 ? '' : 's') + ' in ' + zips + ' ZIP' + (zips === 1 ? '' : 's'));
+  } catch (e) {}
+  try {
+    var gap = 0, gn = 0; leads.forEach(function(l){ var g = tableGap(l); if (g && g.gap >= 2){ gap += g.gap; gn++; } });
+    foldSum('undertable', gn ? money(gap) + '/mo across ' + gn : 'everyone at today\u2019s price');
+  } catch (e) {}
+  try {
+    var ss = seasonStats(), nowK = monthKeyOf(new Date());
+    foldSum('season', (ss.cust[nowK] || 0) + ' new this month &middot; ' + (ss.cust[monthAdd(nowK, -12)] || 0) + ' a year ago');
+  } catch (e) {}
+  try { var ch = (CLPPS_PRICING.changes || []); foldSum('pricelog', ch.length ? 'last change ' + esc(ch[ch.length - 1].date) : 'no changes logged'); } catch (e) {}
+  try {
+    var sc = scheduleStats(), tot = activeRecurring().length, rp = routePlan();
+    var tp = dayPlan(todayKey());
+    foldSum('schedule', (tot - sc.unset.length) + ' of ' + tot + ' on a day' + (tp.stops.length ? ' &middot; today ' + tp.stops.length + ' stops, ' + hoursText(tp.total) : (rp.weekMiles ? ' &middot; ~' + Math.round(rp.weekMiles) + ' mi/wk' : '')));
+  } catch (e) {}
+  try { var on = activeRecurring().filter(hasDeo); foldSum('deo', on.length + ' have it &middot; ' + money(on.reduce(function(a, l){ return a + deoMonthly(l); }, 0)) + '/mo'); } catch (e) {}
+  try { var tk = gDayKey(new Date()); foldSum('traffic', views.filter(function(v){ return gDayKey(new Date(v.created)) === tk; }).length + ' visits today'); } catch (e) {}
+  try { var due = leads.filter(reviewDue).length; foldSum('reviews', due ? due + ' to ask' : 'nobody due'); } catch (e) {}
 }
 function openTerritory(){
   var box = document.getElementById('numbers');
@@ -4265,6 +4566,7 @@ function renderHealth(){
 function toggleReviewSettings(){
   var f = document.getElementById('rv-settings');
   f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  if (f.style.display === 'block'){ var c = document.getElementById('reviews'); if (c) c.classList.remove('folded'); }   // the card may be closed
 }
 function renderReviews(){
   var box = document.getElementById('reviews');
@@ -4919,6 +5221,7 @@ function render(){
   renderDeo();
   renderReviews();
   renderReviewTrend();
+  renderFoldSums();   // last: it writes onto headings the renderers above just rebuilt
   renderAlerts();
   var qp = document.getElementById('qrPanel');
   if (qp && qp.style.display !== 'none') renderQR();
@@ -5032,10 +5335,11 @@ function render(){
           : (fu.src === 'Referral' && !fu.rb
           ? '<div style="color:#8a6d1a;font-size:12px;margin-top:6px;">&#129309; A referral &mdash; tap Edit and put in who referred them, so they get their reward</div>'
           : ''));
-    // an active customer: their own referral link, and the day the crew comes
-    if (st === 'closed') refChip += refShareRow(l);
-    var dayRow = '';
+    // an active customer: the day the crew comes (a chip on the plan line;
+    // the control and their referral link sit under More, off the card face)
+    var dayRow = '', dayChip = '', custMore = '';
     if (st === 'closed' && isRecurring(l)){
+      dayChip = ' &middot; &#128197; ' + (fu.day ? dayLabel(fu.day) : '<a href="#" onclick="openMore(\'' + esc(l.id) + '\');return false;" style="color:#b45309;font-weight:700;text-decoration:none;">no day set</a>');
       dayRow = '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#128197; Service day: ' +
         '<select class="why day-sel" onchange="setDay(\'' + esc(l.id) + '\', this.value)"><option value=""' + (fu.day ? '' : ' selected') + '>not set</option>' +
         (fu.day.indexOf(',') > 0 ? '<option value="' + esc(fu.day) + '" selected>' + esc(dayText(fu.day)) + ' (twice a week)</option>' : '') +
@@ -5043,6 +5347,8 @@ function render(){
         (/twice/i.test(String(l.service || '')) ? '<span style="color:#9aa5a0;">(twice a week: type both, e.g. Tue, Fri, under Edit if they change)</span>' : '') +
         (fu.day ? '' : '<span style="color:#9aa5a0;">(set it once and the Schedule card fills in)</span>') + '</div>';
     }
+    if (st === 'closed') custMore = dayRow + refShareRow(l);
+    var bestRow = st === 'closed' && isRecurring(l) && !fu.day ? bestDayRow(l) : '';
     var saveRow = savePending === l.id && st === 'closed' ? saveOfferRow(l) : '';
     /* Why they said no. The site asks this in a dropdown and the answer lands
        in the notes as text; the tag is read from that text until somebody
@@ -5126,7 +5432,7 @@ function render(){
        saved phone quote, anything without a dollar figure. */
     var needsQuote = selling && (l.manual === 'YES' || l.type === 'SAVED' ||
                                  String(l.price || '').indexOf('$') < 0);
-    var main = '', extra = storyLine(l);
+    var main = '', extra = storyLine(l) + custMore;
     if (!finished)  main += fuRow; else extra += fuRow;           // chasing them
     if (needsQuote) main += quoteRow; else extra += quoteRow;     // still owe them a price
     if (accepted && !passed) main += sdRow; else extra += sdRow;  // booking them in
@@ -5166,6 +5472,7 @@ function render(){
         dupLine(l) +
         '&#128021; ' + esc(l.dogs ? dogsLabel(l.dogs) : '? dogs') + ' &middot; ' + esc(planLabel(l.service)) +
         (l.deodorize && l.deodorize !== 'no' ? (wantsDeoLater(l) ? ' &middot; <span style="color:#b45309;font-weight:700;">deodorize when the season reopens</span>' : ' &middot; deodorize') : '') +
+        dayChip +
         (l.hero && l.hero !== 'no'
           ? '<br>&#127894; Hero discount claimed' +
             // name the branch: it is what has to be checked against their ID
@@ -5181,7 +5488,7 @@ function render(){
         '<br><span class="price">' + esc(String(l.price || '').indexOf('$') >= 0 ? l.price : (priceLabel(l) || l.price || '')) + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(honoredText(l.honored)) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' + srcChip + refChip + dayRow + icChip + azBadge + sdBadge + attLine + fuBadge + ageBadge + owedRow + expRow + wcRow + rvRow + whyRow + cxRow + saveRow +
+      '</div>' + srcChip + refChip + bestRow + icChip + azBadge + sdBadge + attLine + fuBadge + ageBadge + owedRow + expRow + wcRow + rvRow + whyRow + cxRow + saveRow +
       '<div class="stbtns">' + STATUSES.filter(function(s){
         // "Cancelled" is a thing that happens to a customer, not a lead
         return s.k !== 'cancelled' || st === 'closed' || st === 'cancelled';

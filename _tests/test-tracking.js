@@ -75,6 +75,7 @@ for (let d = 0; d < 40; d++) ROWS.push({ id:'v' + d, type:'VIEW', name:'Home', y
   /* ---- 9. the 30-day load ---- */
   ok('the list loads only 30 days of traffic', /days=30\b/.test(fetches[0]), fetches[0]);
   await p.click('#numbersBtn'); await p.waitForTimeout(600);
+  await p.evaluate(() => foldAll(true)); await p.waitForTimeout(150);   // the cards start closed now
   ok('opening the numbers panel fetches the full history', fetches.some(u => /days=400\b/.test(u)), fetches.join('\n'));
 
   /* ---- 3. speed to lead ---- */

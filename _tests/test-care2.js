@@ -86,6 +86,7 @@ const day = (days) => new Date(NOW.getTime() - days * 864e5).toISOString().slice
   await p.click('button:has-text("Daily brief")'); await p.waitForTimeout(200);
   await p.evaluate(() => { try { localStorage.setItem('clpps_numbers', 'open'); } catch (e) {} });
   await p.click('#numbersBtn'); await p.waitForTimeout(1200);
+  await p.evaluate(() => foldAll(true)); await p.waitForTimeout(150);   // the cards start closed now
   ok('the revenue card says what is on the books but not in the bank', /\$120 behind on payment from 1 customer/.test((await p.textContent('#revenue')).replace(/\s+/g, ' ')), (await p.textContent('#revenue')).replace(/\s+/g, ' ').slice(0, 300) + ' | display=' + (await p.$eval('#revenue', e => e.style.display)));
 
   /* ---- money left on the table ---- */

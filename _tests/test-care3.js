@@ -80,6 +80,9 @@ const refCode = (l) => { const first = String(l.name).trim().split(/\s+/)[0].toL
     ok('a lead that is not a customer has no link of its own', !/Their referral link/.test(await t('H1')));
     await p.evaluate(() => { try { localStorage.setItem('clpps_numbers', 'open'); } catch (e) {} });
     await p.click('#numbersBtn'); await p.waitForTimeout(1200);
+    ok('the numbers cards start closed', await p.$eval('#schedule', e => e.classList.contains('folded')) && await p.$eval('#deo', e => e.classList.contains('folded')));
+    ok('each with its line: Deodorize', /1 have it · \$60\/mo/.test(await p.$eval('#deo .fsum', e => e.textContent)), await p.$eval('#deo .fsum', e => e.textContent));
+    await p.evaluate(() => foldAll(true)); await p.waitForTimeout(200);
     const ins = (await p.textContent('#insights')).replace(/\s+/g, ' ');
     ok('the rewards-owed list fills itself from the link', /Dana Deo referred Gina Guest \(their link\)/.test(ins), ins.slice(ins.indexOf('Referral rewards'), ins.indexOf('Referral rewards') + 200));
     await p.click('#card-G1 [onclick^="editLead"]'); await p.waitForTimeout(300);
@@ -89,17 +92,50 @@ const refCode = (l) => { const first = String(l.name).trim().split(/\s+/)[0].toL
     /* ---- the Schedule card ---- */
     const sched = (await p.textContent('#schedule')).replace(/\s+/g, ' ');
     ok('placed on a day: three of four active recurring customers', /3 of 4 placed on a day/.test(sched), sched.slice(0, 200));
-    ok('Tuesday: two stops, three dogs, the money, two towns', /Tue\s*2 stops · 3 dogs · \$246\/mo · 2 towns/.test(sched), sched);
+    ok('Tuesday: two stops, three dogs, the money, the miles', /Tue\s*2 stops · 3 dogs · \$246\/mo · ~\d+ mi/.test(sched), sched);
+    ok('the day lists the stops in route order, from the start and back', /Shortest order from St\. Peters and back, ~\d+ mi straight-line.*1\s*~Dana Deo.*2\s*~Eddie Eow/.test(sched), sched.slice(sched.indexOf('Tue'), sched.indexOf('Tue') + 300));
+    /* ---- the routes block ---- */
+    ok('the routes block sums the week and offers the start address', /Routes\s*~\d+ mi a week/.test(sched) && /Start and finish: the middle of St\. Peters\s*Set the start address/.test(sched), sched.slice(0, 400));
+    ok('it says how many homes are only placed at the ZIP centre, with a button to pin them', /0 homes pinned to the street, 3 placed at the ZIP centre\.\s*Pin the homes/.test(sched));
+    ok('no move is suggested when none saves a mile', /No single move would save a mile a week/.test(sched));
+    /* ---- the day plan ---- */
+    // Thursday 5 Nov 2026: no stops today, so the plan opens on the first day with stops (Mon)
+    ok('the day plan sums the week: hours, road miles, money', /Day plan\s*\d+h?\s?\d*m? · ~\d+ road mi · \$\d+ a week/.test(sched), sched.slice(sched.indexOf('Day plan'), sched.indexOf('Day plan') + 120));
+    ok('one line a day, with stops, dogs, miles, hours and what the visits bring', /Mon\s*1\s*1\s*~\d+\s*\d+m?h?.*\$20/.test(sched) && /Tue\s*2\s*3\s*~\d+/.test(sched), sched.slice(sched.indexOf('Day Stops'), sched.indexOf('Day Stops') + 200));
+    await p.click('#dayplan button:has-text("Tue")'); await p.waitForTimeout(400);
+    const dp = (await p.textContent('#dayplan')).replace(/\s+/g, ' ');
+    ok('the chosen day: stops and dogs, road miles and driving time, hours with start and finish, money', /2\s*stops · 3 dogs/.test(dp) && /~\d+\s*road miles · \d+m driving/.test(dp) && /8:00am → \d+:\d\dam/.test(dp) && /\$79\s*this day/.test(dp), dp.slice(0, 400));
+    // Dana: 2 dogs weekly $151 incl $60 deo -> $35 a visit; Eddie: eow $95 -> $44 a visit (rounded: 35 + 44 = 79? no: 151/4.33 = 34.9, 95/2.165 = 43.9 -> 78.8)
+    ok('each stop has an arrival time, its minutes and its value', /1\. ~Dana Deo 1 Oak St · 2 dogs · deo\s*13 min · \$35/.test(dp) && /2\. ~Eddie Eow 2 Pine St · 1 dog · every other week\s*\+8\.\d mi · 8 min · \$44/i.test(dp), dp.slice(dp.indexOf('1. '), dp.indexOf('1. ') + 200));
+    ok('and the way home', /mi back, home by \d+:\d\dam/.test(dp));
+    ok('the assumptions can be changed', /Assumptions: 25 mph on the road, 8 min a stop \+ 3 min per extra dog, start 08:00/.test(dp));
+    await p.$eval('#dayplan [data-fold="sched-assume"]', e => e.classList.remove('folded'));
+    await p.fill('#as-base', '12'); await p.fill('#as-start', '07:30'); await p.click('#dayplan button:has-text("Save")'); await p.waitForTimeout(400);
+    const dp2 = (await p.textContent('#dayplan')).replace(/\s+/g, ' ');
+    ok('and the plan follows them', /7:30am →/.test(dp2) && /1\. ~Dana Deo.*17 min/.test(dp2) && /Assumptions: 25 mph on the road, 12 min a stop/.test(dp2), dp2.slice(0, 300));
+    ok('the daily brief opens with today\'s route when there is one', await p.evaluate(() => { const was = fuParse(leads.filter(l => l.id === 'E1')[0].crmnotes); const m = fuParse(leads.filter(l => l.id === 'E1')[0].crmnotes); m.day = 'thu'; leads.filter(l => l.id === 'E1')[0].crmnotes = fuCompose(m); routeTouched(); const b = briefText_(); leads.filter(l => l.id === 'E1')[0].crmnotes = fuCompose(was); routeTouched(); return /TODAY\u2019S ROUTE — 1 stops, 1 dogs, ~\d+ road mi, about .* in visits\n  1\. \d+:\d\dam Eddie Eow — 2 Pine St — 1 dog/.test(b); }));
+    /* ---- the best day for a customer who has none ---- */
+    const fran = await t('F1');
+    ok('a customer with no day gets a recommendation on the card', /Best day: Mon \(your St\. Peters run|Best day: Mon \(next to Gina/.test(fran), fran.slice(fran.indexOf('Best day'), fran.indexOf('Best day') + 160));
+    ok('with the next best named', /next best Tue, adds ~\d/.test(fran));
+    ok('and the plan line says no day is set', /no day set/.test(fran));
+    await p.click('#card-F1 button:has-text("Put them on Mon")'); await p.waitForTimeout(400);
+    ok('one tap puts them on that day', posts.some(x => x.action === 'update' && x.id === 'F1' && /\[DAY:mon\]/.test(x.notes)) && !/Best day/.test(await t('F1')) && /📅 Mon/.test(await t('F1')), (await t('F1')).slice(0, 200));
+    const sched1 = (await p.textContent('#schedule')).replace(/\s+/g, ' ');
+    ok('the Schedule card follows: four of four', /4 of 4 placed/.test(sched1) && /Mon\s*2 stops/.test(sched1), sched1.slice(0, 200));
     ok('Monday: Gina', /Mon\s*1 stop · 1 dog · \$85\/mo · 1 town/.test(sched));
     ok('the unplaced one is named', /No day set\s*1.*Fran Fence/.test(sched));
     ok('every-other-week is marked on the stop', /Eddie Eow 1 dog · Every other week · \$95/.test(sched) || /Eddie Eow 1 dog · every other week · \$95/i.test(sched), sched.slice(sched.indexOf('Eddie'), sched.indexOf('Eddie') + 60));
     ok('a one-day list starts folded', await p.$eval('#schedule [data-fold="sched-tue"]', e => e.classList.contains('folded')));
-    // set Fran's day from her card
+    // change Fran's day from the dropdown, which sits under More
+    ok('the day dropdown and the referral link are under More, off the card face', await p.$eval('#more-F1', e => e.style.display === 'none' && /Service day/.test(e.textContent) && /Their referral link/.test(e.textContent)));
+    await p.evaluate(() => openMore('F1')); await p.waitForTimeout(200);
     await p.selectOption('#card-F1 .day-sel', 'wed'); await p.waitForTimeout(400);
     const dayPost = posts.find(x => x.action === 'update' && x.id === 'F1' && /\[DAY:wed\]/.test(x.notes));
     ok('picking a day saves it on the card', !!dayPost, JSON.stringify(posts.filter(x => x.id === 'F1').slice(-1)));
     const sched2 = (await p.textContent('#schedule')).replace(/\s+/g, ' ');
     ok('and the Schedule card follows', /4 of 4 placed/.test(sched2) && /Wed\s*1 stop/.test(sched2) && !/No day set/.test(sched2), sched2.slice(0, 200));
+    ok('the closed Schedule heading would read the same', /4 of 4 on a day · ~\d+ mi\/wk/.test(await p.$eval('#schedule .fsum', e => e.textContent)), await p.$eval('#schedule .fsum', e => e.textContent));
 
     /* ---- the Deodorize card ---- */
     const deo = (await p.textContent('#deo')).replace(/\s+/g, ' ');
