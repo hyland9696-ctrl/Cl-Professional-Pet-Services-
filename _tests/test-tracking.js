@@ -98,14 +98,14 @@ for (let d = 0; d < 40; d++) ROWS.push({ id:'v' + d, type:'VIEW', name:'Home', y
 
   /* ---- 1. cancellations ---- */
   const chips = await p.$$eval('#chips button', els => els.map(e => e.textContent.trim()));
-  ok('there is a Cancelled chip with the right count', chips.some(c => /Cancelled \(3\)/.test(c)), chips.join(' | '));
+  ok('there is an Account closed chip with the right count', chips.some(c => /Account closed \(3\)/.test(c)), chips.join(' | '));
   const nora = await card('L1'), won = await card('L9');
-  ok('a new lead is NOT offered a Cancelled button', !/Cancelled/.test(nora));
-  ok('a closed customer IS', /Cancelled/.test(won));
+  ok('a new lead is NOT offered an Account closed button', !/Account closed/.test(nora));
+  ok('a closed customer IS', /Account closed/.test(won));
   await p.click('#card-L9 .stbtns button.b-cancelled'); await p.waitForTimeout(400);
   const cxPost = posts.find(x => x.action === 'update' && x.id === 'L9' && x.status === 'cancelled');
   ok('tapping it stamps the leaving date on the row', cxPost && /\[CX:2026-10-02\]/.test(cxPost.notes), cxPost && cxPost.notes);
-  ok('and the card asks why they left', /Why they left/.test(await card('L9')));
+  ok('and the card asks why the account closed', /Why the account closed/.test(await card('L9')));
   await p.click('#card-L9 .stbtns button.b-closed'); await p.waitForTimeout(300);   // put it back for the money checks
   await p.evaluate(() => { var r = document.getElementById('revenue'); var t = r.querySelector('[onclick]'); if (t) t.click(); else r.click(); });
   await p.waitForTimeout(300);

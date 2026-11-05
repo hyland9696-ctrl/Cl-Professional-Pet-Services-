@@ -81,6 +81,15 @@ const ago = (h) => new Date(NOW.getTime() - h * 3600000).toISOString();
     ok('said no on the site: no clock (the win-back email\'s job)', !/Not called yet/.test(await t('L5')));
     ok('an attempt was logged: no clock', !/Not called yet/.test(await t('L6')));
 
+    /* ---- texting is reaching out ---- */
+    await p.click('#card-L2 button:has-text("+1 text")'); await p.waitForTimeout(400);
+    const txPost = posts.find(x => x.action === 'update' && x.id === 'L2' && /\[TX:1@\d{4}-\d{2}-\d{2}\]/.test(x.notes));
+    ok('+1 text stamps the text with its date', !!txPost, JSON.stringify(posts.filter(x => x.id === 'L2').slice(-1)));
+    ok('and the first-touch time, so speed to lead counts a text', txPost && /\[T1:/.test(txPost.notes));
+    ok('the card shows the last text', /1 text · last \d{4}-\d{2}-\d{2}/.test(await t('L2')), (await t('L2')).slice(0, 300));
+    ok('and no longer says Not called yet', !/Not called yet/.test(await t('L2')));
+    ok('Text them also logs it when tapped', await p.$eval('#card-L2 a[href^="sms:"]', e => /textLead/.test(e.getAttribute('onclick'))));
+
     /* ---- the same person twice ---- */
     ok('L3 is flagged as the same phone as the spring lead', /Same phone as Fiona Earlier \(.*said no, \$81\/mo\)/.test(await t('L3')), await t('L3'));
     ok('the earlier lead points back the other way', /Same phone as Five Fiona/.test(await t('L7')));
@@ -90,9 +99,10 @@ const ago = (h) => new Date(NOW.getTime() - h * 3600000).toISOString();
     /* ---- the daily brief leads with the waiting ones, longest first ---- */
     await p.click('button:has-text("Daily brief")'); await p.waitForTimeout(300);
     const brief = await p.textContent('#brief-body');
-    ok('the brief lists leads not called yet', /2 leads not called yet, longest wait first:/.test(brief), brief.slice(0, 300));
+    // Harry was texted above, which counts as contact, so only Fiona is still waiting
+    ok('the brief lists leads not called yet', /1 lead not called yet, longest wait first:/.test(brief), brief.slice(0, 300));
     const i3 = brief.indexOf('Five Fiona'), i2 = brief.indexOf('Hour Harry');
-    ok('longest wait first, with the hours', i3 > 0 && i2 > i3 && /Five Fiona — \$85\/mo — 5h/.test(brief), brief.slice(i3, i3 + 60));
+    ok('with the hours', i3 > 0 && /Five Fiona — \$85\/mo — 5h/.test(brief), brief.slice(i3, i3 + 60));
 
     /* ---- the health line ---- */
     const health = (await p.textContent('#health')).replace(/\s+/g, ' ');
