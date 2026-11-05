@@ -115,8 +115,16 @@ function clppsLeadSource(){
   clppsSourceHow = how;
   clppsStore('lead_src', src);
   clppsStore('lead_how', how);
+  // which campaign and which ad, when the ad link carries them (Meta fills
+  // {{campaign.name}} and {{ad.name}} into the URL parameters if asked to)
+  var camp = clppsParam('utm_campaign'), ad = clppsParam('utm_content');
+  if (camp && !/yardsign|stpeters|ofallon|stcharles|wentzville|lakestlouis|wildwood|chesterfield/i.test(camp)) clppsStore('lead_camp', camp.slice(0, 60));
+  if (ad) clppsStore('lead_ad', ad.slice(0, 60));
   return src;
 }
+/* The campaign and ad names remembered for this visit, or ''. */
+function clppsLeadCampaign(){ try { return clppsStore('lead_camp') || ''; } catch (e) { return ''; } }
+function clppsLeadAd(){ try { return clppsStore('lead_ad') || ''; } catch (e) { return ''; } }
 
 /* ============================================================
    TEAM PHONES.

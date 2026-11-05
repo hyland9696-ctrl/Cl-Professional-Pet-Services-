@@ -374,7 +374,7 @@
   </style>
   <script src="/pricing.js?v=b057ab30"></script>
   <script defer src="/contact-check.js?v=b4a5b7a1"></script>
-  <script src="/lead-source.js?v=6a3c0e6d"></script>
+  <script src="/lead-source.js?v=ae4b735c"></script>
   <script defer src="/reviews.js?v=0d1bf809"></script>
   <script defer src="/meta-pixel.js?v=38fe5a84"></script>
 </head>
@@ -1661,6 +1661,9 @@
       // win back d. [IC:w] stamps a waived initial clean so the revenue
       // figures never count $40 we did not charge.
       crmnotes: '[SID:' + vSid() + '] ' + (leadSource() ? '[SRC:' + leadSource() + '] ' : '') +
+                // the campaign and the ad, so the tracker can say which ad brought whom
+                (typeof clppsLeadCampaign === 'function' && clppsLeadCampaign() ? '[CAMP:' + clppsLeadCampaign().replace(/[\[\]]/g, '') + '] ' : '') +
+                (typeof clppsLeadAd === 'function' && clppsLeadAd() ? '[AD:' + clppsLeadAd().replace(/[\[\]]/g, '') + '] ' : '') +
                 (!p.manual && p.per === '/mo' && !p.initial ? '[IC:w] ' : '') +
                 '[QA:' + (kind === 'ACTIVATE' ? 'a' : (kind === 'DECLINED' ? 'd' : 'w')) + '] ' +
                 // [MR:] says WHY there is no price, so nobody has to guess

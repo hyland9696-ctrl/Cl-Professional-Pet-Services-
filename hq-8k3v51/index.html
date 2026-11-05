@@ -143,6 +143,7 @@
       <div id="terr-legend" style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:#555;margin-bottom:10px;align-items:center;"></div>
       <div id="terr-body"></div>
     </div>
+    <div id="undertable" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="season" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="pricelog" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="traffic" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);display:none;">
@@ -185,6 +186,7 @@
       <button class="copybtn" onclick="toggleWait()" id="waitBtn">&#128205; Out of area</button>
       <button class="copybtn" onclick="toggleQR()" id="qrBtn">&#128241; Sign scans</button>
       <button class="copybtn" onclick="openTerritory()">&#128506;&#65039; Territory</button>
+      <button class="copybtn" onclick="setWho()" id="whoBtn">&#128100; Who am I?</button>
       <button class="copybtn" onclick="toggleImport()" id="importBtn">&#11014;&#65039; Import Sweep&amp;Go</button>
       <button class="copybtn" onclick="toggleDeoSeason()" id="deoBtn" title="Deodorize &amp; sanitize is a warm-weather service. Flip this when it drops below 50 or warms back up; the website prices by it.">&#129532; Deodorize season</button>
       <button class="copybtn" onclick="toggleTests()" id="testBtn">&#129514; Test leads</button>
@@ -624,6 +626,7 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
       renderTraffic();
       renderTests();
       renderDeoBtn();
+      renderWho();
       if (showToast) toast('Up to date ✓');
       if (cb) cb(true);
     })
@@ -790,6 +793,7 @@ function setStatus(id, status){
     m.date = d; notesChanged = true;
     extra = ' · follow-up set for ' + d;
   }
+  if (whoAmI()){ stampBy(m); notesChanged = true; }
   if (notesChanged) l.crmnotes = fuCompose(m);
   saveLocal();
   render();
@@ -801,6 +805,102 @@ function setStatus(id, status){
 /* A text counts as reaching out, same as a call: it stamps the first-touch
    time for the speed-to-lead figure, and the card shows when they were
    last texted. Some people only ever want to text. */
+/* ---- who did what ----
+   Two people share the tracker. Each phone names itself once and every
+   call, text, note and status change carries the name and the day. */
+function whoAmI(){ try { return localStorage.getItem('clpps_who') || ''; } catch (e) { return ''; } }
+function setWho(){
+  var v = prompt('Who uses this phone? (a first name - it goes on every action you take here)', whoAmI());
+  if (v === null) return;
+  v = String(v).trim().replace(/[\[\]~]/g, '').slice(0, 20);
+  try { if (v) localStorage.setItem('clpps_who', v); else localStorage.removeItem('clpps_who'); } catch (e) {}
+  renderWho(); toast(v ? 'Actions from this phone are signed ' + v : 'This phone is unsigned');
+}
+function renderWho(){ var b = document.getElementById('whoBtn'); if (b) b.innerHTML = '&#128100; ' + (whoAmI() ? esc(whoAmI()) : 'Who am I?'); }
+function stampBy(m){ if (whoAmI()) m.by = whoAmI() + '~' + new Date().toISOString().slice(0, 10); }
+function byLine(fu){
+  if (!fu.by) return '';
+  var p = fu.by.split('~');
+  return '<span style="color:#9aa5a0;font-size:11px;"> &middot; last touched by ' + esc(p[0]) + (p[1] ? ' ' + esc(p[1]) : '') + '</span>';
+}
+/* ---- a quote about to run out ----
+   Prices are honoured six months. A saved quote with two weeks left is a
+   reason to get in touch that is not pestering. */
+function quoteExpiry(l){
+  var h = l.honored ? new Date(l.honored) : null;
+  if (!h || isNaN(h.getTime())){ var c = new Date(l.created || ''); if (isNaN(c.getTime())) return null; h = new Date(c.getTime() + 182 * 864e5); }
+  return h;
+}
+function quoteDaysLeft(l){ var h = quoteExpiry(l); return h ? Math.ceil((h.getTime() - Date.now()) / 864e5) : NaN; }
+function quoteExpiring(l){
+  var st = l.status || 'new';
+  if (st === 'closed' || st === 'cancelled' || st === 'lost' || st === 'deleted') return false;
+  if (quoteState(l) === 'declined' || quoteState(l) === 'accepted' || auths[l.id]) return false;
+  if (String(l.price || '').indexOf('$') < 0) return false;
+  var d = quoteDaysLeft(l);
+  return d >= 0 && d <= 14;
+}
+/* ---- win-back for a closed account ----
+   Ninety days after an account closes, unless we closed it over money, a
+   text to say we would have them back. Nothing followed them up before. */
+var WINBACK_CLOSED_DAYS = 90;
+function winbackClosedDue(l){
+  if ((l.status || 'new') !== 'cancelled') return false;
+  var fu = fuParse(l.crmnotes);
+  if (!fu.cx || fu.wc || fu.cxr === 'nonpay' || fu.cxr === 'byus') return false;
+  return (Date.now() - new Date(fu.cx + 'T12:00:00').getTime()) / 864e5 >= WINBACK_CLOSED_DAYS;
+}
+function markWinbackClosed(id, how){
+  var l = leads.filter(function(x){ return x.id === id; })[0];
+  if (!l) return;
+  var m = fuParse(l.crmnotes);
+  m.wc = how === 'skip' ? 'skip' : new Date().toISOString().slice(0, 10);
+  stampBy(m);
+  l.crmnotes = fuCompose(m); l.updated = new Date().toISOString();
+  saveLocal(); render();
+  post({ action:'update', key:KEY, id:id, notes:l.crmnotes }, how === 'skip' ? 'Skipped' : 'Win-back marked as sent \u2713');
+}
+/* ---- the story on a card: everything that happened, dated ---- */
+function storyLine(l){
+  var fu = fuParse(l.crmnotes), ev = [];
+  var add = function(d, what){ if (d && /^\d{4}-\d{2}-\d{2}/.test(String(d))) ev.push({ d: String(d).slice(0, 10), what: what }); };
+  add(l.created, l.type === 'ACTIVATE' ? 'asked to start' : l.type === 'DECLINED' ? 'said no on the site' : l.type === 'SAVED' ? 'added' : l.type === 'COMMERCIAL' ? 'commercial enquiry' : 'asked for a price');
+  add(fu.t1, 'first contact');
+  if (fu.att) add(fu.attDate, fu.att + ' call' + (fu.att > 1 ? 's' : '') + ' by then');
+  if (fu.tx) add(fu.txDate, fu.tx + ' text' + (fu.tx > 1 ? 's' : '') + ' by then');
+  add(fu.qs, 'quote emailed');
+  if (auths[l.id]) add(auths[l.id], 'accepted the quote');
+  add(fu.cd, 'active');
+  add(fu.sd, 'first visit');
+  if (fu.rv && fu.rv !== 'skip') add(fu.rv, 'review asked');
+  add(fu.wb, 'win-back email');
+  add(fu.owSince, 'behind on payment');
+  add(fu.cx, 'account closed' + (fu.cxr ? ' (' + (CX_TAGS.filter(function(t){ return t[0] === fu.cxr; })[0] || [0, fu.cxr])[1].toLowerCase() + ')' : ''));
+  if (fu.wc && fu.wc !== 'skip') add(fu.wc, 'win-back text');
+  if (!ev.length) return '';
+  ev.sort(function(a, b){ return a.d.localeCompare(b.d); });
+  var fmt = function(d){ return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
+  return '<div class="story" style="margin-top:8px;font-size:11.5px;color:#555;line-height:1.7;">&#128220; ' +
+    ev.map(function(e){ return '<span style="white-space:nowrap;"><strong style="color:#2B3A34;">' + fmt(e.d) + '</strong> ' + esc(e.what) + '</span>'; }).join(' <span style="color:#bbb;">&middot;</span> ') + byLine(fu) + '</div>';
+}
+/* ---- behind on payment ---- */
+function setOwed(id){
+  var l = leads.filter(function(x){ return x.id === id; })[0];
+  if (!l) return;
+  var m = fuParse(l.crmnotes);
+  var amt = prompt('How much are they behind? (dollars; blank or 0 = paid up)', m.ow ? String(m.ow) : '');
+  if (amt === null) return;
+  var n = parseFloat(String(amt).replace(/[^0-9.]/g, '')) || 0;
+  if (n > 0){
+    var since = prompt('Behind since (YYYY-MM-DD)', m.owSince || new Date().toISOString().slice(0, 10));
+    if (since === null) return;
+    m.ow = n; m.owSince = /^\d{4}-\d{2}-\d{2}$/.test(String(since).trim()) ? String(since).trim() : new Date().toISOString().slice(0, 10);
+  } else { m.ow = 0; m.owSince = ''; }
+  stampBy(m);
+  l.crmnotes = fuCompose(m); l.updated = new Date().toISOString();
+  saveLocal(); render();
+  post({ action:'update', key:KEY, id:id, notes:l.crmnotes }, n > 0 ? 'Marked $' + n + ' behind' : 'Marked paid up');
+}
 function textLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
   if (!l) return;
@@ -808,6 +908,7 @@ function textLead(id){
   m.tx = (m.tx || 0) + 1;
   m.txDate = new Date().toISOString().slice(0, 10);
   if (!m.t1) m.t1 = new Date().toISOString();
+  stampBy(m);
   l.crmnotes = fuCompose(m);
   l.updated = new Date().toISOString();
   saveLocal();
@@ -821,6 +922,7 @@ function attemptLead(id){
   m.att = (m.att || 0) + 1;
   m.attDate = new Date().toISOString().slice(0, 10);
   if (!m.t1) m.t1 = new Date().toISOString();
+  stampBy(m);
   l.crmnotes = fuCompose(m);
   l.updated = new Date().toISOString();
   saveLocal();
@@ -1064,6 +1166,21 @@ function renderInsights(){
       deoWait.map(function(l){ return '<div class="bar"><span style="flex:1;font-size:12.5px;"><strong>' + esc(l.name || '(no name)') + '</strong> <span class="sub">' + esc(String(l.deodorize).replace(/^WANTS IT WHEN THE SEASON REOPENS:\s*/i, '')) + (l.phone ? ' &middot; ' + esc(l.phone) : '') + '</span></span></div>'; }).join('')
     : '<div class="sub">Nobody waiting. A yes to deodorize while the season is off lands here.</div>';
 
+  // ---- which ad brought whom (only once the ad links carry their names) ----
+  var byAd = {};
+  leads.forEach(function(l){
+    if (!isLead(l)) return;
+    var f = fuParse(l.crmnotes); if (!f.camp && !f.ad) return;
+    var k = (f.camp || '(no campaign)') + (f.ad ? ' \u203a ' + f.ad : '');
+    if (!byAd[k]) byAd[k] = { q: 0, w: 0, c: 0 };
+    byAd[k].q++; if (terrWon(l)) byAd[k].w++; if ((l.status || 'new') === 'closed') byAd[k].c++;
+  });
+  var adKeys = Object.keys(byAd).sort(function(a, b){ return byAd[b].c - byAd[a].c || byAd[b].q - byAd[a].q; });
+  if (adKeys.length){
+    h += '<h4>&#127919; By ad</h4><div class="sub">Which campaign and ad each lead came from, read from the ad link. Customers first.</div>';
+    adKeys.slice(0, 12).forEach(function(k){ var r = byAd[k]; h += bar(k, r.q, byAd[adKeys[0]].q || 1, r.q + ' quote' + (r.q === 1 ? '' : 's') + ' &middot; ' + r.w + ' won &middot; <strong>' + r.c + ' customer' + (r.c === 1 ? '' : 's') + '</strong>'); });
+  }
+
   // ---- referral rewards owed ----
   var owed = leads.filter(function(l){ var m = fuParse(l.crmnotes); var st = l.status || 'new'; return m.rb && !m.rw && (st === 'closed' || st === 'cancelled'); });
   h += '<h4>&#129309; Referral rewards owed <span class="sub">(a free deodorize each)</span></h4>';
@@ -1215,7 +1332,7 @@ function fuParse(crmnotes){
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
             cx: '', cxr: '', dr: '', rb: '', rw: '', text: '' };
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|MR|CXR|CX|DR|RB|RW|TM):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1237,6 +1354,11 @@ function fuParse(crmnotes){
     else if (hit[1] === 'RB') m.rb = hit[2];
     else if (hit[1] === 'RW') m.rw = hit[2];
     else if (hit[1] === 'TM') m.tm = hit[2];
+    else if (hit[1] === 'WC') m.wc = hit[2];       // win-back text sent to a closed account, date
+    else if (hit[1] === 'CAMP') m.camp = hit[2];   // ad campaign the lead came from
+    else if (hit[1] === 'AD') m.ad = hit[2];       // the ad itself
+    else if (hit[1] === 'OW'){ var po = hit[2].split('@'); m.ow = parseFloat(po[0]) || 0; m.owSince = po[1] || ''; }   // behind on payment: amount@since
+    else if (hit[1] === 'BY') m.by = hit[2];       // who last touched this, and when: name~date
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -1263,7 +1385,12 @@ function fuCompose(m){
          (m.dr ? '[DR:' + m.dr + '] ' : '') +
          (m.rb ? '[RB:' + m.rb + '] ' : '') +
          (m.rw ? '[RW:' + m.rw + '] ' : '') +
-         (m.tm ? '[TM:' + m.tm + '] ' : '') + (m.text || '');
+         (m.tm ? '[TM:' + m.tm + '] ' : '') +
+         (m.wc ? '[WC:' + m.wc + '] ' : '') +
+         (m.camp ? '[CAMP:' + m.camp + '] ' : '') +
+         (m.ad ? '[AD:' + m.ad + '] ' : '') +
+         (m.ow ? '[OW:' + m.ow + '@' + m.owSince + '] ' : '') +
+         (m.by ? '[BY:' + m.by + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -1379,6 +1506,7 @@ function saveNote(id){
   var lx = leads.filter(function(x){ return x.id === id; })[0];
   var keep = fuParse(lx ? lx.crmnotes : '');
   keep.date = d; keep.text = v;
+  stampBy(keep);
   var combined = fuCompose(keep);
   var l = leads.filter(function(x){ return x.id === id; })[0];
   if (l){ l.crmnotes = combined; l.updated = new Date().toISOString(); }
@@ -2536,6 +2664,18 @@ function briefText_(){
     L.push(list(fuDue));
   }
   if (revDue.length) L.push('\u2b50 ' + revDue.length + ' customer' + (revDue.length === 1 ? '' : 's') + ' ready to be asked for a review');
+  var owed = live.filter(function(l){ return (l.status || 'new') === 'closed' && fuParse(l.crmnotes).ow > 0; });
+  if (owed.length){
+    L.push('\ud83d\udcb3 ' + owed.length + ' customer' + (owed.length === 1 ? '' : 's') + ' behind on payment, $' + Math.round(owed.reduce(function(a, l){ return a + fuParse(l.crmnotes).ow; }, 0)).toLocaleString() + ' in all:');
+    L.push(list(owed, function(l){ var f = fuParse(l.crmnotes); return (l.name || '(no name)') + ' \u2014 $' + f.ow + (f.owSince ? ' since ' + f.owSince : '') + (l.phone ? ' \u2014 ' + l.phone : ''); }));
+  }
+  var expiring = live.filter(quoteExpiring).sort(function(a, b){ return quoteDaysLeft(a) - quoteDaysLeft(b); });
+  if (expiring.length){
+    L.push('\u23f3 ' + expiring.length + ' quote' + (expiring.length === 1 ? '' : 's') + ' about to run out (price held 6 months) \u2014 the text is on the card:');
+    L.push(list(expiring, function(l){ return nm(l) + ' \u2014 ' + quoteDaysLeft(l) + ' day' + (quoteDaysLeft(l) === 1 ? '' : 's') + ' left'; }));
+  }
+  var wbClosed = live.filter(winbackClosedDue);
+  if (wbClosed.length) L.push('\ud83d\udc9a ' + wbClosed.length + ' closed account' + (wbClosed.length === 1 ? '' : 's') + ' gone 90+ days \u2014 a win-back text is written on the card');
   if (!authPending.length && !stale.length && !fuDue.length && !revDue.length) L.push('  Nothing outstanding \u2014 all clear.');
 
   L.push('');
@@ -3518,6 +3658,42 @@ function renderTerritory(){
       nb.slice(0, 10).map(function(x){ return '<div style="padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;"><strong>' + esc(x.street.replace(/\b\w/g, function(c){ return c.toUpperCase(); })) + '</strong> <span style="color:#707070;">' + esc(x.b.town) + ' ' + x.b.zip + '</span> &middot; ' + x.names.length + ' customers <span style="color:#707070;">(' + esc(x.names.join(', ')) + ')</span></div>'; }), 'nb');
 }
 /* ============================================================
+   MONEY LEFT ON THE TABLE. Customers from before the tracker are on the
+   price they signed at. Each active recurring customer is set against
+   what the table would quote them today for the same ZIP, dogs and plan;
+   the gap, and the total, is for Corey to decide about.
+   ============================================================ */
+function tableGap(l){
+  if ((l.status || 'new') !== 'closed' || !isRecurring(l) || typeof clppsQuote !== 'function') return null;
+  var FREQ = { 'weekly':'weekly', 'every other week':'biweekly', 'biweekly':'biweekly', 'twice a week':'twiceweekly', 'twiceweekly':'twiceweekly' };
+  var freq = FREQ[String(l.service || '').toLowerCase()], zip = zipOf(l), dogs = parseInt(l.dogs, 10);
+  if (!freq || !zip || !(dogs >= 1 && dogs <= 4)) return null;
+  var pp = parsePrice(l); if (!pp || !pp.isMo) return null;
+  var paid = pp.amt;
+  var deoM = String(l.price || '').match(/includes \$(\d+(?:\.\d+)?) deodorize/i);
+  if (deoM) paid -= parseFloat(deoM[1]);   // compare plan to plan; the add-on is priced separately
+  var q = clppsQuote({ zip: zip, dogs: dogs, freq: freq, deo: 'none' });
+  if (!q || q.manual) return null;
+  return { paid: Math.round(paid), table: q.service, gap: q.service - Math.round(paid), tier: q.tier };
+}
+function renderUnderTable(){
+  var box = document.getElementById('undertable'); if (!box) return;
+  var rows = [];
+  leads.forEach(function(l){ var g = tableGap(l); if (g && g.gap >= 2) rows.push({ l: l, g: g }); });
+  rows.sort(function(a, b){ return b.g.gap - a.g.gap; });
+  var total = rows.reduce(function(a, r){ return a + r.g.gap; }, 0);
+  var checked = leads.filter(function(l){ return tableGap(l); }).length;
+  box.innerHTML = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128176; Money left on the table</div>' +
+    '<div style="font-size:11.5px;color:#707070;margin-bottom:6px;">Active customers paying less than the table would quote them today for the same ZIP, dogs and plan. Whether and when to move anyone is Corey\u2019s call; this only shows the size of it. ' + checked + ' customer' + (checked === 1 ? '' : 's') + ' compared.</div>' +
+    (rows.length
+      ? '<div class="big" style="font-size:22px;font-weight:800;color:#188663;">' + money(total) + '/mo</div><div class="sub" style="font-size:12px;color:#555;margin-bottom:6px;">' + money(total * 12) + ' a year, across ' + rows.length + ' customer' + (rows.length === 1 ? '' : 's') + ' below today\u2019s price</div>' +
+        rows.map(function(r){ return '<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
+          '<span><a href="#card-' + esc(r.l.id) + '" onclick="jumpToLead(\'' + esc(r.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(r.l.name || '(no name)') + '</a> <span style="color:#707070;">' + esc(dogsLabel(r.l.dogs)) + ' ' + esc(planLabel(r.l.service)) + ' &middot; ' + esc(zipOf(r.l)) + ' ' + esc(r.g.tier) + '</span></span>' +
+          '<span style="white-space:nowrap;">$' + r.g.paid + ' &rarr; $' + r.g.table + ' <strong style="color:#188663;">+$' + r.g.gap + '</strong></span></div>'; }).join('')
+      : '<div style="font-size:12.5px;color:#9aa5a0;">Everyone is at or above today\u2019s table price.</div>');
+}
+
+/* ============================================================
    THIS MONTH AGAINST LAST YEAR. The history goes back to March 2024 now,
    so a slow month can be judged against the same month a year ago rather
    than against last month. New recurring customers by the month they
@@ -3645,7 +3821,7 @@ function renderReviewTrend(){
 }
 
 /* ---- fold-up cards in the numbers panel ---- */
-var FOLD_CARDS = ['territory', 'season', 'pricelog', 'traffic', 'revenue', 'roi', 'insights', 'reviews'];
+var FOLD_CARDS = ['territory', 'undertable', 'season', 'pricelog', 'traffic', 'revenue', 'roi', 'insights', 'reviews'];
 function foldKey(card){ return card.id || card.getAttribute('data-fold') || ''; }
 function foldState(key){ try { return localStorage.getItem('clpps_fold_' + key); } catch (e) { return null; } }
 function foldApply(card, openByDefault){
@@ -4327,6 +4503,11 @@ function renderRevenue(){
   box.onclick = null;
   box.innerHTML =
     '<div style="font-size:14px;">&#128176; Revenue closed from this site</div>' +
+    (function(){
+      var ow = 0, own = 0;
+      leads.forEach(function(l){ if ((l.status || 'new') === 'closed'){ var f = fuParse(l.crmnotes); if (f.ow > 0){ ow += f.ow; own++; } } });
+      return ow ? '<div style="font-size:12.5px;font-weight:600;color:#FFD6C9;margin-top:2px;">&#128179; $' + Math.round(ow).toLocaleString() + ' behind on payment from ' + own + ' customer' + (own === 1 ? '' : 's') + ' &mdash; on the books, not in the bank</div>' : '';
+    })() +
     '<div style="font-size:19px;margin:4px 0 2px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;"><span>$' + mo.toLocaleString() + '/mo current MRR' +
       ' <span style="opacity:0.75;font-weight:400;font-size:12.5px;">(~$' + (mo * 12).toLocaleString() + ' a year)</span></span>' +
       '<button onclick="var d=document.getElementById(\'rev-detail\');d.style.display=d.style.display===\'none\'?\'block\':\'none\';this.textContent=d.style.display===\'none\'?\'the math \u25BE\':\'hide the math \u25B4\';" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:6px 10px;min-height:34px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;">the math &#9662;</button></div>' +
@@ -4432,6 +4613,7 @@ function render(){
   renderInsights();
   renderTerritory();
   renderSeason();
+  renderUnderTable();
   renderPriceLog();
   renderReviews();
   renderReviewTrend();
@@ -4502,6 +4684,33 @@ function render(){
     var smsBtn = digits2 ? '<a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(smsBody).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(l.id) + '\')"' +
       ' style="display:inline-block;background:#188663;color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:700;text-decoration:none;">&#128172; Text them</a>' : '';
     smsBtn += '<button onclick="textLead(\'' + esc(l.id) + '\')" title="Log a text you sent from somewhere else" style="border-color:#188663;color:#0F6E56;font-weight:700;">&#128172; +1 text</button>';
+    // behind on payment (active customers), a quote about to run out, a win-back for a closed account
+    var owedRow = '';
+    if (st === 'closed'){
+      owedRow = fu.ow
+        ? '<div style="margin-top:6px;font-size:12px;color:#c0392b;font-weight:700;">&#128179; $' + fu.ow + ' behind on payment' + (fu.owSince ? ' since ' + esc(niceDate(fu.owSince)) : '') +
+          ' <button onclick="setOwed(\'' + esc(l.id) + '\')" style="margin-left:6px;border:1px solid #e0b4ad;color:#c0392b;background:#fff;border-radius:7px;padding:5px 9px;min-height:32px;font-size:11.5px;font-family:inherit;cursor:pointer;">update / paid up</button></div>'
+        : '';
+    }
+    var owedBtn = st === 'closed' && !fu.ow ? '<button onclick="setOwed(\'' + esc(l.id) + '\')" style="color:#7a5c00;border-color:#e6c96a;">&#128179; Behind on payment</button>' : '';
+    var expRow = '';
+    if (quoteExpiring(l)){
+      var dl = quoteDaysLeft(l), untilTxt = quoteExpiry(l).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+      var expBody = 'Hi ' + (String(l.name || '').trim().split(' ')[0] || 'there') + ", it's Corey with CL Professional Pet Services. Your price" + (String(l.price || '').split(',')[0].indexOf('$') >= 0 ? ' of ' + String(l.price).split(',')[0].split(' (')[0] : '') + ' is locked in until ' + untilTxt + ' - want to get started before then? Just reply here.';
+      expRow = '<div style="background:#FFF8E1;border-radius:9px;padding:8px 11px;margin-top:8px;font-size:12.5px;color:#7a5c00;font-weight:700;">&#9203; Price locked until ' + esc(untilTxt) + ' &mdash; ' + (dl === 0 ? 'last day' : dl + ' day' + (dl === 1 ? '' : 's') + ' left') +
+        (digits2 ? ' <a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(expBody).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(l.id) + '\')" style="display:inline-block;margin-left:6px;background:#188663;color:#fff;border-radius:8px;padding:7px 11px;font-size:12px;text-decoration:none;">&#128172; Text them</a>' : '') + '</div>';
+    }
+    var wcRow = '';
+    if (winbackClosedDue(l)){
+      var wcBody = 'Hi ' + (String(l.name || '').trim().split(' ')[0] || 'there') + ", it's Corey with CL Professional Pet Services. We'd love to have you back - no initial clean fee, same price as before. Just reply here if you'd like us to pick the yard back up.";
+      wcRow = '<div style="background:#E6F2ED;border-radius:9px;padding:8px 11px;margin-top:8px;font-size:12.5px;color:#0F6E56;font-weight:700;">&#128154; Gone ' + Math.floor((Date.now() - new Date(fu.cx + 'T12:00:00').getTime()) / 864e5) + ' days &mdash; worth a win-back text' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
+        (digits2 ? '<a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(wcBody).replace(/'/g, '%27') + '" onclick="markWinbackClosed(\'' + esc(l.id) + '\')" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:9px 12px;font-size:12px;text-decoration:none;min-height:40px;line-height:22px;">&#128172; Text the offer</a>' : '') +
+        '<button onclick="markWinbackClosed(\'' + esc(l.id) + '\')" style="background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:8px;padding:9px 10px;min-height:40px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#10003; Mark as sent</button>' +
+        '<button onclick="markWinbackClosed(\'' + esc(l.id) + '\',\'skip\')" style="background:none;color:#7a9a8a;border:none;padding:9px 6px;min-height:40px;font-size:12px;cursor:pointer;font-family:inherit;">Skip</button></div></div>';
+    } else if (fu.wc && fu.wc !== 'skip'){
+      wcRow = '<div style="color:#0F6E56;font-size:12px;font-weight:600;margin-top:6px;">&#128154; Win-back text sent ' + esc(fu.wc) + '</div>';
+    }
     var attLine = (fu.att || fu.tx)
       ? '<div style="font-size:12px;color:#555;margin-top:6px;">' +
           (fu.att ? '&#9742;&#65039; ' + fu.att + ' call' + (fu.att > 1 ? 's' : '') + ' &middot; last ' + esc(fu.attDate) : '') +
@@ -4599,7 +4808,7 @@ function render(){
        saved phone quote, anything without a dollar figure. */
     var needsQuote = selling && (l.manual === 'YES' || l.type === 'SAVED' ||
                                  String(l.price || '').indexOf('$') < 0);
-    var main = '', extra = '';
+    var main = '', extra = storyLine(l);
     if (!finished)  main += fuRow; else extra += fuRow;           // chasing them
     if (needsQuote) main += quoteRow; else extra += quoteRow;     // still owe them a price
     if (accepted && !passed) main += sdRow; else extra += sdRow;  // booking them in
@@ -4654,7 +4863,7 @@ function render(){
         '<br><span class="price">' + esc(String(l.price || '').indexOf('$') >= 0 ? l.price : (priceLabel(l) || l.price || '')) + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(honoredText(l.honored)) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' + srcChip + refChip + icChip + azBadge + sdBadge + attLine + fuBadge + ageBadge + rvRow + whyRow + cxRow +
+      '</div>' + srcChip + refChip + icChip + azBadge + sdBadge + attLine + fuBadge + ageBadge + owedRow + expRow + wcRow + rvRow + whyRow + cxRow +
       '<div class="stbtns">' + STATUSES.filter(function(s){
         // "Cancelled" is a thing that happens to a customer, not a lead
         return s.k !== 'cancelled' || st === 'closed' || st === 'cancelled';
@@ -4663,6 +4872,7 @@ function render(){
       }).join('') +
       (finished ? '' :
         '<button onclick="attemptLead(\'' + esc(l.id) + '\')" style="border-color:#188663;color:#0F6E56;font-weight:700;">&#9742;&#65039; +1 attempt</button>' + smsBtn) +
+      owedBtn +   // active customers only: the one button a finished card still needs
       '</div>' +
       '<div class="notes"><textarea id="note-' + esc(l.id) + '" placeholder="Your notes (gate code, price agreed…)">' + esc(fu.text) + '</textarea>' +
       '<button onclick="saveNote(\'' + esc(l.id) + '\')">Save</button></div>' +
