@@ -311,6 +311,16 @@
         <button class="copybtn" id="sg-go" onclick="sgImport()" style="display:none;background:#188663;color:#fff;border-color:#188663;">Import</button>
       </div>
       <div id="sg-out" style="font-size:12.5px;line-height:1.6;color:#2B3A34;margin-top:10px;"></div>
+      <div style="border-top:1px solid #eee;margin-top:14px;padding-top:12px;">
+        <div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128197; Service days from the Master Schedule</div>
+        <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:8px;">Sweep&amp;Go &rarr; Schedule &rarr; Master Schedule &rarr; export. Each customer already in the tracker gets their day (or two days) from it; nobody is added. Run it again whenever the schedule changes.</div>
+        <label style="font-size:12.5px;"><strong>Master schedule</strong><br><input type="file" id="sg-sched" accept=".csv,text/csv" style="margin-top:4px;"></label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+          <button class="copybtn" onclick="sgDaysPreview()">Preview days</button>
+          <button class="copybtn" id="sg-days-go" onclick="sgDaysImport()" style="display:none;background:#188663;color:#fff;border-color:#188663;">Set the days</button>
+        </div>
+        <div id="sg-days-out" style="font-size:12.5px;line-height:1.6;color:#2B3A34;margin-top:10px;"></div>
+      </div>
     </div>
     <div id="qrPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -868,11 +878,20 @@ function saveOfferMade(id, how){
    day column, so each active customer is set once, from the card. */
 var DAYS = [['mon','Mon'],['tue','Tue'],['wed','Wed'],['thu','Thu'],['fri','Fri'],['sat','Sat'],['sun','Sun']];
 function dayLabel(k){ var d = DAYS.filter(function(x){ return x[0] === k; })[0]; return d ? d[1] : ''; }
+/* A twice-a-week customer has two days: "tue,fri". */
+function dayKeys(v){ return String(v || '').split(',').map(function(x){ return x.trim().slice(0, 3).toLowerCase(); }).filter(dayLabel); }
+function dayText(v){ return dayKeys(v).map(dayLabel).join(', '); }
+/* "Tuesday, Friday" / "Thu" / "monday" -> "tue,fri" */
+function dayParse(text){
+  var seen = {}; return String(text || '').split(/[,;&\/ ]+/).map(function(x){ return x.trim().slice(0, 3).toLowerCase(); })
+    .filter(function(k){ if (!dayLabel(k) || seen[k]) return false; seen[k] = 1; return true; })
+    .sort(function(a, b){ return DAYS.map(function(d){ return d[0]; }).indexOf(a) - DAYS.map(function(d){ return d[0]; }).indexOf(b); }).join(',');
+}
 function setDay(id, v){
   var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
-  var m = fuParse(l.crmnotes); m.day = dayLabel(v) ? v : ''; stampBy(m); l.crmnotes = fuCompose(m); l.updated = new Date().toISOString();
+  var m = fuParse(l.crmnotes); m.day = dayParse(v); stampBy(m); l.crmnotes = fuCompose(m); l.updated = new Date().toISOString();
   saveLocal(); render();
-  post({ action:'update', key:KEY, id:id, notes:l.crmnotes }, m.day ? 'Service day: ' + dayLabel(m.day) : 'Service day cleared');
+  post({ action:'update', key:KEY, id:id, notes:l.crmnotes }, m.day ? 'Service day: ' + dayText(m.day) : 'Service day cleared');
 }
 /* ---- a referral link for every customer ----
    The site reads /?ref=<code> and stamps the quote [RF:code]; the tracker
@@ -1434,7 +1453,7 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
@@ -3203,7 +3222,7 @@ function sgSubs(text, isCommercial){
     out.push({ status: sgNoData(col(r, 'Status')), revenue: parseFloat(String(col(r, 'Revenue')).replace(/[^0-9.]/g, '')) || 0,
                revType: sgNoData(col(r, 'Revenue Type')).toLowerCase(), name: name, start: sgNoData(col(r, 'Start Date')),
                end: sgNoData(col(r, 'End Date')), sub: sgNoData(col(r, 'Subs. Name')), reason: sgNoData(col(r, 'Termination Reason')),
-               day: sgNoData(col(r, 'Service Day') || col(r, 'Cleaning Day') || col(r, 'Day')),
+               day: sgNoData(col(r, 'Service Days') || col(r, 'Service Day') || col(r, 'Cleaning Day') || col(r, 'Day')),
                address: sgNoData(col(r, 'Address')), commercial: !!isCommercial });
   });
   return out;
@@ -3266,7 +3285,7 @@ function sgBuild(resText, comText, cliText, existing){
     var fu = match ? fuParse(match.crmnotes) : fuParse('');
     if (!fu.cd && s.start) fu.cd = s.start;
     if (!fu.ic) fu.ic = 'w';
-    if (!fu.day && s.day){ var dk3 = String(s.day).trim().slice(0, 3).toLowerCase(); if (dayLabel(dk3)) fu.day = dk3; }
+    if (!fu.day && s.day) fu.day = dayParse(s.day);
     if (!fu.src){ var src = SG_SOURCES[String(c && c.source || '').toLowerCase()]; if (src) fu.src = src; else if (!match) fu.src = 'Sweep&Go import'; }
     var status = active ? 'closed' : 'cancelled';
     if (!active){ if (!fu.cx && s.end) fu.cx = s.end; if (!fu.cxr && s.reason) fu.cxr = s.reason; }
@@ -3288,6 +3307,80 @@ function sgBuild(resText, comText, cliText, existing){
   });
   var unmatched = clients.filter(function(c){ return !used[sgNorm(c.name)]; });
   return { rows: out, unmatched: unmatched, subs: subs.length, clients: clients.length };
+}
+/* ---- service days from Sweep&Go's Master Schedule export ----
+   Columns: Client Name, Client Address, City, State, Zip Code, Subscription
+   Name, Subscription Status, Service Days ("Thursday" or "Tuesday, Friday"),
+   Assigned To, Cleanup Frequency, Number Of Dogs. Add-on rows repeat a
+   customer with 0 dogs; any row gives the day. Matched to the tracker by
+   name, then by house number and street. */
+function sgDays(text){
+  var rows = sgParseCsv(text); if (!rows.length) return [];
+  var head = rows[0].map(function(h){ return String(h).trim(); });
+  var ci = function(n){ return head.indexOf(n); };
+  if (ci('Service Days') < 0 && ci('Service Day') < 0) return [];
+  var di = ci('Service Days') >= 0 ? ci('Service Days') : ci('Service Day');
+  var out = [], seen = {};
+  rows.slice(1).forEach(function(r){
+    var name = sgNoData(r[ci('Client Name')]); if (!name) return;
+    var status = sgNoData(r[ci('Subscription Status')]).toLowerCase();
+    if (status && !/^(active|paused)$/.test(status)) return;
+    var days = dayParse(r[di]); if (!days) return;
+    var k = sgNorm(name); if (seen[k]) return; seen[k] = 1;
+    out.push({ name: name, address: sgNoData(r[ci('Client Address')]), city: sgNoData(r[ci('City')]), zip: sgNoData(r[ci('Zip Code')]), days: days,
+               freq: sgNoData(r[ci('Cleanup Frequency')]), dogs: sgNoData(r[ci('Number Of Dogs')]) });
+  });
+  return out;
+}
+function sgDaysPlan(text, existing){
+  var rows = sgDays(text), byName = {}, byStreet = {};
+  (existing || []).forEach(function(l){
+    var st = l.status || 'new'; if (!isLead(l) || (st !== 'closed' && st !== 'cancelled')) return;
+    var n = sgNorm(l.name); if (n && !byName[n]) byName[n] = l;
+    var stt = sgStreet(l.address); if (stt && !byStreet[stt]) byStreet[stt] = l;
+  });
+  var set = [], same = [], unmatched = [], used = {};
+  rows.forEach(function(r){
+    var l = byName[sgNorm(r.name)] || byStreet[sgStreet(r.address + '')] || byStreet[sgStreet(r.address.replace(/^\D*/, ''))] || null;
+    if (!l || used[l.id]){ unmatched.push(r); return; }
+    used[l.id] = 1;
+    var fu = fuParse(l.crmnotes);
+    if (fu.day === r.days) same.push({ l: l, r: r }); else set.push({ l: l, r: r, was: fu.day });
+  });
+  return { rows: rows, set: set, same: same, unmatched: unmatched };
+}
+var sgDaysRows = null;
+function sgDaysPreview(){
+  var out = document.getElementById('sg-days-out');
+  sgRead('sg-sched').then(function(t){
+    if (!t){ out.innerHTML = 'Pick the Master Schedule file first.'; return; }
+    var p = sgDaysPlan(t, leads);
+    if (!p.rows.length){ out.innerHTML = 'That file has no Service Days column. It should be the Master Schedule export, not the subscriptions one.'; return; }
+    sgDaysRows = p.set;
+    out.innerHTML = '<div style="font-weight:700;">' + p.rows.length + ' customers on the schedule &rarr; ' + p.set.length + ' to set' + (p.same.length ? ', ' + p.same.length + ' already right' : '') + '</div>' +
+      (p.set.length ? '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;"><tr style="color:#707070;text-align:left;"><th>Customer</th><th>Day</th><th>Was</th></tr>' +
+        p.set.map(function(x){ return '<tr style="border-top:1px solid #f0f0f0;"><td>' + esc(x.l.name) + ' <span style="color:#999;">' + esc(x.r.city) + '</span></td><td style="font-weight:700;">' + esc(dayText(x.r.days)) + '</td><td style="color:#999;">' + esc(x.was ? dayText(x.was) : '\u2014') + '</td></tr>'; }).join('') + '</table>' : '') +
+      (p.unmatched.length ? '<div style="margin-top:10px;color:#b45309;"><strong>' + p.unmatched.length + ' on the schedule but not in the tracker</strong> (import the customers first, or a name is spelled differently): <span style="color:#707070;">' + esc(p.unmatched.map(function(r){ return r.name + ' (' + r.address + ')'; }).join(', ')) + '</span></div>' : '');
+    var btn = document.getElementById('sg-days-go');
+    btn.style.display = p.set.length ? 'inline-block' : 'none';
+    btn.textContent = 'Set ' + p.set.length + ' day' + (p.set.length === 1 ? '' : 's');
+  });
+}
+function sgDaysImport(){
+  if (!sgDaysRows || !sgDaysRows.length){ toast('Preview first'); return; }
+  var rows = sgDaysRows, btn = document.getElementById('sg-days-go');
+  btn.disabled = true;
+  rows.forEach(function(x){ var m = fuParse(x.l.crmnotes); m.day = x.r.days; x.l.crmnotes = fuCompose(m); x.l.updated = new Date().toISOString(); });
+  saveLocal(); render();
+  var i = 0, ok = 0, bad = 0;
+  var next = function(){
+    if (i >= rows.length){ btn.textContent = 'Done: ' + ok + ' set' + (bad ? ', ' + bad + ' failed' : ''); btn.disabled = false; sgDaysRows = null; toast(ok + ' service days set \u2713'); return; }
+    var x = rows[i++];
+    fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'update', key: KEY, id: x.l.id, notes: x.l.crmnotes }) })
+      .then(function(r){ return r.json(); }).then(function(d){ if (d && d.ok) ok++; else bad++; }).catch(function(){ bad++; })
+      .then(function(){ btn.textContent = 'Setting ' + i + ' of ' + rows.length + '\u2026'; setTimeout(next, 120); });
+  };
+  next();
 }
 var sgPlanRows = null;
 function toggleImport(){
@@ -3819,11 +3912,13 @@ function scheduleStats(){
   var by = {}, unset = [];
   DAYS.forEach(function(d){ by[d[0]] = { key: d[0], label: d[1], n: 0, mrr: 0, dogs: 0, towns: {} }; });
   activeRecurring().forEach(function(l){
-    var fu = fuParse(l.crmnotes);
-    if (!fu.day || !by[fu.day]){ unset.push(l); return; }
-    var b = by[fu.day], pp = parsePrice(l);
-    b.n++; b.mrr += pp && pp.isMo ? pp.amt : 0; b.dogs += parseInt(l.dogs, 10) || 0;
-    var t = townOf(zipOf(l), l); (b.towns[t] = b.towns[t] || []).push(l);
+    var fu = fuParse(l.crmnotes), ks = dayKeys(fu.day);
+    if (!ks.length){ unset.push(l); return; }
+    ks.forEach(function(k){
+      var b = by[k], pp = parsePrice(l);
+      b.n++; b.mrr += (pp && pp.isMo ? pp.amt : 0) / ks.length; b.dogs += parseInt(l.dogs, 10) || 0;
+      var t = townOf(zipOf(l), l); (b.towns[t] = b.towns[t] || []).push(l);
+    });
   });
   return { by: by, unset: unset };
 }
@@ -3884,7 +3979,7 @@ function renderDeo(){
       '<div><div class="big" style="color:#9aa5a0;">' + off.length + '</div><div class="sub">active, no deo</div></div>' +
     '</div>';
   h += '<div class="fold folded" data-fold="deo-on" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong>Have it</strong><span style="color:#555;">' + on.length + ' &middot; ' + money(mo) + '/mo</span></div><div class="fold-body">' +
-    (on.length ? on.map(function(l){ return person(l, esc(String(l.deodorize).replace(/\s*\(.*$/, '')) + ' &middot; $' + Math.round(deoMonthly(l)) + '/mo' + (fuParse(l.crmnotes).day ? ' &middot; ' + dayLabel(fuParse(l.crmnotes).day) : '')); }).join('') : '<div class="sub" style="padding-left:10px;">Nobody yet.</div>') + '</div></div>';
+    (on.length ? on.map(function(l){ return person(l, esc(String(l.deodorize).replace(/\s*\(.*$/, '')) + ' &middot; $' + Math.round(deoMonthly(l)) + '/mo' + (fuParse(l.crmnotes).day ? ' &middot; ' + dayText(fuParse(l.crmnotes).day) : '')); }).join('') : '<div class="sub" style="padding-left:10px;">Nobody yet.</div>') + '</div></div>';
   h += '<div class="fold' + (later.length ? '' : ' folded') + '" data-fold="deo-later" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong style="color:#b45309;">Want it when the season reopens</strong><span style="color:#555;">' + later.length + '</span></div><div class="fold-body">' +
     (later.length ? '<div class="sub" style="padding-left:10px;">' + (season === 'on' ? 'The season is on: add it to their service, update the price, and set deodorize on their card.' : 'When the switch goes on, text these first.') + '</div>' +
       later.map(function(l){ var d = String(l.phone || '').replace(/\D/g, ''); if (d.length === 10) d = '1' + d; var first = String(l.name || '').trim().split(' ')[0] || 'there';
@@ -4943,7 +5038,9 @@ function render(){
     if (st === 'closed' && isRecurring(l)){
       dayRow = '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#128197; Service day: ' +
         '<select class="why day-sel" onchange="setDay(\'' + esc(l.id) + '\', this.value)"><option value=""' + (fu.day ? '' : ' selected') + '>not set</option>' +
+        (fu.day.indexOf(',') > 0 ? '<option value="' + esc(fu.day) + '" selected>' + esc(dayText(fu.day)) + ' (twice a week)</option>' : '') +
         DAYS.map(function(d){ return '<option value="' + d[0] + '"' + (fu.day === d[0] ? ' selected' : '') + '>' + d[1] + '</option>'; }).join('') + '</select>' +
+        (/twice/i.test(String(l.service || '')) ? '<span style="color:#9aa5a0;">(twice a week: type both, e.g. Tue, Fri, under Edit if they change)</span>' : '') +
         (fu.day ? '' : '<span style="color:#9aa5a0;">(set it once and the Schedule card fills in)</span>') + '</div>';
     }
     var saveRow = savePending === l.id && st === 'closed' ? saveOfferRow(l) : '';

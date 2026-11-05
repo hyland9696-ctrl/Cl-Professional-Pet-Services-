@@ -133,6 +133,34 @@ const refCode = (l) => { const first = String(l.name).trim().split(/\s+/)[0].toL
     await p.click('#card-E1 button.b-cancelled'); await p.waitForTimeout(400);
     ok('once the offer is on record, Account closed closes it straight away', posts.some(x => x.action === 'update' && x.id === 'E1' && x.status === 'cancelled'));
     ok('a closed account is off the Schedule and the Deodorize counts', /2 of 2 placed/.test((await p.textContent('#schedule')).replace(/\s+/g, ' ')), (await p.textContent('#schedule')).replace(/\s+/g, ' ').slice(0, 120));
+    /* ---- service days from the Master Schedule export ---- */
+    const csv = '"Client Name","Client Address","City","State","Zip Code","Subscription Name","Subscription Status","Service Days","Assigned To","Cleanup Frequency","Number Of Dogs"\n' +
+      '"Dana Deo","1 Oak St","St. Peters","Missouri","63376","2d-1xW","active","Thursday","Jesse Duncan","Once A Week","2"\n' +
+      '"Dana Deo","1 Oak St","St. Peters","Missouri","63376","bW","active","Thursday","Jesse Duncan","Bi Weekly","0"\n' +      // the deodorize add-on row
+      '"Gina G.","4 Elm St.","Saint Peters","Missouri","63376","1d-2xW","active","Tuesday, Friday","Jesse Duncan","Two Times A Week","1"\n' +   // name spelled differently: matched by the house
+      '"Eddie Eow","2 Pine St","O\'Fallon","Missouri","63366","1d-bW","active","Tuesday","Jesse Duncan","Bi Weekly","1"\n' +               // already right
+      '"Old Oscar","9 Gone Rd","Troy","Missouri","63379","1d-1xW","cancelled","Monday","Jesse Duncan","Once A Week","1"\n' +                 // not active: skipped
+      '"Nobody Known","77 Mystery Ln","Troy","Missouri","63379","1d-1xW","active","Monday","Jesse Duncan","Once A Week","1"\n';
+    const plan = await p.evaluate((c) => { const pl = sgDaysPlan(c, leads); return { n: pl.rows.length, set: pl.set.map(x => [x.l.name, x.r.days, x.was]), same: pl.same.map(x => x.l.name), un: pl.unmatched.map(r => r.name) }; }, csv);
+    ok('the add-on row and the cancelled row are not counted', plan.n === 4, JSON.stringify(plan));
+    ok('a name spelled differently is matched by the house number and street, with both days', plan.set.some(x => x[0] === 'Gina Guest' && x[1] === 'tue,fri' && x[2] === 'mon'), JSON.stringify(plan.set));
+    ok('a day that is already right is left alone', plan.same.indexOf('Eddie Eow') >= 0 && !plan.set.some(x => x[0] === 'Eddie Eow'));
+    ok('someone not in the tracker is listed, not added', plan.un.length === 1 && plan.un[0] === 'Nobody Known');
+    ok('Dana moves from Tue to Thu', plan.set.some(x => x[0] === 'Dana Deo' && x[1] === 'thu' && x[2] === 'tue'));
+    ok('day text reads two days in week order', await p.evaluate(() => dayParse('Friday, tuesday') === 'tue,fri' && dayText('tue,fri') === 'Tue, Fri' && dayParse('Thu') === 'thu' && dayParse('someday') === ''));
+    // through the panel: pick the file, preview, set
+    await p.click('#importBtn'); await p.waitForTimeout(300);
+    await p.setInputFiles('#sg-sched', { name: 'Master_Schedule.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+    await p.click('button:has-text("Preview days")'); await p.waitForTimeout(500);
+    const dout = (await p.textContent('#sg-days-out')).replace(/\s+/g, ' ');
+    ok('the preview says what it will do', /4 customers on the schedule → 2 to set, 1 already right/.test(dout), dout.slice(0, 200));
+    ok('and names the one it could not find', /1 on the schedule but not in the tracker.*Nobody Known/.test(dout));
+    await p.click('#sg-days-go'); await p.waitForTimeout(800);
+    const ginaPost = posts.find(x => x.action === 'update' && x.id === 'G1' && /\[DAY:tue,fri\]/.test(x.notes));
+    ok('setting the days writes each customer\'s notes', !!ginaPost && posts.some(x => x.action === 'update' && x.id === 'D1' && /\[DAY:thu\]/.test(x.notes)), JSON.stringify(posts.filter(x => x.id === 'G1').slice(-1)));
+    const sched3 = (await p.textContent('#schedule')).replace(/\s+/g, ' ');
+    ok('a twice-a-week customer is on both days of the Schedule', /Tue\s*1 stop/.test(sched3) && /Fri\s*1 stop/.test(sched3) && /Thu\s*1 stop/.test(sched3), sched3.slice(0, 300));
+    ok('and their card shows both days', /Tue, Fri \(twice a week\)/.test(await t('G1')));
     ok('no page errors', errs.length === 0, errs.join('; '));
     await ctx.close();
   }
