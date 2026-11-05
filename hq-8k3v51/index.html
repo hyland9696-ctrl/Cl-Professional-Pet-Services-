@@ -4445,6 +4445,7 @@ function renderFoldSums(){
   try { var on = activeRecurring().filter(hasDeo); foldSum('deo', on.length + ' have it &middot; ' + money(on.reduce(function(a, l){ return a + deoMonthly(l); }, 0)) + '/mo'); } catch (e) {}
   try { var tk = gDayKey(new Date()); foldSum('traffic', views.filter(function(v){ return gDayKey(new Date(v.created)) === tk; }).length + ' visits today'); } catch (e) {}
   try { var due = leads.filter(reviewDue).length; foldSum('reviews', due ? due + ' to ask' : 'nobody due'); } catch (e) {}
+  try { var lt = lifetimeStats(); if (lt.expect) foldSum('roi', 'a customer is worth ~' + money(lt.value)); } catch (e) {}
 }
 function openTerritory(){
   var box = document.getElementById('numbers');
@@ -4942,11 +4943,60 @@ function renderROI(){
   box.innerHTML =
     '<div style="font-weight:800;font-size:14px;margin-bottom:7px;">&#128181; Ad spend &rarr; what came back</div>' +
     '<div class="chips" style="margin-bottom:2px;">' + picker + '</div>' +
-    headline + paid + freeBlock + mixups + nudge + verdict + waiverBlock() +
+    headline + paid + freeBlock + mixups + nudge + verdict + waiverBlock() + lifetimeBlock() +
     '<div style="margin-top:11px;">' +
       '<button class="copybtn" onclick="toggleSpendForm()">&#9998; ' + (totalSpend ? 'Update' : 'Enter') + ' ' + esc(monthLabel(roiMonth)) + ' ad spend</button>' +
     '</div>' + form +
     '<div style="font-size:10.5px;color:#bbb;margin-top:8px;line-height:1.5;">Leads counted by the month they came in; revenue by the month the deal closed. "Back" values a customer over their whole stay &mdash; currently set to ' + lifetimeMonths() + ' months, changeable in the &#9881;&#65039; settings. That estimate is not measured from this data, so if it is optimistic these returns are too.</div>';
+}
+/* ---- What a customer is worth over their time with you ----------------
+   Jesse picked this one: the number to hold an ad cost against. Recurring
+   customers only. Three figures: how long the ones who left stayed, how
+   long the current ones have been here so far, and the rate of leaving
+   over the last twelve months turned into an expected stay. The value is
+   the average monthly price times that expected stay. */
+function lifetimeStats(){
+  var now = Date.now(), gone = [], here = [], prices = [], activeMonths = 0, leftYear = 0;
+  var cut = now - 365 * 864e5;
+  leads.forEach(function(l){
+    if (!isLead(l) || !isRecurring(l)) return;
+    var st = l.status || 'new'; if (st !== 'closed' && st !== 'cancelled') return;
+    var fu = fuParse(l.crmnotes), cd = new Date((fu.cd || String(l.created || '').slice(0, 10)) + 'T12:00:00');
+    if (isNaN(cd.getTime())) return;
+    var pp = parsePrice(l); if (pp && pp.isMo) prices.push(pp.amt);
+    if (st === 'cancelled'){
+      var cx = fu.cx ? new Date(fu.cx + 'T12:00:00') : null;
+      if (cx && !isNaN(cx.getTime()) && cx > cd){
+        gone.push((cx - cd) / (30.44 * 864e5));
+        if (cx.getTime() >= cut){ leftYear++; activeMonths += Math.max(0, (cx.getTime() - Math.max(cd.getTime(), cut)) / (30.44 * 864e5)); }
+      }
+    } else {
+      here.push((now - cd) / (30.44 * 864e5));
+      activeMonths += Math.max(0, (now - Math.max(cd.getTime(), cut)) / (30.44 * 864e5));
+    }
+  });
+  var avg = function(a){ return a.length ? a.reduce(function(x, y){ return x + y; }, 0) / a.length : 0; };
+  var churn = activeMonths > 0 ? leftYear / activeMonths : 0;       // leavers per customer-month
+  var expect = churn > 0 ? 1 / churn : 0;
+  return { gone: gone.length, goneAvg: avg(gone), here: here.length, hereAvg: avg(here), leftYear: leftYear, activeMonths: activeMonths, churn: churn, expect: expect, price: avg(prices), value: avg(prices) * expect };
+}
+function lifetimeBlock(){
+  var s = lifetimeStats();
+  if (!s.here && !s.gone) return '';
+  var mo = function(m){ return m >= 24 ? (m / 12).toFixed(1) + ' years' : Math.round(m) + ' month' + (Math.round(m) === 1 ? '' : 's'); };
+  var h = '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #eee;"><div style="font-weight:800;font-size:13px;margin-bottom:4px;">&#128100; What a customer is worth</div>';
+  if (s.expect){
+    h += '<div class="big" style="font-size:22px;font-weight:800;color:#188663;">' + money(s.value) + '</div>' +
+      '<div class="sub" style="font-size:12px;color:#555;">over their time with you: ' + money(s.price) + '/mo for about ' + mo(s.expect) + '. ' +
+      'At the last year\u2019s rate of leaving (' + s.leftYear + ' left out of ' + Math.round(s.activeMonths) + ' customer-months, ' + (100 * s.churn).toFixed(1) + '% a month), that is how long a new one stays.</div>' +
+      '<div style="font-size:12px;color:#555;margin-top:6px;">Paying more than ' + money(s.value * 0.3) + ' in ads for one customer eats a third of what they bring in; the ad cards above show the cost per customer by channel.</div>';
+  } else {
+    h += '<div class="sub" style="font-size:12px;color:#555;">Nobody has left in the last year' + (s.here ? ', so there is no rate of leaving to work from yet' : '') + '.' + (s.price ? ' Customers pay ' + money(s.price) + '/mo on average.' : '') + '</div>';
+  }
+  h += '<div style="font-size:12px;color:#707070;margin-top:6px;">' +
+    (s.gone ? 'The ' + s.gone + ' who left stayed ' + mo(s.goneAvg) + ' on average. ' : '') +
+    (s.here ? 'The ' + s.here + ' still here have been with you ' + mo(s.hereAvg) + ' so far.' : '') + '</div></div>';
+  return h;
 }
 /* ---- Is the waived initial clean earning its keep? --------------------
    Corey's test: does giving up the $40 bring in enough extra sign-ups to

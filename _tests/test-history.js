@@ -70,6 +70,24 @@ const iso = (d) => new Date(d + 'T12:00:00Z').toISOString();
   ok('a month with no count saved says not updated', /Jul 2026\s*—\s*not updated/.test(rv), rv.slice(0, 300));
   ok('and the current Google total is shown', /32 on Google now/.test(rv));
 
+  /* ---- what a customer is worth ---- */
+  // seeded above: 7 plain customers from 2025-03 on plus 6 won quotes, all $85/mo and all still here; add two who left
+  await p.evaluate(() => {
+    leads.push({ id:'x1', type:'ENQUIRY', name:'Left Lou', phone:'6363757001', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'cancelled', crmnotes:'[CD:2026-01-01] [CX:2026-07-01] [CXR:moved] [QA:a] ', created:'2026-01-01T12:00:00Z' });
+    leads.push({ id:'x2', type:'ENQUIRY', name:'Left Lee', phone:'6363757002', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'cancelled', crmnotes:'[CD:2024-06-01] [CX:2026-09-01] [CXR:price] [QA:a] ', created:'2024-06-01T12:00:00Z' });
+    render();
+  });
+  await p.waitForTimeout(300);
+  const lt = (await p.textContent('#roi')).replace(/\s+/g, ' ');
+  ok('the worth of a customer: price times expected stay, from the rate of leaving', /What a customer is worth\s*\$[\d,]+\s*over their time with you: \$85\/mo for about \d+ (months|\.?\d* ?years)/.test(lt) || /for about \d+\.\d years/.test(lt), lt.slice(lt.indexOf('What a customer'), lt.indexOf('What a customer') + 240));
+  ok('and says how it got there', /2 left out of \d+ customer-months, \d+\.\d% a month/.test(lt), lt.slice(lt.indexOf('At the last'), lt.indexOf('At the last') + 120));
+  ok('the ones who left: 6 and 27 months, so 16 on average', /The 2 who left stayed 16 months on average/.test(lt), lt.slice(lt.indexOf('The 2 who'), lt.indexOf('The 2 who') + 80));
+  ok('the ones still here, so far', /The \d+ still here have been with you \d+ (months|\.?\d* ?years) so far/.test(lt), lt.slice(lt.indexOf('still here') - 10, lt.indexOf('still here') + 60));
+  ok('the number sits on the closed heading too', /a customer is worth ~\$[\d,]+/.test(await p.$eval('#roi .fsum', e => e.textContent)));
+  const worth = await p.evaluate(() => lifetimeStats());
+  // 2 leavers over the last year; customer-months counted only inside the year
+  ok('the arithmetic: value = average price x (1 / monthly churn)', Math.abs(worth.value - worth.price * worth.expect) < 0.01 && worth.leftYear === 2 && worth.churn > 0 && worth.churn < 0.1, JSON.stringify(worth));
+
   /* ---- the revenue card folds now, with the math on its own button ---- */
   ok('the revenue card is foldable', await p.$eval('#revenue', e => e.classList.contains('fold')));
   await p.$eval('#revenue button', e => e.scrollIntoView({ block: 'center' }));
