@@ -501,6 +501,15 @@ function doPost(e) {
     return json_({ok:true});
   }
 
+  if (body.action === 'quota') {
+    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var q = 0; try { q = MailApp.getRemainingDailyQuota(); } catch (e) {}
+    return json_({ok:true, remaining:q});
+  }
+  if (body.action === 'blast') {
+    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    return json_(blast_(body));
+  }
   if (body.action === 'update') {
     if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
     var sh2 = sheet_();
@@ -526,6 +535,49 @@ function doPost(e) {
   }
 
   return json_({ok:false});
+}
+
+/* ---- Email blast ------------------------------------------------------
+   Jesse: "send out a seasonal promotion to their email". The tracker picks
+   who, writes the message once with {first} {price} {plan} in it, and posts
+   it here in batches of up to 60. Each person gets their own email from the
+   business account, reply-to the office. Every send is stamped on the
+   lead's notes as [EM:tag@date] so nobody is mailed twice for the same
+   promotion and the tracker can show who was reached. Gmail allows about
+   100 recipients a day from a plain Gmail account (1,500 on Workspace);
+   the tracker asks for the remaining quota first and sends what fits. */
+var BLAST_MAX = 60, BLAST_SUBJECT_MAX = 150, BLAST_BODY_MAX = 6000;
+function fillBlast_(text, r) {
+  var first = String(r.first || '').trim() || 'there';
+  var price = String(r.price || '').trim() || 'your quoted price';
+  var plan = String(r.plan || '').trim() || 'your plan';
+  return String(text || '').split('{first}').join(first).split('{price}').join(price).split('{plan}').join(plan);
+}
+function blast_(body) {
+  var subject = clip_(body.subject, BLAST_SUBJECT_MAX).trim(), text = clip_(body.body, BLAST_BODY_MAX);
+  var tag = String(body.tag || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24) || 'promo';
+  var to = Array.isArray(body.to) ? body.to.slice(0, BLAST_MAX) : [];
+  if (!subject || !text.trim() || !to.length) return { ok:false, error:'nothing to send' };
+  var sent = [], failed = [], stamp = '[EM:' + tag + '@' + new Date().toISOString().slice(0, 10) + '] ';
+  var sh = sheet_(), data = sh.getDataRange().getValues(), idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes');
+  for (var k = 0; k < to.length; k++) {
+    var r = to[k] || {}, email = String(r.email || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { failed.push({ id:r.id, error:'bad email' }); continue; }
+    var left = 0; try { left = MailApp.getRemainingDailyQuota(); } catch (e) { left = 1; }
+    if (left < 1) { failed.push({ id:r.id, error:'quota' }); continue; }
+    try {
+      MailApp.sendEmail({ to: email, subject: fillBlast_(subject, r), body: fillBlast_(text, r), name: 'CL Professional Pet Services', replyTo: NOTIFY_CC });
+      sent.push(r.id);
+      // stamp every row that carries the id, same as an update
+      for (var i = 1; i < data.length; i++) {
+        if (String(data[i][idCol]) !== String(r.id)) continue;
+        var old = String(data[i][nCol] || '');
+        if (old.indexOf('[EM:' + tag + '@') < 0) sh.getRange(i + 1, nCol + 1).setValue(safeCell_(stamp + old));
+      }
+    } catch (e) { failed.push({ id:r.id, error:String(e && e.message || e).slice(0, 80) }); }
+  }
+  var remaining = 0; try { remaining = MailApp.getRemainingDailyQuota(); } catch (e2) {}
+  return { ok:true, sent:sent, failed:failed, remaining:remaining, tag:tag };
 }
 
 /**

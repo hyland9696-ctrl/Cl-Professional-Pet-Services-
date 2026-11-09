@@ -196,7 +196,8 @@
       <button class="copybtn" onclick="toggleQR()" id="qrBtn">&#128241; Sign scans</button>
       <button class="copybtn" onclick="openTerritory()">&#128506;&#65039; Territory</button>
       <button class="copybtn" onclick="setWho()" id="whoBtn">&#128100; Who am I?</button>
-      <button class="copybtn" onclick="toggleImport()" id="importBtn">&#11014;&#65039; Import Sweep&amp;Go</button>
+      <button class="copybtn" onclick="toggleBlast()" id="blastBtn">&#9993;&#65039; Email</button>
+      <button class="copybtn" onclick="toggleImport()" id="importBtn">&#11014;&#65039; Import</button>
       <button class="copybtn" onclick="toggleDeoSeason()" id="deoBtn" title="Deodorize &amp; sanitize is a warm-weather service. Flip this when it drops below 50 or warms back up; the website prices by it.">&#129532; Deodorize season</button>
       <button class="copybtn" onclick="toggleTests()" id="testBtn">&#129514; Test leads</button>
       <button class="copybtn" onclick="exportCsv()">&#11015;&#65039; Download CSV</button>
@@ -328,6 +329,32 @@
         </div>
         <div id="sg-days-out" style="font-size:12.5px;line-height:1.6;color:#2B3A34;margin-top:10px;"></div>
       </div>
+    </div>
+    <div id="blastPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,.07);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="font-weight:800;font-size:15px;">&#9993;&#65039; Email blast</div>
+        <button onclick="toggleBlast()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:40px;">Close</button>
+      </div>
+      <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:10px;">One message, sent as a separate email to each person from the business account, reply-to the office. Use <code>{first}</code>, <code>{price}</code> and <code>{plan}</code> and they fill in per person. Everyone emailed gets stamped, so running the same promotion twice only reaches the people it missed. <span id="bl-quota" style="color:#0F6E56;font-weight:700;"></span></div>
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px;">Who</div>
+      <div id="bl-who" style="display:grid;gap:6px;font-size:12.5px;margin-bottom:10px;"></div>
+      <div style="display:grid;gap:8px;font-size:12.5px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <label>Promotion name <input id="bl-tag" placeholder="e.g. fall2026" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;width:140px;" oninput="renderBlast()"></label>
+          <button class="copybtn" onclick="blastPreset('season')">Seasonal promotion</button>
+          <button class="copybtn" onclick="blastPreset('winback')">Win-back</button>
+          <button class="copybtn" onclick="blastPreset('referral')">Referral ask</button>
+        </div>
+        <input id="bl-subject" placeholder="Subject" style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;" oninput="renderBlast()">
+        <textarea id="bl-body" rows="9" placeholder="Hi {first}, ..." style="padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;" oninput="renderBlast()"></textarea>
+        <div style="font-size:11.5px;color:#9aa5a0;">The footer below goes on every email by law: who sent it, where from, and how to opt out. A reply of STOP means tap &ldquo;No marketing emails&rdquo; under More on their card.</div>
+        <div id="bl-preview" style="background:#F7F9F8;border:1px solid #E4EBE7;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.55;white-space:pre-wrap;color:#2B3A34;"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center;">
+        <button class="copybtn" id="bl-send" onclick="sendBlast()" style="background:#188663;color:#fff;border-color:#188663;">Send</button>
+        <span id="bl-status" style="font-size:12.5px;color:#555;"></span>
+      </div>
+      <div id="bl-out" style="font-size:12.5px;line-height:1.6;color:#2B3A34;margin-top:8px;"></div>
     </div>
     <div id="qrPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -1462,11 +1489,12 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV):([^\]]*)\]\s*/;
+  // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1496,6 +1524,8 @@ function fuParse(crmnotes){
     else if (hit[1] === 'RF') m.rf = hit[2];
     else if (hit[1] === 'DAY') m.day = hit[2];
     else if (hit[1] === 'SV') m.sv = hit[2];
+    else if (hit[1] === 'EM') m.em = m.em ? m.em + ',' + hit[2] : hit[2];   // the backend stamps one per send
+    else if (hit[1] === 'NOEM') m.noem = hit[2];
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -1530,7 +1560,9 @@ function fuCompose(m){
          (m.by ? '[BY:' + m.by + '] ' : '') +
          (m.rf ? '[RF:' + m.rf + '] ' : '') +
          (m.day ? '[DAY:' + m.day + '] ' : '') +
-         (m.sv ? '[SV:' + m.sv + '] ' : '') + (m.text || '');
+         (m.sv ? '[SV:' + m.sv + '] ' : '') +
+         (m.em ? '[EM:' + m.em + '] ' : '') +
+         (m.noem ? '[NOEM:' + m.noem + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -3397,6 +3429,141 @@ function sgDaysImport(){
       .then(function(){ btn.textContent = 'Setting ' + i + ' of ' + rows.length + '\u2026'; setTimeout(next, 120); });
   };
   next();
+}
+/* ---- email blast ----
+   Who can be mailed: a real email, not a team phone's test lead, not
+   deleted, not somebody who asked to be left alone, one email once. The
+   groups are how the business thinks about people, not statuses. */
+var BLAST_GROUPS = [
+  ['quotes', 'Quoted, not signed up yet', 'asked for a price and never said no', function(l){ var st = l.status || 'new'; return (st === 'new' || st === 'called') && quoteState(l) !== 'declined'; }],
+  ['saidno', 'Said no', 'turned the price down, or marked Not interested', function(l){ var st = l.status || 'new'; return st === 'lost' || ((st === 'new' || st === 'called') && quoteState(l) === 'declined'); }],
+  ['active', 'Active customers', 'on the schedule now', function(l){ return (l.status || 'new') === 'closed'; }],
+  ['gone', 'Former customers', 'account closed, not over money', function(l){ if ((l.status || 'new') !== 'cancelled') return false; var r = fuParse(l.crmnotes).cxr; return r !== 'nonpay' && r !== 'byus'; }]
+];
+var blastPick = { quotes: true, saidno: true, active: false, gone: false };
+function blastEmailOk(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || '').trim()); }
+function blastTag(){ return String((document.getElementById('bl-tag') || {}).value || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24); }
+function emailedTags(fu){ return String(fu.em || '').split(',').filter(Boolean).map(function(x){ return x.split('@')[0]; }); }
+function blastAudience(){
+  var tag = blastTag(), seen = {}, out = [], skipped = { noEmail: 0, noem: 0, done: 0, dup: 0 };
+  leads.forEach(function(l){
+    if (!isLead(l) || (l.status || 'new') === 'deleted' || fuParse(l.crmnotes).tm) return;
+    var inGroup = BLAST_GROUPS.some(function(g){ return blastPick[g[0]] && g[3](l); });
+    if (!inGroup) return;
+    if (!blastEmailOk(l.email)){ skipped.noEmail++; return; }
+    var fu = fuParse(l.crmnotes);
+    if (fu.noem){ skipped.noem++; return; }
+    var key = String(l.email).trim().toLowerCase();
+    if (tag && emailedTags(fu).indexOf(tag) >= 0){ skipped.done++; seen[key] = 1; return; }
+    if (seen[key]){ skipped.dup++; return; }
+    seen[key] = 1; out.push(l);
+  });
+  return { list: out, skipped: skipped };
+}
+function blastFields(l){
+  var price = String(l.price || '').split(',')[0].split(' (')[0].trim();
+  return { id: l.id, email: String(l.email).trim(), first: String(l.name || '').trim().split(' ')[0] || 'there', price: price.indexOf('$') >= 0 ? price : '', plan: planLabel(l.service).toLowerCase() };
+}
+var BLAST_FOOTER = '\n\n\u2014 Corey\nCL Professional Pet Services LLC \u00b7 St. Peters, MO \u00b7 (636) 375-4342 \u00b7 clpropetservices.com\nReply STOP and we\u2019ll leave you off future emails.';
+function fillBlast(text, r){
+  return String(text || '').split('{first}').join(r.first || 'there').split('{price}').join(r.price || 'your quoted price').split('{plan}').join(r.plan || 'your plan');
+}
+var BLAST_PRESETS = {
+  season: { tag: 'fall2026', subject: '{first}, your yard price is still good \u2014 and the leaves are coming',
+    body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. You asked us for a price a while back and I wanted to check in before the yard disappears under the leaves.\n\nYour price of {price} for {plan} still stands, the $40 initial clean is waived right now, and there is no contract \u2014 month to month, cancel any time.\n\nIf you\u2019d like us to take the yard off your plate this season, just reply to this email or text me at (636) 375-4342 and I\u2019ll get you on the schedule this week.' },
+  winback: { tag: 'winback', subject: '{first}, we\u2019d love to have you back',
+    body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. We miss your yard! If you\u2019d like us to pick it back up, there is no initial clean fee to restart and your old price holds.\n\nJust reply here or text (636) 375-4342 and we\u2019ll put you back on the route.' },
+  referral: { tag: 'referral', subject: 'A free deodorize for a neighbor with a dog',
+    body: 'Hi {first},\n\nQuick thank-you for having us out every week. If you know a neighbor or friend with a dog, send them our way \u2014 when they sign up, you get a free deodorize treatment on your next visit.\n\nThey can text (636) 375-4342 or go to clpropetservices.com and mention your name.' }
+};
+function blastPreset(k){
+  var p = BLAST_PRESETS[k]; if (!p) return;
+  document.getElementById('bl-tag').value = p.tag; document.getElementById('bl-subject').value = p.subject; document.getElementById('bl-body').value = p.body;
+  if (k === 'winback'){ blastPick = { quotes: false, saidno: false, active: false, gone: true }; }
+  else if (k === 'referral'){ blastPick = { quotes: false, saidno: false, active: true, gone: false }; }
+  else { blastPick = { quotes: true, saidno: true, active: false, gone: false }; }
+  renderBlast();
+}
+function blastToggle(k){ blastPick[k] = !blastPick[k]; renderBlast(); }
+function renderBlast(){
+  var who = document.getElementById('bl-who'); if (!who) return;
+  var a = blastAudience(), tag = blastTag();
+  who.innerHTML = BLAST_GROUPS.map(function(g){
+    var n = leads.filter(function(l){ return isLead(l) && (l.status || 'new') !== 'deleted' && !fuParse(l.crmnotes).tm && g[3](l) && blastEmailOk(l.email); }).length;
+    return '<label style="display:flex;gap:8px;align-items:center;"><input type="checkbox" ' + (blastPick[g[0]] ? 'checked' : '') + ' onchange="blastToggle(\'' + g[0] + '\')"> <span><strong>' + g[1] + '</strong> <span style="color:#707070;">\u00b7 ' + g[2] + ' \u00b7 ' + n + ' with an email</span></span></label>';
+  }).join('');
+  var subj = document.getElementById('bl-subject').value, body = document.getElementById('bl-body').value;
+  var first = a.list[0];
+  var pv = document.getElementById('bl-preview');
+  pv.textContent = first && (subj || body)
+    ? 'To: ' + first.email + '\nSubject: ' + fillBlast(subj, blastFields(first)) + '\n\n' + fillBlast(body, blastFields(first)) + BLAST_FOOTER
+    : (a.list.length ? 'Pick a preset or write the message; the preview fills in for ' + (first.name || 'the first person') + '.' : 'Nobody to send to with those boxes ticked.');
+  var sk = a.skipped, notes = [];
+  if (sk.noEmail) notes.push(sk.noEmail + ' with no email');
+  if (sk.noem) notes.push(sk.noem + ' asked not to be emailed');
+  if (sk.done) notes.push(sk.done + ' already got \u201c' + tag + '\u201d');
+  if (sk.dup) notes.push(sk.dup + ' duplicate address' + (sk.dup === 1 ? '' : 'es'));
+  var btn = document.getElementById('bl-send');
+  btn.textContent = 'Send to ' + a.list.length + ' ' + (a.list.length === 1 ? 'person' : 'people');
+  btn.disabled = !(a.list.length && subj.trim() && body.trim() && tag);
+  document.getElementById('bl-status').textContent = (notes.length ? 'Left out: ' + notes.join(', ') + '. ' : '') + (!tag ? 'Give the promotion a name first.' : '');
+}
+function toggleBlast(){
+  var p = document.getElementById('blastPanel'), opening = p.style.display === 'none';
+  p.style.display = opening ? 'block' : 'none';
+  if (!opening) return;
+  document.getElementById('bl-out').innerHTML = '';
+  renderBlast();
+  p.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  var q = document.getElementById('bl-quota'); q.textContent = '';
+  if (!CRM_ENDPOINT) return;
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'quota', key: KEY }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if (d && d.ok && d.remaining != null) q.textContent = 'Gmail will let you send ' + d.remaining + ' more today.'; else if (d && d.ok === false) q.textContent = 'The script needs its update before it can send (the quota check came back empty).'; })
+    .catch(function(){});
+}
+var blastBusy = false;
+function sendBlast(){
+  if (blastBusy) return;
+  var a = blastAudience(), tag = blastTag(), subj = document.getElementById('bl-subject').value.trim(), body = document.getElementById('bl-body').value + BLAST_FOOTER;
+  if (!a.list.length || !subj || !tag) return;
+  if (!confirm('Send \u201c' + subj.replace(/\{first\}/g, a.list[0].name.split(' ')[0]) + '\u201d to ' + a.list.length + ' people now? Each gets their own email from the business account.')) return;
+  blastBusy = true;
+  var btn = document.getElementById('bl-send'), out = document.getElementById('bl-out'); btn.disabled = true;
+  var todo = a.list.map(blastFields), i = 0, sent = 0, failed = [], stopped = false, today = new Date().toISOString().slice(0, 10);
+  var next = function(){
+    if (i >= todo.length || stopped){
+      blastBusy = false;
+      btn.textContent = 'Sent ' + sent + (failed.length ? ', ' + failed.length + ' failed' : '');
+      out.innerHTML = '<div style="font-weight:700;">' + sent + ' email' + (sent === 1 ? '' : 's') + ' sent as \u201c' + esc(tag) + '\u201d</div>' +
+        (failed.length ? '<div style="color:#b45309;">' + failed.length + ' not sent: ' + esc(failed.map(function(f){ return f.name + (f.error ? ' (' + f.error + ')' : ''); }).join(', ')) + (failed.some(function(f){ return f.error === 'quota'; }) ? '. Gmail\u2019s daily limit is used up; open this panel tomorrow and send again \u2014 only the people it missed are picked.' : '') + '</div>' : '');
+      saveLocal(); render(); renderBlast();
+      return;
+    }
+    var batch = todo.slice(i, i + 50); i += batch.length;
+    btn.textContent = 'Sending ' + Math.min(i, todo.length) + ' of ' + todo.length + '\u2026';
+    fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'blast', key: KEY, tag: tag, subject: subj, body: body, to: batch }) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || !d.ok){ batch.forEach(function(r){ failed.push({ name: r.first, error: d && d.error ? d.error : 'no answer' }); }); if (d && d.error === 'bad pin') stopped = true; return; }
+        (d.sent || []).forEach(function(id){
+          sent++;
+          var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+          var m = fuParse(l.crmnotes); m.em = (m.em ? m.em + ',' : '') + tag + '@' + today; l.crmnotes = fuCompose(m);
+        });
+        (d.failed || []).forEach(function(f){ var r = batch.filter(function(x){ return x.id === f.id; })[0]; failed.push({ name: r ? r.first : f.id, error: f.error }); });
+        if ((d.failed || []).some(function(f){ return f.error === 'quota'; })) stopped = true;
+      })
+      .catch(function(){ batch.forEach(function(r){ failed.push({ name: r.first, error: 'no connection' }); }); })
+      .then(function(){ setTimeout(next, 300); });
+  };
+  next();
+}
+function setNoEmail(id, on){
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  var m = fuParse(l.crmnotes); m.noem = on ? '1' : ''; stampBy(m); l.crmnotes = fuCompose(m); l.updated = new Date().toISOString();
+  saveLocal(); render();
+  post({ action:'update', key:KEY, id:id, notes:l.crmnotes }, on ? 'No marketing emails for ' + (l.name || 'them') : 'Emails allowed again');
 }
 var sgPlanRows = null;
 function toggleImport(){
@@ -5397,6 +5564,11 @@ function render(){
         (fu.day ? '' : '<span style="color:#9aa5a0;">(set it once and the Schedule card fills in)</span>') + '</div>';
     }
     if (st === 'closed') custMore = dayRow + refShareRow(l);
+    if (blastEmailOk(l.email)){
+      custMore += '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+        '<label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="noem-box" ' + (fu.noem ? 'checked' : '') + ' onchange="setNoEmail(\'' + esc(l.id) + '\', this.checked)"> &#9993;&#65039; No marketing emails</label>' +
+        (fu.em ? '<span style="color:#707070;">emailed: ' + esc(String(fu.em).split(',').map(function(x){ var p = x.split('@'); return p[0] + (p[1] ? ' on ' + p[1] : ''); }).join(', ')) + '</span>' : '') + '</div>';
+    }
     var bestRow = st === 'closed' && isRecurring(l) && !fu.day ? bestDayRow(l) : '';
     var saveRow = savePending === l.id && st === 'closed' ? saveOfferRow(l) : '';
     /* Why they said no. The site asks this in a dropdown and the answer lands
