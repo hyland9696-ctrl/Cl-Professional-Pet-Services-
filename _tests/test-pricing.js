@@ -38,10 +38,11 @@ Object.keys(REP).forEach(t => {
 
 /* ---- every recurring price, $/month, 1 to 4 dogs ---- */
 const TABLE = {
-  Value:    { weekly: [77, 82, 87, 93],    biweekly: [87, 92, 97, 103],    twiceweekly: [139, 148, 157, 167] },
-  Core:     { weekly: [81, 86, 92, 98],    biweekly: [91, 96, 102, 108],   twiceweekly: [146, 155, 166, 176] },
-  Standard: { weekly: [85, 91, 97, 103],   biweekly: [95, 101, 107, 113],  twiceweekly: [153, 164, 175, 185] },
-  Premium:  { weekly: [94, 100, 107, 113], biweekly: [104, 110, 117, 123], twiceweekly: [169, 180, 193, 203] },
+  // every other week: base x tier x 0.82, no floor (the 2-8 Sep 2026 rule, back on 9 Nov 2026)
+  Value:    { weekly: [77, 82, 87, 93],    biweekly: [63, 67, 72, 76],   twiceweekly: [139, 148, 157, 167] },
+  Core:     { weekly: [81, 86, 92, 98],    biweekly: [66, 71, 76, 80],   twiceweekly: [146, 155, 166, 176] },
+  Standard: { weekly: [85, 91, 97, 103],   biweekly: [70, 75, 80, 84],   twiceweekly: [153, 164, 175, 185] },
+  Premium:  { weekly: [94, 100, 107, 113], biweekly: [77, 82, 87, 93],   twiceweekly: [169, 180, 193, 203] },
 };
 const PLAN = { weekly: 'weekly', biweekly: 'every other week', twiceweekly: 'twice a week' };
 let cells = 0, bad = 0;
@@ -63,13 +64,21 @@ ok('the Standard weekly base is untouched',
 ok('the tier multipliers are untouched',
    P.tiers.Value === 0.90 && P.tiers.Core === 0.95 &&
    P.tiers.Standard === 1.00 && P.tiers.Premium === 1.10, JSON.stringify(P.tiers));
-ok('every other week is the weekly price plus $10, every tier, every dog count',
+ok('every other week is base x tier x 0.82, rounded, every tier, every dog count (the 2-8 Sep rule, back 9 Nov)',
    Object.keys(REP).every(t => [1,2,3,4].every(d =>
      quote({zip:REP[t],dogs:d,freq:'biweekly'}).service ===
-     quote({zip:REP[t],dogs:d,freq:'weekly'}).service + P.eowPremium)));
-ok('no recurring plan is ever quoted below the floor of $' + P.minRecurring,
-   Object.keys(REP).every(t => ['weekly','biweekly','twiceweekly'].every(f =>
-     [1,2,3,4].every(d => quote({zip:REP[t],dogs:d,freq:f}).service >= P.minRecurring))));
+     Math.round(P.base[d] * P.tiers[t] * P.eowFactor + 1e-9))));
+ok('the Standard every-other-week prices are the Sep 2-8 ones: $70, $75, $80, $84',
+   [1,2,3,4].map(d => quote({zip:REP.Standard,dogs:d,freq:'biweekly'}).service).join() === '70,75,80,84',
+   [1,2,3,4].map(d => quote({zip:REP.Standard,dogs:d,freq:'biweekly'}).service).join());
+ok('every other week is under weekly again, every tier, every dog count',
+   Object.keys(REP).every(t => [1,2,3,4].every(d =>
+     quote({zip:REP[t],dogs:d,freq:'biweekly'}).service < quote({zip:REP[t],dogs:d,freq:'weekly'}).service)));
+ok('weekly and twice a week never go below the floor of $' + P.minRecurring + '; every other week is exempt (Value, 1 dog: $63)',
+   Object.keys(REP).every(t => ['weekly','twiceweekly'].every(f =>
+     [1,2,3,4].every(d => quote({zip:REP[t],dogs:d,freq:f}).service >= P.minRecurring))) &&
+   quote({zip:REP.Value,dogs:1,freq:'biweekly'}).service === 63);
+ok('the change is in the price log, dated', P.changes.some(c => c.date === '2026-11-09' && /0\.82/.test(c.what)));
 
 /* ---- one-time cleanups: flat, by time, no tier ---- */
 const MINS = [30, 45, 60, 75, 90, 105, 120, 150, 180];

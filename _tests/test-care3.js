@@ -151,8 +151,8 @@ const refCode = (l) => { const first = String(l.name).trim().split(/\s+/)[0].toL
     await p.click('#card-F1 button.b-cancelled'); await p.waitForTimeout(400);
     ok('tapping Account closed does not close it yet', !posts.some(x => x.action === 'update' && x.id === 'F1' && x.status === 'cancelled') && /ACTIVE · ON SCHEDULE/.test(await t('F1')));
     const sv = await p.$eval('#save-F1', e => e.textContent.replace(/\s+/g, ' '));
-    ok('it shows the offer: a month at half price, since every other week costs them more here', /next month at half price \(\$43 instead of \$85\)/.test(sv), sv);
-    ok('with the text ready', await p.$eval('#save-F1 a[href^="sms:"]', e => /half price \(\$43 instead of \$85\)/.test(decodeURIComponent(e.getAttribute('href')))));
+    ok('it shows the offer: every other week, now that it is cheaper than weekly ($70 against $85 at Standard)', /Every other week would be \$70\/mo instead of \$85\/mo/.test(sv), sv);
+    ok('with the text ready', await p.$eval('#save-F1 a[href^="sms:"]', e => /every other week at \$70\/mo/.test(decodeURIComponent(e.getAttribute('href')))));
     await p.click('#save-F1 button:has-text("Keep them active")'); await p.waitForTimeout(300);
     ok('Keep them active takes the offer away and changes nothing', (await p.$('#save-F1')) === null && !posts.some(x => x.id === 'F1' && x.status));
     await p.click('#card-F1 button.b-cancelled'); await p.waitForTimeout(300);

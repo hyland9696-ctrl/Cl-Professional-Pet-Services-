@@ -4,9 +4,10 @@
    phone-quote page (hq-8k3v51/quote/). Change numbers HERE only.
 
    Recurring:   weekly = base[dogs] × ZIP multiplier
-                every other week = that customer's weekly price + $10
-                  (fewer visits, but each one is a bigger job — and it
-                   keeps weekly the obvious buy)
+                every other week = base[dogs] × ZIP multiplier × 0.82
+                  (the 2-8 September 2026 rule, brought back on
+                   9 November 2026 at Corey's request; it was weekly + $10
+                   in between)
                 twice a week = the weekly price × 1.80 (double, less 10%)
                 all rounded to the nearest whole dollar, and no recurring
                 plan is ever quoted below the monthly minimum
@@ -24,7 +25,7 @@
 var CLPPS_PRICING = {
   base: { 1: 85, 2: 91, 3: 97, 4: 103 },     // weekly, $/month, Standard tier
   tiers: { Value: 0.90, Core: 0.95, Standard: 1.00, Premium: 1.10 },
-  eowPremium: 10,            // every other week = that customer's weekly price + $10
+  eowFactor: 0.82,           // every other week = base × ZIP tier × 0.82 (under weekly again)
   twiceWeeklyFactor: 1.80,   // weekly x2, less the 10% multi-visit discount
   minRecurring: 72,     // the cheapest price anywhere; nothing should reach it now, but it holds the line
   roundTwiceWeekly: true,    // false = keep the exact cents (e.g. $163.80)
@@ -57,7 +58,8 @@ var CLPPS_PRICING = {
     { date: '2026-09-09', what: '$40 initial clean waived for new recurring customers' },
     { date: '2026-10-13', what: 'Franklin County towns moved to Value' },
     { date: '2026-10-21', what: 'Illinois priced off the table; 128 ZIPs placed in tiers' },
-    { date: '2026-10-21', what: 'Lincoln County moved onto the income data (Troy to Standard)' }
+    { date: '2026-10-21', what: 'Lincoln County moved onto the income data (Troy to Standard)' },
+    { date: '2026-11-09', what: 'Every other week back under weekly: base × tier × 0.82 (the 2-8 Sep prices), from weekly + $10' }
   ],
   zips: {
     '63376':'Standard','63301':'Standard','63303':'Standard','63304':'Premium',
@@ -371,15 +373,17 @@ function clppsQuote(opts){
     service = P.roundTwiceWeekly ? clppsRound(tw) : Math.round(tw * 100) / 100;
     visits = 8;
   } else if (freq === 'biweekly'){
-    service = weekly + P.eowPremium;
+    service = clppsRound(base * mult * P.eowFactor);   // off the base, not the rounded weekly: the Sep 2-8 numbers exactly
     visits = 2;
   } else {
     service = weekly;
     visits = 4;
   }
-  // Floor applies to every recurring plan, not just one dog: flooring only the
-  // single-dog price would leave two dogs cheaper than one.
-  if (P.minRecurring && service < P.minRecurring) service = P.minRecurring;
+  // Floor applies to weekly and twice a week, not just one dog: flooring only
+  // the single-dog price would leave two dogs cheaper than one. Every other
+  // week is exempt: the floor arrived on 8 September alongside weekly + $10,
+  // and the 2-8 September prices it is back on ran under it (Value, 1 dog: $63).
+  if (P.minRecurring && freq !== 'biweekly' && service < P.minRecurring) service = P.minRecurring;
   var treatments = deo === 'every' ? visits : (deo === 'eo' ? Math.round(visits / 2) : 0);
   var deoMo = treatments * P.deodorize;
   var total = service + deoMo;

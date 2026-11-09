@@ -426,7 +426,7 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/pricing.js?v=b057ab30"></script>
+<script src="/pricing.js?v=556061a3"></script>
 <script src="/contact-check.js?v=b4a5b7a1"></script>
 <script>
 var CRM_ENDPOINT = "https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec";
@@ -2062,8 +2062,7 @@ function gptContext(){
       '. ' + (CLPPS_PRICING.maxDogs + 1) + '+ dogs is a custom quote.\n' +
     'Tiers: ' + Object.keys(CLPPS_PRICING.tiers).map(function(t){ return t + ' ' + CLPPS_PRICING.tiers[t].toFixed(2); }).join(', ') +
       '. A ZIP not on the list is priced as Value.\n' +
-    'Every other week = that customer\'s weekly price + $' + CLPPS_PRICING.eowPremium +
-      '. It costs MORE per month than weekly on purpose (half the visits, but each one is a bigger job), so never call it the cheaper option.\n' +
+    'Every other week = the weekly base x ZIP tier x ' + CLPPS_PRICING.eowFactor.toFixed(2) + ', rounded; it is cheaper per month than weekly (two visits instead of four). No $72 floor on it.\n' +
     'Twice a week = weekly x ' + CLPPS_PRICING.twiceWeeklyFactor.toFixed(2) + '.\n' +
     'There is NO monthly plan. One visit a month was retired on 8 September 2026 - never quote it. The plans are twice a week, weekly, every other week, and one-time cleanups.\n' +
     'One-time cleanup = $' + CLPPS_PRICING.onetime + ' for the first ' + CLPPS_PRICING.onetimeMinutes + ' minutes then $' +
@@ -2953,7 +2952,7 @@ function pqCalc(){
     } else if (r.freq === 'biweekly'){
       var wk = clppsRound(r.base * r.mult);
       lines.push('$' + r.base + ' base &times; ' + r.mult.toFixed(2) + ' = $' + wk + ' weekly' +
-                 ', + $' + CLPPS_PRICING.eowPremium + ' &rarr; <strong>$' + r.service + '</strong>');
+                 ', &times;' + CLPPS_PRICING.eowFactor.toFixed(2) + ' (every other week) &rarr; <strong>$' + r.service + '</strong>');
     } else {
       lines.push('$' + r.base + ' base &times; ' + r.mult.toFixed(2) +
                  ' = $' + (r.base * r.mult).toFixed(2) +

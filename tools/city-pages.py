@@ -321,7 +321,7 @@ def price_block(slug, name, state, zip_, county, big_lots):
       el.innerHTML = 'Weekly service in %s is <strong>$' + one.service + ' a month</strong> for one dog and ' +
         '<strong>$' + two.service + '</strong> for two, with the initial clean ' +
         (one.initial ? 'at $' + one.initial + ' on the first invoice' : 'currently waived') + '.%s ' +
-        'Every other week is the weekly price plus $10; twice a week is almost double. ' +
+        'Every other week runs about 18%% under weekly; twice a week is almost double. ' +
         '<a href="/#quote">See your exact price</a>.';
     } catch (e) {}
   })();
