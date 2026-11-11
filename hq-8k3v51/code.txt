@@ -643,6 +643,11 @@ function sgSetMarkers_(notes, set) {
   });
   return s;
 }
+/* The same notes, whatever order the markers sit in. */
+function sgNotesEqual_(a, b) {
+  var split = function(x) { var m = String(x || '').match(/\[[A-Z0-9]+:[^\]]*\]/g) || []; var rest = String(x || '').replace(/\[[A-Z0-9]+:[^\]]*\]\s*/g, '').trim(); return m.sort().join(' ') + '|' + rest; };
+  return split(a) === split(b);
+}
 function sgSource_(c) {
   var t = String(c.tracking_field || '');
   var m = t.match(/utm_source=([^&\s]+)/i);
@@ -657,9 +662,17 @@ function sgSource_(c) {
   return String(c.how_heard_answer || c.how_heard_about_us).slice(0, 30);
 }
 /* The sync. Returns a summary the tracker can show. */
-function sgSync() {
+/* Run from the editor before the first real sync: the same work, nothing
+   written. The log says what it would add, update and pin, and who it
+   could not match to a subscription. */
+function sgPreview() {
+  var s = sgSync(true);
+  Logger.log(JSON.stringify(s, null, 1));
+  return s;
+}
+function sgSync(dry) {
   var lock = LockService.getScriptLock(); if (!lock.tryLock(5000)) return { ok:false, error:'busy' };
-  var summary = { ok:true, started: new Date().toISOString(), clients: 0, added: 0, updated: 0, subs: 0, pinned: 0, invoices: 0, payments: 0, routes: 0, errors: [] };
+  var summary = { ok:true, dry: !!dry, started: new Date().toISOString(), clients: 0, added: 0, updated: 0, skippedNeverStarted: 0, noSubscription: [], subs: 0, pinned: 0, invoices: 0, payments: 0, routes: 0, errors: [], addedNames: [], updatedNames: [] };
   try {
     var sh = sheet_(), data = sh.getDataRange().getValues();
     var iId = HEADERS.indexOf('id'), iC = HEADERS.indexOf('created');
@@ -706,6 +719,9 @@ function sgSync() {
       var sub = subBy[email] || subBy['n:' + sgNorm_(name)] || null;
       var active = String(c.status || '').toLowerCase() === 'active' && !c.one_time_client;
       var status = active ? 'closed' : 'cancelled';
+      // somebody inactive who never had a plan is not a former customer
+      if (!active && !sub && !latest[id]) { summary.skippedNeverStarted++; return; }
+      if (active && !sub && summary.noSubscription.length < 30) summary.noSubscription.push(name);
       var plan = (sub && sub.plan) || sgPlan_(c.cleanup_frequency) || '';
       var total = sub ? Math.round(sub.monthly + sub.deo) : 0;
       var price = total ? '$' + total + '/mo' + (sub.deo ? ' (includes $' + Math.round(sub.deo) + ' deodorize)' : '') : '';
@@ -731,13 +747,17 @@ function sgSync() {
         if (sub && sub.deo) changes.deodorize = 'every visit ($15/treatment)';
         // a customer the office marked Not interested or deleted is left alone
         if (oldStatus === 'deleted' || oldStatus === 'lost') return;
-        var touched = false;
+        var touched = false, newRow = row.slice();
         Object.keys(changes).forEach(function(h) {
           var col = HEADERS.indexOf(h); if (col < 0) return;
-          if (String(row[col] || '') === String(changes[h])) return;
-          sh.getRange(existing + 1, col + 1).setValue(safeCell_(changes[h])); touched = true;
+          if (h === 'crmnotes' ? sgNotesEqual_(row[col], changes[h]) : String(row[col] || '') === String(changes[h])) return;
+          newRow[col] = safeCell_(changes[h]); touched = true;
         });
-        if (touched) { sh.getRange(existing + 1, HEADERS.indexOf('updated') + 1).setValue(new Date().toISOString()); summary.updated++; }
+        if (touched) {
+          newRow[HEADERS.indexOf('updated')] = new Date().toISOString();
+          if (!dry) sh.getRange(existing + 1, 1, 1, HEADERS.length).setValues([newRow]);
+          data[existing] = newRow; summary.updated++; if (summary.updatedNames.length < 40) summary.updatedNames.push(name);
+        }
       } else {
         if (src) set.SRC = src;
         var notes2 = sgSetMarkers_('[IC:w] [QA:a] Synced from Sweep&Go ' + today + '.', set);
@@ -745,10 +765,10 @@ function sgSync() {
                   address: String(c.address || '') + (c.zip_code ? ', ' + c.zip_code : ''), zip: String(c.zip_code || ''), service: plan, dogs: sub ? sub.dogs : '', yard: '',
                   deodorize: sub && sub.deo ? 'every visit ($15/treatment)' : 'no', hero: '', price: price, manual: '', honored: '', notes: '', status: status, crmnotes: notes2, updated: new Date().toISOString() };
         appended.push(HEADERS.map(function(h) { return safeCell_(l[h] == null ? '' : l[h]); }));
-        latest[id] = { row: -2, key: l.created }; summary.added++;
+        latest[id] = { row: -2, key: l.created }; summary.added++; if (summary.addedNames.length < 40) summary.addedNames.push(name);
       }
     });
-    if (appended.length) sh.getRange(sh.getLastRow() + 1, 1, appended.length, HEADERS.length).setValues(appended);
+    if (appended.length && !dry) sh.getRange(sh.getLastRow() + 1, 1, appended.length, HEADERS.length).setValues(appended);
     // ---- dispatch board: Sweep&Go's own pins for the next seven days ----
     try {
       var pins = {}, dayMs = 86400000;
@@ -762,24 +782,27 @@ function sgSync() {
           if (j.lat && j.lng) { cur.lat = j.lat; cur.lng = j.lng; }
           if (est) cur.est = est;
           cur.phone = cur.phone || sgDigits_(j.cell_phone) || sgDigits_(j.home_phone);
+          if (cur.phone) pins['t:' + cur.phone] = cur;   // the sheet may spell the name its own way
         });
       }
-      var data2 = sh.getDataRange().getValues(), nCol = HEADERS.indexOf('crmnotes'), nameCol = HEADERS.indexOf('name'), phCol = HEADERS.indexOf('phone'), done = {};
-      for (var r2 = data2.length - 1; r2 >= 1; r2--) {
-        var pn = sgNorm_(data2[r2][nameCol]), pin = pins[pn]; if (!pin || done[pn]) continue;
-        var ph2 = sgDigits_(data2[r2][phCol]); if (pin.phone && ph2 && pin.phone !== ph2) continue;
+      var data2 = dry ? data : sh.getDataRange().getValues(), nCol = HEADERS.indexOf('crmnotes'), nameCol = HEADERS.indexOf('name'), phCol = HEADERS.indexOf('phone'), done = {}, notesCol = [], changed = false;
+      for (var r2 = 1; r2 < data2.length; r2++) notesCol.push([data2[r2][nCol]]);
+      for (var r3 = data2.length - 1; r3 >= 1; r3--) {
+        var ph2 = sgDigits_(data2[r3][phCol]), pn = ph2 && pins['t:' + ph2] ? 't:' + ph2 : sgNorm_(data2[r3][nameCol]), pin = pins[pn]; if (!pin || done[pn]) continue;
+        if (pin.phone && ph2 && pin.phone !== ph2) continue;
         done[pn] = 1;
-        var cur = String(data2[r2][nCol] || ''), set2 = {};
+        var cur = String(data2[r3][nCol] || ''), set2 = {};
         if (pin.lat && pin.lng) set2.LL = Number(pin.lat).toFixed(5) + ',' + Number(pin.lng).toFixed(5);
         if (pin.est) set2.ET = String(pin.est);   // Sweep&Go's own minutes for this stop
         var next = sgSetMarkers_(cur, set2);
-        if (next === cur) continue;
-        sh.getRange(r2 + 1, nCol + 1).setValue(safeCell_(next));
+        if (sgNotesEqual_(next, cur)) continue;
+        notesCol[r3 - 1] = [safeCell_(next)]; changed = true;
         if (set2.LL && cur.indexOf('[LL:' + set2.LL + ']') < 0) summary.pinned++;
       }
+      if (changed && !dry && notesCol.length) sh.getRange(2, nCol + 1, notesCol.length, 1).setValues(notesCol);
     } catch (e3) { summary.errors.push('dispatch: ' + e3.message); }
     // ---- billing: invoices and payments into their own sheet ----
-    try { summary.invoices = sgPullBilling_(); } catch (e4) { summary.errors.push('billing: ' + e4.message); }
+    try { summary.invoices = sgPullBilling_(dry); } catch (e4) { summary.errors.push('billing: ' + e4.message); }
     // ---- Sweep&Go's route report: the last two weeks and the next two days ----
     try {
       var rep = {};
@@ -789,10 +812,10 @@ function sgSync() {
         var list = (rr.route_reports || []).map(function(x) { return { who: x.assigned_to_name, min: x.duration, drive: x.driving_time, clean: x.cleanup_time, mi: x.distance, jobs: x.number_of_jobs, price: x.price }; });
         if (list.length) { rep[d2] = list; summary.routes += list.length; }
       }
-      sgConfig_('sg_routes', JSON.stringify(rep));
+      if (!dry) sgConfig_('sg_routes', JSON.stringify(rep));
     } catch (e5) { summary.errors.push('routes: ' + e5.message); }
     // ---- the work actually done: completed and skipped visits, last 45 days ----
-    try { summary.jobs = sgPullJobs_(); } catch (e6) { summary.errors.push('jobs: ' + e6.message); }
+    try { summary.jobs = sgPullJobs_(dry); } catch (e6) { summary.errors.push('jobs: ' + e6.message); }
     // ---- leads from Sweep&Go's own form, if any are new to us ----
     try {
       var sgl = sgAll_('/api/v1/leads/list'), newLeads = [];
@@ -808,11 +831,11 @@ function sgSync() {
                   service: '', dogs: '', yard: '', deodorize: '', hero: '', price: '', manual: '', honored: '', notes: 'Came in through Sweep&Go\u2019s own form.', status: 'new', crmnotes: '[SRC:Sweep&Go form] [QA:w] [SGID:' + String(L.lead || '') + '] ', updated: new Date().toISOString() };
         newLeads.push(HEADERS.map(function(h) { return safeCell_(l[h] == null ? '' : l[h]); }));
       });
-      if (newLeads.length) sh.getRange(sh.getLastRow() + 1, 1, newLeads.length, HEADERS.length).setValues(newLeads);
+      if (newLeads.length && !dry) sh.getRange(sh.getLastRow() + 1, 1, newLeads.length, HEADERS.length).setValues(newLeads);
       summary.leads = newLeads.length;
     } catch (e7) { summary.errors.push('leads: ' + e7.message); }
     summary.finished = new Date().toISOString();
-    sgConfig_('sg_last_sync', JSON.stringify({ at: summary.finished, clients: summary.clients, added: summary.added, updated: summary.updated, pinned: summary.pinned, invoices: summary.invoices, jobs: summary.jobs || 0, leads: summary.leads || 0, errors: summary.errors.slice(0, 3) }));
+    if (!dry) sgConfig_('sg_last_sync', JSON.stringify({ at: summary.finished, clients: summary.clients, added: summary.added, updated: summary.updated, pinned: summary.pinned, invoices: summary.invoices, jobs: summary.jobs || 0, leads: summary.leads || 0, errors: summary.errors.slice(0, 3) }));
   } finally { lock.releaseLock(); }
   return summary;
 }
@@ -833,16 +856,25 @@ function billingSheet_() {
   if (!sh) { sh = ss.insertSheet('billing'); sh.appendRow(BILLING_HEADERS); try { sh.getRange(1, 1, sh.getMaxRows(), BILLING_HEADERS.length).setNumberFormat('@'); } catch (e) {} }
   return sh;
 }
-function sgPullBilling_() {
-  var rows = [];
-  ['recurring', 'one_time'].forEach(function(t) {
-    sgAll_('/api/v2/invoices?type=' + t, 'invoices').forEach(function(v) {
-      rows.push(['invoice', v.invoice_number, String(v.created_at || '').slice(0, 10), v.client_name || v.commercial_client || '', t === 'one_time' ? 'one-time' : (v.type || 'subscription'), String(v.status || '').toLowerCase(), v.total, v.paid, v.remaining, v.billing_interval || '', String(v.period_start || '').slice(0, 10), v.pay_method || '', '']);
-    });
+function sgPullBilling_(dry) {
+  var rows = [], seen = {};
+  var add = function(v, kind) {
+    if (!v.invoice_number || seen[v.invoice_number]) return; seen[v.invoice_number] = 1;
+    var isOne = kind === 'one-time' || /one[_ -]?time/i.test(String(v.type || ''));
+    rows.push(['invoice', v.invoice_number, String(v.created_at || '').slice(0, 10), v.client_name || v.commercial_client || '', isOne ? 'one-time' : (v.type || 'subscription'), String(v.status || '').toLowerCase(), v.total, v.paid, v.remaining, v.billing_interval || '', String(v.period_start || '').slice(0, 10), v.pay_method || '', '']);
+  };
+  // the docs only show type=recurring; the one-time word is a guess, so try the likely spellings and fall back to everything
+  sgAll_('/api/v2/invoices?type=recurring', 'invoices').forEach(function(v) { add(v, 'recurring'); });
+  var gotOne = false;
+  ['one_time', 'onetime', 'one-time'].forEach(function(t) {
+    if (gotOne) return;
+    try { sgAll_('/api/v2/invoices?type=' + t, 'invoices').forEach(function(v) { add(v, 'one-time'); }); gotOne = true; } catch (e) {}
   });
+  if (!gotOne) { try { sgAll_('/api/v2/invoices', 'invoices').forEach(function(v) { add(v, ''); }); } catch (e2) {} }
   sgAll_('/api/v2/payments', 'payments').forEach(function(p) {
     rows.push(['payment', '', String(p.date || '').slice(0, 10), p.client_name || p.commercial_client || '', p.type || '', String(p.status || '').toLowerCase(), p.amount, p.amount, p.tip_amount || '', '', '', p.type || '', String(p.description || '').slice(0, 80)]);
   });
+  if (dry) return rows.length;
   var sh = billingSheet_();
   if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, BILLING_HEADERS.length).clearContent();
   if (rows.length) sh.getRange(2, 1, rows.length, BILLING_HEADERS.length).setValues(rows.map(function(r) { return r.map(function(v) { return safeCell_(v == null ? '' : v); }); }));
@@ -863,7 +895,7 @@ function sgMinutes_(j) {
   if (j.start_time && j.end_time) { var ms = new Date(String(j.end_time).replace(' ', 'T')) - new Date(String(j.start_time).replace(' ', 'T')); if (ms > 0 && ms < 6 * 3600000) return ms / 60000; }
   return 0;
 }
-function sgPullJobs_() {
+function sgPullJobs_(dry) {
   var to = new Date().toISOString().slice(0, 10), from = new Date(Date.now() - JOBS_DAYS * 86400000).toISOString().slice(0, 10);
   var d = sgFetch_('/api/v2/report/completed_jobs_report?date_from=' + from + '&date_to=' + to), list = d.job_list || [];
   var rows = list.map(function(j) {
@@ -871,6 +903,7 @@ function sgPullJobs_() {
     return [String(j.date || '').slice(0, 10), j.commercial_name || ((j.first_name || '') + ' ' + (j.last_name || '')).trim(), String(j.zip || ''), String(j.status_name || '').toLowerCase(), j.skip_reason_title || '',
             String(j.start_time || '').slice(11, 16), String(j.end_time || '').slice(11, 16), Math.round(sgMinutes_(j) * 10) / 10, dogs, j.service_plan_slug || j.service_plan_name || '', j.price || '', j.assigned_to_name || '', j.commercial_name ? 1 : 0];
   });
+  if (dry) return rows.length;
   var sh = jobsSheet_();
   if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, JOBS_HEADERS.length).clearContent();
   if (rows.length) sh.getRange(2, 1, rows.length, JOBS_HEADERS.length).setValues(rows.map(function(r) { return r.map(function(v) { return safeCell_(v == null ? '' : v); }); }));
@@ -967,7 +1000,7 @@ function setupSweepAndGo() {
   ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'sgSync') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('sgSync').timeBased().everyDays(1).atHour(4).create();
   var s = sgSync();
-  Logger.log('First sync: ' + JSON.stringify(s));
+  Logger.log('First sync: ' + JSON.stringify(s, null, 1));
   return s;
 }
 
