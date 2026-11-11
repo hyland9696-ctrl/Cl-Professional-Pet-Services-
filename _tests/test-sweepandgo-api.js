@@ -40,6 +40,40 @@ const { ok, done } = reporter();
   const sgBilling = new Function('FAKE', gs + '\nbillingSheet_ = function(){ return FAKE; };\nreturn sgBilling_();')(fake);
   ok('July: billed without the void, one-time apart, collected from succeeded payments, unpaid from what remains', sgBilling.months['2026-07'] && sgBilling.months['2026-07'].billed === 255 && sgBilling.months['2026-07'].onetime === 75 && sgBilling.months['2026-07'].collected === 160 && sgBilling.months['2026-07'].unpaid === 95 && sgBilling.months['2026-07'].failed === 1 && sgBilling.months['2026-07'].customers === 2, JSON.stringify(sgBilling.months));
   ok('a draft with no remaining figure counts in full', sgBilling.months['2026-08'].unpaid === 95);
+  ok('tips ride along with succeeded payments', sgBilling.months['2026-07'].tips === 0);
+  // declining cards: a failure with nothing good after it, inside 60 days (today is real time here, so use recent dates)
+  const recent = new Date(Date.now() - 5 * 864e5).toISOString().slice(0, 10), older = new Date(Date.now() - 9 * 864e5).toISOString().slice(0, 10);
+  const rows2 = rows.concat([
+    row({ kind:'payment', date: older, client:'Card Carl', type:'credit_card', status:'succeeded', total:'85', paid:'85', remaining:'5.00' }),
+    row({ kind:'payment', date: recent, client:'Card Carl', type:'credit_card', status:'failed', total:'85', paid:'85' }),
+    row({ kind:'payment', date: older, client:'Fixed Fay', type:'credit_card', status:'failed', total:'85', paid:'85' }),
+    row({ kind:'payment', date: recent, client:'Fixed Fay', type:'credit_card', status:'succeeded', total:'85', paid:'85', remaining:'3.00' }),
+  ]);
+  const fake2 = { getLastRow: () => rows2.length + 1, getRange: () => ({ getValues: () => rows2 }) };
+  const b2 = new Function('FAKE', gs + '\nbillingSheet_ = function(){ return FAKE; };\nreturn sgBilling_();')(fake2);
+  ok('a card that failed last, with nothing since, is listed; one that recovered is not', b2.declining.length === 1 && b2.declining[0].name === 'Card Carl' && b2.declining[0].amount === 85, JSON.stringify(b2.declining));
+  ok('tips are summed by month from succeeded payments', b2.months[recent.slice(0, 7)].tips + (b2.months[older.slice(0, 7)].tips || 0) === 8 || (recent.slice(0, 7) === older.slice(0, 7) && b2.months[recent.slice(0, 7)].tips === 8), JSON.stringify(b2.months));
+  // the jobs fold
+  const JH = new Function(gs + '\nreturn JOBS_HEADERS;')();
+  const jrow = (o) => JH.map(h => o[h] == null ? '' : o[h]);
+  const d = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+  const jrows = [
+    jrow({ date: d(1), client:'Dana Deo', zip:'63376', status:'completed', minutes:'12.5', dogs:'2', plan:'once_a_week', price:'35', tech:'Jesse Duncan' }),
+    jrow({ date: d(1), client:'Eddie Eow', zip:'63366', status:'completed', minutes:'8', dogs:'1', plan:'bi_weekly', price:'44', tech:'Jesse Duncan' }),
+    jrow({ date: d(1), client:'Skip Sam', zip:'63376', status:'skipped', skip_reason:'Gate locked', minutes:'0', dogs:'1' }),
+    jrow({ date: d(2), client:'Ann A', zip:'63376', status:'completed', minutes:'9', dogs:'1', price:'20' }),
+    jrow({ date: d(2), client:'Bob B', zip:'63376', status:'completed', minutes:'7', dogs:'1', price:'20' }),
+    jrow({ date: d(2), client:'Cat C', zip:'63376', status:'completed', minutes:'10', dogs:'1', price:'20' }),
+    jrow({ date: d(2), client:'Dee D', zip:'63376', status:'completed', minutes:'6', dogs:'1', price:'20' }),
+    jrow({ date: d(2), client:'Long Lou', zip:'63376', status:'completed', minutes:'400', dogs:'1', price:'20' }),   // a timer left running: ignored for minutes, counted as a visit
+    jrow({ date: d(40), client:'Old Otto', zip:'63376', status:'completed', minutes:'9', dogs:'1', price:'20' }),   // outside 30 days
+  ];
+  const fakeJ = { getLastRow: () => jrows.length + 1, getRange: () => ({ getValues: () => jrows }) };
+  const J = new Function('FAKE', gs + '\njobsSheet_ = function(){ return FAKE; };\nreturn sgJobs_();')(fakeJ);
+  ok('the jobs fold: visits in the window, timed ones, skips with reasons', J.visits === 7 && J.timed === 6 && J.skipped === 1 && J.skipReasons['Gate locked'] === 1 && !J.byDate[d(40)], JSON.stringify(J));
+  ok('median minutes by dog count, so one runaway timer does not pull it', J.byDogs['1'].n === 5 && J.byDogs['1'].median === 8 && J.byDogs['2'].median === 12.5, JSON.stringify(J.byDogs));
+  ok('minutes parse from a duration or from the clock times', new Function(gs + '\nreturn sgMinutes_;')()({ duration: '9:26' }) > 9.4 && Math.round(new Function(gs + '\nreturn sgMinutes_;')()({ start_time: '2026-07-13 04:30:00', end_time: '2026-07-13 04:42:00' })) === 12);
+  ok('the sync writes pauses, opt-outs and stop estimates', /PZ: \(sub && sub\.paused && sub\.pause\)/.test(gs) && /set\.NOEM = '1'/.test(gs) && /set2\.ET = String\(pin\.est\)/.test(gs) && /leads\/list/.test(gs) && /completed_jobs_report/.test(gs));
   ok('who owes what, biggest first, with the statuses and the oldest date', sgBilling.unpaid.length === 1 && sgBilling.unpaid[0].name === 'Eddie Eow' && sgBilling.unpaid[0].owed === 190 && sgBilling.unpaid[0].statuses.overdue === 1 && sgBilling.unpaid[0].statuses.draft === 1 && sgBilling.unpaid[0].oldest === '2026-07-05', JSON.stringify(sgBilling.unpaid));
 }
 
@@ -53,20 +87,24 @@ const { ok, done } = reporter();
   const rows = [
     // pinned by the sync: an exact spot, not the ZIP centre
     { id:'D1', type:'SAVED', name:'Dana Deo', phone:'6363750001', email:'dana@gmail.com', zip:'63376', address:'1 Oak St, St. Peters, MO 63376', dogs:'2', service:'weekly', deodorize:'every visit ($15/treatment)', price:'$151/mo (includes $60 deodorize)', status:'closed', crmnotes:'[CD:2026-06-01] [DAY:thu] [LL:38.79123,-90.60111] [SGID:rcl_ABC] [QA:a] ', created:'2026-06-01T12:00:00Z' },
-    { id:'E1', type:'SAVED', name:'Eddie Eow', phone:'6363750002', email:'eddie@gmail.com', zip:'63366', address:'2 Pine St, O\'Fallon, MO 63366', dogs:'1', service:'every other week', deodorize:'no', price:'$95/mo', status:'closed', crmnotes:'[CD:2026-07-01] [DAY:thu] [QA:a] ', created:'2026-07-01T12:00:00Z' },
+    // paused in Sweep&Go until next month: off the route, still a customer; and a stop with Sweep&Go's own 14-minute estimate
+    { id:'P1', type:'SAVED', name:'Paused Pat', phone:'6363750003', email:'pat@gmail.com', zip:'63376', address:'3 Ash St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-05-01] [DAY:thu] [PZ:2026-11-01~2026-12-15] [QA:a] ', created:'2026-05-01T12:00:00Z' },
+    { id:'E1', type:'SAVED', name:'Eddie Eow', phone:'6363750002', email:'eddie@gmail.com', zip:'63366', address:'2 Pine St, O\'Fallon, MO 63366', dogs:'1', service:'every other week', deodorize:'no', price:'$95/mo', status:'closed', crmnotes:'[CD:2026-07-01] [DAY:thu] [ET:14] [QA:a] ', created:'2026-07-01T12:00:00Z' },
     { id:'k1', type:'CONFIG', name:'sg_last_sync', notes: JSON.stringify({ at:'2026-11-12T09:00:00Z', clients: 94, added: 2, updated: 11, pinned: 90, invoices: 1200, errors: [] }), status:'config', crmnotes:'', created:'2026-11-12T09:00:00Z' },
-    { id:'k2', type:'CONFIG', name:'sg_routes', notes: JSON.stringify({ '2026-11-12': [{ who:'Jesse Duncan', min: 250, drive: 70, clean: 180, mi: 61.5, jobs: 20, price: 540 }] }), status:'config', crmnotes:'', created:'2026-11-12T09:00:00Z' },
+    { id:'k2', type:'CONFIG', name:'sg_routes', notes: JSON.stringify({ '2026-11-12': [{ who:'Jesse Duncan', min: 250, drive: 70, clean: 180, mi: 61.5, jobs: 20, price: 540 }], '2026-11-11': [{ who:'Jesse Duncan', min: 230, drive: 60, clean: 170, mi: 50, jobs: 18, price: 500 }], '2026-11-10': [{ who:'Jesse Duncan', min: 240, drive: 60, clean: 180, mi: 50, jobs: 20, price: 560 }] }), status:'config', crmnotes:'', created:'2026-11-12T09:00:00Z' },
     { id:'v1', type:'VIEW', name:'home', zip:'', yard:'s1', service:'Direct', notes:'how=none', created:'2026-11-12T14:50:00Z' },
   ];
   const billing = { ok:true, rows: 9, months: {
     '2026-10': { billed: 8144, onetime: 75, collected: 6332, unpaid: 1712, failed: 27, invoices: 95, customers: 90 },
     '2026-11': { billed: 8078, onetime: 0, collected: 6796, unpaid: 2154, failed: 16, invoices: 92, customers: 86 } },
-    unpaid: [ { name:'Eddie Eow', owed: 190, n: 2, oldest:'2026-10-05', statuses: { overdue: 1, draft: 1 } }, { name:'Nobody Known', owed: 65, n: 1, oldest:'2026-11-01', statuses: { failed: 1 } } ] };
+    unpaid: [ { name:'Eddie Eow', owed: 190, n: 2, oldest:'2026-10-05', statuses: { overdue: 1, draft: 1 } }, { name:'Nobody Known', owed: 65, n: 1, oldest:'2026-11-01', statuses: { failed: 1 } } ],
+    declining: [ { name:'Eddie Eow', when:'2026-11-08', amount: 95 } ] };
   stubNetwork(p, {});
   await p.route('**/script.google.com/**', r => {
     let body = {}; try { body = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
     if (body.action) posts.push(body);
     if (body.action === 'billing') return r.fulfill({ contentType:'application/json', body: JSON.stringify(billing) });
+    if (body.action === 'jobs') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, days: 30, visits: 310, minutes: 2790, timed: 300, skipped: 4, skipReasons: { 'Gate locked': 3, 'Client request': 1 }, byDogs: { '1': { n: 120, median: 7 }, '2': { n: 140, median: 11 }, '3': { n: 40, median: 15 } }, byDate: { '2026-11-11': { visits: 18, skipped: 1, minutes: 170, price: 500 }, '2026-11-10': { visits: 20, skipped: 0, minutes: 190, price: 560 } }, techs: { 'Jesse Duncan': 310 } }) });
     if (body.action === 'sgsync') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, clients: 94, added: 0, updated: 3, errors: [] }) });
     return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: rows }) });
   });
@@ -87,6 +125,19 @@ const { ok, done } = reporter();
   await p.evaluate(() => foldAll(true)); await p.waitForTimeout(200);
   const sched = (await p.textContent('#schedule')).replace(/\s+/g, ' ');
   ok('the routes block counts the pinned home', /1 home pinned to the street, 1 placed at the ZIP centre/.test(sched), sched.slice(sched.indexOf('home'), sched.indexOf('home') + 80));
+  ok('a paused customer is off the day list but listed as paused, with the return date', /Thu\s*2 stops/.test(sched) && /Paused in Sweep&Go\s*1.*Paused Pat.*back 2026-12-15/.test(sched), sched.slice(sched.indexOf('Paused'), sched.indexOf('Paused') + 120));
+  ok('and their card says so', /Paused in Sweep&Go until 2026-12-15 — off the route, still a customer/.test((await p.textContent('#card-P1')).replace(/\s+/g, ' ')));
+  ok('the Day plan uses Sweep&Go\'s own minutes for a stop that has them', /2\. ~Eddie Eow[^]*?14 min/.test(sched) || /Eddie Eow[^]*?14 min · \$44/.test(sched), sched.slice(sched.indexOf('Eddie Eow'), sched.indexOf('Eddie Eow') + 120));
+  /* ---- the Work done card ---- */
+  const jobs = (await p.textContent('#jobs')).replace(/\s+/g, ' ');
+  ok('visits, hours on site, the average stop, skips and the week\'s real miles', /310\s*visits done · 46h 30m on site/.test(jobs) && /9\s*minutes a stop, average · 300 timed/.test(jobs) && /4\s*skipped · Gate locked 3/.test(jobs) && /162\s*road miles this week, Sweep&Go’s count · 3 days/.test(jobs), jobs.slice(0, 400));
+  ok('minutes a stop by dog count, measured', /1 dog 7 min \(120\) · 2 dogs 11 min \(140\) · 3 dogs 15 min \(40\)/.test(jobs));
+  ok('and the offer to run the Day plan on the measured numbers', /Measured: 7 min, 4 per extra dog, 51 mph/.test(jobs), jobs.slice(jobs.indexOf('Measured'), jobs.indexOf('Measured') + 80));
+  await p.click('#jobs button:has-text("Use the measured numbers")'); await p.waitForTimeout(400);
+  const assume = await p.evaluate(() => routeAssume());
+  ok('one tap sets them', assume.base === 7 && assume.perDog === 4 && assume.mph === 51, JSON.stringify(assume));
+  ok('the day-by-day table pairs visits with the real miles', /Tue, Nov 10\s*20\s*3h 10m\s*50\s*1h/.test((await p.textContent('#jobs')).replace(/\s+/g, ' ')), (await p.textContent('#jobs')).replace(/\s+/g, ' ').slice(-300));
+  ok('the closed heading carries the month\'s work', /310 visits · 46h 30m · 4 skipped/.test(await p.$eval('#jobs .fsum', e => e.textContent)));
   ok('the Day plan shows Sweep&Go\'s own plan for today beside the estimate', /Sweep&Go’s plan for 2026-11-12 \(Jesse Duncan\): 20 jobs, 62 mi, 4h 10m with 1h 10m driving, \$540/.test(sched), sched.slice(sched.indexOf('Sweep&Go’s plan'), sched.indexOf('Sweep&Go’s plan') + 120));
 
   /* ---- the billing card ---- */
@@ -95,6 +146,7 @@ const { ok, done } = reporter();
   ok('this month billed and collected, with last month beside each', /\$8,078\s*billed Nov · \$8,144 last month/.test(bill) && /\$6,796\s*collected Nov · \$6,332 last month/.test(bill), bill.slice(0, 400));
   ok('the year so far, and what is still unpaid', /\$16,222\s*billed 2026 · \$13,128 collected/.test(bill) && /\$3,866\s*invoiced this year, still unpaid/.test(bill), bill.slice(0, 500));
   ok('who owes what, with Draft explained', /Owed\s*2 customers · \$255/.test(bill) && /Eddie Eow 1 overdue, 1 draft · since 2026-10-05\s*\$190/.test(bill) && /Draft means Sweep&Go generated it and never sent it/.test(bill), bill.slice(bill.indexOf('Owed'), bill.indexOf('Owed') + 300));
+  ok('cards declining are listed with the date and the amount', /Cards declining\s*1.*Eddie Eow failed 2026-11-08\s*\$95/.test(bill), bill.slice(bill.indexOf('Cards declining'), bill.indexOf('Cards declining') + 160));
   ok('somebody not in the tracker is listed without a link', /Nobody Known 1 failed/.test(bill) && (await p.$$('#billing a:has-text("Nobody Known")')).length === 0);
   await p.click('#billing button:has-text("On their card")'); await p.waitForTimeout(400);
   const owed = posts.find(x => x.action === 'update' && x.id === 'E1' && /\[OW:190@2026-10-05\]/.test(x.notes));

@@ -164,6 +164,7 @@
       <div style="font-size:11px;color:#707070;margin-top:8px;">Tap any number or chart bar for the full breakdown &#9660;</div>
       <div id="t-detail" style="display:none;border-top:1px solid #eee;margin-top:10px;padding-top:10px;"></div>
     </div>
+    <div id="jobs" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="billing" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="revenue" style="display:none;background:#0F6E56;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;font-weight:600;"></div>
     <div id="roi" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
@@ -1368,7 +1369,7 @@ function renderInsights(){
 function toggleNumbers(){
   var box = document.getElementById('numbers'), open = box.style.display === 'none';
   box.style.display = open ? 'block' : 'none';
-  if (open) loadBilling(false);
+  if (open){ loadBilling(false); loadJobs(false); }
   // the panel wants the whole history; the list only ever needed a month
   if (open && trafficDaysLoaded < TRAFFIC_DAYS_FULL) loadLeads(false, null, true, TRAFFIC_DAYS_FULL);
   document.getElementById('numbersArrow').innerHTML = open ? '&#9652;' : '&#9662;';
@@ -1492,13 +1493,13 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
   // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
   // ll = lat,lng from Sweep&Go's dispatch board; sgid = their client id. Both written by the nightly sync.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1532,6 +1533,8 @@ function fuParse(crmnotes){
     else if (hit[1] === 'NOEM') m.noem = hit[2];
     else if (hit[1] === 'LL') m.ll = hit[2];
     else if (hit[1] === 'SGID') m.sgid = hit[2];
+    else if (hit[1] === 'PZ') m.pz = hit[2];       // paused in Sweep&Go: start~end
+    else if (hit[1] === 'ET') m.et = hit[2];       // Sweep&Go's estimate for the stop, minutes
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -1570,7 +1573,9 @@ function fuCompose(m){
          (m.em ? '[EM:' + m.em + '] ' : '') +
          (m.noem ? '[NOEM:' + m.noem + '] ' : '') +
          (m.ll ? '[LL:' + m.ll + '] ' : '') +
-         (m.sgid ? '[SGID:' + m.sgid + '] ' : '') + (m.text || '');
+         (m.sgid ? '[SGID:' + m.sgid + '] ' : '') +
+         (m.pz ? '[PZ:' + m.pz + '] ' : '') +
+         (m.et ? '[ET:' + m.et + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -4100,7 +4105,11 @@ function renderUnderTable(){
    still unplaced.
    ============================================================ */
 function visitsPerWeek(l){ var s = String(l.service || '').toLowerCase(); return /twice/.test(s) ? 2 : /other/.test(s) ? 0.5 : /month/.test(s) ? 0.25 : 1; }
-function activeRecurring(){ return leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed' && isRecurring(l); }); }
+/* Paused in Sweep&Go: [PZ:start~end]. Off the route between those dates (no end = until further notice). */
+function pauseOf(l){ var p = String(fuParse(l.crmnotes).pz || ''); if (!p) return null; var a = p.split('~'); return { from: a[0] || '', to: a[1] || '' }; }
+function isPaused(l){ var p = pauseOf(l); if (!p) return false; var t = new Date().toISOString().slice(0, 10); return (!p.from || p.from <= t) && (!p.to || p.to >= t); }
+function activeRecurring(){ return leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed' && isRecurring(l) && !isPaused(l); }); }
+function pausedCustomers(){ return leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed' && isRecurring(l) && isPaused(l); }); }
 function scheduleStats(){
   var by = {}, unset = [];
   DAYS.forEach(function(d){ by[d[0]] = { key: d[0], label: d[1], n: 0, mrr: 0, dogs: 0, towns: {} }; });
@@ -4280,7 +4289,7 @@ function saveAssume(){
   render(); toast('Day plan assumptions saved');
 }
 function visitValue(l){ var pp = parsePrice(l); if (!pp || !pp.isMo) return 0; return pp.amt / (visitsPerWeek(l) * 4.33); }
-function stopMinutes(l, a){ return a.base + Math.max(0, (parseInt(l.dogs, 10) || 1) - 1) * a.perDog + (hasDeo(l) ? a.deo : 0); }
+function stopMinutes(l, a){ var et = parseInt(fuParse(l.crmnotes).et, 10); if (et > 0 && et < 180) return et; return a.base + Math.max(0, (parseInt(l.dogs, 10) || 1) - 1) * a.perDog + (hasDeo(l) ? a.deo : 0); }
 function clockText(mins){ var h = Math.floor(mins / 60) % 24, m = Math.round(mins % 60); var ap = h >= 12 ? 'pm' : 'am'; var hh = h % 12 || 12; return hh + ':' + (m < 10 ? '0' : '') + m + ap; }
 function hoursText(mins){ var h = Math.floor(mins / 60), m = Math.round(mins % 60); return h ? h + 'h' + (m ? ' ' + m + 'm' : '') : m + 'm'; }
 function dayPlan(k){
@@ -4390,6 +4399,11 @@ function renderSchedule(){
         '</div></div>';
     });
   }
+  var pz = pausedCustomers();
+  if (pz.length){
+    h += '<div class="fold folded" data-fold="sched-paused" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;cursor:pointer;"><strong style="color:#707070;">Paused in Sweep&amp;Go</strong><span style="color:#555;">' + pz.length + '</span></div>' +
+      '<div class="fold-body">' + pz.map(function(l){ var p = pauseOf(l); return '<div style="font-size:12.5px;padding:2px 0 2px 10px;">' + person(l) + ' <span style="color:#9aa5a0;">&middot; ' + (p.to ? 'back ' + esc(p.to) : 'no return date') + '</span></div>'; }).join('') + '</div></div>';
+  }
   if (s.unset.length){
     h += '<div class="fold folded" data-fold="sched-unset" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;cursor:pointer;"><strong style="color:#b45309;">No day set</strong><span style="color:#555;">' + s.unset.length + '</span></div>' +
       '<div class="fold-body">' + s.unset.map(function(l){ return '<div style="font-size:12.5px;padding:2px 0 2px 10px;">' + person(l) + ' <span style="color:#9aa5a0;">&middot; ' + esc(townOf(zipOf(l), l)) + '</span></div>'; }).join('') + '</div></div>';
@@ -4397,6 +4411,79 @@ function renderSchedule(){
   if (!total) h += '<div style="font-size:12.5px;color:#9aa5a0;">No active recurring customers yet.</div>';
   box.innerHTML = h;
   box.querySelectorAll('.fold[data-fold]').forEach(function(c){ var k = c.getAttribute('data-fold'); foldApply(c, k === 'sched-routes' || k === 'sched-day'); });
+}
+
+/* ============================================================
+   WORK DONE, from Sweep&Go. The last 30 days of visits as they actually
+   happened: how many, how long on site, what got skipped and why, and
+   the real miles from Sweep&Go's route report. The Day plan's guesses
+   can be replaced with these in one tap.
+   ============================================================ */
+var jobsData = null;
+function loadJobs(force){
+  if (!CRM_ENDPOINT) return;
+  if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_jobs') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ jobsData = c.data; renderJobs(); return; } } catch (e) {} }
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'jobs', key: KEY }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if (d && d.ok && (d.byDate || d.empty)){ jobsData = d; try { localStorage.setItem('clpps_jobs', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderJobs(); } })
+    .catch(function(){});
+}
+function sgRoutesByDate(){ var c = config.sg_routes; if (!c) return {}; try { return JSON.parse(c.value) || {}; } catch (e) { return {}; } }
+/* What the real days say the assumptions should be. */
+function measuredAssumptions(){
+  if (!jobsData || jobsData.empty) return null;
+  var bd = jobsData.byDogs || {}, m1 = bd['1'] && bd['1'].n >= 5 ? bd['1'].median : 0, m2 = bd['2'] && bd['2'].n >= 5 ? bd['2'].median : 0, m3 = bd['3'] && bd['3'].n >= 3 ? bd['3'].median : 0;
+  var perDog = m1 && m2 ? Math.max(0, Math.round((m2 - m1) * 10) / 10) : (m2 && m3 ? Math.max(0, Math.round((m3 - m2) * 10) / 10) : null);
+  var base = m1 || (m2 && perDog != null ? Math.round((m2 - perDog) * 10) / 10 : 0);
+  var mi = 0, drv = 0, routes = sgRoutesByDate();
+  Object.keys(routes).forEach(function(d){ (routes[d] || []).forEach(function(r){ if (r.mi && r.drive){ mi += r.mi; drv += r.drive; } }); });
+  var mph = drv ? Math.round(mi / (drv / 60)) : 0;
+  if (!base && !mph) return null;
+  return { base: base ? Math.round(base) : null, perDog: perDog, mph: mph || null, timed: jobsData.timed || 0, m1: m1, m2: m2, m3: m3 };
+}
+function useMeasured(){
+  var m = measuredAssumptions(); if (!m) return;
+  var a = routeAssume();
+  if (m.base) a.base = m.base; if (m.perDog != null) a.perDog = m.perDog; if (m.mph) a.mph = m.mph;
+  try { localStorage.setItem('clpps_route_assume', JSON.stringify(a)); } catch (e) {}
+  render(); toast('Day plan now uses Sweep&Go\u2019s measured numbers');
+}
+function renderJobs(){
+  var box = document.getElementById('jobs'); if (!box) return;
+  var head = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128736;&#65039; Work done <span style="font-size:11px;font-weight:600;color:#707070;">last 30 days, from Sweep&amp;Go</span></div>';
+  if (!jobsData){ box.innerHTML = head + '<div style="font-size:12.5px;color:#9aa5a0;">' + (sgSyncInfo() ? 'Loading\u2026' : 'Not connected yet. Once Sweep&amp;Go is synced, every visit lands here: how long each took, what was skipped and why, and the real miles.') + '</div>'; return; }
+  if (jobsData.empty || !jobsData.byDate){ box.innerHTML = head + '<div style="font-size:12.5px;color:#9aa5a0;">No visits synced yet. Tap Sync now on the line above the list.</div>'; return; }
+  var J = jobsData, dates = Object.keys(J.byDate).sort().reverse(), routes = sgRoutesByDate();
+  var reasons = Object.keys(J.skipReasons || {}).sort(function(a, b){ return J.skipReasons[b] - J.skipReasons[a]; });
+  var avg = J.timed ? Math.round(J.minutes / J.timed) : 0, m = measuredAssumptions(), a = routeAssume();
+  var weekMi = 0, weekDays = 0; Object.keys(routes).forEach(function(d){ if (d >= new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10) && d <= new Date().toISOString().slice(0, 10)){ (routes[d] || []).forEach(function(r){ weekMi += r.mi || 0; }); weekDays++; } });
+  var h = head +
+    '<div class="stats" style="margin-bottom:8px;grid-template-columns:1fr 1fr;">' +
+      '<div><div class="big">' + J.visits + '</div><div class="sub">visits done &middot; ' + hoursText(J.minutes) + ' on site</div></div>' +
+      '<div><div class="big">' + (avg || '\u2014') + '</div><div class="sub">minutes a stop, average &middot; ' + J.timed + ' timed</div></div>' +
+      '<div><div class="big" style="color:' + (J.skipped ? '#b45309' : '#9aa5a0') + ';">' + J.skipped + '</div><div class="sub">skipped' + (reasons.length ? ' &middot; ' + esc(reasons[0]) + ' ' + J.skipReasons[reasons[0]] : '') + '</div></div>' +
+      '<div><div class="big">' + (weekMi ? Math.round(weekMi) : '\u2014') + '</div><div class="sub">road miles this week, Sweep&amp;Go\u2019s count' + (weekDays ? ' &middot; ' + weekDays + ' day' + (weekDays === 1 ? '' : 's') : '') + '</div></div>' +
+    '</div>';
+  // minutes by dog count, and the one tap that tunes the Day plan
+  var dk = Object.keys(J.byDogs || {}).sort();
+  if (dk.length){
+    h += '<div style="font-size:12.5px;color:#555;margin-bottom:6px;"><strong>Minutes a stop, measured:</strong> ' + dk.map(function(k){ return (k === '?' ? 'unknown dogs' : k + ' dog' + (k === '1' ? '' : 's')) + ' ' + J.byDogs[k].median + ' min <span style="color:#9aa5a0;">(' + J.byDogs[k].n + ')</span>'; }).join(' &middot; ') + '</div>';
+    if (m && (m.base || m.mph)){
+      var same = (!m.base || m.base === a.base) && (m.perDog == null || m.perDog === a.perDog) && (!m.mph || m.mph === a.mph);
+      h += '<div style="background:#E6F2ED;border-radius:9px;padding:8px 11px;font-size:12.5px;color:#0F6E56;margin-bottom:8px;">' + (same ? '&#10003; The Day plan already runs on these numbers.' :
+        'The Day plan assumes ' + a.base + ' min a stop, ' + a.perDog + ' per extra dog, ' + a.mph + ' mph. Measured: ' + (m.base || a.base) + ' min, ' + (m.perDog != null ? m.perDog : a.perDog) + ' per extra dog' + (m.mph ? ', ' + m.mph + ' mph' : '') + '. <button onclick="useMeasured()" style="padding:5px 9px;min-height:32px;font-size:11.5px;margin-left:4px;">Use the measured numbers</button>') + '</div>';
+    }
+  }
+  if (reasons.length){
+    h += '<div class="fold folded" data-fold="jobs-skips" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong style="color:#b45309;">Skipped, and why</strong><span style="color:#555;">' + J.skipped + '</span></div><div class="fold-body">' +
+      reasons.map(function(r){ return '<div style="font-size:12.5px;padding:2px 0 2px 10px;">' + esc(r) + ' <span style="color:#707070;">' + J.skipReasons[r] + '</span></div>'; }).join('') + '</div></div>';
+  }
+  h += '<div class="fold folded" data-fold="jobs-days" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong>Day by day</strong><span style="color:#555;">' + dates.length + ' days</span></div><div class="fold-body">' +
+    '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;"><tr style="color:#707070;text-align:left;"><th>Day</th><th style="text-align:right;">Visits</th><th style="text-align:right;">On site</th><th style="text-align:right;">Miles</th><th style="text-align:right;">Driving</th><th style="text-align:right;">Skipped</th></tr>' +
+    dates.slice(0, 20).map(function(d){ var x = J.byDate[d], rr = (routes[d] || []), mi = rr.reduce(function(s2, r){ return s2 + (r.mi || 0); }, 0), dr = rr.reduce(function(s2, r){ return s2 + (r.drive || 0); }, 0);
+      return '<tr style="border-top:1px solid #f0f0f0;"><td>' + esc(new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })) + '</td><td style="text-align:right;">' + x.visits + '</td><td style="text-align:right;">' + (x.minutes ? hoursText(x.minutes) : '\u2014') + '</td><td style="text-align:right;">' + (mi ? Math.round(mi) : '\u2014') + '</td><td style="text-align:right;">' + (dr ? hoursText(dr) : '\u2014') + '</td><td style="text-align:right;color:' + (x.skipped ? '#b45309' : '#9aa5a0') + ';">' + (x.skipped || '\u2014') + '</td></tr>'; }).join('') + '</table></div></div>';
+  box.innerHTML = h;
+  box.querySelectorAll('.fold[data-fold]').forEach(function(c){ foldApply(c, false); });
 }
 
 /* ============================================================
@@ -4455,8 +4542,15 @@ function renderBilling(){
     '<div style="font-size:11px;color:#707070;margin-bottom:8px;"><span style="display:inline-block;width:9px;height:9px;background:#B45309;border-radius:2px;vertical-align:-1px;"></span> billed &nbsp; <span style="display:inline-block;width:9px;height:9px;background:#188663;border-radius:2px;vertical-align:-1px;"></span> collected</div>';
   // the months, one line each
   h += '<div class="fold folded" data-fold="bill-months" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong>By month</strong><span style="color:#555;">' + last12.length + ' months</span></div><div class="fold-body">' +
-    '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;"><tr style="color:#707070;text-align:left;"><th>Month</th><th style="text-align:right;">Billed</th><th style="text-align:right;">One-time</th><th style="text-align:right;">Collected</th><th style="text-align:right;">Unpaid</th><th style="text-align:right;">Customers</th></tr>' +
-    last12.slice().reverse().map(function(k){ var m = billing.months[k]; return '<tr style="border-top:1px solid #f0f0f0;"><td>' + monthShort(k) + ' ' + k.slice(2, 4) + '</td><td style="text-align:right;">' + money(m.billed) + '</td><td style="text-align:right;color:#707070;">' + (m.onetime ? money(m.onetime) : '\u2014') + '</td><td style="text-align:right;color:#188663;">' + money(m.collected) + '</td><td style="text-align:right;color:' + (m.unpaid ? '#b45309' : '#9aa5a0') + ';">' + (m.unpaid ? money(m.unpaid) : '\u2014') + '</td><td style="text-align:right;">' + m.customers + '</td></tr>'; }).join('') + '</table></div></div>';
+    '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;"><tr style="color:#707070;text-align:left;"><th>Month</th><th style="text-align:right;">Billed</th><th style="text-align:right;">One-time</th><th style="text-align:right;">Collected</th><th style="text-align:right;">Unpaid</th><th style="text-align:right;">Tips</th><th style="text-align:right;">Customers</th></tr>' +
+    last12.slice().reverse().map(function(k){ var m = billing.months[k]; return '<tr style="border-top:1px solid #f0f0f0;"><td>' + monthShort(k) + ' ' + k.slice(2, 4) + '</td><td style="text-align:right;">' + money(m.billed) + '</td><td style="text-align:right;color:#707070;">' + (m.onetime ? money(m.onetime) : '\u2014') + '</td><td style="text-align:right;color:#188663;">' + money(m.collected) + '</td><td style="text-align:right;color:' + (m.unpaid ? '#b45309' : '#9aa5a0') + ';">' + (m.unpaid ? money(m.unpaid) : '\u2014') + '</td><td style="text-align:right;color:#707070;">' + (m.tips ? money(m.tips) : '\u2014') + '</td><td style="text-align:right;">' + m.customers + '</td></tr>'; }).join('') + '</table></div></div>';
+  // cards that failed last and have not succeeded since
+  var dec = billing.declining || [];
+  if (dec.length){
+    h += '<div class="fold" data-fold="bill-declining" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong style="color:#b45309;">Cards declining</strong><span style="color:#555;">' + dec.length + '</span></div><div class="fold-body">' +
+      '<div class="sub" style="font-size:11px;color:#9aa5a0;margin:2px 0 4px;">Their last payment attempt failed and nothing has gone through since. A text asking for a new card fixes most of these.</div>' +
+      dec.map(function(u){ var l = leadByName(u.name); return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-top:1px solid #f3f5f4;font-size:12.5px;"><span>' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') + ' <span style="color:#707070;">failed ' + esc(u.when) + '</span></span><span style="white-space:nowrap;color:#b45309;font-weight:700;">' + money(u.amount) + '</span></div>'; }).join('') + '</div></div>';
+  }
   // who owes what
   var un = billing.unpaid || [], owedTotal = un.reduce(function(a, u){ return a + u.owed; }, 0);
   h += '<div class="fold" data-fold="bill-owed" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong style="color:#b45309;">Owed</strong><span style="color:#555;">' + un.length + ' customer' + (un.length === 1 ? '' : 's') + ' &middot; ' + money(owedTotal) + '</span></div><div class="fold-body">' +
@@ -4641,7 +4735,7 @@ function renderReviewTrend(){
 }
 
 /* ---- fold-up cards in the numbers panel ---- */
-var FOLD_CARDS = ['territory', 'undertable', 'season', 'pricelog', 'schedule', 'deo', 'traffic', 'billing', 'revenue', 'roi', 'insights', 'reviews'];
+var FOLD_CARDS = ['territory', 'undertable', 'season', 'pricelog', 'schedule', 'deo', 'traffic', 'jobs', 'billing', 'revenue', 'roi', 'insights', 'reviews'];
 function foldKey(card){ return card.id || card.getAttribute('data-fold') || ''; }
 function foldState(key){ try { return localStorage.getItem('clpps_fold_' + key); } catch (e) { return null; } }
 function foldApply(card, openByDefault){
@@ -4707,6 +4801,7 @@ function renderFoldSums(){
   try { var tk = gDayKey(new Date()); foldSum('traffic', views.filter(function(v){ return gDayKey(new Date(v.created)) === tk; }).length + ' visits today'); } catch (e) {}
   try { var due = leads.filter(reviewDue).length; foldSum('reviews', due ? due + ' to ask' : 'nobody due'); } catch (e) {}
   try { var lt = lifetimeStats(); if (lt.value) foldSum('roi', 'a customer is worth ~' + money(lt.value) + (lt.measured ? '' : ' (assumed)')); } catch (e) {}
+  try { if (jobsData && !jobsData.empty && jobsData.byDate){ foldSum('jobs', jobsData.visits + ' visits &middot; ' + hoursText(jobsData.minutes) + (jobsData.skipped ? ' &middot; ' + jobsData.skipped + ' skipped' : '')); } } catch (e) {}
   try { if (billing && !billing.empty){ var bk = monthKeyOf(new Date()), bm = billing.months[bk] || { billed: 0, collected: 0 }; var owed = (billing.unpaid || []).reduce(function(a, u){ return a + u.owed; }, 0); foldSum('billing', money(bm.billed) + ' billed &middot; ' + money(bm.collected) + ' in' + (owed ? ' &middot; ' + money(owed) + ' owed' : '')); } } catch (e) {}
 }
 function openTerritory(){
@@ -4837,7 +4932,7 @@ function sgSyncInfo(){
 function sgSyncLine(){
   var o = sgSyncInfo(); if (!o) return '';
   var h = (Date.now() - new Date(o.at).getTime()) / 3600000, stale = h > 36;
-  return '<br>&#128260; Sweep&amp;Go: synced ' + esc(agoText(o.at)) + ' &middot; ' + (o.clients || 0) + ' clients' + (o.added ? ' &middot; ' + o.added + ' new' : '') + (o.updated ? ' &middot; ' + o.updated + ' updated' : '') +
+  return '<br>&#128260; Sweep&amp;Go: synced ' + esc(agoText(o.at)) + ' &middot; ' + (o.clients || 0) + ' clients' + (o.added ? ' &middot; ' + o.added + ' new' : '') + (o.updated ? ' &middot; ' + o.updated + ' updated' : '') + (o.leads ? ' &middot; ' + o.leads + ' new lead' + (o.leads === 1 ? '' : 's') + ' from their form' : '') +
     (o.errors && o.errors.length ? ' <span style="color:#b45309;">&middot; ' + esc(o.errors.join('; ')).slice(0, 160) + '</span>' : '') +
     (stale ? ' <strong style="color:#b45309;">&middot; more than a day old: open the Apps Script project and check the sgSync trigger</strong>' : '') +
     ' <button onclick="sgSyncNow()" style="margin-left:6px;padding:4px 8px;min-height:28px;font-size:11px;">Sync now</button>';
@@ -4851,8 +4946,8 @@ function sgSyncNow(){
       sgSyncBusy = false;
       if (!d || !d.ok){ toast(d && d.error ? 'Sync failed: ' + d.error : 'Sync failed - has the script been updated?'); return; }
       toast('Synced: ' + (d.clients || 0) + ' clients, ' + (d.added || 0) + ' new, ' + (d.updated || 0) + ' updated' + (d.errors && d.errors.length ? ' (' + d.errors.length + ' problem' + (d.errors.length === 1 ? '' : 's') + ')' : ''));
-      try { localStorage.removeItem('clpps_billing'); } catch (e) {}
-      loadLeads(false, function(){ loadBilling(true); });
+      try { localStorage.removeItem('clpps_billing'); localStorage.removeItem('clpps_jobs'); } catch (e) {}
+      loadLeads(false, function(){ loadBilling(true); loadJobs(true); });
     })
     .catch(function(){ sgSyncBusy = false; toast('Sync failed, check connection'); });
 }
@@ -5570,6 +5665,7 @@ function render(){
   renderSchedule();
   renderDeo();
   renderBilling();
+  renderJobs();
   renderReviews();
   renderReviewTrend();
   renderFoldSums();   // last: it writes onto headings the renderers above just rebuilt
@@ -5667,6 +5763,7 @@ function render(){
     } else if (fu.wc && fu.wc !== 'skip'){
       wcRow = '<div style="color:#0F6E56;font-size:12px;font-weight:600;margin-top:6px;">&#128154; Win-back text sent ' + esc(fu.wc) + '</div>';
     }
+    if (st === 'closed' && isPaused(l)){ var pzo = pauseOf(l); wcRow = '<div style="color:#707070;font-size:12px;font-weight:600;margin-top:6px;">&#9208;&#65039; Paused in Sweep&amp;Go' + (pzo.to ? ' until ' + esc(pzo.to) : '') + ' &mdash; off the route, still a customer</div>' + wcRow; }
     if (fu.sv && fu.sv !== 'skip') wcRow = '<div style="color:#7a4a00;font-size:12px;font-weight:600;margin-top:6px;">&#128737;&#65039; Save offer made ' + esc(fu.sv) + (st === 'closed' ? ' &mdash; still active' : '') + '</div>' + wcRow;
     var attLine = (fu.att || fu.tx)
       ? '<div style="font-size:12px;color:#555;margin-top:6px;">' +

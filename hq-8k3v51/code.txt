@@ -451,6 +451,10 @@ function doPost(e) {
     if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
     return json_(sgBilling_());
   }
+  if (body.action === 'jobs') {
+    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    return json_(sgJobs_());
+  }
   if (body.action === 'sgsync') {
     if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
     try { return json_(sgSync()); } catch (e2) { return json_({ok:false, error:String(e2 && e2.message || e2).slice(0, 200)}); }
@@ -685,7 +689,7 @@ function sgSync() {
       if (isDeo) { if (active) b.deo += sgMonthly_(s, plan || b.plan || 'weekly'); return; }
       if (!b.anyStart || (s.start_date && s.start_date < b.anyStart)) b.anyStart = s.start_date || b.anyStart;
       if (active || !b.active) {
-        if (active) { b.active = true; b.paused = /paused/i.test(String(s.status)); }
+        if (active) { b.active = true; b.paused = /paused/i.test(String(s.status)); if (b.paused || s.pause_start_date) b.pause = String(s.pause_start_date || '').slice(0, 10) + '~' + String(s.pause_end_date || '').slice(0, 10); }
         b.plan = plan || b.plan; b.monthly = sgMonthly_(s, plan); b.dogs = String(s.number_of_dogs || b.dogs || '');
         b.start = s.start_date || b.start; b.end = s.canceled_at ? String(s.canceled_at).slice(0, 10) : (s.end_date || ''); b.reason = s.termination_reason || ''; b.comment = s.termination_comment || '';
       }
@@ -705,7 +709,9 @@ function sgSync() {
       var plan = (sub && sub.plan) || sgPlan_(c.cleanup_frequency) || '';
       var total = sub ? Math.round(sub.monthly + sub.deo) : 0;
       var price = total ? '$' + total + '/mo' + (sub.deo ? ' (includes $' + Math.round(sub.deo) + ' deodorize)' : '') : '';
-      var set = { DAY: sgDayKeys_(c.service_days), CD: (sub && (sub.start || sub.anyStart)) || '', SGID: String(c.client || '') };
+      var set = { DAY: sgDayKeys_(c.service_days), CD: (sub && (sub.start || sub.anyStart)) || '', SGID: String(c.client || ''), PZ: (sub && sub.paused && sub.pause) ? sub.pause : '' };
+      // Sweep&Go's marketing opt-out is the law of the land for the email blast
+      if (c.marketing_allowed === 0 || c.marketing_allowed === '0' || c.marketing_allowed === false) set.NOEM = '1';
       if (!active) { set.CX = (sub && sub.end) || ''; set.CXR = sgReason_(sub && (sub.reason + ' ' + sub.comment)); } else { set.CX = ''; set.CXR = ''; }
       var src = sgSource_(c);
       var existing = latest[id] ? latest[id].row : -1;
@@ -749,29 +755,64 @@ function sgSync() {
       for (var k = 0; k < 7; k++) {
         var dt = new Date(Date.now() + k * dayMs).toISOString().slice(0, 10);
         var jobs = sgFetch_('/api/v1/dispatch_board/jobs_for_date?date=' + dt);
-        (jobs.data || []).forEach(function(j) { if (j.lat && j.lng && j.full_name) pins[sgNorm_(j.full_name)] = { lat: j.lat, lng: j.lng, phone: sgDigits_(j.cell_phone) || sgDigits_(j.home_phone) }; });
+        (jobs.data || []).forEach(function(j) {
+          if (!j.full_name) return;
+          var em = String(j.estimate_time || '').match(/^(\d+):(\d+)/), est = em ? parseInt(em[1], 10) * 60 + parseInt(em[2], 10) : 0;
+          var cur = pins[sgNorm_(j.full_name)] || (pins[sgNorm_(j.full_name)] = {});
+          if (j.lat && j.lng) { cur.lat = j.lat; cur.lng = j.lng; }
+          if (est) cur.est = est;
+          cur.phone = cur.phone || sgDigits_(j.cell_phone) || sgDigits_(j.home_phone);
+        });
       }
       var data2 = sh.getDataRange().getValues(), nCol = HEADERS.indexOf('crmnotes'), nameCol = HEADERS.indexOf('name'), phCol = HEADERS.indexOf('phone'), done = {};
       for (var r2 = data2.length - 1; r2 >= 1; r2--) {
         var pn = sgNorm_(data2[r2][nameCol]), pin = pins[pn]; if (!pin || done[pn]) continue;
         var ph2 = sgDigits_(data2[r2][phCol]); if (pin.phone && ph2 && pin.phone !== ph2) continue;
         done[pn] = 1;
-        var ll = '[LL:' + Number(pin.lat).toFixed(5) + ',' + Number(pin.lng).toFixed(5) + '] ', cur = String(data2[r2][nCol] || '');
-        if (cur.indexOf(ll) >= 0) continue;
-        sh.getRange(r2 + 1, nCol + 1).setValue(safeCell_(sgSetMarkers_(cur, { LL: Number(pin.lat).toFixed(5) + ',' + Number(pin.lng).toFixed(5) })));
-        summary.pinned++;
+        var cur = String(data2[r2][nCol] || ''), set2 = {};
+        if (pin.lat && pin.lng) set2.LL = Number(pin.lat).toFixed(5) + ',' + Number(pin.lng).toFixed(5);
+        if (pin.est) set2.ET = String(pin.est);   // Sweep&Go's own minutes for this stop
+        var next = sgSetMarkers_(cur, set2);
+        if (next === cur) continue;
+        sh.getRange(r2 + 1, nCol + 1).setValue(safeCell_(next));
+        if (set2.LL && cur.indexOf('[LL:' + set2.LL + ']') < 0) summary.pinned++;
       }
     } catch (e3) { summary.errors.push('dispatch: ' + e3.message); }
     // ---- billing: invoices and payments into their own sheet ----
     try { summary.invoices = sgPullBilling_(); } catch (e4) { summary.errors.push('billing: ' + e4.message); }
-    // ---- Sweep&Go's route report for today and tomorrow ----
+    // ---- Sweep&Go's route report: the last two weeks and the next two days ----
     try {
       var rep = {};
-      [0, 1].forEach(function(k2) { var d2 = new Date(Date.now() + k2 * 86400000).toISOString().slice(0, 10); var rr = sgFetch_('/api/v2/report/route_planning_report?date=' + d2); rep[d2] = (rr.route_reports || []).map(function(x) { return { who: x.assigned_to_name, min: x.duration, drive: x.driving_time, clean: x.cleanup_time, mi: x.distance, jobs: x.number_of_jobs, price: x.price }; }); summary.routes += rep[d2].length; });
+      for (var k2 = -14; k2 <= 1; k2++) {
+        var d2 = new Date(Date.now() + k2 * 86400000).toISOString().slice(0, 10);
+        var rr = sgFetch_('/api/v2/report/route_planning_report?date=' + d2);
+        var list = (rr.route_reports || []).map(function(x) { return { who: x.assigned_to_name, min: x.duration, drive: x.driving_time, clean: x.cleanup_time, mi: x.distance, jobs: x.number_of_jobs, price: x.price }; });
+        if (list.length) { rep[d2] = list; summary.routes += list.length; }
+      }
       sgConfig_('sg_routes', JSON.stringify(rep));
     } catch (e5) { summary.errors.push('routes: ' + e5.message); }
+    // ---- the work actually done: completed and skipped visits, last 45 days ----
+    try { summary.jobs = sgPullJobs_(); } catch (e6) { summary.errors.push('jobs: ' + e6.message); }
+    // ---- leads from Sweep&Go's own form, if any are new to us ----
+    try {
+      var sgl = sgAll_('/api/v1/leads/list'), newLeads = [];
+      var data3 = sh.getDataRange().getValues(), have = {};
+      for (var r3 = 1; r3 < data3.length; r3++) { var dd = sgDigits_(data3[r3][HEADERS.indexOf('phone')]); if (dd) have['p' + dd] = 1; var ee = String(data3[r3][HEADERS.indexOf('email')] || '').trim().toLowerCase(); if (ee) have['e' + ee] = 1; have['s' + String(data3[r3][iId])] = 1; }
+      sgl.forEach(function(L) {
+        var ph = sgDigits_(L.cell_phone) || sgDigits_(L.home_phone), em = String(L.email || '').trim().toLowerCase();
+        var lid = ph ? 'p' + ph : 'sgl' + String(L.lead || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 20);
+        if ((ph && have['p' + ph]) || (em && have['e' + em]) || have['s' + lid]) return;
+        if (/delet|archiv|convert/i.test(String(L.status || ''))) return;
+        have['s' + lid] = 1;
+        var l = { id: lid, created: new Date().toISOString(), type: 'ENQUIRY', name: String(L.name || '').trim(), phone: ph, email: em, address: String(L.address || '') + (L.zip_code ? ', ' + L.zip_code : ''), zip: String(L.zip_code || ''),
+                  service: '', dogs: '', yard: '', deodorize: '', hero: '', price: '', manual: '', honored: '', notes: 'Came in through Sweep&Go\u2019s own form.', status: 'new', crmnotes: '[SRC:Sweep&Go form] [QA:w] [SGID:' + String(L.lead || '') + '] ', updated: new Date().toISOString() };
+        newLeads.push(HEADERS.map(function(h) { return safeCell_(l[h] == null ? '' : l[h]); }));
+      });
+      if (newLeads.length) sh.getRange(sh.getLastRow() + 1, 1, newLeads.length, HEADERS.length).setValues(newLeads);
+      summary.leads = newLeads.length;
+    } catch (e7) { summary.errors.push('leads: ' + e7.message); }
     summary.finished = new Date().toISOString();
-    sgConfig_('sg_last_sync', JSON.stringify({ at: summary.finished, clients: summary.clients, added: summary.added, updated: summary.updated, pinned: summary.pinned, invoices: summary.invoices, errors: summary.errors.slice(0, 3) }));
+    sgConfig_('sg_last_sync', JSON.stringify({ at: summary.finished, clients: summary.clients, added: summary.added, updated: summary.updated, pinned: summary.pinned, invoices: summary.invoices, jobs: summary.jobs || 0, leads: summary.leads || 0, errors: summary.errors.slice(0, 3) }));
   } finally { lock.releaseLock(); }
   return summary;
 }
@@ -800,12 +841,65 @@ function sgPullBilling_() {
     });
   });
   sgAll_('/api/v2/payments', 'payments').forEach(function(p) {
-    rows.push(['payment', '', String(p.date || '').slice(0, 10), p.client_name || p.commercial_client || '', p.type || '', String(p.status || '').toLowerCase(), p.amount, p.amount, '', '', '', p.type || '', String(p.description || '').slice(0, 80)]);
+    rows.push(['payment', '', String(p.date || '').slice(0, 10), p.client_name || p.commercial_client || '', p.type || '', String(p.status || '').toLowerCase(), p.amount, p.amount, p.tip_amount || '', '', '', p.type || '', String(p.description || '').slice(0, 80)]);
   });
   var sh = billingSheet_();
   if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, BILLING_HEADERS.length).clearContent();
   if (rows.length) sh.getRange(2, 1, rows.length, BILLING_HEADERS.length).setValues(rows.map(function(r) { return r.map(function(v) { return safeCell_(v == null ? '' : v); }); }));
   return rows.length;
+}
+/* The jobs sheet: one row per visit Sweep&Go recorded, completed or
+   skipped, for the last 45 days. Real minutes on site, real skip reasons. */
+var JOBS_HEADERS = ['date','client','zip','status','skip_reason','start','end','minutes','dogs','plan','price','tech','commercial'];
+var JOBS_DAYS = 45;
+function jobsSheet_() {
+  var ss = sheet_().getParent(), sh = ss.getSheetByName('jobs');
+  if (!sh) { sh = ss.insertSheet('jobs'); sh.appendRow(JOBS_HEADERS); try { sh.getRange(1, 1, sh.getMaxRows(), JOBS_HEADERS.length).setNumberFormat('@'); } catch (e) {} }
+  return sh;
+}
+function sgMinutes_(j) {
+  var d = String(j.duration || '').match(/^(\d+):(\d+)/);
+  if (d) return parseInt(d[1], 10) + parseInt(d[2], 10) / 60;
+  if (j.start_time && j.end_time) { var ms = new Date(String(j.end_time).replace(' ', 'T')) - new Date(String(j.start_time).replace(' ', 'T')); if (ms > 0 && ms < 6 * 3600000) return ms / 60000; }
+  return 0;
+}
+function sgPullJobs_() {
+  var to = new Date().toISOString().slice(0, 10), from = new Date(Date.now() - JOBS_DAYS * 86400000).toISOString().slice(0, 10);
+  var d = sgFetch_('/api/v2/report/completed_jobs_report?date_from=' + from + '&date_to=' + to), list = d.job_list || [];
+  var rows = list.map(function(j) {
+    var dogs = (String(j.service_plan_name || '').match(/^(\d+)d/) || [])[1] || '';
+    return [String(j.date || '').slice(0, 10), j.commercial_name || ((j.first_name || '') + ' ' + (j.last_name || '')).trim(), String(j.zip || ''), String(j.status_name || '').toLowerCase(), j.skip_reason_title || '',
+            String(j.start_time || '').slice(11, 16), String(j.end_time || '').slice(11, 16), Math.round(sgMinutes_(j) * 10) / 10, dogs, j.service_plan_slug || j.service_plan_name || '', j.price || '', j.assigned_to_name || '', j.commercial_name ? 1 : 0];
+  });
+  var sh = jobsSheet_();
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, JOBS_HEADERS.length).clearContent();
+  if (rows.length) sh.getRange(2, 1, rows.length, JOBS_HEADERS.length).setValues(rows.map(function(r) { return r.map(function(v) { return safeCell_(v == null ? '' : v); }); }));
+  return rows.length;
+}
+function median_(a) { if (!a.length) return 0; var s = a.slice().sort(function(x, y) { return x - y; }); var m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+/* The last 30 days of work, folded small: visits, minutes, skips and why,
+   minutes a stop by dog count (median, so one long stop does not pull it),
+   and each day with its real miles from the route report. */
+function sgJobs_() {
+  var sh = jobsSheet_(); if (sh.getLastRow() < 2) return { ok:true, empty:true };
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, JOBS_HEADERS.length).getValues(), H = {}; JOBS_HEADERS.forEach(function(h, i) { H[h] = i; });
+  var cut = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  var out = { ok:true, days: 30, visits: 0, minutes: 0, timed: 0, skipped: 0, skipReasons: {}, byDogs: {}, byDate: {}, techs: {} };
+  var mins = {};
+  rows.forEach(function(r) {
+    var dt = String(r[H.date] || ''); if (!dt || dt < cut) return;
+    var st = String(r[H.status] || ''), m = parseFloat(r[H.minutes]) || 0, dogs = String(r[H.dogs] || '') || '?';
+    var day = out.byDate[dt] || (out.byDate[dt] = { visits: 0, skipped: 0, minutes: 0, price: 0 });
+    if (/skip/.test(st)) { out.skipped++; day.skipped++; var why = String(r[H.skip_reason] || 'no reason given'); out.skipReasons[why] = (out.skipReasons[why] || 0) + 1; return; }
+    if (!/complet|done/.test(st)) return;
+    out.visits++; day.visits++; day.price += parseFloat(r[H.price]) || 0;
+    if (r[H.tech]) out.techs[r[H.tech]] = (out.techs[r[H.tech]] || 0) + 1;
+    if (m > 0 && m < 180) { out.minutes += m; out.timed++; day.minutes += m; (mins[dogs] = mins[dogs] || []).push(m); }
+  });
+  Object.keys(mins).forEach(function(k) { out.byDogs[k] = { n: mins[k].length, median: Math.round(median_(mins[k]) * 10) / 10 }; });
+  out.minutes = Math.round(out.minutes);
+  Object.keys(out.byDate).forEach(function(k) { out.byDate[k].minutes = Math.round(out.byDate[k].minutes); out.byDate[k].price = Math.round(out.byDate[k].price); });
+  return out;
 }
 /* What the tracker's billing card shows: by month, billed (voids out),
    collected, unpaid; plus the unpaid list by customer. Small on purpose. */
@@ -813,10 +907,10 @@ function sgBilling_() {
   var sh = billingSheet_(); if (sh.getLastRow() < 2) return { ok:true, months: {}, unpaid: [], empty: true };
   var rows = sh.getRange(2, 1, sh.getLastRow() - 1, BILLING_HEADERS.length).getValues();
   var H = {}; BILLING_HEADERS.forEach(function(h, i) { H[h] = i; });
-  var months = {}, unpaidBy = {};
+  var months = {}, unpaidBy = {}, lastPay = {};
   rows.forEach(function(r) {
     var mo = String(r[H.date] || '').slice(0, 7); if (!/^\d{4}-\d{2}$/.test(mo)) return;
-    var m = months[mo] || (months[mo] = { billed: 0, onetime: 0, collected: 0, unpaid: 0, failed: 0, invoices: 0, customers: {} });
+    var m = months[mo] || (months[mo] = { billed: 0, onetime: 0, collected: 0, unpaid: 0, failed: 0, invoices: 0, tips: 0, customers: {} });
     var status = String(r[H.status] || ''), total = parseFloat(r[H.total]) || 0;
     if (r[H.kind] === 'invoice') {
       if (status === 'voided' || status === 'void') return;
@@ -830,13 +924,18 @@ function sgBilling_() {
         u.owed += rem; u.n++; u.statuses[status] = (u.statuses[status] || 0) + 1; if (!u.oldest || String(r[H.date]) < u.oldest) u.oldest = String(r[H.date]);
       }
     } else {
-      if (status === 'succeeded' || status === 'paid') m.collected += total;
+      var when = String(r[H.date] || ''), who = String(r[H.client] || '');
+      if (status === 'succeeded' || status === 'paid') { m.collected += total; m.tips += parseFloat(r[H.remaining]) || 0; }
       else if (status === 'failed') m.failed++;
+      // the latest card result per customer: a failure with nothing good after it is a card to chase
+      if (who && (status === 'succeeded' || status === 'failed') && (!lastPay[who] || when >= lastPay[who].when)) lastPay[who] = { when: when, status: status, amount: total };
     }
   });
-  Object.keys(months).forEach(function(k) { months[k].customers = Object.keys(months[k].customers).length; ['billed','onetime','collected','unpaid'].forEach(function(f) { months[k][f] = Math.round(months[k][f]); }); });
+  var cut60 = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+  var declining = Object.keys(lastPay).filter(function(k) { return lastPay[k].status === 'failed' && lastPay[k].when >= cut60; }).map(function(k) { return { name: k, when: lastPay[k].when, amount: Math.round(lastPay[k].amount) }; }).sort(function(a, b) { return b.when < a.when ? -1 : 1; }).slice(0, 40);
+  Object.keys(months).forEach(function(k) { months[k].customers = Object.keys(months[k].customers).length; ['billed','onetime','collected','unpaid','tips'].forEach(function(f) { months[k][f] = Math.round(months[k][f]); }); });
   var unpaid = Object.keys(unpaidBy).map(function(k) { var u = unpaidBy[k]; u.owed = Math.round(u.owed); return u; }).sort(function(a, b) { return b.owed - a.owed; }).slice(0, 40);
-  return { ok:true, months: months, unpaid: unpaid, rows: rows.length };
+  return { ok:true, months: months, unpaid: unpaid, declining: declining, rows: rows.length };
 }
 /* The webhook. Sweep&Go posts here on the events ticked on the token. We
    never act on the body: we log the event and ask for a sync. */
