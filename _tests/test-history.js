@@ -79,14 +79,23 @@ const iso = (d) => new Date(d + 'T12:00:00Z').toISOString();
   });
   await p.waitForTimeout(300);
   const lt = (await p.textContent('#roi')).replace(/\s+/g, ' ');
-  ok('the worth of a customer: price times expected stay, from the rate of leaving', /What a customer is worth\s*\$[\d,]+\s*over their time with you: \$85\/mo for about \d+ (months|\.?\d* ?years)/.test(lt) || /for about \d+\.\d years/.test(lt), lt.slice(lt.indexOf('What a customer'), lt.indexOf('What a customer') + 240));
-  ok('and says how it got there', /2 left out of \d+ customer-months, \d+\.\d% a month/.test(lt), lt.slice(lt.indexOf('At the last'), lt.indexOf('At the last') + 120));
+  // two leavers is not a rate: the block says so and uses the settings figure
+  ok('with too few leavers the worth uses the settings figure and says so', /What a customer is worth\s*\$[\d,]+\s*over their time with you: \$85\/mo for (\d+ months|\d+\.\d years)\. Too few have left to measure it yet \(2 in the last year; it takes 5\), so this uses the \d+-month figure/.test(lt), lt.slice(lt.indexOf('What a customer'), lt.indexOf('What a customer') + 300));
   ok('the ones who left: 6 and 27 months, so 16 on average', /The 2 who left stayed 16 months on average/.test(lt), lt.slice(lt.indexOf('The 2 who'), lt.indexOf('The 2 who') + 80));
-  ok('the ones still here, so far', /The \d+ still here have been with you \d+ (months|\.?\d* ?years) so far/.test(lt), lt.slice(lt.indexOf('still here') - 10, lt.indexOf('still here') + 60));
-  ok('the number sits on the closed heading too', /a customer is worth ~\$[\d,]+/.test(await p.$eval('#roi .fsum', e => e.textContent)));
-  const worth = await p.evaluate(() => lifetimeStats());
-  // 2 leavers over the last year; customer-months counted only inside the year
-  ok('the arithmetic: value = average price x (1 / monthly churn)', Math.abs(worth.value - worth.price * worth.expect) < 0.01 && worth.leftYear === 2 && worth.churn > 0 && worth.churn < 0.1, JSON.stringify(worth));
+  ok('the ones still here, so far', /The \d+ still here have been with you \d+ (months|\.?\d* ?years) so far/.test(lt));
+  ok('the closed heading says the number is assumed', /a customer is worth ~\$[\d,]+ \(assumed\)/.test(await p.$eval('#roi .fsum', e => e.textContent)), await p.$eval('#roi .fsum', e => e.textContent));
+  const worth = await p.evaluate(() => { const s = lifetimeStats(); return { s, setting: lifetimeMonths() }; });
+  ok('the arithmetic: value = average price x the settings months', !worth.s.measured && worth.s.expect === worth.setting && Math.abs(worth.s.value - worth.s.price * worth.setting) < 0.01 && worth.s.leftYear === 2, JSON.stringify(worth));
+  // five leavers in the year: measured now, and one leaver in a huge book would be capped at five years
+  await p.evaluate(() => {
+    for (let i = 3; i <= 6; i++) leads.push({ id:'x' + i, type:'ENQUIRY', name:'Left ' + i, phone:'63637570' + (10 + i), zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'cancelled', crmnotes:'[CD:2026-02-01] [CX:2026-08-01] [CXR:moved] [QA:a] ', created:'2026-02-01T12:00:00Z' });
+    render();
+  });
+  await p.waitForTimeout(300);
+  const lt2 = (await p.textContent('#roi')).replace(/\s+/g, ' ');
+  const w2 = await p.evaluate(() => lifetimeStats());
+  ok('with five leavers it measures: price x (1 / monthly churn)', w2.measured && w2.leftYear === 6 && Math.abs(w2.expect - Math.min(1 / w2.churn, 60)) < 0.01 && /Measured from the last year’s rate of leaving: 6 left out of \d+ customer-months/.test(lt2), JSON.stringify(w2) + ' ' + lt2.slice(lt2.indexOf('Measured'), lt2.indexOf('Measured') + 100));
+  ok('and never past five years, whatever the arithmetic says', await p.evaluate(() => { LIFETIME_MIN_LEAVERS = 1; const keep = leads; leads = keep.filter(l => l.id !== 'x3' && l.id !== 'x4' && l.id !== 'x5' && l.id !== 'x6' && l.id !== 'x1'); const s = lifetimeStats(); leads = keep; LIFETIME_MIN_LEAVERS = 5; return s.measured && s.capped && s.expect === 60; }));
 
   /* ---- the revenue card folds now, with the math on its own button ---- */
   ok('the revenue card is foldable', await p.$eval('#revenue', e => e.classList.contains('fold')));

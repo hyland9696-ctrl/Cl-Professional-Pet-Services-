@@ -4611,7 +4611,7 @@ function renderFoldSums(){
   try { var on = activeRecurring().filter(hasDeo); foldSum('deo', on.length + ' have it &middot; ' + money(on.reduce(function(a, l){ return a + deoMonthly(l); }, 0)) + '/mo'); } catch (e) {}
   try { var tk = gDayKey(new Date()); foldSum('traffic', views.filter(function(v){ return gDayKey(new Date(v.created)) === tk; }).length + ' visits today'); } catch (e) {}
   try { var due = leads.filter(reviewDue).length; foldSum('reviews', due ? due + ' to ask' : 'nobody due'); } catch (e) {}
-  try { var lt = lifetimeStats(); if (lt.expect) foldSum('roi', 'a customer is worth ~' + money(lt.value)); } catch (e) {}
+  try { var lt = lifetimeStats(); if (lt.value) foldSum('roi', 'a customer is worth ~' + money(lt.value) + (lt.measured ? '' : ' (assumed)')); } catch (e) {}
 }
 function openTerritory(){
   var box = document.getElementById('numbers');
@@ -5143,21 +5143,29 @@ function lifetimeStats(){
   });
   var avg = function(a){ return a.length ? a.reduce(function(x, y){ return x + y; }, 0) / a.length : 0; };
   var churn = activeMonths > 0 ? leftYear / activeMonths : 0;       // leavers per customer-month
-  var expect = churn > 0 ? 1 / churn : 0;
-  return { gone: gone.length, goneAvg: avg(gone), here: here.length, hereAvg: avg(here), leftYear: leftYear, activeMonths: activeMonths, churn: churn, expect: expect, price: avg(prices), value: avg(prices) * expect };
+  // One leaver in 693 customer-months read as 0.1% a month and "57.7 years".
+  // Jesse: "a dog does not live that long." A rate needs a handful of
+  // leavers before it means anything, and no stay runs past five years.
+  var measured = leftYear >= LIFETIME_MIN_LEAVERS && churn > 0;
+  var expect = measured ? Math.min(1 / churn, LIFETIME_CAP_MONTHS) : lifetimeMonths();
+  return { gone: gone.length, goneAvg: avg(gone), here: here.length, hereAvg: avg(here), leftYear: leftYear, activeMonths: activeMonths, churn: churn,
+           measured: measured, capped: measured && 1 / churn > LIFETIME_CAP_MONTHS, expect: expect, price: avg(prices), value: avg(prices) * expect };
 }
+var LIFETIME_MIN_LEAVERS = 5, LIFETIME_CAP_MONTHS = 60;
 function lifetimeBlock(){
   var s = lifetimeStats();
   if (!s.here && !s.gone) return '';
   var mo = function(m){ return m >= 24 ? (m / 12).toFixed(1) + ' years' : Math.round(m) + ' month' + (Math.round(m) === 1 ? '' : 's'); };
   var h = '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #eee;"><div style="font-weight:800;font-size:13px;margin-bottom:4px;">&#128100; What a customer is worth</div>';
-  if (s.expect){
+  if (s.price && s.expect){
     h += '<div class="big" style="font-size:22px;font-weight:800;color:#188663;">' + money(s.value) + '</div>' +
-      '<div class="sub" style="font-size:12px;color:#555;">over their time with you: ' + money(s.price) + '/mo for about ' + mo(s.expect) + '. ' +
-      'At the last year\u2019s rate of leaving (' + s.leftYear + ' left out of ' + Math.round(s.activeMonths) + ' customer-months, ' + (100 * s.churn).toFixed(1) + '% a month), that is how long a new one stays.</div>' +
+      '<div class="sub" style="font-size:12px;color:#555;">over their time with you: ' + money(s.price) + '/mo for ' + mo(s.expect) + '. ' +
+      (s.measured
+        ? 'Measured from the last year\u2019s rate of leaving: ' + s.leftYear + ' left out of ' + Math.round(s.activeMonths) + ' customer-months, ' + (100 * s.churn).toFixed(1) + '% a month' + (s.capped ? ', which would run past five years, so it is capped there' : '') + '.'
+        : 'Too few have left to measure it yet (' + s.leftYear + ' in the last year; it takes ' + LIFETIME_MIN_LEAVERS + '), so this uses the ' + lifetimeMonths() + '-month figure from the &#9881;&#65039; settings. It switches to the measured rate on its own once enough have left.') + '</div>' +
       '<div style="font-size:12px;color:#555;margin-top:6px;">Paying more than ' + money(s.value * 0.3) + ' in ads for one customer eats a third of what they bring in; the ad cards above show the cost per customer by channel.</div>';
   } else {
-    h += '<div class="sub" style="font-size:12px;color:#555;">Nobody has left in the last year' + (s.here ? ', so there is no rate of leaving to work from yet' : '') + '.' + (s.price ? ' Customers pay ' + money(s.price) + '/mo on average.' : '') + '</div>';
+    h += '<div class="sub" style="font-size:12px;color:#555;">No recurring customers with a price yet.</div>';
   }
   h += '<div style="font-size:12px;color:#707070;margin-top:6px;">' +
     (s.gone ? 'The ' + s.gone + ' who left stayed ' + mo(s.goneAvg) + ' on average. ' : '') +
