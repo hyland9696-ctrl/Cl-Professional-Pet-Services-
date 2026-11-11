@@ -164,6 +164,7 @@
       <div style="font-size:11px;color:#707070;margin-top:8px;">Tap any number or chart bar for the full breakdown &#9660;</div>
       <div id="t-detail" style="display:none;border-top:1px solid #eee;margin-top:10px;padding-top:10px;"></div>
     </div>
+    <div id="billing" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="revenue" style="display:none;background:#0F6E56;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;font-weight:600;"></div>
     <div id="roi" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="insights" class="ins" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
@@ -304,6 +305,7 @@
         <div style="font-weight:800;font-size:15px;">&#11014;&#65039; Import customers from Sweep&amp;Go</div>
         <button onclick="toggleImport()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:40px;">Close</button>
       </div>
+      <div id="sg-auto" style="display:none;background:#E6F2ED;border-radius:10px;padding:9px 12px;font-size:12.5px;color:#0F6E56;margin-bottom:10px;line-height:1.5;"></div>
       <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:10px;">
         Export three files from Sweep&amp;Go and pick them here. Nothing leaves your phone until you tap Import; the rows go straight into the lead sheet.
         Every active subscription becomes a <strong>closed customer</strong> with their price and start date; somebody already in the tracker is updated, not added twice.
@@ -1366,6 +1368,7 @@ function renderInsights(){
 function toggleNumbers(){
   var box = document.getElementById('numbers'), open = box.style.display === 'none';
   box.style.display = open ? 'block' : 'none';
+  if (open) loadBilling(false);
   // the panel wants the whole history; the list only ever needed a month
   if (open && trafficDaysLoaded < TRAFFIC_DAYS_FULL) loadLeads(false, null, true, TRAFFIC_DAYS_FULL);
   document.getElementById('numbersArrow').innerHTML = open ? '&#9652;' : '&#9662;';
@@ -1489,12 +1492,13 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
   // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM):([^\]]*)\]\s*/;
+  // ll = lat,lng from Sweep&Go's dispatch board; sgid = their client id. Both written by the nightly sync.
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1526,6 +1530,8 @@ function fuParse(crmnotes){
     else if (hit[1] === 'SV') m.sv = hit[2];
     else if (hit[1] === 'EM') m.em = m.em ? m.em + ',' + hit[2] : hit[2];   // the backend stamps one per send
     else if (hit[1] === 'NOEM') m.noem = hit[2];
+    else if (hit[1] === 'LL') m.ll = hit[2];
+    else if (hit[1] === 'SGID') m.sgid = hit[2];
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -1562,7 +1568,9 @@ function fuCompose(m){
          (m.day ? '[DAY:' + m.day + '] ' : '') +
          (m.sv ? '[SV:' + m.sv + '] ' : '') +
          (m.em ? '[EM:' + m.em + '] ' : '') +
-         (m.noem ? '[NOEM:' + m.noem + '] ' : '') + (m.text || '');
+         (m.noem ? '[NOEM:' + m.noem + '] ' : '') +
+         (m.ll ? '[LL:' + m.ll + '] ' : '') +
+         (m.sgid ? '[SGID:' + m.sgid + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -3570,6 +3578,8 @@ function toggleImport(){
   var p = document.getElementById('importPanel');
   var opening = p.style.display === 'none';
   p.style.display = opening ? 'block' : 'none';
+  var auto = document.getElementById('sg-auto'), si = sgSyncInfo();
+  if (auto){ auto.style.display = si ? 'block' : 'none'; if (si) auto.innerHTML = '<strong>Connected to Sweep&amp;Go.</strong> Customers, service days, prices and billing sync every night at 4am, and within minutes of a change. Last sync ' + esc(agoText(si.at)) + '. The uploads below are only for a one-off. <button onclick="sgSyncNow()" style="padding:4px 8px;min-height:28px;font-size:11px;margin-left:4px;">Sync now</button>'; }
   if (opening) p.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function sgRead(id){
@@ -3943,7 +3953,7 @@ function terrDrawHomes(){
   // customers drawn last, so they sit on top where a street has both
   homes.sort(function(a, b){ return (homeKind(a) === 'customer' ? 1 : 0) - (homeKind(b) === 'customer' ? 1 : 0); });
   homes.forEach(function(l){
-    var k = terrGeoKey(l), g = terrGeo[k];
+    var k = terrGeoKey(l), g = sgPin(l) || terrGeo[k];
     if (g && g.lat){
       var kind = homeKind(l), col = HOME_STYLE[kind][0];
       L.circleMarker([g.lat, g.lng], { radius: kind === 'customer' ? 5 : 4, color: col, weight: 1.5, fillColor: col, fillOpacity: kind === 'customer' ? .9 : .6 })
@@ -4112,7 +4122,9 @@ function scheduleStats(){
    every stop is tried on every other day to find the moves that take
    miles off the week. Distances are straight lines; roads run longer. */
 var MI = 0.621371;
+function sgPin(l){ var m = String(fuParse(l.crmnotes).ll || '').match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/); return m ? { lat: parseFloat(m[1]), lng: parseFloat(m[2]) } : null; }
 function routePt(l){
+  var sp = sgPin(l); if (sp) return { pt: [sp.lat, sp.lng], approx: false };
   var g = terrGeo[terrGeoKey(l)]; if (g && g.lat) return { pt: [g.lat, g.lng], approx: false };
   var z = ZIP_PTS[zipOf(l)]; if (z) return { pt: [z[0], z[1]], approx: true };
   return null;
@@ -4289,6 +4301,17 @@ function dayPlan(k){
 var schedDay = null;
 function pickSchedDay(k){ schedDay = k; render(); var el = document.getElementById('dayplan'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 function todayKey(){ return ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()]; }
+/* Sweep&Go's own route report, when the sync has one for that day. */
+function sgRouteLine(k){
+  var c = config.sg_routes; if (!c) return '';
+  var rep; try { rep = JSON.parse(c.value); } catch (e) { return ''; }
+  var days = ['sun','mon','tue','wed','thu','fri','sat'], out = '';
+  Object.keys(rep).forEach(function(d){
+    if (days[new Date(d + 'T12:00:00').getDay()] !== k) return;
+    (rep[d] || []).forEach(function(r){ out += '<div style="font-size:11.5px;color:#0F6E56;padding:4px 0;">&#128260; Sweep&amp;Go\u2019s plan for ' + esc(d) + (r.who ? ' (' + esc(r.who) + ')' : '') + ': ' + (r.jobs || 0) + ' jobs, ' + (r.mi != null ? Math.round(r.mi) + ' mi, ' : '') + (r.min ? hoursText(r.min) : '') + (r.drive ? ' with ' + hoursText(r.drive) + ' driving' : '') + (r.price ? ', ' + money(r.price) : '') + '</div>'; });
+  });
+  return out;
+}
 function renderDayPlan(rp){
   var a = routeAssume(), plans = {}, withStops = [];
   DAYS.forEach(function(d){ plans[d[0]] = dayPlan(d[0]); if (plans[d[0]].stops.length) withStops.push(d[0]); });
@@ -4315,6 +4338,7 @@ function renderDayPlan(rp){
       '<span style="flex:1;">' + (i + 1) + '. ' + (x.approx ? '~' : '') + '<a href="#card-' + esc(x.l.id) + '" onclick="jumpToLead(\'' + esc(x.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(x.l.name || '(no name)') + '</a> <span style="color:#707070;">' + esc(String(x.l.address || '').split(',')[0] || townOf(zipOf(x.l), x.l)) + ' &middot; ' + esc(dogsLabel(x.l.dogs)) + (hasDeo(x.l) ? ' &middot; deo' : '') + (visitsPerWeek(x.l) < 1 ? ' &middot; ' + esc(planLabel(x.l.service)) : '') + '</span></span>' +
       '<span style="white-space:nowrap;color:#707070;font-size:11.5px;">' + (x.leg >= 0.1 ? '+' + (x.leg < 10 ? x.leg.toFixed(1) : Math.round(x.leg)) + ' mi &middot; ' : '') + x.mins + ' min &middot; $' + Math.round(x.value) + '</span></div>'; }).join('') +
     '<div style="font-size:11.5px;color:#707070;padding:4px 0;border-top:1px solid #e6ece8;">then ~' + Math.round(P.miles - P.stops.reduce(function(a2, x){ return a2 + x.leg; }, 0)) + ' mi back, home by ' + clockText(P.end) + (P.approx ? '. ~ means the home is placed at its ZIP centre; pin the homes for real legs.' : '') + '</div>' +
+    sgRouteLine(k) +
     // assumptions
     '<div class="fold folded" data-fold="sched-assume" style="margin-top:8px;"><div style="font-size:12px;color:#555;cursor:pointer;">&#9881;&#65039; Assumptions: ' + a.mph + ' mph on the road, ' + a.base + ' min a stop + ' + a.perDog + ' min per extra dog, start ' + esc(a.start) + '</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;font-size:12px;">' +
@@ -4373,6 +4397,77 @@ function renderSchedule(){
   if (!total) h += '<div style="font-size:12.5px;color:#9aa5a0;">No active recurring customers yet.</div>';
   box.innerHTML = h;
   box.querySelectorAll('.fold[data-fold]').forEach(function(c){ var k = c.getAttribute('data-fold'); foldApply(c, k === 'sched-routes' || k === 'sched-day'); });
+}
+
+/* ============================================================
+   BILLING, from Sweep&Go. Corey: "a month we did $7k and the next month
+   only $4.9k, is it one-time jobs or did recurring customers cancel?"
+   The sync copies every invoice and payment; the backend folds them into
+   billed, collected and unpaid by month, and who owes what. Fetched when
+   the numbers panel opens, kept an hour.
+   ============================================================ */
+var billing = null;
+function loadBilling(force){
+  if (!CRM_ENDPOINT) return;
+  if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_billing') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ billing = c.data; renderBilling(); return; } } catch (e) {} }
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'billing', key: KEY }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if (d && d.ok && (d.months || d.empty)){ billing = d; try { localStorage.setItem('clpps_billing', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderBilling(); } })
+    .catch(function(){});
+}
+function billingKind(name){
+  var l = leads.filter(function(x){ return isLead(x) && sgNormName(x.name) === sgNormName(name); })[0];
+  return l ? planLabel(l.service).toLowerCase() : '';
+}
+function sgNormName(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+function leadByName(name){ var n = sgNormName(name); return leads.filter(function(x){ return isLead(x) && sgNormName(x.name) === n; })[0] || null; }
+function markOwed(id, amt, since){
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  var m = fuParse(l.crmnotes); m.ow = Math.round(amt); m.owSince = /^\d{4}-\d{2}-\d{2}$/.test(String(since || '')) ? since : new Date().toISOString().slice(0, 10);
+  stampBy(m); l.crmnotes = fuCompose(m); l.updated = new Date().toISOString();
+  saveLocal(); render();
+  post({ action:'update', key:KEY, id:id, notes:l.crmnotes }, '$' + m.ow + ' behind on payment, on their card');
+}
+function renderBilling(){
+  var box = document.getElementById('billing'); if (!box) return;
+  var head = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128179; Billed, collected, owed <span style="font-size:11px;font-weight:600;color:#707070;">from Sweep&amp;Go</span></div>';
+  if (!billing){
+    box.innerHTML = head + '<div style="font-size:12.5px;color:#9aa5a0;">' + (sgSyncInfo() ? 'Loading\u2026' : 'Not connected yet. Once the Sweep&amp;Go token is in the script and setupSweepAndGo() has run, every invoice and payment lands here on its own.') + '</div>';
+    return;
+  }
+  if (billing.empty || !billing.months){ box.innerHTML = head + '<div style="font-size:12.5px;color:#9aa5a0;">No invoices synced yet. Tap Sync now on the line above the list.</div>'; return; }
+  var ms = Object.keys(billing.months).sort(), nowK = monthKeyOf(new Date());
+  var last12 = ms.filter(function(k){ return k >= monthAdd(nowK, -11); });
+  var cur = billing.months[nowK] || { billed: 0, collected: 0, unpaid: 0, onetime: 0, customers: 0, failed: 0 }, prev = billing.months[monthAdd(nowK, -1)] || cur;
+  var ytd = { billed: 0, collected: 0, unpaid: 0 }; ms.forEach(function(k){ if (k.slice(0, 4) === nowK.slice(0, 4)){ ytd.billed += billing.months[k].billed; ytd.collected += billing.months[k].collected; ytd.unpaid += billing.months[k].unpaid; } });
+  var maxV = 1; last12.forEach(function(k){ maxV = Math.max(maxV, billing.months[k].billed, billing.months[k].collected); });
+  var h = head +
+    '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">What Sweep&amp;Go invoiced each month (voids out), what the cards and checks actually brought in, and what is still owed. Judge a month by billed; collected is the admin.</div>' +
+    '<div class="stats" style="margin-bottom:8px;grid-template-columns:1fr 1fr;">' +
+      '<div><div class="big">' + money(cur.billed) + '</div><div class="sub">billed ' + monthShort(nowK) + ' &middot; ' + money(prev.billed) + ' last month</div></div>' +
+      '<div><div class="big" style="color:#188663;">' + money(cur.collected) + '</div><div class="sub">collected ' + monthShort(nowK) + ' &middot; ' + money(prev.collected) + ' last month</div></div>' +
+      '<div><div class="big">' + money(ytd.billed) + '</div><div class="sub">billed ' + nowK.slice(0, 4) + ' &middot; ' + money(ytd.collected) + ' collected</div></div>' +
+      '<div><div class="big" style="color:#b45309;">' + money(ytd.unpaid) + '</div><div class="sub">invoiced this year, still unpaid</div></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:3px;align-items:flex-end;height:64px;margin-bottom:2px;">' + last12.map(function(k){ var m = billing.months[k]; return '<div title="' + k + ': billed $' + m.billed + ', collected $' + m.collected + '" style="flex:1;display:flex;gap:1px;align-items:flex-end;height:100%;">' +
+      '<div style="flex:1;background:#B45309;border-radius:3px 3px 0 0;height:' + Math.max(2, Math.round(60 * m.billed / maxV)) + 'px;"></div><div style="flex:1;background:#188663;border-radius:3px 3px 0 0;height:' + Math.max(2, Math.round(60 * m.collected / maxV)) + 'px;"></div></div>'; }).join('') + '</div>' +
+    '<div style="display:flex;gap:3px;margin-bottom:4px;">' + last12.map(function(k){ return '<div style="flex:1;text-align:center;font-size:9.5px;color:#9aa5a0;">' + monthShort(k).slice(0, 1) + '</div>'; }).join('') + '</div>' +
+    '<div style="font-size:11px;color:#707070;margin-bottom:8px;"><span style="display:inline-block;width:9px;height:9px;background:#B45309;border-radius:2px;vertical-align:-1px;"></span> billed &nbsp; <span style="display:inline-block;width:9px;height:9px;background:#188663;border-radius:2px;vertical-align:-1px;"></span> collected</div>';
+  // the months, one line each
+  h += '<div class="fold folded" data-fold="bill-months" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong>By month</strong><span style="color:#555;">' + last12.length + ' months</span></div><div class="fold-body">' +
+    '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;"><tr style="color:#707070;text-align:left;"><th>Month</th><th style="text-align:right;">Billed</th><th style="text-align:right;">One-time</th><th style="text-align:right;">Collected</th><th style="text-align:right;">Unpaid</th><th style="text-align:right;">Customers</th></tr>' +
+    last12.slice().reverse().map(function(k){ var m = billing.months[k]; return '<tr style="border-top:1px solid #f0f0f0;"><td>' + monthShort(k) + ' ' + k.slice(2, 4) + '</td><td style="text-align:right;">' + money(m.billed) + '</td><td style="text-align:right;color:#707070;">' + (m.onetime ? money(m.onetime) : '\u2014') + '</td><td style="text-align:right;color:#188663;">' + money(m.collected) + '</td><td style="text-align:right;color:' + (m.unpaid ? '#b45309' : '#9aa5a0') + ';">' + (m.unpaid ? money(m.unpaid) : '\u2014') + '</td><td style="text-align:right;">' + m.customers + '</td></tr>'; }).join('') + '</table></div></div>';
+  // who owes what
+  var un = billing.unpaid || [], owedTotal = un.reduce(function(a, u){ return a + u.owed; }, 0);
+  h += '<div class="fold" data-fold="bill-owed" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong style="color:#b45309;">Owed</strong><span style="color:#555;">' + un.length + ' customer' + (un.length === 1 ? '' : 's') + ' &middot; ' + money(owedTotal) + '</span></div><div class="fold-body">' +
+    (un.length ? '<div class="sub" style="font-size:11px;color:#9aa5a0;margin:2px 0 4px;">Unpaid invoices by customer, biggest first. Draft means Sweep&amp;Go generated it and never sent it; Overdue and Failed were sent. One tap puts the amount on their card.</div>' +
+      un.slice(0, 25).map(function(u){ var l = leadByName(u.name), st = Object.keys(u.statuses || {}).map(function(k){ return u.statuses[k] + ' ' + k; }).join(', '), fu = l ? fuParse(l.crmnotes) : null;
+        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
+          '<span>' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') + ' <span style="color:#707070;">' + esc(st) + (u.oldest ? ' &middot; since ' + esc(u.oldest) : '') + '</span></span>' +
+          '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (l ? (fu.ow ? ' <span style="color:#9aa5a0;font-size:11px;">on card</span>' : ' <button onclick="markOwed(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">On their card</button>') : '') + '</span></div>'; }).join('')
+      : '<div class="sub" style="padding-left:10px;">Nothing owed. Every invoice is paid.</div>') + '</div></div>';
+  box.innerHTML = h;
+  box.querySelectorAll('.fold[data-fold]').forEach(function(c){ foldApply(c, c.getAttribute('data-fold') === 'bill-owed'); });
 }
 
 /* ============================================================
@@ -4546,7 +4641,7 @@ function renderReviewTrend(){
 }
 
 /* ---- fold-up cards in the numbers panel ---- */
-var FOLD_CARDS = ['territory', 'undertable', 'season', 'pricelog', 'schedule', 'deo', 'traffic', 'revenue', 'roi', 'insights', 'reviews'];
+var FOLD_CARDS = ['territory', 'undertable', 'season', 'pricelog', 'schedule', 'deo', 'traffic', 'billing', 'revenue', 'roi', 'insights', 'reviews'];
 function foldKey(card){ return card.id || card.getAttribute('data-fold') || ''; }
 function foldState(key){ try { return localStorage.getItem('clpps_fold_' + key); } catch (e) { return null; } }
 function foldApply(card, openByDefault){
@@ -4612,6 +4707,7 @@ function renderFoldSums(){
   try { var tk = gDayKey(new Date()); foldSum('traffic', views.filter(function(v){ return gDayKey(new Date(v.created)) === tk; }).length + ' visits today'); } catch (e) {}
   try { var due = leads.filter(reviewDue).length; foldSum('reviews', due ? due + ' to ask' : 'nobody due'); } catch (e) {}
   try { var lt = lifetimeStats(); if (lt.value) foldSum('roi', 'a customer is worth ~' + money(lt.value) + (lt.measured ? '' : ' (assumed)')); } catch (e) {}
+  try { if (billing && !billing.empty){ var bk = monthKeyOf(new Date()), bm = billing.months[bk] || { billed: 0, collected: 0 }; var owed = (billing.unpaid || []).reduce(function(a, u){ return a + u.owed; }, 0); foldSum('billing', money(bm.billed) + ' billed &middot; ' + money(bm.collected) + ' in' + (owed ? ' &middot; ' + money(owed) + ' owed' : '')); } } catch (e) {}
 }
 function openTerritory(){
   var box = document.getElementById('numbers');
@@ -4727,8 +4823,38 @@ function renderHealth(){
     ? ';background:#FDF3DC;color:#7a5c00;box-shadow:0 1px 4px rgba(0,0,0,0.06);'
     : ';background:#fff;color:#707070;box-shadow:0 1px 4px rgba(0,0,0,0.06);';
   box.innerHTML = (worry ? '<strong>&#9888;&#65039; No website visits recorded ' + (lastV ? 'for ' + Math.round(vh) + ' hours' : 'in the last ' + (trafficDaysLoaded || 30) + ' days') + '.</strong> The site may be fine; the link from the site to this tracker may not be. Open clpropetservices.com on a phone that is not marked as a team phone, then pull to refresh here. If the visit does not show, the Apps Script deployment needs looking at.<br>' : '') +
-    '&#128268; Website &rarr; tracker: last visit ' + (lastV ? agoText(lastV) : 'never') + ' &middot; last lead ' + (lastL ? agoText(lastL) : 'never');
+    '&#128268; Website &rarr; tracker: last visit ' + (lastV ? agoText(lastV) : 'never') + ' &middot; last lead ' + (lastL ? agoText(lastL) : 'never') + sgSyncLine();
   box.style.display = 'block';
+}
+/* ---- Sweep&Go sync status ----
+   The nightly sync writes a CONFIG row; this is the one line the office
+   sees about it. Stale by more than a day and a half means the trigger
+   stopped, which is worth knowing before anyone trusts the schedule. */
+function sgSyncInfo(){
+  var c = config.sg_last_sync; if (!c) return null;
+  try { var o = JSON.parse(c.value); o.at = o.at || c.created; return o; } catch (e) { return null; }
+}
+function sgSyncLine(){
+  var o = sgSyncInfo(); if (!o) return '';
+  var h = (Date.now() - new Date(o.at).getTime()) / 3600000, stale = h > 36;
+  return '<br>&#128260; Sweep&amp;Go: synced ' + esc(agoText(o.at)) + ' &middot; ' + (o.clients || 0) + ' clients' + (o.added ? ' &middot; ' + o.added + ' new' : '') + (o.updated ? ' &middot; ' + o.updated + ' updated' : '') +
+    (o.errors && o.errors.length ? ' <span style="color:#b45309;">&middot; ' + esc(o.errors.join('; ')).slice(0, 160) + '</span>' : '') +
+    (stale ? ' <strong style="color:#b45309;">&middot; more than a day old: open the Apps Script project and check the sgSync trigger</strong>' : '') +
+    ' <button onclick="sgSyncNow()" style="margin-left:6px;padding:4px 8px;min-height:28px;font-size:11px;">Sync now</button>';
+}
+var sgSyncBusy = false;
+function sgSyncNow(){
+  if (sgSyncBusy || !CRM_ENDPOINT) return; sgSyncBusy = true; toast('Asking Sweep&Go\u2026 this takes about a minute');
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'sgsync', key: KEY }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      sgSyncBusy = false;
+      if (!d || !d.ok){ toast(d && d.error ? 'Sync failed: ' + d.error : 'Sync failed - has the script been updated?'); return; }
+      toast('Synced: ' + (d.clients || 0) + ' clients, ' + (d.added || 0) + ' new, ' + (d.updated || 0) + ' updated' + (d.errors && d.errors.length ? ' (' + d.errors.length + ' problem' + (d.errors.length === 1 ? '' : 's') + ')' : ''));
+      try { localStorage.removeItem('clpps_billing'); } catch (e) {}
+      loadLeads(false, function(){ loadBilling(true); });
+    })
+    .catch(function(){ sgSyncBusy = false; toast('Sync failed, check connection'); });
 }
 function toggleReviewSettings(){
   var f = document.getElementById('rv-settings');
@@ -5443,6 +5569,7 @@ function render(){
   renderPriceLog();
   renderSchedule();
   renderDeo();
+  renderBilling();
   renderReviews();
   renderReviewTrend();
   renderFoldSums();   // last: it writes onto headings the renderers above just rebuilt

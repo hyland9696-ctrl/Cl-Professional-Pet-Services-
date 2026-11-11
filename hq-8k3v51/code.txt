@@ -441,9 +441,20 @@ function list_(p) {
 
 function doPost(e) {
   var body;
+  // Sweep&Go's webhook: the secret word in the address is the whole handshake
+  var qp = (e && e.parameter) || {};
+  if (qp.hook) return json_(sgHook_(qp.hook, e));
   if (!e || !e.postData || e.postData.length > MAX_POST_BYTES) return json_({ok:false, error:'too big'});
   try { body = JSON.parse(e.postData.contents); } catch (err) { return json_({ok:false}); }
   if (body.action === 'list') return list_({ key: body.key, days: body.days });
+  if (body.action === 'billing') {
+    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    return json_(sgBilling_());
+  }
+  if (body.action === 'sgsync') {
+    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    try { return json_(sgSync()); } catch (e2) { return json_({ok:false, error:String(e2 && e2.message || e2).slice(0, 200)}); }
+  }
 
   if (body.action === 'lead' && body.lead) {
     var l = body.lead;
@@ -535,6 +546,330 @@ function doPost(e) {
   }
 
   return json_({ok:false});
+}
+
+/* ======================================================================
+   SWEEP&GO. Jesse: "Set up everything you can, make it work for me."
+   The Open API (https://openapi.sweepandgo.com/docs/) gives everything the
+   CSV uploads gave and more: every client with their service day, every
+   subscription with its price, every invoice and payment, the dispatch
+   board with map coordinates, and Sweep&Go's own route report. The token
+   and the webhook secret live in Script Properties (SG_TOKEN, SG_HOOK),
+   never in this file. Run setupSweepAndGo() once: it checks the token,
+   does the first sync and schedules one every night at 4am.
+
+   What a sync does:
+     1. clients (active + inactive) -> customer rows in the lead sheet
+        (status Active or Account closed, service day, source, phone,
+        email, address), matched by phone, then email, then name; office
+        notes are kept, the markers Sweep&Go owns are replaced.
+     2. subscriptions -> the monthly price, dogs, plan, start/close dates
+        and the reason they left.
+     3. dispatch board for the next seven days -> [LL:lat,lng] on each
+        customer, so the map and routes use Sweep&Go's own pins.
+     4. invoices + payments -> the 'billing' sheet, which the tracker reads
+        as billed / collected / unpaid by month.
+     5. route planning report for today and tomorrow -> a CONFIG row the
+        Day plan shows beside its own estimate.
+   The webhook does not carry data we trust blindly: any client or
+   subscription event just asks for a sync, at most once every ten
+   minutes, so the tracker follows Sweep&Go within minutes of a change.
+   ====================================================================== */
+var SG_BASE = 'https://openapi.sweepandgo.com';
+function sgToken_() { try { return PropertiesService.getScriptProperties().getProperty('SG_TOKEN') || ''; } catch (e) { return ''; } }
+function sgHookWord_() { try { return PropertiesService.getScriptProperties().getProperty('SG_HOOK') || ''; } catch (e) { return ''; } }
+function sgFetch_(path, method, payload) {
+  var token = sgToken_(); if (!token) throw new Error('SG_TOKEN is not set (Project Settings > Script Properties)');
+  var opts = { method: method || 'get', headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }, muteHttpExceptions: true };
+  if (payload) { opts.contentType = 'application/json'; opts.payload = JSON.stringify(payload); }
+  var r = UrlFetchApp.fetch(SG_BASE + path, opts), code = r.getResponseCode();
+  if (code >= 400) throw new Error('Sweep&Go ' + code + ' on ' + path + ': ' + r.getContentText().slice(0, 120));
+  return JSON.parse(r.getContentText() || '{}');
+}
+/* Walks every page of a paginated list. Two shapes exist: {data, paginate}
+   and {invoices|payments|subscriptions: {data, last_page}}. */
+function sgAll_(path, key, maxPages) {
+  var out = [], page = 1, pages = 1;
+  do {
+    var d = sgFetch_(path + (path.indexOf('?') >= 0 ? '&' : '?') + 'page=' + page + '&length=100');
+    var box = key && d[key] ? d[key] : d;
+    (box.data || []).forEach(function(x) { out.push(x); });
+    pages = box.paginate ? (box.paginate.total_pages || 1) : (box.last_page || 1);
+    page++;
+  } while (page <= pages && page <= (maxPages || 40));
+  return out;
+}
+function sgDigits_(p) { var d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : ''; }
+function sgNorm_(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+/* Sweep&Go's frequency words -> the tracker's plan words. */
+function sgPlan_(f) {
+  var x = String(f || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (/twotimes|2xw|twice/.test(x)) return 'twice a week';
+  if (/biweek|everyother|bw$|2w/.test(x) && !/2xw/.test(x)) return 'every other week';
+  if (/onceamonth|monthly|1xm/.test(x)) return 'monthly';
+  if (/onceaweek|weekly|1xw/.test(x)) return 'weekly';
+  if (/onetime|once$/.test(x)) return 'one-time';
+  return '';
+}
+function sgVisitsPerMonth_(plan) { return plan === 'twice a week' ? 8.67 : plan === 'every other week' ? 2.17 : plan === 'monthly' ? 1 : 4.33; }
+/* A subscription's price as dollars a month. Monthly billing is the price;
+   other intervals are multiplied up by how often they bill. */
+function sgMonthly_(sub, plan) {
+  var p = parseFloat(sub.price) || 0, bi = String(sub.billing_interval || 'monthly').toLowerCase();
+  if (bi === 'monthly' || bi === 'month') return p;
+  if (bi === 'weekly' || bi === 'week') return p * 4.33;
+  if (bi === 'biweekly' || bi === 'bi_weekly' || bi === 'two_weeks') return p * 2.17;
+  if (bi === 'yearly' || bi === 'annual') return p / 12;
+  return p * sgVisitsPerMonth_(plan);   // per cleanup / daily: one charge a visit
+}
+function sgDayKeys_(days) {
+  var seen = {}, order = ['mon','tue','wed','thu','fri','sat','sun'];
+  return String(days || '').split(/[,;&\/ ]+/).map(function(x) { return x.trim().slice(0, 3).toLowerCase(); })
+    .filter(function(k) { if (order.indexOf(k) < 0 || seen[k]) return false; seen[k] = 1; return true; })
+    .sort(function(a, b) { return order.indexOf(a) - order.indexOf(b); }).join(',');
+}
+var SG_REASONS = { price: 'price', cost: 'price', expensive: 'price', moved: 'moved', moving: 'moved', relocat: 'moved', dog: 'nodog', pet: 'nodog', passed: 'nodog', service: 'service', quality: 'service', unhappy: 'service', pay: 'nonpay', nonpay: 'nonpay', season: 'season', winter: 'season', self: 'diy', myself: 'diy', themselves: 'diy' };
+function sgReason_(t) { var x = String(t || '').toLowerCase(); for (var k in SG_REASONS) if (x.indexOf(k) >= 0) return SG_REASONS[k]; return x ? 'other' : ''; }
+/* Replace the markers Sweep&Go owns in a notes string, keep everything else. */
+function sgSetMarkers_(notes, set) {
+  var s = String(notes || '');
+  Object.keys(set).forEach(function(k) {
+    s = s.replace(new RegExp('\\[' + k + ':[^\\]]*\\]\\s*', 'g'), '');
+    if (set[k] !== '' && set[k] != null) s = '[' + k + ':' + String(set[k]).replace(/[\[\]]/g, '') + '] ' + s;
+  });
+  return s;
+}
+function sgSource_(c) {
+  var t = String(c.tracking_field || '');
+  var m = t.match(/utm_source=([^&\s]+)/i);
+  if (m) { var u = m[1].toLowerCase(); if (/facebook|meta|instagram|fb/.test(u)) return 'Meta Ads'; if (/google/.test(u)) return 'Google Ads'; if (/yardsign/.test(u)) return 'Yard sign'; return m[1]; }
+  var h = String(c.how_heard_answer || c.how_heard_about_us || '').toLowerCase();
+  if (!h) return '';
+  if (/facebook|instagram|meta/.test(h)) return 'Meta (organic)';
+  if (/google/.test(h)) return 'Google (organic)';
+  if (/refer|friend|neighbor|word/.test(h)) return 'Referral';
+  if (/nextdoor/.test(h)) return 'Nextdoor';
+  if (/sign|truck|flyer/.test(h)) return 'Yard sign';
+  return String(c.how_heard_answer || c.how_heard_about_us).slice(0, 30);
+}
+/* The sync. Returns a summary the tracker can show. */
+function sgSync() {
+  var lock = LockService.getScriptLock(); if (!lock.tryLock(5000)) return { ok:false, error:'busy' };
+  var summary = { ok:true, started: new Date().toISOString(), clients: 0, added: 0, updated: 0, subs: 0, pinned: 0, invoices: 0, payments: 0, routes: 0, errors: [] };
+  try {
+    var sh = sheet_(), data = sh.getDataRange().getValues();
+    var iId = HEADERS.indexOf('id'), iC = HEADERS.indexOf('created');
+    // newest row per id, plus lookups by phone, email and name
+    var latest = {}, byPhone = {}, byMail = {}, byName = {};
+    for (var i = 1; i < data.length; i++) {
+      var id = String(data[i][iId]), key = String(data[i][iC] || '');
+      if (!latest[id] || key >= latest[id].key) latest[id] = { row: i, key: key };
+    }
+    Object.keys(latest).forEach(function(id) {
+      var r = data[latest[id].row], o = {}; for (var j = 0; j < HEADERS.length; j++) o[HEADERS[j]] = r[j];
+      if (o.status === 'deleted' || /^(VIEW|QVIEW|OUTAREA|CONFIG|SPEND|AUTH|WAITLIST)$/.test(String(o.type))) return;
+      var d = sgDigits_(o.phone); if (d && !byPhone[d]) byPhone[d] = id;
+      var e = String(o.email || '').trim().toLowerCase(); if (e && !byMail[e]) byMail[e] = id;
+      var n = sgNorm_(o.name); if (n && !byName[n]) byName[n] = id;
+    });
+    // ---- subscriptions first: price, dogs, plan, dates, by client email/name ----
+    var subs = [];
+    try { subs = sgAll_('/api/v2/subscriptions', 'subscriptions'); summary.subs = subs.length; } catch (e1) { summary.errors.push('subscriptions: ' + e1.message); }
+    var subBy = {};   // key -> { plan, monthly, deo, dogs, start, end, reason, status, active }
+    subs.forEach(function(s) {
+      var k = String(s.client_email || '').trim().toLowerCase() || 'n:' + sgNorm_(s.client_name);
+      var b = subBy[k] || (subBy[k] = { plan: '', monthly: 0, deo: 0, dogs: '', start: '', end: '', reason: '', comment: '', active: false, paused: false, anyStart: '' });
+      var active = /^(active|paused)$/i.test(String(s.status || ''));
+      var isDeo = /deodor|sanit/i.test(String(s.name || '') + ' ' + String(s.pricing_plan || '') + ' ' + String(s.service_plan || ''));
+      var plan = sgPlan_(s.frequency || s.service_plan);
+      if (isDeo) { if (active) b.deo += sgMonthly_(s, plan || b.plan || 'weekly'); return; }
+      if (!b.anyStart || (s.start_date && s.start_date < b.anyStart)) b.anyStart = s.start_date || b.anyStart;
+      if (active || !b.active) {
+        if (active) { b.active = true; b.paused = /paused/i.test(String(s.status)); }
+        b.plan = plan || b.plan; b.monthly = sgMonthly_(s, plan); b.dogs = String(s.number_of_dogs || b.dogs || '');
+        b.start = s.start_date || b.start; b.end = s.canceled_at ? String(s.canceled_at).slice(0, 10) : (s.end_date || ''); b.reason = s.termination_reason || ''; b.comment = s.termination_comment || '';
+      }
+    });
+    // ---- clients ----
+    var clients = [];
+    try { clients = sgAll_('/api/v1/clients/active').concat(sgAll_('/api/v1/clients/inactive')); } catch (e2) { summary.errors.push('clients: ' + e2.message); }
+    summary.clients = clients.length;
+    var today = new Date().toISOString().slice(0, 10), appended = [];
+    clients.forEach(function(c) {
+      var phone = sgDigits_(c.cell_phone) || sgDigits_(c.home_phone), email = String(c.email || '').trim().toLowerCase();
+      var name = (String(c.first_name || '') + ' ' + String(c.last_name || '')).trim();
+      var id = (phone && byPhone[phone]) || (email && byMail[email]) || byName[sgNorm_(name)] || (phone ? 'p' + phone : 'sg' + String(c.client || sgNorm_(name)).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 20));
+      var sub = subBy[email] || subBy['n:' + sgNorm_(name)] || null;
+      var active = String(c.status || '').toLowerCase() === 'active' && !c.one_time_client;
+      var status = active ? 'closed' : 'cancelled';
+      var plan = (sub && sub.plan) || sgPlan_(c.cleanup_frequency) || '';
+      var total = sub ? Math.round(sub.monthly + sub.deo) : 0;
+      var price = total ? '$' + total + '/mo' + (sub.deo ? ' (includes $' + Math.round(sub.deo) + ' deodorize)' : '') : '';
+      var set = { DAY: sgDayKeys_(c.service_days), CD: (sub && (sub.start || sub.anyStart)) || '', SGID: String(c.client || '') };
+      if (!active) { set.CX = (sub && sub.end) || ''; set.CXR = sgReason_(sub && (sub.reason + ' ' + sub.comment)); } else { set.CX = ''; set.CXR = ''; }
+      var src = sgSource_(c);
+      var existing = latest[id] ? latest[id].row : -1;
+      if (existing === -2) return;   // already appended this run (the same person twice in Sweep&Go)
+      if (existing >= 0) {
+        var row = data[existing], oldNotes = String(row[HEADERS.indexOf('crmnotes')] || ''), oldStatus = String(row[HEADERS.indexOf('status')] || '');
+        if (src && oldNotes.indexOf('[SRC:') < 0) set.SRC = src;
+        var notes = sgSetMarkers_(oldNotes, set);
+        var changes = { status: status, crmnotes: notes };
+        if (price) changes.price = price;
+        if (plan) changes.service = plan;
+        if (sub && sub.dogs) changes.dogs = sub.dogs;
+        if (c.address && !row[HEADERS.indexOf('address')]) changes.address = String(c.address) + (c.zip_code ? ', ' + c.zip_code : '');
+        if (c.zip_code && !row[HEADERS.indexOf('zip')]) changes.zip = String(c.zip_code);
+        if (phone && !row[HEADERS.indexOf('phone')]) changes.phone = phone;
+        if (email && !row[HEADERS.indexOf('email')]) changes.email = email;
+        if (sub && sub.deo) changes.deodorize = 'every visit ($15/treatment)';
+        // a customer the office marked Not interested or deleted is left alone
+        if (oldStatus === 'deleted' || oldStatus === 'lost') return;
+        var touched = false;
+        Object.keys(changes).forEach(function(h) {
+          var col = HEADERS.indexOf(h); if (col < 0) return;
+          if (String(row[col] || '') === String(changes[h])) return;
+          sh.getRange(existing + 1, col + 1).setValue(safeCell_(changes[h])); touched = true;
+        });
+        if (touched) { sh.getRange(existing + 1, HEADERS.indexOf('updated') + 1).setValue(new Date().toISOString()); summary.updated++; }
+      } else {
+        if (src) set.SRC = src;
+        var notes2 = sgSetMarkers_('[IC:w] [QA:a] Synced from Sweep&Go ' + today + '.', set);
+        var l = { id: id, created: (sub && (sub.start || sub.anyStart) ? (sub.start || sub.anyStart) + 'T12:00:00.000Z' : new Date().toISOString()), type: 'SAVED', name: name, phone: phone, email: email,
+                  address: String(c.address || '') + (c.zip_code ? ', ' + c.zip_code : ''), zip: String(c.zip_code || ''), service: plan, dogs: sub ? sub.dogs : '', yard: '',
+                  deodorize: sub && sub.deo ? 'every visit ($15/treatment)' : 'no', hero: '', price: price, manual: '', honored: '', notes: '', status: status, crmnotes: notes2, updated: new Date().toISOString() };
+        appended.push(HEADERS.map(function(h) { return safeCell_(l[h] == null ? '' : l[h]); }));
+        latest[id] = { row: -2, key: l.created }; summary.added++;
+      }
+    });
+    if (appended.length) sh.getRange(sh.getLastRow() + 1, 1, appended.length, HEADERS.length).setValues(appended);
+    // ---- dispatch board: Sweep&Go's own pins for the next seven days ----
+    try {
+      var pins = {}, dayMs = 86400000;
+      for (var k = 0; k < 7; k++) {
+        var dt = new Date(Date.now() + k * dayMs).toISOString().slice(0, 10);
+        var jobs = sgFetch_('/api/v1/dispatch_board/jobs_for_date?date=' + dt);
+        (jobs.data || []).forEach(function(j) { if (j.lat && j.lng && j.full_name) pins[sgNorm_(j.full_name)] = { lat: j.lat, lng: j.lng, phone: sgDigits_(j.cell_phone) || sgDigits_(j.home_phone) }; });
+      }
+      var data2 = sh.getDataRange().getValues(), nCol = HEADERS.indexOf('crmnotes'), nameCol = HEADERS.indexOf('name'), phCol = HEADERS.indexOf('phone'), done = {};
+      for (var r2 = data2.length - 1; r2 >= 1; r2--) {
+        var pn = sgNorm_(data2[r2][nameCol]), pin = pins[pn]; if (!pin || done[pn]) continue;
+        var ph2 = sgDigits_(data2[r2][phCol]); if (pin.phone && ph2 && pin.phone !== ph2) continue;
+        done[pn] = 1;
+        var ll = '[LL:' + Number(pin.lat).toFixed(5) + ',' + Number(pin.lng).toFixed(5) + '] ', cur = String(data2[r2][nCol] || '');
+        if (cur.indexOf(ll) >= 0) continue;
+        sh.getRange(r2 + 1, nCol + 1).setValue(safeCell_(sgSetMarkers_(cur, { LL: Number(pin.lat).toFixed(5) + ',' + Number(pin.lng).toFixed(5) })));
+        summary.pinned++;
+      }
+    } catch (e3) { summary.errors.push('dispatch: ' + e3.message); }
+    // ---- billing: invoices and payments into their own sheet ----
+    try { summary.invoices = sgPullBilling_(); } catch (e4) { summary.errors.push('billing: ' + e4.message); }
+    // ---- Sweep&Go's route report for today and tomorrow ----
+    try {
+      var rep = {};
+      [0, 1].forEach(function(k2) { var d2 = new Date(Date.now() + k2 * 86400000).toISOString().slice(0, 10); var rr = sgFetch_('/api/v2/report/route_planning_report?date=' + d2); rep[d2] = (rr.route_reports || []).map(function(x) { return { who: x.assigned_to_name, min: x.duration, drive: x.driving_time, clean: x.cleanup_time, mi: x.distance, jobs: x.number_of_jobs, price: x.price }; }); summary.routes += rep[d2].length; });
+      sgConfig_('sg_routes', JSON.stringify(rep));
+    } catch (e5) { summary.errors.push('routes: ' + e5.message); }
+    summary.finished = new Date().toISOString();
+    sgConfig_('sg_last_sync', JSON.stringify({ at: summary.finished, clients: summary.clients, added: summary.added, updated: summary.updated, pinned: summary.pinned, invoices: summary.invoices, errors: summary.errors.slice(0, 3) }));
+  } finally { lock.releaseLock(); }
+  return summary;
+}
+/* A CONFIG row the tracker reads like any other setting. */
+function sgConfig_(name, value) {
+  var sh = sheet_(), l = { id: 'cfg_' + name, created: new Date().toISOString(), type: 'CONFIG', name: name, notes: value, status: 'config', crmnotes: '' };
+  var data = sh.getDataRange().getValues(), iId = HEADERS.indexOf('id');
+  for (var i = data.length - 1; i >= 1; i--) {
+    if (String(data[i][iId]) === l.id) { sh.getRange(i + 1, HEADERS.indexOf('notes') + 1).setValue(safeCell_(value)); sh.getRange(i + 1, HEADERS.indexOf('created') + 1).setValue(l.created); return; }
+  }
+  sh.appendRow(HEADERS.map(function(h) { return safeCell_(l[h] == null ? '' : l[h]); }));
+}
+/* The billing sheet: one row per invoice, one per payment. Rewritten whole
+   on every sync - it is a copy of Sweep&Go, not a record of our own. */
+var BILLING_HEADERS = ['kind','number','date','client','type','status','total','paid','remaining','interval','period_start','pay_type','description'];
+function billingSheet_() {
+  var ss = sheet_().getParent(), sh = ss.getSheetByName('billing');
+  if (!sh) { sh = ss.insertSheet('billing'); sh.appendRow(BILLING_HEADERS); try { sh.getRange(1, 1, sh.getMaxRows(), BILLING_HEADERS.length).setNumberFormat('@'); } catch (e) {} }
+  return sh;
+}
+function sgPullBilling_() {
+  var rows = [];
+  ['recurring', 'one_time'].forEach(function(t) {
+    sgAll_('/api/v2/invoices?type=' + t, 'invoices').forEach(function(v) {
+      rows.push(['invoice', v.invoice_number, String(v.created_at || '').slice(0, 10), v.client_name || v.commercial_client || '', t === 'one_time' ? 'one-time' : (v.type || 'subscription'), String(v.status || '').toLowerCase(), v.total, v.paid, v.remaining, v.billing_interval || '', String(v.period_start || '').slice(0, 10), v.pay_method || '', '']);
+    });
+  });
+  sgAll_('/api/v2/payments', 'payments').forEach(function(p) {
+    rows.push(['payment', '', String(p.date || '').slice(0, 10), p.client_name || p.commercial_client || '', p.type || '', String(p.status || '').toLowerCase(), p.amount, p.amount, '', '', '', p.type || '', String(p.description || '').slice(0, 80)]);
+  });
+  var sh = billingSheet_();
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, BILLING_HEADERS.length).clearContent();
+  if (rows.length) sh.getRange(2, 1, rows.length, BILLING_HEADERS.length).setValues(rows.map(function(r) { return r.map(function(v) { return safeCell_(v == null ? '' : v); }); }));
+  return rows.length;
+}
+/* What the tracker's billing card shows: by month, billed (voids out),
+   collected, unpaid; plus the unpaid list by customer. Small on purpose. */
+function sgBilling_() {
+  var sh = billingSheet_(); if (sh.getLastRow() < 2) return { ok:true, months: {}, unpaid: [], empty: true };
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, BILLING_HEADERS.length).getValues();
+  var H = {}; BILLING_HEADERS.forEach(function(h, i) { H[h] = i; });
+  var months = {}, unpaidBy = {};
+  rows.forEach(function(r) {
+    var mo = String(r[H.date] || '').slice(0, 7); if (!/^\d{4}-\d{2}$/.test(mo)) return;
+    var m = months[mo] || (months[mo] = { billed: 0, onetime: 0, collected: 0, unpaid: 0, failed: 0, invoices: 0, customers: {} });
+    var status = String(r[H.status] || ''), total = parseFloat(r[H.total]) || 0;
+    if (r[H.kind] === 'invoice') {
+      if (status === 'voided' || status === 'void') return;
+      m.billed += total; m.invoices++;
+      if (r[H.type] === 'one-time') m.onetime += total; else if (r[H.client]) m.customers[sgNorm_(r[H.client])] = 1;
+      if (status !== 'paid') {
+        var rem = r[H.remaining] !== '' && r[H.remaining] != null ? parseFloat(r[H.remaining]) : total;
+        if (!(rem > 0)) rem = total;
+        m.unpaid += rem;
+        var u = unpaidBy[r[H.client]] || (unpaidBy[r[H.client]] = { name: r[H.client], owed: 0, n: 0, oldest: '', statuses: {} });
+        u.owed += rem; u.n++; u.statuses[status] = (u.statuses[status] || 0) + 1; if (!u.oldest || String(r[H.date]) < u.oldest) u.oldest = String(r[H.date]);
+      }
+    } else {
+      if (status === 'succeeded' || status === 'paid') m.collected += total;
+      else if (status === 'failed') m.failed++;
+    }
+  });
+  Object.keys(months).forEach(function(k) { months[k].customers = Object.keys(months[k].customers).length; ['billed','onetime','collected','unpaid'].forEach(function(f) { months[k][f] = Math.round(months[k][f]); }); });
+  var unpaid = Object.keys(unpaidBy).map(function(k) { var u = unpaidBy[k]; u.owed = Math.round(u.owed); return u; }).sort(function(a, b) { return b.owed - a.owed; }).slice(0, 40);
+  return { ok:true, months: months, unpaid: unpaid, rows: rows.length };
+}
+/* The webhook. Sweep&Go posts here on the events ticked on the token. We
+   never act on the body: we log the event and ask for a sync. */
+function sgHook_(word, e) {
+  var want = sgHookWord_();
+  if (!want || word !== want) return { ok:false, error:'no' };
+  var raw = (e && e.postData && e.postData.contents) || '', ev = '';
+  try { var b = JSON.parse(raw); ev = String(b.event || b.type || b.event_type || b.name || ''); } catch (err) {}
+  try {
+    var ss = sheet_().getParent(), sh = ss.getSheetByName('hooks');
+    if (!sh) { sh = ss.insertSheet('hooks'); sh.appendRow(['received', 'event', 'payload']); }
+    sh.appendRow([new Date().toISOString(), ev.slice(0, 80), safeCell_(raw.slice(0, 4000))]);
+    if (sh.getLastRow() > 500) sh.deleteRows(2, sh.getLastRow() - 500);
+  } catch (e2) {}
+  // a change worth syncing for, at most once every ten minutes
+  if (!/^(notification|staff|payroll|dog|organization)/.test(ev)) {
+    try {
+      var cache = CacheService.getScriptCache();
+      if (!cache.get('sg_sync_soon')) { cache.put('sg_sync_soon', '1', 600); sgSync(); }
+    } catch (e3) {}
+  }
+  return { ok:true, event: ev };
+}
+/* Run once, from the editor: checks the token, syncs, and schedules 4am. */
+function setupSweepAndGo() {
+  if (!sgToken_()) throw new Error('Add SG_TOKEN under Project Settings > Script Properties first');
+  var who = sgFetch_('/api/v2/welcome');
+  Logger.log('Token works: ' + JSON.stringify(who).slice(0, 200));
+  ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'sgSync') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('sgSync').timeBased().everyDays(1).atHour(4).create();
+  var s = sgSync();
+  Logger.log('First sync: ' + JSON.stringify(s));
+  return s;
 }
 
 /* ---- Email blast ------------------------------------------------------
