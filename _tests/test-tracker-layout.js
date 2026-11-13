@@ -45,6 +45,8 @@ async function open(b, at, opts){
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.clock.install({ time: at });
   stubNetwork(p, { leads: ROWS });
+  // this file measures the page as a phone first sees it: the toolbar's More closed
+  await p.addInitScript(() => { try { if (!sessionStorage.getItem('fresh')) { sessionStorage.setItem('fresh', '1'); localStorage.removeItem('clpps_toolmore'); } } catch (e) {} });
   await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(1200);
   return { p, errs };
 }
@@ -72,6 +74,27 @@ const visibleIn = (p, cardId, text) => p.evaluate(([id, t]) => {
   ok('the first lead is within one phone screen of the top (was two screens down)',
      firstCard < 932, firstCard + 'px');
   ok('the dashboards are shut by default', !(await p.isVisible('#numbers')));
+  /* ---- the toolbar: four buttons out, the rest behind More ---- */
+  {
+    const q = await b.newPage({ viewport:{ width:430, height:932 } });
+    await q.clock.install({ time: NOW });
+    stubNetwork(q, { leads: ROWS });
+    await q.addInitScript(() => { try { if (!sessionStorage.getItem('fresh')) { sessionStorage.setItem('fresh', '1'); localStorage.removeItem('clpps_toolmore'); } } catch (e) {} });   // a phone that never chose
+    await q.goto(ORIGIN + '/hq-8k3v51/'); await q.waitForTimeout(1200);
+    ok('a fresh phone sees Phone quote, Add lead, Ask, Daily brief and More, nothing else', await q.$eval('#toolMoreBtn', e => [...e.closest('.toolbar').querySelectorAll('button')].filter(b => b.offsetParent !== null).map(b => b.textContent.trim()).join('|')) === '📞 Phone quote|➕ Add lead|💬 Ask|📋 Daily brief|More ▾', await q.$eval('#toolMoreBtn', e => [...e.closest('.toolbar').querySelectorAll('button')].filter(b => b.offsetParent !== null).map(b => b.textContent.trim()).join('|')));
+    await q.click('#toolMoreBtn'); await q.waitForTimeout(200);
+    ok('More opens the rest and remembers', await q.isVisible('#importBtn') && await q.isVisible('#blastBtn') && (await q.evaluate(() => localStorage.getItem('clpps_toolmore'))) === 'open');
+    await q.reload(); await q.waitForTimeout(1200);
+    ok('after a reload it is still open', await q.isVisible('#importBtn'));
+    /* ---- the numbers panel: a glance strip, then four labelled groups ---- */
+    await q.click('#numbersBtn'); await q.waitForTimeout(1200);
+    const glance = (await q.textContent('#glance')).replace(/\s+/g, ' ');
+    ok('the glance strip answers today, leads, money and customers before any card opens', /stops today/.test(glance) && /not called yet/.test(glance) && /(billed|on the books)/.test(glance) && /active ·/.test(glance), glance);
+    const order = await q.$$eval('#numbers > *', els => els.filter(e => e.id || e.className === 'nsec').map(e => e.className === 'nsec' ? e.textContent.toUpperCase() : e.id));
+    ok('cards sit under their labels, in the order the day asks for them', order.join(',') === 'glance,foldbar,TODAY AND THE ROUTE,schedule,jobs,MONEY,billing,revenue,undertable,roi,CUSTOMERS AND AREA,territory,season,deo,pricelog,MARKETING,traffic,insights', order.join(','));
+    ok('Insights folds section by section, the first open', (await q.$$('#insights .fold[data-fold^="ins-"]')).length >= 8 && await q.$eval('#insights .fold[data-fold="ins-0"]', e => !e.classList.contains('folded')) && await q.$eval('#insights .fold[data-fold="ins-1"]', e => e.classList.contains('folded')));
+    await q.close();
+  }
   ok('the summary row is still at the top', await p.isVisible('#stats'));
   ok('but the Traffic/revenue/spend button is there', await p.isVisible('#numbersBtn'));
 

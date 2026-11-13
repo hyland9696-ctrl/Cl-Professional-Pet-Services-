@@ -57,6 +57,10 @@
   .fold.folded > :first-child::after{content:'\25B8';}
   .fold.folded > :not(:first-child){display:none !important;}
   .fsum{font-size:11px;font-weight:600;color:#707070;margin-left:8px;white-space:nowrap;}
+  .nsec{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#9aa5a0;font-weight:700;margin:6px 2px 8px;}
+  #glance .stat .n{font-size:17px;} #glance .stat .l{text-transform:none;letter-spacing:0;font-size:11px;line-height:1.3;}
+  #toolmore{display:none;flex-wrap:wrap;gap:8px;width:100%;} #toolmore.open{display:flex;}
+  .ins .fold > h4{cursor:pointer;margin-top:10px;}
   .fold > :first-child .fsum{display:none;}
   .fold.folded > :first-child .fsum{display:inline;}
   .stbtns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
@@ -134,9 +138,10 @@
          so anyone who wants the numbers open can have them open. -->
     <button id="numbersBtn" onclick="toggleNumbers()" aria-expanded="false" aria-controls="numbers"
       style="width:100%;text-align:left;background:#fff;border:1px solid #e3e8e5;border-radius:12px;padding:11px 14px;margin-bottom:12px;font-size:13px;font-weight:700;color:#0F6E56;cursor:pointer;font-family:inherit;display:flex;justify-content:space-between;align-items:center;min-height:44px;">
-      <span>&#128202; Traffic, revenue &amp; ad spend</span><span id="numbersArrow" aria-hidden="true">&#9662;</span>
+      <span>&#128202; Numbers: today, money, customers, marketing</span><span id="numbersArrow" aria-hidden="true">&#9662;</span>
     </button>
     <div id="numbers" style="display:none;">
+    <div class="stats" id="glance" style="grid-template-columns:repeat(2,1fr);"></div>
     <div id="foldbar" style="display:flex;justify-content:flex-end;gap:6px;margin:-4px 0 8px;">
       <button onclick="foldAll(true)" style="background:none;border:1px solid #e3e8e5;border-radius:8px;padding:6px 10px;min-height:34px;font-size:11.5px;font-weight:700;color:#0F6E56;cursor:pointer;font-family:inherit;">Open all</button>
       <button onclick="foldAll(false)" style="background:none;border:1px solid #e3e8e5;border-radius:8px;padding:6px 10px;min-height:34px;font-size:11.5px;font-weight:700;color:#0F6E56;cursor:pointer;font-family:inherit;">Close all</button>
@@ -193,6 +198,8 @@
       <button class="copybtn" onclick="toggleAdd()">&#10133; Add lead</button>
       <button class="copybtn" onclick="toggleAsk()" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">&#128172; Ask</button>
       <button class="copybtn" onclick="toggleBrief()">&#128203; Daily brief</button>
+      <button class="copybtn" onclick="toggleToolMore()" id="toolMoreBtn" aria-expanded="false" aria-controls="toolmore">More &#9662;</button>
+      <div id="toolmore">
       <button class="copybtn" onclick="toggleNo()" id="noBtn">&#128078; Said no</button>
       <button class="copybtn" onclick="toggleWait()" id="waitBtn">&#128205; Out of area</button>
       <button class="copybtn" onclick="toggleQR()" id="qrBtn">&#128241; Sign scans</button>
@@ -204,6 +211,7 @@
       <button class="copybtn" onclick="toggleTests()" id="testBtn">&#129514; Test leads</button>
       <button class="copybtn" onclick="exportCsv()">&#11015;&#65039; Download CSV</button>
       <button class="copybtn" onclick="copyEmails()">Copy emails</button>
+      </div>
     </div>
     <div id="addPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="font-weight:700;font-size:14px;margin-bottom:8px;">Paste the quote email</div>
@@ -1363,9 +1371,27 @@ function renderInsights(){
     h += '<div class="sub">When to have someone on the phone, and when to let the ads run.</div>';
   } else h += '<div class="sub">No leads in the window.</div>';
 
-  box.innerHTML = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128270; Insights</div>' + h;
+  // ten sections under one heading was a wall; each folds on its own now,
+  // the first (speed to lead) open, the rest a tap away
+  var parts = h.split('<h4>'), folded = parts[0];
+  parts.slice(1).forEach(function(sec, i){
+    var cut = sec.indexOf('</h4>'), title = sec.slice(0, cut), body = sec.slice(cut + 5);
+    folded += '<div class="fold' + (i ? ' folded' : '') + '" data-fold="ins-' + i + '"><h4>' + title + '</h4><div>' + body + '</div></div>';
+  });
+  box.innerHTML = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128270; Insights</div>' + folded;
+  box.querySelectorAll('.fold[data-fold]').forEach(function(c, i){ foldApply(c, i === 0); });
 }
 /* The dashboards: open or shut, remembered per device. */
+/* The toolbar grew to sixteen buttons, four rows on a phone. The four used
+   every day stay out; the rest sit behind More, and the choice is kept. */
+function toggleToolMore(force){
+  var box = document.getElementById('toolmore'), btn = document.getElementById('toolMoreBtn'); if (!box) return;
+  var open = typeof force === 'boolean' ? force : !box.classList.contains('open');
+  box.classList.toggle('open', open);
+  if (btn){ btn.innerHTML = open ? 'Less &#9652;' : 'More &#9662;'; btn.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+  try { localStorage.setItem('clpps_toolmore', open ? 'open' : 'shut'); } catch (e) {}
+}
+try { if (localStorage.getItem('clpps_toolmore') === 'open') document.addEventListener('DOMContentLoaded', function(){ toggleToolMore(true); }); } catch (e) {}
 function toggleNumbers(){
   var box = document.getElementById('numbers'), open = box.style.display === 'none';
   box.style.display = open ? 'block' : 'none';
@@ -4499,7 +4525,7 @@ function loadBilling(force){
   if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_billing') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ billing = c.data; renderBilling(); return; } } catch (e) {} }
   fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'billing', key: KEY }) })
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (d && d.ok && (d.months || d.empty)){ billing = d; try { localStorage.setItem('clpps_billing', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderBilling(); } })
+    .then(function(d){ if (d && d.ok && (d.months || d.empty)){ billing = d; try { localStorage.setItem('clpps_billing', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderBilling(); renderGlance(); } })
     .catch(function(){});
 }
 function billingKind(name){
@@ -4748,6 +4774,7 @@ function foldInit(){
   // every card starts closed, with its one-line summary on the heading; a
   // tap opens it and the phone remembers. Jesse: "make sure we're not
   // filling up the screen with too much information".
+  arrangeNumbers();
   FOLD_CARDS.forEach(function(id){ var el = document.getElementById(id); if (el) foldApply(el, false); });
   var panel = document.getElementById('numbers');
   if (!panel || panel.foldWired) return;
@@ -4760,6 +4787,42 @@ function foldInit(){
     try { localStorage.setItem('clpps_fold_' + foldKey(card), card.classList.contains('folded') ? 'shut' : 'open'); } catch (e) {}
     if (card.id === 'territory' && terrLeaflet) setTimeout(function(){ try { terrLeaflet.invalidateSize(); } catch (e) {} }, 60);
   });
+}
+/* The panel's cards, in the order the day asks for them, under four
+   short labels. Done once in the page rather than by moving the HTML. */
+var NUMBERS_ORDER = [
+  ['Today and the route', ['schedule', 'jobs']],
+  ['Money', ['billing', 'revenue', 'undertable', 'roi']],
+  ['Customers and area', ['territory', 'season', 'deo', 'pricelog']],
+  ['Marketing', ['traffic', 'insights']]   // Ask for a review stays on the main page: it is a to-do, not a number
+];
+function arrangeNumbers(){
+  var panel = document.getElementById('numbers'); if (!panel || panel.arranged) return;
+  panel.arranged = true;
+  NUMBERS_ORDER.forEach(function(sec){
+    var lab = document.createElement('div'); lab.className = 'nsec'; lab.textContent = sec[0]; panel.appendChild(lab);
+    sec[1].forEach(function(id){ var el = document.getElementById(id); if (el) panel.appendChild(el); });
+  });
+}
+/* The six numbers that answer "how are we doing" before any card opens. */
+function renderGlance(){
+  var box = document.getElementById('glance'); if (!box) return;
+  var tp = null; try { tp = dayPlan(todayKey()); } catch (e) {}
+  var waiting = leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'new' && !auths[l.id] && uncalledHours(l) >= 1; }).length;
+  var due = leads.filter(followupDue).length;
+  var nowK = monthKeyOf(new Date()), ss = null; try { ss = seasonStats(); } catch (e) {}
+  var newM = ss ? (ss.cust[nowK] || 0) : 0;
+  var leftM = leads.filter(function(l){ var fu = fuParse(l.crmnotes); return (l.status || 'new') === 'cancelled' && String(fu.cx || '').slice(0, 7) === nowK; }).length;
+  var active = leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed' && isRecurring(l); }).length;
+  var bm = billing && billing.months ? (billing.months[nowK] || null) : null;
+  var owed = billing && billing.unpaid ? billing.unpaid.reduce(function(a, u){ return a + u.owed; }, 0) : 0;
+  var mrr = 0; leads.forEach(function(l){ if (isLead(l) && (l.status || 'new') === 'closed'){ var pp = parsePrice(l); if (pp && pp.isMo) mrr += pp.amt; } });
+  var tile = function(n, l, col){ return '<div class="stat"><div class="n"' + (col ? ' style="color:' + col + ';"' : '') + '>' + n + '</div><div class="l">' + l + '</div></div>'; };
+  box.innerHTML =
+    tile(tp && tp.stops.length ? tp.stops.length : '0', tp && tp.stops.length ? 'stops today &middot; ' + hoursText(tp.total) + ' &middot; ' + money(tp.money) : 'stops today') +
+    tile(waiting, (waiting === 1 ? 'lead' : 'leads') + ' not called yet' + (due ? ' &middot; ' + due + ' follow-up' + (due === 1 ? '' : 's') + ' due' : ''), waiting ? '#c0392b' : null) +
+    tile(bm ? money(bm.billed) : money(mrr), bm ? 'billed ' + monthShort(nowK) + ' &middot; ' + money(bm.collected) + ' collected' : 'a month on the books') +
+    tile(active, 'active &middot; +' + newM + ' this month' + (leftM ? ' &middot; &minus;' + leftM + ' left' : '') + (owed ? ' &middot; ' + money(owed) + ' owed' : ''), null);
 }
 function foldAll(open){
   FOLD_CARDS.forEach(function(id){
@@ -5548,7 +5611,7 @@ function renderRevenue(){
   box.style.cursor = '';
   box.onclick = null;
   box.innerHTML =
-    '<div style="font-size:14px;">&#128176; Revenue closed from this site</div>' +
+    '<div style="font-size:14px;">&#128176; On the books <span style="font-size:11px;font-weight:600;opacity:.85;">from customer prices in the tracker</span></div>' +
     (function(){
       var ow = 0, own = 0;
       leads.forEach(function(l){ if ((l.status || 'new') === 'closed'){ var f = fuParse(l.crmnotes); if (f.ow > 0){ ow += f.ow; own++; } } });
@@ -5669,6 +5732,7 @@ function render(){
   renderReviews();
   renderReviewTrend();
   renderFoldSums();   // last: it writes onto headings the renderers above just rebuilt
+  renderGlance();
   renderAlerts();
   var qp = document.getElementById('qrPanel');
   if (qp && qp.style.display !== 'none') renderQR();

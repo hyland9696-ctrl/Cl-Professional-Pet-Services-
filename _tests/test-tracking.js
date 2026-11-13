@@ -146,6 +146,7 @@ for (let d = 0; d < 40; d++) ROWS.push({ id:'v' + d, type:'VIEW', name:'Home', y
   ok('one already rewarded is not', !/referred Std Won D/.test(ins));
   ok('the referred customer\'s card says who referred them and that a reward is owed',
      /Referred by Beth Kowalski/.test(await card('L13')) && /owes them a free deodorize/.test(await card('L13')));
+  await p.evaluate(() => document.querySelectorAll('#insights .fold').forEach(c => c.classList.remove('folded')));   // the sections fold on their own now
   await p.click('#insights button:has-text("Reward given")'); await p.waitForTimeout(300);
   const rwPost = posts.find(x => x.action === 'update' && x.id === 'L13');
   ok('Reward given stamps the date on the row', rwPost && /\[RW:2026-10-02\]/.test(rwPost.notes), rwPost && rwPost.notes);

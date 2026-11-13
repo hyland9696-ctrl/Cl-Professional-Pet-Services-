@@ -78,6 +78,9 @@ function loadSiteScript(name) {
 function stubNetwork(page, collect) {
   const posts = (collect && collect.posts) || [];
   const mails = (collect && collect.mails) || [];
+  // the tracker keeps most toolbar buttons behind More; tests reach them as if it were open
+  // (test-tracker-layout checks the closed default on its own)
+  if (page.addInitScript) page.addInitScript(() => { try { if (localStorage.getItem('clpps_toolmore') === null) localStorage.setItem('clpps_toolmore', 'open'); } catch (e) {} });
   page.route('**/script.google.com/**', r => {
     if (r.request().method() === 'POST') {
       try { posts.push(JSON.parse(r.request().postData()).lead); } catch (e) {}
