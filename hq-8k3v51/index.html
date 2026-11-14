@@ -363,6 +363,8 @@
       <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:10px;">One message, sent as a separate email to each person from the office mailbox, info@clpropetservices.com, through Microsoft. Replies land in Outlook. Use <code>{first}</code>, <code>{price}</code> and <code>{plan}</code> and they fill in per person. Everyone emailed gets stamped, so running the same promotion twice only reaches the people it missed. <span id="bl-quota" style="color:#0F6E56;font-weight:700;"></span></div>
       <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="fu-auto-box" onchange="toggleFuEmails(this.checked)" style="margin-top:3px;"><span><strong>Automatic follow-ups for quotes that went quiet.</strong> <span class="office-note" style="color:#b45309;"></span> Two days after a quote with no answer, a short email from Corey with their price; one more at six days; then it stops. It also stops the moment they accept, decline, get a call or a text, or ask to be left alone. Sent from the business account each morning at 9. <span id="fu-stat" style="color:#0F6E56;"></span></span></label>
       <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="we-auto-box" onchange="toggleWelcomeEmails(this.checked)" style="margin-top:3px;"><span><strong>Welcome sequence for new customers.</strong> <span class="office-note" style="color:#b45309;"></span> The day after someone starts, a what-to-expect email with their day and how to reach us. A month in, a how-are-we-doing with the Google review link (counts as the review ask, so the card does not ask again). Nothing for paused customers or opt-outs. <span id="we-stat" style="color:#0F6E56;"></span></span></label>
+      <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="pr-auto-box" onchange="togglePayReminders(this.checked)" style="margin-top:3px;"><span><strong>Payment reminders every Monday.</strong> <span class="office-note" style="color:#b45309;"></span> Anyone 14 or more days behind gets one plain note from the office with the amount; never twice inside 14 days, never to opt-outs. The Remind button on the Owed list does the same for one person. <span id="pr-stat" style="color:#0F6E56;"></span></span></label>
+      <div id="email-week" style="font-size:12px;color:#555;background:#fff;border:1px solid #E4EBE7;border-radius:10px;padding:8px 12px;margin-bottom:10px;"></div>
       <div style="font-weight:700;font-size:13px;margin-bottom:4px;">Who</div>
       <div id="bl-who" style="display:grid;gap:6px;font-size:12.5px;margin-bottom:10px;"></div>
       <div style="display:grid;gap:8px;font-size:12.5px;">
@@ -1593,13 +1595,13 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
   // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
   // ll = lat,lng from Sweep&Go's dispatch board; sgid = their client id. Both written by the nightly sync.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1640,7 +1642,12 @@ function fuParse(crmnotes){
     else if (hit[1] === 'QP') m.qp = hit[2];       // the quoted price still to be set in Sweep&Go
     else if (hit[1] === 'FE') m.fe = m.fe ? m.fe + ',' + hit[2] : hit[2];   // follow-up emails sent: step@date
     else if (hit[1] === 'WE') m.we = m.we ? m.we + ',' + hit[2] : hit[2];   // welcome emails sent: step@date
-    else if (hit[1] === 'PM') m.pm = hit[2];                                 // price move: new@effective date
+    else if (hit[1] === 'PM') m.pm = hit[2];
+    else if (hit[1] === 'OS') m.os = hit[2];                                 // Sweep&Go: off schedule
+    else if (hit[1] === 'SS') m.ss = hit[2];                                 // Sweep&Go: subscription state (none)
+    else if (hit[1] === 'AKA') m.aka = hit[2];                               // Sweep&Go's spelling of the name
+    else if (hit[1] === 'CM') m.cm = hit[2];                                 // commercial account
+    else if (hit[1] === 'PR') m.pr = hit[2];                                 // payment reminder: amount@date                                 // price move: new@effective date
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -1687,7 +1694,8 @@ function fuCompose(m){
          (m.qp ? '[QP:' + m.qp + '] ' : '') +
          (m.fe ? m.fe.split(',').map(function(x){ return '[FE:' + x + '] '; }).join('') : '') +
          (m.we ? m.we.split(',').map(function(x){ return '[WE:' + x + '] '; }).join('') : '') +
-         (m.pm ? '[PM:' + m.pm + '] ' : '') + (m.text || '');
+         (m.pm ? '[PM:' + m.pm + '] ' : '') +
+         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -3681,6 +3689,22 @@ function toggleFuEmails(on){
     on ? 'Follow-up emails on: quiet quotes get an email at day 2 and day 6' : 'Follow-up emails off');
 }
 function welcomeOn(){ var c = config.welcome_emails; return !!c && String(c.value) === 'on'; }
+function payRemindersOn(){ var c = config.pay_reminders; return !!c && String(c.value) === 'on'; }
+function togglePayReminders(on){
+  var v = on ? 'on' : 'off', now = new Date().toISOString();
+  config.pay_reminders = { value: v, created: now }; saveStatsCache();
+  post({ action: 'lead', lead: { id: 'cfg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), created: now, type: 'CONFIG', name: 'pay_reminders', notes: v, status: 'config', crmnotes: '' } },
+    on ? 'Payment reminders on: every Monday, 14+ days behind' : 'Payment reminders off');
+}
+/* what the three automatic emails sent in the last seven days, from the stamps on the cards */
+function emailWeek(){
+  var cut = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10), n = { fu: 0, we: 0, pr: 0 };
+  leads.forEach(function(l){ if (!isLead(l)) return; var fu = fuParse(l.crmnotes);
+    (fu.fe ? fu.fe.split(',') : []).forEach(function(x){ if ((x.split('@')[1] || '') >= cut) n.fu++; });
+    (fu.we ? fu.we.split(',') : []).forEach(function(x){ if ((x.split('@')[1] || '') >= cut) n.we++; });
+    if (fu.pr && (fu.pr.split('@')[1] || '') >= cut) n.pr++; });
+  return n;
+}
 function toggleWelcomeEmails(on){
   var v = on ? 'on' : 'off', now = new Date().toISOString();
   config.welcome_emails = { value: v, created: now }; saveStatsCache();
@@ -3698,6 +3722,9 @@ function toggleBlast(){
   if (!opening) return;
   var fb = document.getElementById('fu-auto-box'); if (fb) fb.checked = fuEmailsOn();
   var wb = document.getElementById('we-auto-box'); if (wb) wb.checked = welcomeOn();
+  var pb = document.getElementById('pr-auto-box'); if (pb) pb.checked = payRemindersOn();
+  var pn = leads.filter(function(l){ return isLead(l) && fuParse(l.crmnotes).pr; }).length, ps = document.getElementById('pr-stat'); if (ps) ps.textContent = pn ? pn + ' reminded so far.' : '';
+  var ew = emailWeek(), ewb = document.getElementById('email-week'); if (ewb) ewb.innerHTML = '<strong>This week:</strong> ' + ew.fu + ' follow-up' + (ew.fu === 1 ? '' : 's') + ' &middot; ' + ew.we + ' welcome' + (ew.we === 1 ? '' : 's') + ' &middot; ' + ew.pr + ' payment reminder' + (ew.pr === 1 ? '' : 's') + (officeMail === false ? ' &middot; <span style="color:#b45309;">nothing can go until the office mailbox is connected</span>' : '');
   var wn = leads.filter(function(l){ return isLead(l) && fuParse(l.crmnotes).we; }).length, ws = document.getElementById('we-stat'); if (ws) ws.textContent = wn ? wn + ' customer' + (wn === 1 ? '' : 's') + ' welcomed so far.' : '';
   var fs = fuEmailStats(), fst = document.getElementById('fu-stat'); if (fst) fst.textContent = fs.sent ? fs.sent + ' emailed so far, ' + fs.won + ' became customers.' : '';
   document.getElementById('bl-out').innerHTML = '';
@@ -4401,7 +4428,7 @@ function keepList(){
   DAYS.forEach(function(d){ var prev = rp.base.pt; rp.tours[d[0]].order.forEach(function(x){ var mi = kmBetween(prev, x.pt) * MI * a.road; legs[x.l.id] = Math.min(legs[x.l.id] || 99, mi); prev = x.pt; }); });
   var out = [];
   activeRecurring().forEach(function(l){
-    var c = jobsData.byClient[Object.keys(jobsData.byClient).filter(function(k){ return sgNormName(k) === sgNormName(l.name); })[0]];
+    var ks = namesOf(l), c = jobsData.byClient[Object.keys(jobsData.byClient).filter(function(k){ return ks.indexOf(sgNormName(k)) >= 0; })[0]];
     if (!c || !c.med) return;
     var price = c.price || visitValue(l), driveMin = legs[l.id] != null ? legs[l.id] / a.mph * 60 : 0;
     out.push({ l: l, med: c.med, price: price, drive: driveMin, onSite: price / (c.med / 60), all: price / ((c.med + driveMin) / 60), n: c.n });
@@ -4440,18 +4467,22 @@ function isPaused(l){ var p = pauseOf(l); if (!p) return false; var t = new Date
    judged until the billing has loaded. */
 var DORMANT_DAYS = 60, DORMANT_NEW = 45;
 function sgNormJs(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
-function lastMoney(l){ if (!billing || !billing.last) return undefined; var v = billing.last[sgNormJs(l.name)]; return v || ''; }
-function recentVisits(l){ if (!jobsData || !jobsData.byClient) return null; var k = sgNormJs(l.name), hit = Object.keys(jobsData.byClient).filter(function(n){ return sgNormJs(n) === k; })[0]; return hit ? jobsData.byClient[hit].n : 0; }
+function lastMoney(l){ if (!billing || !billing.last) return undefined; var v = ''; namesOf(l).forEach(function(k){ var d = billing.last[k]; if (d && d > v) v = d; }); return v; }
+function recentVisits(l){ if (!jobsData || !jobsData.byClient) return null; var ks = namesOf(l), hit = Object.keys(jobsData.byClient).filter(function(n){ return ks.indexOf(sgNormJs(n)) >= 0; })[0]; return hit ? jobsData.byClient[hit].n : 0; }
+function recentJobs(l){ if (!jobsData || !jobsData.recent) return null; var ks = namesOf(l), hit = Object.keys(jobsData.recent).filter(function(n){ return ks.indexOf(sgNormJs(n)) >= 0; })[0]; return hit ? jobsData.recent[hit] : []; }
 function dormantInfo(l){
-  if (!billing || !billing.last) return null;
   if (!isLead(l) || (l.status || 'new') !== 'closed' || !isRecurring(l)) return null;
   var fu = fuParse(l.crmnotes); if (!fu.sgid) return null;   // only what Sweep&Go itself calls active
+  // Sweep&Go's own flags settle it on their own: off the schedule, or no live subscription
+  if (fu.os === '1') return { why: 'off schedule in Sweep&Go', last: lastMoney(l) || '', flag: true };
+  if (fu.ss === 'none') return { why: 'no subscription in Sweep&Go', last: lastMoney(l) || '', flag: true };
+  if (!billing || !billing.last) return null;
   var since = fu.cd || String(l.created || '').slice(0, 10), now = Date.now();
   if (since && now - new Date(since + 'T12:00:00').getTime() < DORMANT_NEW * 86400000) return null;   // new: not billed yet is normal
   var last = lastMoney(l);
   if (last && now - new Date(last + 'T12:00:00').getTime() < DORMANT_DAYS * 86400000) return null;
   var v = recentVisits(l); if (v) return null;
-  return { last: last || '', days: last ? Math.round((now - new Date(last + 'T12:00:00').getTime()) / 86400000) : null, visits: v };
+  return { why: last ? 'nothing billed since ' + last : 'never billed', last: last || '', days: last ? Math.round((now - new Date(last + 'T12:00:00').getTime()) / 86400000) : null, visits: v };
 }
 function isDormant(l){ return !!dormantInfo(l); }
 function dormantList(){ return leads.filter(isDormant).map(function(l){ return { l: l, d: dormantInfo(l) }; }).sort(function(a, b){ return (a.d.last || '') < (b.d.last || '') ? -1 : 1; }); }
@@ -5053,13 +5084,13 @@ function renderDormant(){
   var box = document.getElementById('dormant'); if (!box) return;
   var list = dormantList();
   var h = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128269; Sweep&amp;Go says active, but&hellip; <span style="font-size:11px;font-weight:600;color:#707070;">nothing billed or visited in a while</span></div>';
-  if (!billing || !billing.last){ box.innerHTML = h + '<div style="font-size:12.5px;color:#9aa5a0;">Fills in once the billing has loaded.</div>'; return; }
+  if (!list.length && !(billing && billing.last)){ box.innerHTML = h + '<div style="font-size:12.5px;color:#9aa5a0;">Fills in once the billing has loaded.</div>'; return; }
   if (!list.length){ box.innerHTML = h + '<div style="font-size:12.5px;color:#9aa5a0;">Everyone Sweep&amp;Go calls active has been billed or visited recently.</div>'; return; }
-  h += '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">Started ' + DORMANT_NEW + '+ days ago, no recurring invoice or payment in ' + DORMANT_DAYS + ' days, no visit in the jobs report. They are left out of the route, the money and the active count. If they are gone, <strong>deactivate them in Sweep&amp;Go</strong>; the next sync moves them to Account closed here with the right date. If they are real, a visit or an invoice clears them by itself.</div>' +
+  h += '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">Off the schedule or without a subscription by Sweep&amp;Go\u2019s own flags, or started ' + DORMANT_NEW + '+ days ago with no recurring invoice or payment in ' + DORMANT_DAYS + ' days and no visit in the jobs report. They are left out of the route, the money and the active count. If they are gone, <strong>deactivate them in Sweep&amp;Go</strong>; the next sync moves them to Account closed here with the right date. If they are real, a visit or an invoice clears them by itself.</div>' +
     list.map(function(r){
       return '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid #f3f5f4;font-size:12.5px;align-items:center;">' +
         '<span><a href="#card-' + esc(r.l.id) + '" onclick="jumpToLead(\'' + esc(r.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(r.l.name || '(no name)') + '</a> <span style="color:#707070;">' + esc(r.l.price || '') + ' &middot; since ' + esc(fuParse(r.l.crmnotes).cd || String(r.l.created || '').slice(0, 10)) + '</span></span>' +
-        '<span style="white-space:nowrap;color:#b45309;font-weight:600;">' + (r.d.last ? 'last money ' + esc(r.d.last) : 'never billed') + '</span></div>';
+        '<span style="white-space:nowrap;color:#b45309;font-weight:600;">' + esc(r.d.flag ? r.d.why + (r.d.last ? ' \u00b7 last money ' + r.d.last : '') : r.d.why) + '</span></div>';
     }).join('');
   box.innerHTML = h;
 }
@@ -5085,7 +5116,26 @@ function billingKind(name){
   return l ? planLabel(l.service).toLowerCase() : '';
 }
 function sgNormName(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
-function leadByName(name){ var n = sgNormName(name); return leads.filter(function(x){ return isLead(x) && sgNormName(x.name) === n; })[0] || null; }
+function namesOf(l){ var a = [sgNormName(l.name)], k = fuParse(l.crmnotes).aka; if (k) a.push(sgNormName(k)); return a; }
+function leadByName(name){ var n = sgNormName(name); return leads.filter(function(x){ return isLead(x) && namesOf(x).indexOf(n) >= 0; })[0] || null; }
+/* A payment reminder from the office: the amount, how long, no scolding. */
+var prBusy = false;
+function payRemind(id, amt, since){
+  if (prBusy || !CRM_ENDPOINT) return;
+  if (officeMail !== true){ toast(NO_OFFICE_TEXT); return; }
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  if (!confirm('Email ' + (l.name || 'them') + ' a reminder about the $' + Math.round(amt) + ' open on their account? It goes from the office address.')) return;
+  prBusy = true;
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'payremind', key: KEY, id: id, amount: amt, since: since || '' }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      prBusy = false;
+      if (!d || !d.ok){ toast(d && d.error ? 'Not sent: ' + d.error : 'Not sent'); return; }
+      var m = fuParse(l.crmnotes); m.pr = Math.round(amt) + '@' + d.date; l.crmnotes = fuCompose(m);
+      saveLocal(); render(); toast('Reminder sent to ' + (l.name || 'them'));
+    })
+    .catch(function(){ prBusy = false; toast('No connection'); });
+}
 function markOwed(id, amt, since){
   var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
   var m = fuParse(l.crmnotes); m.ow = Math.round(amt); m.owSince = /^\d{4}-\d{2}-\d{2}$/.test(String(since || '')) ? since : new Date().toISOString().slice(0, 10);
@@ -5137,7 +5187,7 @@ function renderBilling(){
       un.slice(0, 25).map(function(u){ var l = leadByName(u.name), st = Object.keys(u.statuses || {}).map(function(k){ return u.statuses[k] + ' ' + k; }).join(', '), fu = l ? fuParse(l.crmnotes) : null;
         return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
           '<span>' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') + ' <span style="color:#707070;">' + esc(st) + (u.oldest ? ' &middot; since ' + esc(u.oldest) : '') + '</span></span>' +
-          '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (l ? (fu.ow ? ' <span style="color:#9aa5a0;font-size:11px;">on card</span>' : ' <button onclick="markOwed(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">On their card</button>') : '') + '</span></div>'; }).join('')
+          '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (l ? (fu.ow ? ' <span style="color:#9aa5a0;font-size:11px;">on card</span>' : ' <button onclick="markOwed(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">On their card</button>') + (l.email ? (fu.pr && fu.pr.split('@')[1] >= new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10) ? ' <span style="color:#9aa5a0;font-size:11px;">reminded ' + esc(fu.pr.split('@')[1]) + '</span>' : ' <button class="pr-btn" onclick="payRemind(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">&#9993;&#65039; Remind</button>') : '') : '') + '</span></div>'; }).join('')
       : '<div class="sub" style="padding-left:10px;">Nothing owed. Every invoice is paid.</div>') + '</div></div>';
   box.innerHTML = h;
   box.querySelectorAll('.fold[data-fold]').forEach(function(c){ foldApply(c, c.getAttribute('data-fold') === 'bill-owed'); });
@@ -5424,7 +5474,7 @@ function renderFoldSums(){
   try { var on = activeRecurring().filter(hasDeo); foldSum('deo', on.length + ' have it &middot; ' + money(on.reduce(function(a, l){ return a + deoMonthly(l); }, 0)) + '/mo'); } catch (e) {}
   try { var tk = gDayKey(new Date()); foldSum('traffic', views.filter(function(v){ return gDayKey(new Date(v.created)) === tk; }).length + ' visits today'); } catch (e) {}
   try { var due = leads.filter(reviewDue).length; foldSum('reviews', due ? due + ' to ask' : 'nobody due'); } catch (e) {}
-  try { var dz = dormantList().length; foldSum('dormant', billing && billing.last ? (dz ? dz + ' to check' : 'nobody') : ''); } catch (e) {}
+  try { var dz = dormantList().length; foldSum('dormant', dz ? dz + ' to check' : (billing && billing.last ? 'nobody' : '')); } catch (e) {}
   try { var lt = lifetimeStats(); if (lt.value) foldSum('roi', 'a customer is worth ~' + money(lt.value) + (lt.measured ? '' : ' (assumed)')); } catch (e) {}
   try { if (jobsData && !jobsData.empty && jobsData.byDate){ foldSum('jobs', jobsData.visits + ' visits &middot; ' + hoursText(jobsData.minutes) + (jobsData.skipped ? ' &middot; ' + jobsData.skipped + ' skipped' : '')); } } catch (e) {}
   try { var rk = riskList(); foldSum('risk', rk.length ? rk.length + ' to check in on' : 'nobody'); } catch (e) {}
@@ -6397,7 +6447,10 @@ function render(){
     if (st === 'closed' && isPaused(l)){ var pzo = pauseOf(l); wcRow = '<div style="color:#707070;font-size:12px;font-weight:600;margin-top:6px;">&#9208;&#65039; Paused in Sweep&amp;Go' + (pzo.to ? ' until ' + esc(pzo.to) : '') + ' &mdash; off the route, still a customer</div>' + wcRow; }
     if (fu.sv && fu.sv !== 'skip') wcRow = '<div style="color:#7a4a00;font-size:12px;font-weight:600;margin-top:6px;">&#128737;&#65039; Save offer made ' + esc(fu.sv) + (st === 'closed' ? ' &mdash; still active' : '') + '</div>' + wcRow;
     var weLine = fu.we ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128075; Welcome email' + (fu.we.indexOf(',') > 0 ? 's' : '') + ' sent ' + esc(fu.we.split(',').map(function(x){ var p = x.split('@'); return (p[0] === '1' ? 'day 1' : 'day 30, with the review ask') + ' (' + p[1] + ')'; }).join(', ')) + '</div>' : '';
-    var dmInfo = dormantInfo(l), dmRow = dmInfo ? '<div style="background:#FFF4E5;color:#7a4a00;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:600;margin-top:8px;">&#128269; Sweep&amp;Go says active, but ' + (dmInfo.last ? 'nothing billed or paid since ' + esc(dmInfo.last) : 'never billed') + ' and no visit in the jobs report. Left out of the route and the numbers. If they are gone, deactivate them in Sweep&amp;Go and the next sync closes them here.</div>' : '';
+    var dmInfo = dormantInfo(l), dmRow = dmInfo ? '<div style="background:#FFF4E5;color:#7a4a00;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:600;margin-top:8px;">&#128269; Sweep&amp;Go says active, but ' + esc(dmInfo.why) + (dmInfo.flag ? '' : ' and no visit in the jobs report') + '. Left out of the route and the numbers. If they are gone, deactivate them in Sweep&amp;Go and the next sync closes them here.</div>' : '';
+    var cmRow = fu.cm ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#127970; Commercial account, from Sweep&amp;Go\u2019s commercial side.</div>' : '';
+    var rj = recentJobs(l), rjRow = rj && rj.length ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128197; Last visits: ' + rj.map(function(j){ var dd = new Date(j.d + 'T12:00:00'); return esc(dd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })) + (j.skip ? ' <span style="color:#b45309;">skipped: ' + esc(j.skip) + '</span>' : (j.min ? ' (' + j.min + ' min' + (j.who ? ', ' + esc(j.who) : '') + ')' : '')); }).join(' &middot; ') + '</div>' : '';
+    var prRow = fu.pr ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128231; Payment reminder emailed ' + esc(fu.pr.split('@')[1] || '') + ' for $' + esc(fu.pr.split('@')[0]) + '</div>' : '';
     var pmRow = '';
     if (fu.pm){ var pmp = fu.pm.split('@'); pmRow = '<div style="background:#FFF8E1;color:#7a5c00;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:700;margin-top:8px;">&#128200; Price moves to $' + esc(pmp[0]) + '/mo on ' + esc(pmp[1] || '') + ' &mdash; notice sent. Change it in Sweep&amp;Go on the day; this clears when the sync sees it.</div>'; }
     var feLine = fu.fe ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128231; Follow-up email' + (fu.fe.indexOf(',') > 0 ? 's' : '') + ' sent ' + esc(fu.fe.split(',').map(function(x){ var p = x.split('@'); return (p[0] === '1' ? 'day 2' : 'day 6') + ' (' + p[1] + ')'; }).join(', ')) + '</div>' : '';
@@ -6581,7 +6634,7 @@ function render(){
         '<br><span class="price">' + esc(String(l.price || '').indexOf('$') >= 0 ? l.price : (priceLabel(l) || l.price || '')) + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(honoredText(l.honored)) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' + srcChip + refChip + bestRow + icChip + azBadge + feLine + weLine + pmRow + dmRow + sdBadge + attLine + fuBadge + ageBadge + owedRow + expRow + wcRow + rvRow + whyRow + cxRow + saveRow +
+      '</div>' + srcChip + refChip + bestRow + icChip + azBadge + feLine + weLine + pmRow + dmRow + cmRow + rjRow + prRow + sdBadge + attLine + fuBadge + ageBadge + owedRow + expRow + wcRow + rvRow + whyRow + cxRow + saveRow +
       '<div class="stbtns">' + STATUSES.filter(function(s){
         // "Cancelled" is a thing that happens to a customer, not a lead
         return s.k !== 'cancelled' || st === 'closed' || st === 'cancelled';

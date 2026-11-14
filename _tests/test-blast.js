@@ -96,7 +96,7 @@ const { ok, done } = reporter();
   await p.click('#blastBtn'); await p.waitForTimeout(600);
   await p.click('button:has-text("Win-back")'); await p.waitForTimeout(300);
   ok('with the office mailbox not connected the Send button stays off and the panel says why, in plain words', await p.$eval('#bl-send', e => e.disabled) && /Customer emails are off: the office mailbox is not connected yet/.test(await p.textContent('#bl-quota')) && /Nothing is ever sent from a Gmail address/.test(await p.textContent('#bl-quota')), await p.textContent('#bl-quota'));
-  ok('and both automatic switches carry the same warning', (await p.$$eval('#blastPanel .office-note', ns => ns.filter(n => /Waits for the office mailbox/.test(n.textContent)).length)) === 2);
+  ok('and all three automatic switches carry the same warning', (await p.$$eval('#blastPanel .office-note', ns => ns.filter(n => /Waits for the office mailbox/.test(n.textContent)).length)) === 3);
   const before = posts.filter(x => x.action === 'blast').length;
   await p.evaluate(() => sendBlast());
   await p.waitForTimeout(300);

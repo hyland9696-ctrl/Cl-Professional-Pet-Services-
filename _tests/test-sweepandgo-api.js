@@ -85,7 +85,7 @@ const { ok, done } = reporter();
   const p = await ctx.newPage();
   await p.clock.install({ time: new Date('2026-11-12T15:00:00Z') });   // a Thursday
   const errs = []; p.on('pageerror', e => errs.push(e.message));
-  const posts = [], sgcreates = [], pricemoves = [];
+  const posts = [], sgcreates = [], pricemoves = [], reminders = [];
   p.on('dialog', d => d.accept());
   const rows = [
     // pinned by the sync: an exact spot, not the ZIP centre
@@ -93,9 +93,11 @@ const { ok, done } = reporter();
     // paused in Sweep&Go until next month: off the route, still a customer; and a stop with Sweep&Go's own 14-minute estimate
     { id:'P1', type:'SAVED', name:'Paused Pat', phone:'6363750003', email:'pat@gmail.com', zip:'63376', address:'3 Ash St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-05-01] [DAY:thu] [PZ:2026-11-01~2026-12-15] [QA:a] ', created:'2026-05-01T12:00:00Z' },
     { id:'E1', type:'SAVED', name:'Eddie Eow', phone:'6363750002', email:'eddie@gmail.com', zip:'63366', address:'2 Pine St, O\'Fallon, MO 63366', dogs:'1', service:'every other week', deodorize:'no', price:'$95/mo', status:'closed', crmnotes:'[CD:2026-07-01] [DAY:thu] [ET:14] [QA:a] ', created:'2026-07-01T12:00:00Z' },
-    { id:'N1', type:'SAVED', name:'Near Ned', phone:'6363750008', email:'ned@gmail.com', zip:'63376', address:'5 Oak St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$75/mo', status:'closed', crmnotes:'[CD:2026-08-01] [DAY:thu] [LL:38.79200,-90.60150] [WE:1@2026-08-02] [WE:2@2026-09-01] [RV:2026-09-01] [QA:a] ', created:'2026-08-01T12:00:00Z' },
+    { id:'N1', type:'SAVED', name:'Near Ned', phone:'6363750008', email:'ned@gmail.com', zip:'63376', address:'5 Oak St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$75/mo', status:'closed', crmnotes:'[CD:2026-08-01] [DAY:thu] [LL:38.79200,-90.60150] [WE:1@2026-08-02] [WE:2@2026-09-01] [RV:2026-09-01] [AKA:Edward Near] [QA:a] ', created:'2026-08-01T12:00:00Z' },
+    // Sweep&Go's own flag says off schedule: to check at once, no waiting for the billing
+    { id:'O1', type:'SAVED', name:'Off Olly', phone:'6363750031', email:'olly@gmail.com', zip:'63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-09-01] [DAY:thu] [SGID:rcl_OLLY] [OS:1] [QA:a] ', created:'2026-09-01T12:00:00Z' },
     // Sweep&Go still calls him active, but nothing has been billed since he started in March and he is not in the jobs report
-    { id:'Z1', type:'SAVED', name:'Zombie Zed', phone:'6363750099', email:'zed@gmail.com', zip:'63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-03-01] [DAY:thu] [SGID:rcl_ZED] [QA:a] ', created:'2026-03-01T12:00:00Z' },
+    { id:'Z1', type:'SAVED', name:'Zombie Zed', phone:'6363750099', email:'zed@gmail.com', zip:'63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-03-01] [DAY:thu] [SGID:rcl_ZED] [CM:1] [QA:a] ', created:'2026-03-01T12:00:00Z' },
     // accepted on the website, not in Sweep&Go yet: the card offers the sign-up
     { id:'A1', type:'ACTIVATE', name:'Ann Accept', phone:'6363750020', email:'ann@gmail.com', zip:'63376', address:'12 Elm St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'called', crmnotes:'[HH:A friend or neighbor] [QA:a] ', created:'2026-11-11T12:00:00Z' },
     { id:'az1', type:'AUTH', name:'Ann Accept', zip:'A1', price:'$85/mo', service:'weekly', dogs:'1', email:'ann@gmail.com', created:'2026-11-11T13:00:00Z' },
@@ -111,16 +113,17 @@ const { ok, done } = reporter();
     '2026-11': { billed: 8078, onetime: 0, collected: 6796, unpaid: 2154, failed: 16, invoices: 92, customers: 86 } },
     unpaid: [ { name:'Eddie Eow', owed: 190, n: 2, oldest:'2026-10-05', statuses: { overdue: 1, draft: 1 } }, { name:'Nobody Known', owed: 65, n: 1, oldest:'2026-11-01', statuses: { failed: 1 } } ],
     declining: [ { name:'Eddie Eow', when:'2026-11-08', amount: 95 } ],
-    last: { 'dana deo': '2026-11-02', 'eddie eow': '2026-11-08', 'paused pat': '2026-10-28' } };   // Ned has not paid in a while either, but he is being visited
+    last: { 'dana deo': '2026-11-02', 'eddie eow': '2026-11-08', 'paused pat': '2026-10-28', 'edward near': '2026-11-01' } };   // Ned pays under Sweep&Go's spelling of his name   // Ned has not paid in a while either, but he is being visited
   stubNetwork(p, {});
   await p.route('**/api.open-meteo.com/**', r => r.fulfill({ contentType:'application/json', body: JSON.stringify({ daily: { time: ['2026-11-12','2026-11-13','2026-11-14','2026-11-15','2026-11-16','2026-11-17','2026-11-18'], precipitation_probability_max: [60, 10, 0, 0, 20, 70, 5], temperature_2m_min: [41, 38, 36, 40, 44, 47, 45], temperature_2m_max: [55, 52, 50, 58, 61, 59, 57] } }) }));
   await p.route('**/script.google.com/**', r => {
     let body = {}; try { body = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
     if (body.action) posts.push(body);
     if (body.action === 'billing') return r.fulfill({ contentType:'application/json', body: JSON.stringify(billing) });
-    if (body.action === 'jobs') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, days: 30, visits: 310, minutes: 2790, timed: 300, skipped: 4, skipReasons: { 'Gate locked': 3, 'Client request': 1 }, skippedBy: { 'Eddie Eow': 2, 'Someone Else': 1 }, rate: { byPlan: { weekly: { n: 250, price: 5000, min: 2250, perHour: 133 }, 'every other week': { n: 50, price: 2200, min: 540, perHour: 244 } }, byDogs: { '1': { n: 120, price: 2400, min: 840, perHour: 171 }, '2': { n: 140, price: 3500, min: 1540, perHour: 136 } }, byWeekday: { thu: { n: 60, price: 1500, min: 600, perHour: 150 } } }, byClient: { 'Dana Deo': { n: 4, med: 20, price: 35 }, 'Eddie Eow': { n: 2, med: 8, price: 44 }, 'Near Ned': { n: 4, med: 7, price: 20 } }, byDogs: { '1': { n: 120, median: 7 }, '2': { n: 140, median: 11 }, '3': { n: 40, median: 15 } }, byDate: { '2026-11-11': { visits: 18, skipped: 1, minutes: 170, price: 500 }, '2026-11-10': { visits: 20, skipped: 0, minutes: 190, price: 560 } }, techs: { 'Jesse Duncan': 310 } }) });
+    if (body.action === 'jobs') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, days: 30, visits: 310, minutes: 2790, timed: 300, skipped: 4, skipReasons: { 'Gate locked': 3, 'Client request': 1 }, skippedBy: { 'Eddie Eow': 2, 'Someone Else': 1 }, rate: { byPlan: { weekly: { n: 250, price: 5000, min: 2250, perHour: 133 }, 'every other week': { n: 50, price: 2200, min: 540, perHour: 244 } }, byDogs: { '1': { n: 120, price: 2400, min: 840, perHour: 171 }, '2': { n: 140, price: 3500, min: 1540, perHour: 136 } }, byWeekday: { thu: { n: 60, price: 1500, min: 600, perHour: 150 } } }, byClient: { 'Dana Deo': { n: 4, med: 20, price: 35 }, 'Eddie Eow': { n: 2, med: 8, price: 44 }, 'Near Ned': { n: 4, med: 7, price: 20 } }, recent: { 'Dana Deo': [ { d:'2026-11-11', min: 12, who:'Jesse', skip:'' }, { d:'2026-11-04', min: 0, who:'', skip:'Gate locked' } ] }, byDogs: { '1': { n: 120, median: 7 }, '2': { n: 140, median: 11 }, '3': { n: 40, median: 15 } }, byDate: { '2026-11-11': { visits: 18, skipped: 1, minutes: 170, price: 500 }, '2026-11-10': { visits: 20, skipped: 0, minutes: 190, price: 560 } }, techs: { 'Jesse Duncan': 310 } }) });
     if (body.action === 'sgcreate'){ sgcreates.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, created:true, priceOk:false, sgPrice: 95, quoted: 85 }) }); }
     if (body.action === 'quota') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, office:true, from:'info@clpropetservices.com', remaining: 10000 }) });
+    if (body.action === 'payremind'){ reminders.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, date:'2026-11-12' }) }); }
     if (body.action === 'pricemove'){ pricemoves.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, sent: body.items.map(i => i.id), failed: [], date: body.date }) }); }
     if (body.action === 'billingcsv') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, rows: 2, csv: 'kind,number,date,client\ninvoice,1,2026-11-02,Dana Deo\npayment,,2026-11-02,Dana Deo\n', months: 'month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced\n2026-11,8078,0,6796,2154,40,16,86\n' }) });
     if (body.action === 'sgsync') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, clients: 94, added: 0, updated: 3, errors: [] }) });
@@ -149,9 +152,13 @@ const { ok, done } = reporter();
   /* ---- Sweep&Go says active, but... ---- */
   const dorm = (await p.textContent('#dormant')).replace(/\s+/g, ' ');
   ok('a customer Sweep&Go calls active with nothing billed in 60 days and no visit is listed to check, with the instruction to disable him in Sweep&Go', /Zombie Zed \$85\/mo · since 2026-03-01\s*never billed/.test(dorm) && /deactivate them in Sweep&Go/.test(dorm), dorm.slice(0, 300));
-  ok('Ned, unpaid for a while but visited four times, is not; neither is anyone new or anyone the office entered by hand', !/Near Ned/.test(dorm) && !/Ann Accept/.test(dorm) && (await p.evaluate(() => dormantList().length)) === 1);
-  ok('he is kept out of the active count, which says so, and off the route', /1 to check/.test((await p.textContent('#glance')).replace(/\s+/g, ' ')) && /Thu\s*3 stops/.test(sched) && /1 to check/.test(await p.$eval('#dormant .fsum', e => e.textContent)), (await p.textContent('#glance')).replace(/\s+/g, ' '));
-  ok('and his card says why', /Sweep&Go says active, but never billed and no visit in the jobs report/.test((await p.textContent('#card-Z1')).replace(/\s+/g, ' ')));
+  ok('Olly is listed at once on Sweep&Go\'s own flag, off schedule, before any billing rule', /Off Olly \$85\/mo · since 2026-09-01\s*off schedule in Sweep&Go/.test(dorm), dorm.slice(0, 400));
+  ok('Ned, unpaid for a while but visited four times, is not; neither is anyone new or anyone the office entered by hand', !/Near Ned/.test(dorm) && !/Ann Accept/.test(dorm) && (await p.evaluate(() => dormantList().length)) === 2);
+  ok('money under Sweep&Go\'s spelling of a name still lands on the card', (await p.evaluate(() => lastMoney(leads.filter(l => l.id === 'N1')[0]))) === '2026-11-01' && (await p.evaluate(() => leadByName('Edward Near') && leadByName('Edward Near').id)) === 'N1');
+  ok('they are kept out of the active count, which says so, and off the route', /2 to check/.test((await p.textContent('#glance')).replace(/\s+/g, ' ')) && /Thu\s*3 stops/.test(sched) && /2 to check/.test(await p.$eval('#dormant .fsum', e => e.textContent)), (await p.textContent('#glance')).replace(/\s+/g, ' '));
+  ok('and each card says why, in its own words', /Sweep&Go says active, but never billed and no visit in the jobs report/.test((await p.textContent('#card-Z1')).replace(/\s+/g, ' ')) && /Sweep&Go says active, but off schedule in Sweep&Go\./.test((await p.textContent('#card-O1')).replace(/\s+/g, ' ')), (await p.textContent('#card-O1')).replace(/\s+/g, ' ').slice(0, 300));
+  ok('a commercial account says so on its card', /Commercial account, from Sweep&Go/.test(await p.textContent('#card-Z1')));
+  ok('the last visits at the house sit on the card: date, minutes, who, and a skip with its reason', /Last visits: Nov 11 \(12 min, Jesse\) · Nov 4 skipped: Gate locked/.test((await p.textContent('#card-D1')).replace(/\s+/g, ' ')), (await p.textContent('#card-D1')).replace(/\s+/g, ' ').slice(0, 400));
   /* ---- the Work done card ---- */
   const jobs = (await p.textContent('#jobs')).replace(/\s+/g, ' ');
   ok('visits, hours on site, the average stop, skips and the week\'s real miles', /310\s*visits done · 46h 30m on site/.test(jobs) && /9\s*minutes a stop, average · 300 timed/.test(jobs) && /4\s*skipped · Gate locked 3/.test(jobs) && /162\s*road miles this week, Sweep&Go’s count · 3 days/.test(jobs), jobs.slice(0, 400));
@@ -200,6 +207,12 @@ const { ok, done } = reporter();
   await p.click('#we-auto-box'); await p.waitForTimeout(400);
   ok('ticking it writes the setting the 9am job reads', posts.some(x => x.action === 'lead' && x.lead && x.lead.type === 'CONFIG' && x.lead.name === 'welcome_emails' && x.lead.notes === 'on' && x.key));
   await p.click('#blastPanel button:has-text("Close")'); await p.waitForTimeout(200);
+  await p.click('#blastBtn'); await p.waitForTimeout(500);
+  ok('the payment-reminder switch starts off and explains itself', !(await p.isChecked('#pr-auto-box')) && /Anyone 14 or more days behind gets one plain note/.test(await p.textContent('#blastPanel')));
+  await p.click('#pr-auto-box'); await p.waitForTimeout(400);
+  ok('ticking it writes the setting the Monday job reads', posts.some(x => x.action === 'lead' && x.lead && x.lead.type === 'CONFIG' && x.lead.name === 'pay_reminders' && x.lead.notes === 'on' && x.key));
+  ok('the week line counts what the three automatic emails sent, from the stamps on the cards', /This week: 1 follow-up · 0 welcomes · 0 payment reminders/.test((await p.textContent('#email-week')).replace(/\s+/g, ' ')), await p.textContent('#email-week'));
+  await p.click('#blastPanel button:has-text("Close")'); await p.waitForTimeout(200);
   /* ---- the price-move planner ---- */
   const ut = (await p.textContent('#undertable')).replace(/\s+/g, ' ');
   ok('Ned pays $75 against an $85 table, and sits on the left-on-the-table list with a box to tick', /Near Ned 1 dog weekly · 63376 [A-Za-z ]*\$75 → \$85 \+\$10/.test(ut) && (await p.$$('#undertable .pm-box[data-id="N1"]')).length === 1 && /Tick a customer to plan a price move/.test(ut), ut.slice(0, 300));
@@ -236,6 +249,10 @@ const { ok, done } = reporter();
   const owed = posts.find(x => x.action === 'update' && x.id === 'E1' && /\[OW:190@2026-10-05\]/.test(x.notes));
   ok('one tap puts the amount and the date on their card', !!owed, JSON.stringify(posts.filter(x => x.id === 'E1').slice(-1)));
   ok('and the card shows it', /\$190 behind on payment since/.test((await p.textContent('#card-E1')).replace(/\s+/g, ' ')));
+  ok('Eddie, who has an email, gets a Remind button; the stranger with no card does not', (await p.$$('#billing .pr-btn')).length === 1 && !(await p.$eval('#billing .pr-btn', e => e.disabled)));
+  await p.click('#billing .pr-btn'); await p.waitForTimeout(500);
+  ok('one tap asks the script, signed, with who, how much and since when', reminders.length === 1 && reminders[0].key && reminders[0].id === 'E1' && reminders[0].amount === 190 && reminders[0].since === '2026-10-05', JSON.stringify(reminders));
+  ok('the card and the list both remember it, so nobody is reminded twice by accident', /Payment reminder emailed 2026-11-12 for \$190/.test((await p.textContent('#card-E1')).replace(/\s+/g, ' ')) && /reminded 2026-11-12/.test((await p.textContent('#billing')).replace(/\s+/g, ' ')), (await p.textContent('#billing')).replace(/\s+/g, ' ').slice(0, 400));
   ok('the closed heading carries the month', /\$8,078 billed · \$6,796 in · \$255 owed/.test(await p.$eval('#billing .fsum', e => e.textContent)), await p.$eval('#billing .fsum', e => e.textContent));
   /* ---- for the accountant ---- */
   const dl1p = p.waitForEvent('download');

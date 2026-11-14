@@ -15,10 +15,11 @@ const d = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
 
 /* ---- a spreadsheet made of arrays ---- */
 function fakeSheet(rows){
+  const live = () => { let n = rows.length; while (n > 0 && rows[n - 1].every(v => v === '' || v == null)) n--; return n; };
   const sh = { rows, writes: 0,
-    getLastRow: () => rows.length, getMaxRows: () => rows.length + 50,
-    appendRow: (r) => { rows.push(r.slice()); sh.writes++; },
-    getDataRange: () => ({ getValues: () => rows.map(r => r.slice()) }),
+    getLastRow: () => live(), getMaxRows: () => rows.length + 50,
+    appendRow: (r) => { rows.length = live(); rows.push(r.slice()); sh.writes++; },
+    getDataRange: () => ({ getValues: () => rows.slice(0, live()).map(r => r.slice()) }),
     getRange: (r, c, nr, nc) => ({
       getValues: () => { const out = []; for (let i = 0; i < (nr || 1); i++) out.push((rows[r - 1 + i] || []).slice(c - 1, c - 1 + (nc || 1))); return out; },
       setValues: (vals) => { sh.writes++; vals.forEach((v, i) => { while (rows.length < r + i) rows.push(new Array(HEADERS.length).fill('')); const row = rows[r - 1 + i]; v.forEach((x, j) => { row[c - 1 + j] = x; }); }); },
@@ -50,7 +51,17 @@ const API = {
     sub({ client_name:'Gone Gus', client_email:'gus@gmail.com', status:'canceled', price:85, start_date:'2026-01-10', canceled_at:'2026-09-02 10:00:00', termination_reason:'Moving out of state' }),
     sub({ client_name:'Paused Pat', client_email:'pat@gmail.com', status:'paused', pause_start_date:'2026-11-01', pause_end_date:'2026-12-15', service_plan:'1d-1xW' }),
     sub({ client_name:'Twice Tom', client_email:'tom@gmail.com', price:153, number_of_dogs:'1', service_plan:'1d-2xW', frequency:'two_times_a_week' }),
+    sub({ client_name:'Off Olly', client_email:'olly@gmail.com', price:85, number_of_dogs:'1', service_plan:'1d-1xW' }),          // a live subscription, but Sweep&Go has him off the schedule
+    sub({ client_name:'Per Visit Pete', client_email:'pete@gmail.com', price:15, number_of_dogs:'1', service_plan:'1d-1xW' }),   // an old record: $15 a visit, invoiced $65 a month
   ], last_page: 1 } },
+  '/api/v2/commercial/subscriptions': { subscriptions: { data: [
+    { status:'active', billing_interval:'monthly', start_date:'2024-11-18', commercial_client:'Greens of Broadmoor', commercial_location:'Main', client_name:'Greens of Broadmoor', frequency:'1xW', price: 60 },
+  ], last_page: 1 } },
+  '/api/v2/commercial_clients/active': { data: [
+    { client:'cc_G', name:'Greens of Broadmoor', status:'active', locations_count: 1, locations: [ { location:'cl_G1', name:'Main', status:'active', email:'hoa@greens.com', billing_address:'14995 Green Cir Dr', billing_city:'St. Peters', billing_zip:'63376', service_days:'Wednesday', cleanup_frequency:'Once a week' } ] },
+  ], paginate: { total_pages: 1 } },
+  '/api/v2/commercial_clients/inactive': { data: [], paginate: { total_pages: 1 } },
+  '/api/v2/old_list': { data: [ { date:'2024-01-02' }, { date:'2024-01-01' } ], last_page: 3 },
   '/api/v1/clients/active': { data: [
     client({ client:'rcl_D', first_name:'Dana', last_name:'Deo', email:'dana@gmail.com', cell_phone:'(636) 375-0001', address:'1 Oak St', zip_code:'63376', service_days:'Thursday', tracking_field:'utm_source=facebook&utm_medium=paid' }),
     client({ client:'rcl_K', first_name:'Kelly', last_name:'.', email:'', cell_phone:'6363750002', address:'14 Creekside Dr', zip_code:'63376', service_days:'Tuesday', cleanup_frequency:'once_a_week' }),
@@ -58,6 +69,12 @@ const API = {
     client({ client:'rcl_P', first_name:'Paused', last_name:'Pat', email:'pat@gmail.com', cell_phone:'6363750004', address:'4 Elm St', zip_code:'63376', service_days:'Thursday' }),
     client({ client:'rcl_T', first_name:'Twice', last_name:'Tom', email:'tom@gmail.com', cell_phone:'6363750005', address:'5 Fir St', zip_code:'63376', service_days:'Tuesday, Friday', cleanup_frequency:'two_times_a_week' }),
     client({ client:'rcl_L', first_name:'Lost', last_name:'Larry', email:'larry@gmail.com', cell_phone:'6363750006', address:'6 Birch St', zip_code:'63376' }),   // the office marked him Not interested: left alone
+    client({ client:'rcl_O', first_name:'Off', last_name:'Olly', email:'olly@gmail.com', cell_phone:'6363750011', address:'11 Off St', zip_code:'63376', service_days:'', off_schedule: true }),
+    client({ client:'rcl_S', first_name:'Sub', last_name:'Sally', email:'sally@gmail.com', cell_phone:'6363750012', address:'12 Sub St', zip_code:'63376', service_days:'Monday', subscription_names:'' }),
+    client({ client:'rcl_V', first_name:'Per Visit', last_name:'Pete', email:'pete@gmail.com', cell_phone:'6363750013', address:'13 Visit St', zip_code:'63376', service_days:'Friday' }),
+  ], paginate: { total_pages: 1 } },
+  '/api/v1/clients/active_no_subscription': { data: [
+    client({ client:'rcl_S', first_name:'Sub', last_name:'Sally', email:'sally@gmail.com', cell_phone:'6363750012' }),
   ], paginate: { total_pages: 1 } },
   '/api/v1/clients/inactive': { data: [
     client({ client:'rcl_G', status:'inactive', first_name:'Gone', last_name:'Gus', email:'gus@gmail.com', cell_phone:'6363750003', address:'3 Ash St', zip_code:'63376', service_days:'' }),
@@ -70,9 +87,10 @@ const API = {
   '/api/v2/invoices?type=recurring': { invoices: { data: [
     { created_at: d(10) + ' 00:03:23', invoice_number:'768-1-1', client_name:'Dana Deo', status:'paid', total:'151.00', paid:'151.00', remaining:'0.00', type:'subscription', billing_interval:'monthly', pay_method:'credit_card' },
     { created_at: d(9) + ' 00:03:23', invoice_number:'768-2-1', client_name:'Kelly .', status:'overdue', total:'87.00', paid:'0.00', remaining:'87.00', type:'subscription', billing_interval:'monthly' },
+    { created_at: d(8) + ' 00:03:23', invoice_number:'768-4-1', client_name:'Per Visit Pete', status:'paid', total:'65.00', paid:'65.00', remaining:'0.00', type:'subscription', billing_interval:'monthly' },
+    { created_at: d(20) + ' 00:03:23', invoice_number:'768-5-1', client_name:'New Nancy', status:'overdue', total:'75.00', paid:'0.00', remaining:'75.00', type:'subscription', billing_interval:'monthly' },
   ], last_page: 1 } },
-  '/api/v2/invoices?type=one_time': 'ERR400',
-  '/api/v2/invoices?type=onetime': { invoices: { data: [ { created_at: d(5) + ' 10:00:00', invoice_number:'768-3-3', client_name:'Once Olga', status:'paid', total:'75.00', paid:'75.00', remaining:'0.00', type:'one_time' } ], last_page: 1 } },
+  '/api/v2/invoices?type=one_time': { invoices: { data: [ { created_at: d(5) + ' 10:00:00', invoice_number:'768-3-3', client_name:'Once Olga', status:'paid', total:'75.00', paid:'75.00', remaining:'0.00', type:'one_time' } ], last_page: 1 } },
   '/api/v2/payments': { payments: { data: [
     { date: d(10), amount: 151, amount_refunded:'0.00', status:'succeeded', type:'credit_card', description:'Payment for invoice 768-1-1', client_name:'Dana Deo', tip_amount:'5.00' },
     { date: d(9), amount: 87, amount_refunded:'0.00', status:'failed', type:'credit_card', description:'Payment for invoice 768-2-1', client_name:'Kelly .', tip_amount:'0.00' },
@@ -129,6 +147,8 @@ function seed(){
     row({ id:'p6363750001', created:'2026-06-01T12:00:00Z', type:'ENQUIRY', name:'Dana D', phone:'6363750001', email:'dana@gmail.com', address:'1 Oak St, St. Peters, MO 63376', zip:'63376', service:'weekly', dogs:'2', price:'$91/mo', status:'closed', crmnotes:'[FU:2026-12-01] [CD:2026-06-01] [PM:91@2026-11-01] [QA:a] gate 4321', updated:'' }),
     // matched by name only (no phone or email on the old row)
     row({ id:'sgkelly', created:'2026-03-01T12:00:00Z', type:'SAVED', name:'Kelly .', phone:'', email:'', address:'14 Creekside Dr, St Peters, MO 63376', zip:'63376', service:'weekly', dogs:'3', price:'$99/mo', status:'closed', crmnotes:'[SGC:2026-03-01] [QP:87] [CD:2026-03-01] [QA:a] ', updated:'' }),
+    // typed by hand before the commercial side was synced: matched by its name
+    row({ id:'greens', created:'2024-11-18T12:00:00Z', type:'SAVED', name:'Greens of Broadmoor - 14995 Green Cir Dr.', phone:'', email:'', zip:'63376', service:'commercial', dogs:'', price:'$60/mo (billed $60 per visit)', status:'closed', crmnotes:'[CD:2024-11-18] [QA:a] ', updated:'' }),
     // the office said no to this one: Sweep&Go must not reopen him
     row({ id:'p6363750006', created:'2026-04-01T12:00:00Z', type:'ENQUIRY', name:'Lost Larry', phone:'6363750006', email:'larry@gmail.com', zip:'63376', service:'weekly', dogs:'1', price:'$85/mo', status:'lost', crmnotes:'[QA:d] went elsewhere', updated:'' }),
     row({ id:'v1', created:'2026-11-01T12:00:00Z', type:'VIEW', name:'home', service:'Direct', notes:'how=none', status:'', crmnotes:'' }),
@@ -142,14 +162,15 @@ function build(leadRows){
     SpreadsheetApp: { openById: () => ss, create: () => ss },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] || null, setProperty: (k, v) => { props[k] = v; } }) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
+    DriveApp: { getFileById: () => ({ makeCopy: () => {} }), getFoldersByName: () => ({ hasNext: () => false }), createFolder: () => ({ getFiles: () => ({ hasNext: () => false }) }) },
     CacheService: { getScriptCache: () => ({ get: () => null, put: () => {}, remove: () => {} }) },
     Logger: { log: (m) => { logs.push(String(m)); } },
     ScriptApp: { WeekDay: { MONDAY:'mon', SUNDAY:'sun' }, getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/XYZ/exec' }), getProjectTriggers: () => [], deleteTrigger: () => {},
-      newTrigger: (fn) => { const chain = { everyDays: () => chain, onWeekDay: () => chain, atHour: () => chain, create: () => { triggers.push(fn); } }; return { timeBased: () => chain }; } },
-    MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: () => '202611', sleep: (ms) => { sleeps.push(ms); } }, Session: { getScriptTimeZone: () => 'America/Chicago' },
+      newTrigger: (fn) => { const chain = { everyDays: () => chain, onWeekDay: () => chain, onMonthDay: () => chain, after: () => chain, atHour: () => chain, create: () => { triggers.push(fn); } }; return { timeBased: () => chain }; } },
+    MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: (d, tz, f) => f === 'yyyy-MM-dd' ? new Date(d).toISOString().slice(0, 10) : '202611', sleep: (ms) => { sleeps.push(ms); }, base64Encode: (s) => Buffer.from(String(s), 'utf8').toString('base64'), Charset: { UTF_8: 'utf8' }, newBlob: (c, type, name) => ({ c, type, name }) }, Session: { getScriptTimeZone: () => 'America/Chicago' },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (txt) => ({ _t: txt, setMimeType(){ return this; } }) },
   };
-  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups, install, INSTALL };')(...Object.values(G));
+  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups, install, INSTALL, sgBillingSync, sgSyncOnce, sgStatus, sgAllUntil_, tidySheet, payRemind_, paymentReminders, monthlyReport, eveningNudge, weeklyHousekeeping };')(...Object.values(G));
   return { F, sheets, props };
 }
 
@@ -158,9 +179,9 @@ function build(leadRows){
   const { F, sheets } = build(seed());
   const before = JSON.stringify(sheets.leads.rows);
   const s = F.sgSync(true);
-  ok('the preview reports what it would do', s.ok && s.dry && s.clients === 8 && s.added === 4 && s.updated === 2 && s.skippedNeverStarted === 1 && s.pinned === 2 && s.leads === 1 && s.errors.length === 0, JSON.stringify(s));
-  ok('and names them', s.addedNames.join() === 'New Nancy,Paused Pat,Twice Tom,Gone Gus' && s.updatedNames.join() === 'Dana Deo,Kelly .', s.addedNames.join() + ' | ' + s.updatedNames.join());
-  ok('an active client with no subscription is flagged for a look, not invented', s.noSubscription.join() === 'Lost Larry', s.noSubscription.join());
+  ok('the preview reports what it would do', s.ok && s.dry && s.clients === 11 && s.added === 7 && s.updated === 2 && s.skippedNeverStarted === 1 && s.pinned === 2 && s.leads === 1 && s.commercial === 1 && s.errors.length === 0, JSON.stringify(s));
+  ok('and names them', s.addedNames.join() === 'New Nancy,Paused Pat,Twice Tom,Off Olly,Sub Sally,Per Visit Pete,Gone Gus' && s.updatedNames.join() === 'Dana Deo,Kelly .', s.addedNames.join() + ' | ' + s.updatedNames.join());
+  ok('an active client with no subscription is flagged for a look, not invented', s.noSubscription.join() === 'Lost Larry,Sub Sally', s.noSubscription.join());
   ok('nothing was written', JSON.stringify(sheets.leads.rows) === before && sheets.leads.writes === 0 && !sheets.billing && !sheets.jobs);
 }
 
@@ -169,9 +190,10 @@ function build(leadRows){
   const { F, sheets } = build(seed());
   calls.length = 0;
   const s = F.sgSync(false);
+  const firstWrites = sheets.leads.writes;
   const rows = sheets.leads.rows.slice(1).map(r => { const o = {}; HEADERS.forEach((h, i) => { o[h] = r[i]; }); return o; });
   const by = (id) => rows.filter(r => r.id === id).slice(-1)[0];
-  ok('the summary matches the preview', s.ok && !s.dry && s.added === 4 && s.updated === 2 && s.errors.length === 0, JSON.stringify(s));
+  ok('the summary matches the preview', s.ok && !s.dry && s.added === 7 && s.updated === 2 && s.errors.length === 0, JSON.stringify(s));
   const dana = by('p6363750001');
   ok('Dana, matched by phone: price from both subscriptions, dogs, status, day, source; office notes kept', dana && dana.price === '$151/mo (includes $60 deodorize)' && dana.dogs === '2' && dana.status === 'closed' && dana.service === 'weekly' && dana.deodorize === 'every visit ($15/treatment)' && /\[DAY:thu\]/.test(dana.crmnotes) && /\[SGID:rcl_D\]/.test(dana.crmnotes) && /\[SRC:Meta Ads\]/.test(dana.crmnotes) && /\[FU:2026-12-01\]/.test(dana.crmnotes) && /gate 4321$/.test(dana.crmnotes) && /\[CD:2026-06-01\]/.test(dana.crmnotes), dana && JSON.stringify([dana.price, dana.crmnotes]));
   ok('her name on the card is not overwritten by Sweep&Go\'s spelling', dana.name === 'Dana D');
@@ -192,21 +214,39 @@ function build(leadRows){
   ok('Twice Tom has both days and the twice-a-week plan', tom && /\[DAY:tue,fri\]/.test(tom.crmnotes) && tom.service === 'twice a week', tom && JSON.stringify([tom.crmnotes, tom.service]));
   const fiona = by('p6363750007');
   ok('a lead from Sweep&Go\'s form arrives as a new lead; Dana\'s own form entry does not duplicate her', fiona && fiona.type === 'ENQUIRY' && fiona.status === 'new' && /\[SRC:Sweep&Go form\]/.test(fiona.crmnotes) && rows.filter(r => r.phone === '6363750001').length === 1, fiona && JSON.stringify(fiona));
+  /* ---- Sweep&Go's own flags, and the alias ---- */
+  const olly = by('p6363750011'), sally = by('p6363750012'), pete = by('p6363750013');
+  ok('a client Sweep&Go has off the schedule carries the flag, and one with no live subscription carries that', olly && /\[OS:1\]/.test(olly.crmnotes) && !/\[SS:/.test(olly.crmnotes) && sally && /\[SS:none\]/.test(sally.crmnotes) && !/\[OS:/.test(sally.crmnotes) && !/\[(OS|SS):/.test(dana.crmnotes), JSON.stringify([olly && olly.crmnotes, sally && sally.crmnotes]));
+  ok('matched by phone under another spelling, Dana\'s card keeps Sweep&Go\'s name as an alias so invoices and visits still find her', /\[AKA:Dana Deo\]/.test(dana.crmnotes) && !/\[AKA:/.test(kelly.crmnotes), dana.crmnotes);
+  ok('before the first billing pull Pete\'s price is whatever the subscription record says', pete && pete.price === '$15/mo', pete && pete.price);
+  /* ---- the commercial side ---- */
+  const greens = by('greens');
+  ok('the hand-typed commercial row is recognised by name: Sweep&Go\'s id, the commercial mark, the day, the price from the commercial subscription; the name as the office wrote it', greens && /\[SGID:cl_G1\]/.test(greens.crmnotes) && /\[CM:1\]/.test(greens.crmnotes) && /\[DAY:wed\]/.test(greens.crmnotes) && greens.price === '$60/mo' && greens.status === 'closed' && greens.name === 'Greens of Broadmoor - 14995 Green Cir Dr.' && s.commercial === 1, greens && JSON.stringify([greens.price, greens.crmnotes]));
   // the other sheets
-  ok('invoices went into the billing sheet: the bad one-time word was retried until one worked', sheets.billing && sheets.billing.rows.length === 1 + 3 + 2 && calls.some(u => /type=one_time/.test(u)) && calls.some(u => /type=onetime/.test(u)), sheets.billing && String(sheets.billing.rows.length));
+  ok('the sync itself leaves the invoice history to a run of its own a minute later, so it stays well inside the six-minute limit', s.billing === 'scheduled' && !sheets.billing && triggers.includes('sgBillingSync') && !calls.some(u => /invoices|payments/.test(u)), JSON.stringify({ billing: s.billing, triggers }));
+  triggers.length = 0;
+  const bs = F.sgBillingSync();
+  ok('that run pulls recurring and one-time invoices and the payments into the billing sheet, whole the first time, and records itself', bs.ok && bs.full === true && sheets.billing && sheets.billing.rows.length === 1 + 5 + 2 && calls.some(u => /type=one_time/.test(u)) && !calls.some(u => /type=onetime/.test(u)) && /sg_last_billing/.test(JSON.stringify(sheets.leads.rows.slice(-3))), JSON.stringify(bs) + ' ' + (sheets.billing && sheets.billing.rows.length));
   const bill = F.sgBilling_();
-  ok('the billing fold reads it back: Kelly owes $87 and her card is declining, Dana tipped $5', bill.unpaid.length === 1 && bill.unpaid[0].name === 'Kelly .' && bill.unpaid[0].owed === 87 && bill.declining.length === 1 && bill.declining[0].name === 'Kelly .' && Object.values(bill.months).reduce((a, m) => a + m.tips, 0) === 5, JSON.stringify(bill));
+  ok('the billing fold reads it back: Kelly owes $87 and her card is declining, Nancy owes $75, Dana tipped $5', bill.unpaid.length === 2 && bill.unpaid[0].name === 'Kelly .' && bill.unpaid[0].owed === 87 && bill.unpaid[1].name === 'New Nancy' && bill.declining.length === 1 && bill.declining[0].name === 'Kelly .' && Object.values(bill.months).reduce((a, m) => a + m.tips, 0) === 5, JSON.stringify(bill));
+  /* ---- the invoice is the truth for the price ---- */
+  calls.length = 0;
+  F.sgSync(false);
+  const pete2 = sheets.leads.rows.filter(r => r[0] === 'p6363750013').pop();
+  ok('on the next sync Pete\'s $15 record is read against his $65 monthly invoice: $15 x 4.33 is $65, so the price is $65/mo', pete2 && pete2[HEADERS.indexOf('price')] === '$65/mo', pete2 && pete2[HEADERS.indexOf('price')]);
+  ok('Dana\'s price, which matches her invoice, stays', sheets.leads.rows.filter(r => r[0] === 'p6363750001').pop()[HEADERS.indexOf('price')] === '$151/mo (includes $60 deodorize)');
   const jobs = F.sgJobs_();
   ok('the jobs fold reads the visits: one done in 12 minutes for 2 dogs, one skipped for the gate', jobs.visits === 1 && jobs.skipped === 1 && jobs.byDogs['2'].median === 12 && jobs.skipReasons['Gate locked'] === 1, JSON.stringify(jobs));
+  ok('and the last visits at each house, newest first, with minutes, who, and a skip reason', jobs.recent['Dana Deo'] && jobs.recent['Dana Deo'][0].min === 12 && jobs.recent['Dana Deo'][0].who === 'Jesse' && jobs.recent['Kelly .'][0].skip === 'Gate locked', JSON.stringify(jobs.recent));
   ok('who was skipped, and dollars an hour by plan, dogs and weekday', jobs.skippedBy['Kelly .'] === 1 && jobs.rate.byPlan.weekly.n === 1 && jobs.rate.byPlan.weekly.perHour === 175 && jobs.rate.byDogs['2'].perHour === 175 && Object.keys(jobs.rate.byWeekday).length === 1, JSON.stringify(jobs.rate));
   /* ---- the Monday push ---- */
   const n = F.weeklyNumbers_();
-  ok('last week in numbers, from the sheets: customers, comings and goings, leads, money, work', n.active === 5 && n.newCust === 1 && n.left === 0 && n.leadsIn >= 1 && n.billed === 75 && n.collected === 0 && Math.round(n.owed) === 87   /* Dana's invoice and payment are ten days old: last week holds the one-time job only */ && n.visits === 1 && n.skipped === 1, JSON.stringify(n));
+  ok('last week in numbers, from the sheets: customers, comings and goings, leads, money, work, and the two Sweep&Go still calls active without a schedule or a subscription', n.active === 7 && n.toCheck === 2 && n.newCust === 1 && n.left === 0 && n.leadsIn >= 1 && n.billed === 75 && n.collected === 0 && n.owed === 162 && n.owed30 === 0 && n.visits === 1 && n.skipped === 1, JSON.stringify(n));
   const text = F.weeklyPush();
-  ok('the push went to the topic with the week on four or five lines', pushes.length === 1 && pushes[0].title === 'CLPPS last week' && /\$75 billed, \$0 collected, \$87 still owed/.test(text) && /5 active, \+1 new/.test(text) && /1 visits done, 1 skipped/.test(text), JSON.stringify(pushes) + ' ' + text);
+  ok('the push went to the topic with the week on four or five lines', pushes.length === 1 && pushes[0].title === 'CLPPS last week' && /\$75 billed, \$0 collected, \$162 still owed/.test(text) && /; 2 to check in Sweep&Go/.test(text) && /7 active, \+1 new/.test(text) && /1 visits done, 1 skipped/.test(text), JSON.stringify(pushes) + ' ' + text);
   const cfg = (n) => rows.filter(r => r.type === 'CONFIG' && r.name === n).slice(-1)[0];
-  ok('the sync wrote its own status and the route report as settings', cfg('sg_last_sync') && JSON.parse(cfg('sg_last_sync').notes).clients === 8 && cfg('sg_routes') && JSON.parse(cfg('sg_routes').notes)[today][0].mi === 61.5);
-  ok('writes are batched: well under one per row touched', sheets.leads.writes <= 12, String(sheets.leads.writes));
+  ok('the sync wrote its own status and the route report as settings', cfg('sg_last_sync') && JSON.parse(cfg('sg_last_sync').notes).clients === 11 && cfg('sg_routes') && JSON.parse(cfg('sg_routes').notes)[today][0].mi === 61.5);
+  ok('writes are batched: well under one per row touched', firstWrites <= 12, String(firstWrites));
   // a second run changes nothing
   const w = sheets.leads.writes, s2 = F.sgSync(false);
   ok('running it again adds nothing and updates nothing', s2.added === 0 && s2.updated === 0 && s2.pinned === 0 && s2.leads === 0, JSON.stringify(s2));
@@ -402,7 +442,7 @@ function build(leadRows){
 /* ---- the accountant's two files ---- */
 {
   const { F, sheets } = build(seed());
-  F.sgSync(false);
+  F.sgSync(false); F.sgBillingSync();
   const x = F.billingCsv_();
   const lines = x.csv.trim().split('\n');
   ok('every invoice and payment, one a line, under the sheet\'s own headers', x.ok && lines[0] === 'kind,number,date,client,type,status,total,paid,remaining,interval,period_start,pay_type,description' && lines.length === x.rows + 1 && x.rows === sheets.billing.rows.length - 1 && x.rows > 3, lines[0] + ' | ' + lines.length + ' vs ' + x.rows);
@@ -419,11 +459,16 @@ function build(leadRows){
   const stop = F.install();
   ok('with no token it stops before touching anything, and says what to do', stop.ok === false && stop.step === 'token' && logs.some(l => /STOP: there is no Sweep&Go token/.test(l)) && sheets.leads.writes === 0 && triggers.length === 0);
   Object.assign(F.INSTALL, { SG_TOKEN: 'tok-123', SG_HOOK: 'word', TRACKER_KEY: 'NxcT-test', NTFY_TOPIC: 'clpps-test-topic', MAIL_FROM: 'info@clpropetservices.com', MS_TENANT: 'PASTE-HERE' });
-  logs.length = 0; triggers.length = 0; pushes.length = 0;
+  logs.length = 0; triggers.length = 0; pushes.length = 0; calls.length = 0;
   const r = F.install();
   ok('filled in, it saves the real values and skips the placeholder', r.ok && props.SG_TOKEN === 'tok-123' && props.SG_HOOK === 'word' && props.TRACKER_KEY === 'NxcT-test' && props.NTFY_TOPIC === 'clpps-test-topic' && props.MAIL_FROM === 'info@clpropetservices.com' && !props.MS_TENANT && r.saved.join() === 'SG_TOKEN,SG_HOOK,TRACKER_KEY,NTFY_TOPIC,MAIL_FROM', JSON.stringify(r));
-  ok('previews, then syncs for real, and says so in plain numbers', /2\. Preview against Sweep&Go: 8 clients, would add 4, update 2/.test(logs.join('\n')) && /3\. First sync done: 4 added, 2 updated/.test(logs.join('\n')) && sheets.leads.writes > 0, logs.join(' | ').slice(0, 600));
-  ok('every job is scheduled: the nightly sync, the Monday push, the 9am emails, the Sunday backup', ['sgSync', 'weeklyPush', 'dailyEmails', 'backupSheet'].every(fn => triggers.includes(fn)), triggers.join());
+  ok('checks the token with one call and leaves the heavy lifting to runs of their own, so install itself is quick', /2\. Sweep&Go accepts the token/.test(logs.join('\n')) && /3\. Jobs scheduled/.test(logs.join('\n')) && /FIRST sync starts by itself in about a minute/.test(logs.join('\n')) && calls.filter(u => /sweepandgo/.test(u)).length <= 2 && !sheets.billing, logs.join(' | ').slice(0, 600));
+  ok('every job is scheduled: the first sync in a minute, the nightly sync, the Monday push, the 9am emails, the 5pm nudge, the month in review, the Sunday backup and tidy', ['sgSyncOnce', 'sgSync', 'weeklyPush', 'dailyEmails', 'eveningNudge', 'monthlyReport', 'weeklyHousekeeping'].every(fn => triggers.includes(fn)), triggers.join());
+  ok('the backup ran and the sheet was tidied', logs.some(l => /4\. Backups: every Sunday night .* tidied/.test(l)), logs.filter(l => /^4\./.test(l)).join());
+  triggers.length = 0; calls.length = 0;
+  const first = F.sgSyncOnce();
+  ok('the first sync then runs on its own, writes the customers and lines up the invoice pull', first.ok && first.added === 7 && sheets.leads.writes > 0 && triggers.includes('sgBillingSync'), JSON.stringify({ added: first.added, triggers }));
+  ok('sgStatus reads back what happened', /"added":7/.test(F.sgStatus().sync));
   ok('the office mailbox is reported as not set up rather than failing', logs.some(l => /6\. Office mailbox: not set up yet/.test(l)));
   ok('a test push goes to the phones', pushes.some(x => /clpps-test-topic/.test(x.url) && /installed/.test(x.body)));
   ok('and the log ends with the two hand steps, with the webhook address filled in', logs.some(l => /A\. Publish: Deploy > Manage deployments > pencil/.test(l)) && logs.some(l => l.trim() === 'https://script.google.com/macros/s/XYZ/exec?hook=word') && r.webhook === 'https://script.google.com/macros/s/XYZ/exec?hook=word', logs.slice(-5).join(' | '));
@@ -437,12 +482,88 @@ function build(leadRows){
 /* ---- Sweep&Go's rate limit: wait, then ask again ---- */
 {
   const { F } = build(seed());
+  const retryWaits = () => sleeps.filter(x => [15000, 30000, 60000].includes(x));
   throttle = 2; sleeps.length = 0;
   const s = F.sgSync(true);
-  ok('two "Too Many Attempts" in a row are waited out and the preview still comes back whole', s.ok && s.clients === 8 && s.errors.length === 0 && sleeps.length === 2 && sleeps[0] === 15000 && sleeps[1] === 30000, JSON.stringify({ errors: s.errors, sleeps }));
+  ok('two "Too Many Attempts" in a row are waited out and the preview still comes back whole', s.ok && s.clients === 11 && s.errors.length === 0 && retryWaits().length === 2 && retryWaits()[0] === 15000 && retryWaits()[1] === 30000, JSON.stringify({ errors: s.errors, sleeps }));
   throttle = 4; sleeps.length = 0;
   const s2 = F.sgSync(true);
-  ok('a limit that never lifts is reported as an error after three waits, not an endless loop', s2.errors.length >= 1 && /429/.test(s2.errors[0]) && sleeps.length === 3 && sleeps[2] === 60000, JSON.stringify({ errors: s2.errors.slice(0, 1), sleeps }));
+  ok('a limit that never lifts is reported as an error after three waits, not an endless loop', s2.errors.length >= 1 && /429/.test(s2.errors[0]) && retryWaits().length === 3 && retryWaits()[2] === 60000, JSON.stringify({ errors: s2.errors.slice(0, 1), sleeps }));
   throttle = 0;
+  // pacing: past forty calls in a minute the script holds back before each further one
+  sleeps.length = 0; calls.length = 0;
+  const { F: F2 } = build(seed());
+  F2.sgSync(false); F2.sgBillingSync(); F2.sgSync(false);
+  const made = calls.filter(u => /sweepandgo/.test(u)).length;
+  ok('a full sync, the billing pull and another sync are paced: more than forty calls, and a hold before each one past the fortieth', made > 40 && sleeps.filter(x => ![15000, 30000, 60000].includes(x)).length >= made - 40, JSON.stringify({ made, holds: sleeps.length }));
+}
+
+/* ---- only the recent pages each night ---- */
+{
+  const { F, sheets } = build(seed());
+  calls.length = 0;
+  ok('a list that comes newest first stops as soon as a whole page is older than wanted', F.sgAllUntil_('/api/v2/old_list', null, (v) => v.date < '2025-01-01').length === 2 && calls.filter(u => /old_list/.test(u)).length === 1);
+  calls.length = 0;
+  ok('without a stop every page is read', F.sgAllUntil_('/api/v2/old_list', null, null).length === 6 && calls.filter(u => /old_list/.test(u)).length === 3);
+  F.sgSync(false); F.sgBillingSync();
+  const n1 = sheets.billing.rows.filter(r => r[0]).length;
+  const again = F.sgBillingSync();
+  const sunday = new Date().getDay() === 0;
+  ok('the second pull is partial on a weekday (the whole history again on Sundays), and the sheet ends up the same', again.ok && again.full === sunday && sheets.billing.rows.filter(r => r[0]).length === n1, JSON.stringify(again));
+}
+
+/* ---- the tidy: one row per person, old page views gone, nothing else touched ---- */
+{
+  const row = (o) => HEADERS.map(h => o[h] == null ? '' : o[h]);
+  const rows = [HEADERS.slice(),
+    row({ id:'dup1', created:'2026-05-01T12:00:00Z', type:'ENQUIRY', name:'Dup Old', status:'new', crmnotes:'old copy' }),
+    row({ id:'dup1', created:'2026-05-01T12:00:00Z', type:'ENQUIRY', name:'Dup New', status:'closed', crmnotes:'[CD:2026-05-01] the one everybody reads' }),
+    row({ id:'v_old', created:'2024-01-01T12:00:00Z', type:'VIEW', name:'home' }),
+    row({ id:'v_new', created: new Date().toISOString(), type:'VIEW', name:'home' }),
+    row({ id:'cfg_a', created:'2026-01-01T12:00:00Z', type:'CONFIG', name:'review_link', notes:'old', status:'config' }),
+    row({ id:'cfg_a', created:'2026-02-01T12:00:00Z', type:'CONFIG', name:'review_link', notes:'new', status:'config' }),
+    row({ id:'auth1', created:'2026-03-01T12:00:00Z', type:'AUTH', name:'x', zip:'dup1' }),
+    row({ id:'solo', created:'2026-04-01T12:00:00Z', type:'SAVED', name:'Solo Sam', status:'closed' }),
+  ];
+  const { F, sheets } = build(rows);
+  const t = F.tidySheet();
+  const left = sheets.leads.rows.filter(r => r[0]).map(r => r[HEADERS.indexOf('id')] + ':' + r[HEADERS.indexOf('name')] + ':' + (r[HEADERS.indexOf('notes')] || ''));
+  ok('duplicates fold to the row the tracker and the sync already use, the stale page view goes, the newest setting stays, authorizations and everyone else are untouched, in order', t.ok && t.removed === 3 && t.kept === 5 && left.join('|') === 'id:name:notes|dup1:Dup New:|v_new:home:|cfg_a:review_link:new|auth1:x:|solo:Solo Sam:', JSON.stringify({ t, left }));
+  ok('run again, nothing more to do', F.tidySheet().removed === 0);
+  ok('Sunday night does the backup and then the tidy', !!F.weeklyHousekeeping());
+}
+
+/* ---- payment reminders, the month in review, the evening nudge ---- */
+{
+  const { F, sheets, props } = build(seed());
+  F.sgSync(false); F.sgBillingSync();
+  mails.length = 0; msCalls.length = 0;
+  ok('a payment reminder is refused until the office mailbox is connected', F.payRemind_({ id:'p6363750001', amount: 50, since: d(20) }).ok === false);
+  Object.assign(props, MS);
+  const noMail = F.payRemind_({ id:'sgkelly', amount: 87, since: d(9) });
+  ok('Kelly has no email: said so, nothing sent', noMail.ok === false && noMail.error === 'no email' && sentMs().length === 0);
+  const r = F.payRemind_({ id:'p6363750009', amount: 75, since: d(20) });
+  const got = sentMs();
+  ok('Nancy gets a plain note from the office with the amount and how long it has been open, and her row is stamped', r.ok && got.length === 1 && got[0].to === 'nancy@gmail.com' && /A quick note about your account/.test(got[0].subject) && /\$75 open on your account, from 20 days ago/.test(got[0].body) && /— Corey/.test(got[0].body) && /\[PR:75@\d{4}-\d{2}-\d{2}\]/.test(sheets.leads.rows.filter(x => x[0] === 'p6363750009').pop()[HEADERS.indexOf('crmnotes')]), JSON.stringify(got));
+  msCalls.length = 0;
+  ok('the Monday round is off by default', F.paymentReminders().off === true && sentMs().length === 0);
+  sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_pr', created: new Date().toISOString(), type:'CONFIG', name:'pay_reminders', notes:'on', status:'config' })[h] || ''));
+  const round = F.paymentReminders();
+  ok('switched on: Nancy was reminded today so she is skipped, Kelly has no email; nobody is nagged twice inside 14 days', round.ok && round.sent === 0 && sentMs().length === 0, JSON.stringify(round));
+  // the month in review
+  msCalls.length = 0; mails.length = 0;
+  const mr = F.monthlyReport();
+  const sent = msCalls.filter(c => c.body && c.body.message).pop();
+  ok('on the 1st the month in review goes to the office from the office, with the two files attached', mr.ok && mr.how === 'microsoft' && sent && sent.body.message.toRecipients.map(x => x.emailAddress.address).join() === 'info@clpropetservices.com,clpropetservices@gmail.com' && /in review$/.test(sent.body.message.subject) && sent.body.message.attachments.length === 2 && sent.body.message.attachments[0].name === 'clpps-billing-by-month.csv' && Buffer.from(sent.body.message.attachments[1].contentBytes, 'base64').toString('utf8').indexOf('kind,number,date') === 0, JSON.stringify(sent && sent.body.message.subject));
+  ok('and it reads like a note, not a dump: money, customers with the two to check, work, leads', /Money: \$/.test(sent.body.message.body.content) && /Customers: \d+ active \(plus 2 Sweep&Go still calls active/.test(sent.body.message.body.content) && /Work: \d+ visits done/.test(sent.body.message.body.content) && /Leads: \d+ came in/.test(sent.body.message.body.content), sent.body.message.body.content);
+  delete props.MS_TENANT;
+  ok('without the office mailbox the report still reaches the office, from Google, since it is not a customer email', F.monthlyReport().how === 'google' && mails.length === 1 && mails[0].attachments.length === 2);
+  // the evening nudge
+  pushes.length = 0;
+  const nudge = F.eveningNudge();
+  ok('at 5pm, the lead that came in today and was never called is pushed to the phones by name', nudge.waiting === 1 && pushes.length === 1 && pushes[0].title === 'Before you clock off' && /1 lead from today still not called: Form Fiona/.test(pushes[0].body), JSON.stringify({ nudge, pushes }));
+  sheets.leads.rows.forEach(r => { if (r[0] === 'p6363750007') r[HEADERS.indexOf('status')] = 'called'; });
+  pushes.length = 0;
+  ok('once she is called, nothing is sent', F.eveningNudge().waiting === 0 && pushes.length === 0);
 }
 done();
