@@ -751,16 +751,18 @@ function sgFetch_(path, method, payload) {
   return JSON.parse(r.getContentText() || '{}');
 }
 /* Walks every page of a paginated list. Two shapes exist: {data, paginate}
-   and {invoices|payments|subscriptions: {data, last_page}}. */
+   and {invoices|payments|subscriptions: {data, last_page}}. Sweep&Go allows
+   at most 50 a page (it answers 422 to more). */
+var SG_PAGE = 50;
 function sgAll_(path, key, maxPages) {
   var out = [], page = 1, pages = 1;
   do {
-    var d = sgFetch_(path + (path.indexOf('?') >= 0 ? '&' : '?') + 'page=' + page + '&length=100');
+    var d = sgFetch_(path + (path.indexOf('?') >= 0 ? '&' : '?') + 'page=' + page + '&length=' + SG_PAGE);
     var box = key && d[key] ? d[key] : d;
     (box.data || []).forEach(function(x) { out.push(x); });
     pages = box.paginate ? (box.paginate.total_pages || 1) : (box.last_page || 1);
     page++;
-  } while (page <= pages && page <= (maxPages || 40));
+  } while (page <= pages && page <= (maxPages || 100));
   return out;
 }
 function sgDigits_(p) { var d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : ''; }

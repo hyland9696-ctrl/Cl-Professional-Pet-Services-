@@ -21,6 +21,7 @@ const { ok, done } = reporter();
   ok('the markers Sweep&Go owns are replaced, the office ones kept', X.sgSetMarkers_('[FU:2026-12-01] [DAY:mon] [CD:2026-01-01] gate 4321', { DAY: 'thu', CD: '2026-02-02', CX: '' }) === '[CD:2026-02-02] [DAY:thu] [FU:2026-12-01] gate 4321', X.sgSetMarkers_('[FU:2026-12-01] [DAY:mon] [CD:2026-01-01] gate 4321', { DAY: 'thu', CD: '2026-02-02', CX: '' }));
   ok('termination reasons map to the tracker\'s tags', X.sgReason_('Too expensive') === 'price' && X.sgReason_('Moving out of state') === 'moved' && X.sgReason_('Dog passed away') === 'nodog' && X.sgReason_('') === '' && X.sgReason_('because') === 'other');
   ok('the source reads the ad tag first, then how they heard', X.sgSource_({ tracking_field: 'utm_source=facebook&utm_medium=paid' }) === 'Meta Ads' && X.sgSource_({ how_heard_answer: 'A friend referred me' }) === 'Referral' && X.sgSource_({}) === '');
+  ok('pages are asked for 50 at a time, the most Sweep&Go allows', /SG_PAGE = 50;/.test(gs) && /'&length=' \+ SG_PAGE/.test(gs) && !/length=100/.test(gs));
   ok('phones are the last ten digits', X.sgDigits_('+1 (636) 375-4342') === '6363754342' && X.sgDigits_('4342') === '');
   // the billing fold, against a fake sheet
   const H = X.BILLING_HEADERS;
