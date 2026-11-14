@@ -15,7 +15,7 @@ const { ok, done } = reporter();
   ok('and has words for the blanks', fill('Hi {first}, {price} for {plan}', {}) === 'Hi there, your quoted price for your plan');
   ok('blast and quota need the key', /action === 'blast'[^]*?bad pin/.test(gs) && /action === 'quota'[^]*?bad pin/.test(gs));
   ok('a batch is capped and the message clipped', /BLAST_MAX = 60/.test(gs) && /slice\(0, BLAST_MAX\)/.test(gs) && /clip_\(body\.body, BLAST_BODY_MAX\)/.test(gs));
-  ok('every send is stamped on the lead and goes through the office mailbox, reply-to the office', /\[EM:' \+ tag \+ '@/.test(gs) && /sendCustomerMail_\(\{ to: email, subject: fillBlast_/.test(gs) && /replyTo: o\.replyTo \|\| NOTIFY_CC/.test(gs) && /address: o\.replyTo \|\| c\.from/.test(gs));
+  ok('every send is stamped on the lead and goes through the office mailbox only, reply-to the office', /\[EM:' \+ tag \+ '@/.test(gs) && /sendCustomerMail_\(\{ to: email, subject: fillBlast_/.test(gs) && /if \(!officeMailReady_\(\)\) return \{ ok:false, error: NO_OFFICE_MAIL \};/.test(gs) && /address: o\.replyTo \|\| c\.from/.test(gs) && !/MailApp\.sendEmail\(\{ to: o\.to/.test(gs));
 }
 
 (async () => {
@@ -38,12 +38,12 @@ const { ok, done } = reporter();
     { id:'g1', type:'ENQUIRY', name:'Gone Gus', phone:'6363750010', email:'gus@gmail.com', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'cancelled', crmnotes:'[CD:2026-01-01] [CX:2026-08-01] [CXR:moved] [QA:a] ', created: now },
     { id:'g2', type:'ENQUIRY', name:'Nonpay Nick', phone:'6363750011', email:'nick@gmail.com', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'cancelled', crmnotes:'[CD:2026-01-01] [CX:2026-08-01] [CXR:nonpay] [QA:a] ', created: now },
   ];
-  const posts = [];
+  const posts = []; let officeUp = true;
   stubNetwork(p, {});
   await p.route('**/script.google.com/**', r => {
     let body = {}; try { body = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
     if (body.action) posts.push(body);
-    if (body.action === 'quota') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, remaining: 97 }) });
+    if (body.action === 'quota') return r.fulfill({ contentType:'application/json', body: JSON.stringify(officeUp ? { ok:true, office:true, from:'info@clpropetservices.com', remaining: 10000 } : { ok:true, office:false, from:'', remaining: 0 }) });
     if (body.action === 'blast'){
       // the backend sends all but one, whose address bounces
       const sent = body.to.filter(x => x.id !== 'q2').map(x => x.id), failed = body.to.filter(x => x.id === 'q2').map(x => ({ id: x.id, error: 'Invalid email' }));
@@ -53,7 +53,7 @@ const { ok, done } = reporter();
   });
   await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(1200);
   await p.click('#blastBtn'); await p.waitForTimeout(600);
-  ok('the panel asks the backend how many emails are left today', posts.some(x => x.action === 'quota' && x.key) && /send 97 more today/.test(await p.textContent('#bl-quota')));
+  ok('the panel asks the script whether the office mailbox is connected, and says who the emails come from', posts.some(x => x.action === 'quota' && x.key) && /Sending as info@clpropetservices\.com through Microsoft/.test(await p.textContent('#bl-quota')), await p.textContent('#bl-quota'));
   const who = (await p.textContent('#bl-who')).replace(/\s+/g, ' ');
   ok('the groups show who has an email: quoted 4 (Quinn, Cal, Dora, Olive, Al minus... counts those with an email)', /Quoted, not signed up yet .*· 5 with an email/.test(who) && /Said no .*· 1 with an email/.test(who) && /Active customers .*· 1 with an email/.test(who) && /Former customers .*· 1 with an email/.test(who), who);
   ok('the team phone\'s test lead is not counted anywhere', !/6 with an email/.test(who));
@@ -90,6 +90,17 @@ const { ok, done } = reporter();
   await p.click('button:has-text("Referral ask")'); await p.waitForTimeout(300);
   ok('the referral preset goes to active customers only, and Ann is now left out', /Send to 0 people/.test(await p.textContent('#bl-send')) && /1 asked not to be emailed/.test(await p.textContent('#bl-status')), await p.textContent('#bl-status'));
   ok('the win-back preset skips accounts closed over money', (await p.click('button:has-text("Win-back")'), await p.waitForTimeout(300), /Send to 1 person/.test(await p.textContent('#bl-send'))) && /To: gus@gmail\.com/.test(await p.textContent('#bl-preview')));
+  /* ---- before Corey's Microsoft setup: nothing can be sent, and it says so ---- */
+  officeUp = false;
+  await p.click('#blastPanel button:has-text("Close")'); await p.waitForTimeout(200);
+  await p.click('#blastBtn'); await p.waitForTimeout(600);
+  await p.click('button:has-text("Win-back")'); await p.waitForTimeout(300);
+  ok('with the office mailbox not connected the Send button stays off and the panel says why, in plain words', await p.$eval('#bl-send', e => e.disabled) && /Customer emails are off: the office mailbox is not connected yet/.test(await p.textContent('#bl-quota')) && /Nothing is ever sent from a Gmail address/.test(await p.textContent('#bl-quota')), await p.textContent('#bl-quota'));
+  ok('and both automatic switches carry the same warning', (await p.$$eval('#blastPanel .office-note', ns => ns.filter(n => /Waits for the office mailbox/.test(n.textContent)).length)) === 2);
+  const before = posts.filter(x => x.action === 'blast').length;
+  await p.evaluate(() => sendBlast());
+  await p.waitForTimeout(300);
+  ok('even called directly, nothing is posted', posts.filter(x => x.action === 'blast').length === before && /office mailbox is not connected/.test(await p.textContent('#toast')));
   ok('no page errors', errs.length === 0, errs.join('; '));
   await ctx.close(); await b.close();
   done();

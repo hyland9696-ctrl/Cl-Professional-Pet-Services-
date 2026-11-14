@@ -89,7 +89,11 @@ const API = {
 };
 const calls = [];
 const pushes = [], onboardings = [], mails = [];
-const msCalls = [], logs = [], triggers = [];
+const msCalls = [], logs = [], triggers = [], sleeps = [];
+const MS = { MS_TENANT:'ten-1', MS_CLIENT:'cli-1', MS_SECRET:'sec-1', MAIL_FROM:'info@clpropetservices.com' };
+/* what went out through Microsoft, as the customer sees it */
+const sentMs = () => msCalls.filter(c => c.body && c.body.message).map(c => ({ to: c.body.message.toRecipients[0].emailAddress.address, subject: c.body.message.subject, body: c.body.message.body.content, replyTo: c.body.message.replyTo[0].emailAddress.address }));
+let throttle = 0;   // how many times in a row Sweep&Go answers 429
 function fakeFetch(url, opts){
   calls.push(url);
   if (/residential\/onboarding$/.test(url)){
@@ -108,6 +112,7 @@ function fakeFetch(url, opts){
   if (/login\.microsoftonline\.com\//.test(url)){ msCalls.push({ url, payload: opts.payload }); return { getResponseCode: () => opts.payload && opts.payload.client_secret === 'sec-1' ? 200 : 401, getContentText: () => JSON.stringify(opts.payload && opts.payload.client_secret === 'sec-1' ? { access_token: 'ms-tok' } : { error: 'invalid_client' }) }; }
   if (/graph\.microsoft\.com\//.test(url)){ const b = JSON.parse(opts.payload || '{}'); msCalls.push({ url, auth: opts.headers && opts.headers.Authorization, body: b }); const to = b.message && b.message.toRecipients[0].emailAddress.address; return to === 'bounce@gmail.com' ? { getResponseCode: () => 500, getContentText: () => '{"error":{"code":"ErrorInternalServerError"}}' } : { getResponseCode: () => 202, getContentText: () => '' }; }
   if (/ntfy\.sh\//.test(url)){ pushes.push({ url, title: opts.headers && opts.headers.Title, body: opts.payload }); return { getResponseCode: () => 200, getContentText: () => '{}' }; }
+  if (throttle > 0 && /openapi\.sweepandgo\.com/.test(url)) { throttle--; return { getResponseCode: () => 429, getAllHeaders: () => ({ 'Retry-After': '7' }), getContentText: () => '{"message":"Too Many Attempts."}' }; }
   const p = url.replace('https://openapi.sweepandgo.com', '').replace(/([?&])(page|length)=\d+/g, '$1').replace(/[?&]+$/, '').replace(/\?&/, '?').replace(/&&/g, '&');
   const key = Object.keys(API).find(k => p === k || p.startsWith(k + '?') || p.startsWith(k + '&') || (k.indexOf('?') > 0 && p.startsWith(k)));
   if (!key) return { getResponseCode: () => 404, getContentText: () => '{"errors":["no such route ' + p + '"]}' };
@@ -141,7 +146,7 @@ function build(leadRows){
     Logger: { log: (m) => { logs.push(String(m)); } },
     ScriptApp: { WeekDay: { MONDAY:'mon', SUNDAY:'sun' }, getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/XYZ/exec' }), getProjectTriggers: () => [], deleteTrigger: () => {},
       newTrigger: (fn) => { const chain = { everyDays: () => chain, onWeekDay: () => chain, atHour: () => chain, create: () => { triggers.push(fn); } }; return { timeBased: () => chain }; } },
-    MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: () => '202611' }, Session: { getScriptTimeZone: () => 'America/Chicago' },
+    MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: () => '202611', sleep: (ms) => { sleeps.push(ms); } }, Session: { getScriptTimeZone: () => 'America/Chicago' },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (txt) => ({ _t: txt, setMimeType(){ return this; } }) },
   };
   const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups, install, INSTALL };')(...Object.values(G));
@@ -286,16 +291,19 @@ function build(leadRows){
     q('b5'), row({ id:'azx', created: ago(1), type:'AUTH', zip:'b5', name:'Quiet b5', price:'$85/mo' }),   // authorized through the emailed link
     q('b6', { crmnotes:'[TM:1] [QA:w] ' }),                        // a team phone's test
   ];
-  const { F, sheets } = build(leadRows);
+  const { F, sheets, props } = build(leadRows);
   const due = F.followupsDue_(sheets.leads.rows, new Date());
   ok('exactly the right quotes are due, with the right step', due.map(d => d.id + ':' + d.step).sort().join(',') === 'a1:1,a9:2', JSON.stringify(due.map(d => d.id + ':' + d.step)));
   ok('each carries the first name, price and plan for the words', due[0].first === 'Quiet' && due[0].price === '$85/mo' && due[0].plan === 'weekly');
-  mails.length = 0;
+  mails.length = 0; msCalls.length = 0;
   const off = F.quoteFollowups();
-  ok('with the switch off nothing is sent', off.off && mails.length === 0);
+  ok('with the switch off nothing is sent', off.off && mails.length === 0 && msCalls.length === 0);
   sheets.leads.rows.push(row({ id:'cfg_fu_emails', created: ago(0), type:'CONFIG', name:'fu_emails', notes:'on', status:'config', crmnotes:'' }));
-  const on = F.quoteFollowups();
-  ok('with it on, the two due emails go from the business account, reply-to the office, with the words filled in and the opt-out footer', on.sent === 2 && mails.length === 2 && mails[0].to === 'a1@gmail.com' && /Quiet, your yard price is saved/.test(mails[0].subject) && /Your price of \$85\/mo is saved for six months/.test(mails[0].body) && /Reply STOP/.test(mails[0].body) && mails[0].replyTo === 'info@clpropetservices.com' && mails[1].to === 'a9@gmail.com' && /Last note from me, Quiet/.test(mails[1].subject), JSON.stringify(mails.map(m => [m.to, m.subject])));
+  const noOffice = F.quoteFollowups();
+  ok('with it on but no office mailbox, still nothing: not from Google, not from anywhere, and the rows are not stamped', noOffice.off && noOffice.reason === 'office mailbox not set up' && mails.length === 0 && msCalls.length === 0 && !/\[FE:/.test(sheets.leads.rows.find(r => r[0] === 'a1')[HEADERS.indexOf('crmnotes')]));
+  Object.assign(props, MS);
+  const on = F.quoteFollowups(), got = sentMs();
+  ok('with the office mailbox connected, the two due emails go out as info@ through Microsoft, with the words filled in and the opt-out footer, and never through Google', on.sent === 2 && mails.length === 0 && got.length === 2 && got[0].to === 'a1@gmail.com' && /Quiet, your yard price is saved/.test(got[0].subject) && /Your price of \$85\/mo is saved for six months/.test(got[0].body) && /Reply STOP/.test(got[0].body) && got[0].replyTo === 'info@clpropetservices.com' && got[1].to === 'a9@gmail.com' && /Last note from me, Quiet/.test(got[1].subject), JSON.stringify(got.map(m => [m.to, m.subject])));
   ok('and each row is stamped, so tomorrow sends nothing twice', /\[FE:1@\d{4}-\d{2}-\d{2}\]/.test(sheets.leads.rows.find(r => r[0] === 'a1')[HEADERS.indexOf('crmnotes')]) && /\[FE:2@/.test(sheets.leads.rows.find(r => r[0] === 'a9')[HEADERS.indexOf('crmnotes')]) && F.followupsDue_(sheets.leads.rows, new Date()).length === 0);
 }
 
@@ -307,25 +315,30 @@ function build(leadRows){
   ok('Dana was told $91 and now pays $91: the stamp goes, the office notes stay', !/\[PM:/.test(dana) && /gate 4321/.test(dana) && /\[FU:2026-12-01\]/.test(dana), dana);
 }
 
-/* ---- the office mailbox: Microsoft sends it, Google is the fallback ---- */
+/* ---- the office mailbox: Microsoft or nothing, never Gmail ---- */
 {
   const { F, props } = build(seed());
   mails.length = 0; msCalls.length = 0;
-  ok('with nothing set up the mail goes from Google with reply-to the office', F.sendCustomerMail_({ to:'x@gmail.com', subject:'s', body:'b' }) === 'google' && mails.length === 1 && mails[0].replyTo === 'info@clpropetservices.com' && mails[0].name === 'CL Professional Pet Services' && msCalls.length === 0);
+  let threw = '';
+  try { F.sendCustomerMail_({ to:'x@gmail.com', subject:'s', body:'b' }); } catch (e) { threw = e.message; }
+  ok('with nothing set up a customer email is refused outright: nothing goes from the Google account', threw === 'office mailbox not set up' && mails.length === 0 && msCalls.length === 0);
   ok('and testOfficeMail says so instead of pretending', F.testOfficeMail() === 'not configured');
-  Object.assign(props, { MS_TENANT:'ten-1', MS_CLIENT:'cli-1', MS_SECRET:'sec-1', MAIL_FROM:'info@clpropetservices.com' });
+  Object.assign(props, MS);
   mails.length = 0; msCalls.length = 0;
   const how = F.sendCustomerMail_({ to:'x@gmail.com', subject:'Hello', body:'Line one\nline two' });
   const tok = msCalls[0], send = msCalls[1];
   ok('with the four properties set, the script signs in to Microsoft as the app and sends as the office mailbox', how === 'microsoft' && mails.length === 0 && msCalls.length === 2 && /login\.microsoftonline\.com\/ten-1\/oauth2\/v2\.0\/token$/.test(tok.url) && tok.payload.client_id === 'cli-1' && tok.payload.grant_type === 'client_credentials' && /graph\.microsoft\.com\/v1\.0\/users\/info%40clpropetservices\.com\/sendMail$/.test(send.url) && send.auth === 'Bearer ms-tok', JSON.stringify(msCalls));
   ok('the message is plain text to the customer, reply-to the office, and kept in Outlook\'s Sent folder', send.body.message.subject === 'Hello' && send.body.message.body.contentType === 'Text' && send.body.message.body.content === 'Line one\nline two' && send.body.message.toRecipients[0].emailAddress.address === 'x@gmail.com' && send.body.message.replyTo[0].emailAddress.address === 'info@clpropetservices.com' && send.body.saveToSentItems === true, JSON.stringify(send.body));
-  mails.length = 0; msCalls.length = 0;
-  ok('if Microsoft refuses, the email still goes, from Google', F.sendCustomerMail_({ to:'bounce@gmail.com', subject:'s', body:'b' }) === 'google' && mails.length === 1 && mails[0].to === 'bounce@gmail.com');
+  mails.length = 0; msCalls.length = 0; threw = '';
+  try { F.sendCustomerMail_({ to:'bounce@gmail.com', subject:'s', body:'b' }); } catch (e) { threw = e.message; }
+  ok('if Microsoft refuses, the email is reported as not sent; it does not go out another way', /Microsoft would not send \(500\)/.test(threw) && mails.length === 0);
   msCalls.length = 0;
   ok('the test button sends the office a note from itself', F.testOfficeMail() === 'ok' && msCalls.some(c => c.body && c.body.message.toRecipients[0].emailAddress.address === 'info@clpropetservices.com' && /came from the office mailbox/.test(c.body.message.subject)));
   props.MS_SECRET = 'wrong';
-  mails.length = 0;
-  ok('a bad secret falls back too, and says why in the log rather than losing the email', F.sendCustomerMail_({ to:'x@gmail.com', subject:'s', body:'b' }) === 'google' && mails.length === 1);
+  mails.length = 0; threw = '';
+  try { F.sendCustomerMail_({ to:'x@gmail.com', subject:'s', body:'b' }); } catch (e) { threw = e.message; }
+  ok('a bad secret is reported too, and still nothing goes from Google', /Microsoft sign-in failed/.test(threw) && mails.length === 0 && F.testOfficeMail() !== 'ok');
+  ok('the script never sends a customer email through MailApp any more', !/MailApp\.sendEmail\(\{ to: o\.to/.test(gs) && !/getRemainingDailyQuota/.test(gs));
 }
 
 /* ---- the welcome sequence: day 1 and day 30 for new customers ---- */
@@ -348,18 +361,21 @@ function build(leadRows){
     c('x3', 2, { crmnotes:'[CD:' + ago(2) + '] [WE:1@' + ago(1) + '] [QA:a] ' }),   // already welcomed
     row({ id:'cfg_rl', created: ago(0), type:'CONFIG', name:'review_link', notes:'https://g.page/r/abc/review', status:'config', crmnotes:'' }),
   ];
-  const { F, sheets } = build(leadRows);
+  const { F, sheets, props } = build(leadRows);
   const due = F.welcomeDue_(sheets.leads.rows, new Date(), 'https://g.page/r/abc/review');
   ok('exactly the right customers are due, with the right step', due.map(d => d.id + ':' + d.step).sort().join(',') === 'w1:1,w2:2,w4:2', JSON.stringify(due.map(d => d.id + ':' + d.step)));
   const w1 = due.find(d => d.id === 'w1'), w4 = due.find(d => d.id === 'w4');
   ok('each carries the first name, their day in words and the review link', w1.first === 'New' && w1.day === 'Thursday' && w4.day === 'Tuesday' && w1.review === 'https://g.page/r/abc/review');
   mails.length = 0; msCalls.length = 0;
   const off = F.welcomeEmails();
-  ok('with the switch off nothing is sent', off.off && mails.length === 0);
+  ok('with the switch off nothing is sent', off.off && mails.length === 0 && msCalls.length === 0);
   sheets.leads.rows.push(row({ id:'cfg_we', created: ago(0), type:'CONFIG', name:'welcome_emails', notes:'on', status:'config', crmnotes:'' }));
-  const on = F.welcomeEmails();
-  const m1 = mails.find(m => m.to === 'w1@gmail.com'), m2 = mails.find(m => m.to === 'w2@gmail.com');
-  ok('with it on, the three go out: the welcome names the day, the check-in carries the review link, both end with Corey and the opt-out', on.sent === 3 && mails.length === 3 && /Welcome aboard, New/.test(m1.subject) && /See you on Thursday!/.test(m1.body) && /How are we doing, New\?/.test(m2.subject) && /https:\/\/g\.page\/r\/abc\/review/.test(m2.body) && /— Corey/.test(m1.body) && /Reply STOP/.test(m2.body), JSON.stringify(mails.map(m => [m.to, m.subject])));
+  const noOffice = F.welcomeEmails();
+  ok('on, but no office mailbox yet: nothing goes and nothing is stamped', noOffice.off && noOffice.reason === 'office mailbox not set up' && mails.length === 0 && msCalls.length === 0 && F.welcomeDue_(sheets.leads.rows, new Date(), '').length === 3);
+  Object.assign(props, MS);
+  const on = F.welcomeEmails(), got = sentMs();
+  const m1 = got.find(m => m.to === 'w1@gmail.com'), m2 = got.find(m => m.to === 'w2@gmail.com');
+  ok('with the office mailbox connected the three go out as info@: the welcome names the day, the check-in carries the review link, both end with Corey and the opt-out', on.sent === 3 && mails.length === 0 && got.length === 3 && /Welcome aboard, New/.test(m1.subject) && /See you on Thursday!/.test(m1.body) && /How are we doing, New\?/.test(m2.subject) && /https:\/\/g\.page\/r\/abc\/review/.test(m2.body) && /— Corey/.test(m1.body) && /Reply STOP/.test(m2.body) && m1.replyTo === 'info@clpropetservices.com', JSON.stringify(got.map(m => [m.to, m.subject])));
   const notes = (id) => sheets.leads.rows.filter(r => r[0] === id).pop()[HEADERS.indexOf('crmnotes')];
   ok('each row is stamped; the day-30 email also counts as the review ask', /\[WE:1@/.test(notes('w1')) && !/\[RV:/.test(notes('w1')) && /\[WE:2@/.test(notes('w2')) && /\[RV:\d{4}-\d{2}-\d{2}\]/.test(notes('w2')) && /\[WE:1@/.test(notes('w4')) && /\[WE:2@/.test(notes('w4')), notes('w2'));
   ok('so tomorrow nothing goes twice', F.welcomeDue_(sheets.leads.rows, new Date(), '').length === 0);
@@ -368,13 +384,17 @@ function build(leadRows){
 
 /* ---- price notices ---- */
 {
-  const { F, sheets } = build(seed());
-  mails.length = 0;
+  const { F, sheets, props } = build(seed());
+  mails.length = 0; msCalls.length = 0;
   const bad = F.priceMove_({ items: [], date: '2026-12-15' });
   ok('nothing ticked, nothing sent', bad.ok === false);
+  const noOffice = F.priceMove_({ items: [{ id:'p6363750001', oldPrice: 91, newPrice: 99 }], date: '2026-12-15' });
+  ok('no office mailbox: refused before anything is sent or stamped', noOffice.ok === false && noOffice.error === 'office mailbox not set up' && mails.length === 0 && msCalls.length === 0 && !/\[PM:99/.test(sheets.leads.rows.filter(r => r[0] === 'p6363750001').pop()[HEADERS.indexOf('crmnotes')]));
+  Object.assign(props, MS);
   const r = F.priceMove_({ items: [{ id:'p6363750001', oldPrice: 91, newPrice: 99 }, { id:'nobody', oldPrice: 1, newPrice: 2 }, { id:'sgkelly', oldPrice: 99, newPrice: 105 }], date: '2026-12-15', reason: 'Fuel and supply costs have gone up this year.' });
   ok('Dana gets hers, the unknown id and the customer with no email are reported, not dropped silently', r.ok && r.sent.join() === 'p6363750001' && r.failed.length === 2 && r.failed[0].error === 'not found' && r.failed[1].error === 'no email' && r.date === '2026-12-15', JSON.stringify(r));
-  ok('the notice says the old price, the new price, the date in words and the reason, and comes from Corey', mails.length === 1 && mails[0].to === 'dana@gmail.com' && /price from December 15, 2026/.test(mails[0].subject) && /Your price has been \$91 a month, and on December 15, 2026 it moves to \$99 a month\. Fuel and supply costs have gone up this year\./.test(mails[0].body) && /— Corey/.test(mails[0].body), mails[0] && mails[0].body);
+  const got = sentMs();
+  ok('the notice goes as info@ and says the old price, the new price, the date in words and the reason, from Corey', mails.length === 0 && got.length === 1 && got[0].to === 'dana@gmail.com' && /price from December 15, 2026/.test(got[0].subject) && /Your price has been \$91 a month, and on December 15, 2026 it moves to \$99 a month\. Fuel and supply costs have gone up this year\./.test(got[0].body) && /— Corey/.test(got[0].body), got[0] && got[0].body);
   const dana = sheets.leads.rows.filter(r => r[0] === 'p6363750001').pop()[HEADERS.indexOf('crmnotes')];
   ok('and her row carries the move, next to the office notes', /\[PM:99@2026-12-15\]/.test(dana) && /gate 4321/.test(dana), dana);
 }
@@ -412,5 +432,17 @@ function build(leadRows){
   logs.length = 0;
   const again = F.install();
   ok('run again with everything blank, nothing saved is lost', again.ok && props.SG_TOKEN === 'tok-123' && props.TRACKER_KEY === 'NxcT-test' && logs.some(l => /nothing new \(blank lines keep what was already saved\)/.test(l)));
+}
+
+/* ---- Sweep&Go's rate limit: wait, then ask again ---- */
+{
+  const { F } = build(seed());
+  throttle = 2; sleeps.length = 0;
+  const s = F.sgSync(true);
+  ok('two "Too Many Attempts" in a row are waited out and the preview still comes back whole', s.ok && s.clients === 8 && s.errors.length === 0 && sleeps.length === 2 && sleeps[0] === 15000 && sleeps[1] === 30000, JSON.stringify({ errors: s.errors, sleeps }));
+  throttle = 4; sleeps.length = 0;
+  const s2 = F.sgSync(true);
+  ok('a limit that never lifts is reported as an error after three waits, not an endless loop', s2.errors.length >= 1 && /429/.test(s2.errors[0]) && sleeps.length === 3 && sleeps[2] === 60000, JSON.stringify({ errors: s2.errors.slice(0, 1), sleeps }));
+  throttle = 0;
 }
 done();

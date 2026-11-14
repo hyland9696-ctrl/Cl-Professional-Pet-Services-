@@ -51,7 +51,7 @@ function install() {
   if (placesKey_() && placeId_()) { try { setupReviews(); L('5. Reviews: refreshing every Monday.'); } catch (e) { L('5. Reviews not set up: ' + e.message); } }
   else L('5. Reviews: skipped (no PLACES_KEY / PLACE_ID). Optional.');
   if (msCfg_()) L('6. Office mailbox test: ' + testOfficeMail());
-  else L('6. Office mailbox: not set up yet, so customer emails go from this Google account with reply-to ' + NOTIFY_CC + '. Fill in MS_TENANT, MS_CLIENT, MS_SECRET and MAIL_FROM when Corey has them, and run install again.');
+  else L('6. Office mailbox: not set up yet, so NO customer email goes out (follow-ups, welcome, price notices, the blast) - nothing is ever sent from a Gmail address. Fill in MS_TENANT, MS_CLIENT, MS_SECRET and MAIL_FROM when Corey has them, and run install again.');
   if (pushTopic_()) { try { UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(pushTopic_()), { method:'post', contentType:'text/plain; charset=utf-8', payload:'The new tracker script is installed. New leads keep arriving here.', headers: { 'Title': 'CLPPS Lead Tracker', 'Tags': 'white_check_mark' }, muteHttpExceptions:true }); L('7. Push: a test went to the phones.'); } catch (e) { L('7. Push test failed: ' + e.message); } }
   else L('7. Push: no NTFY_TOPIC, so no phone pushes until one is set.');
   var url = ''; try { url = ScriptApp.getService().getUrl() || ''; } catch (e) {}
@@ -117,20 +117,20 @@ function sheet_() {
 }
 
 /* Customer-facing emails (follow-ups, welcome, price notices, the blast)
-   go out through this. The office address, info@clpropetservices.com,
-   lives on Microsoft 365 (Outlook). With four Script Properties set the
-   mail is sent by Microsoft itself, from that mailbox, with a copy in its
-   Sent folder and replies landing in its inbox:
+   go out through this, and ONLY as the office mailbox,
+   info@clpropetservices.com, through Microsoft 365. Nothing to a customer
+   is ever sent from a Gmail address. Four Script Properties turn it on:
      MS_TENANT  the Directory (tenant) ID of the app registration
      MS_CLIENT  its Application (client) ID
      MS_SECRET  a client secret (note the expiry; make a new one before it)
      MAIL_FROM  info@clpropetservices.com
    The app needs the Microsoft Graph application permission Mail.Send
-   with admin consent. Without those properties, or if Microsoft is
-   unreachable, the mail goes from the Google account that owns the
-   script with reply-to the office, as it always has. Run testOfficeMail
-   from the editor to check the Microsoft path. */
+   with admin consent. Until those are set, every customer email simply
+   does not go: the switches stay quiet, the buttons say why. The office's
+   own lead alerts are separate and unaffected. Run testOfficeMail from
+   the editor to check the Microsoft path. */
 var MS_LOGIN = 'https://login.microsoftonline.com/';
+var MS_DAILY_LIMIT = 10000;   // Exchange Online's recipients-a-day limit for one mailbox
 var MS_GRAPH = 'https://graph.microsoft.com/v1.0/';
 function msCfg_() {
   try {
@@ -171,14 +171,13 @@ function msSend_(c, o) {
   if (code < 200 || code >= 300) throw new Error('Microsoft would not send (' + code + '): ' + String(r.getContentText()).slice(0, 200));
   return true;
 }
+var NO_OFFICE_MAIL = 'office mailbox not set up';
+function officeMailReady_() { return !!msCfg_(); }
 function sendCustomerMail_(o) {
   var c = msCfg_();
-  if (c) {
-    try { msSend_(c, o); return 'microsoft'; }
-    catch (e) { try { Logger.log('Office mail fell back to Google: ' + e.message); } catch (e2) {} }
-  }
-  MailApp.sendEmail({ to: o.to, subject: o.subject, body: o.body, name: o.name || 'CL Professional Pet Services', replyTo: o.replyTo || NOTIFY_CC });
-  return 'google';
+  if (!c) throw new Error(NO_OFFICE_MAIL);
+  msSend_(c, o);   // throws if Microsoft will not take it: the caller records it, nothing else is tried
+  return 'microsoft';
 }
 /* Run this from the editor after setting the four properties: it sends
    one test email from the office mailbox to the office mailbox and logs
@@ -678,8 +677,8 @@ function doPost(e) {
 
   if (body.action === 'quota') {
     if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
-    var q = 0; try { q = MailApp.getRemainingDailyQuota(); } catch (e) {}
-    return json_({ok:true, remaining:q});
+    var c = msCfg_();
+    return json_({ ok:true, office: !!c, from: c ? c.from : '', remaining: c ? MS_DAILY_LIMIT : 0 });
   }
   if (body.action === 'blast') {
     if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
@@ -746,7 +745,15 @@ function sgFetch_(path, method, payload) {
   var token = sgToken_(); if (!token) throw new Error('SG_TOKEN is not set (Project Settings > Script Properties)');
   var opts = { method: method || 'get', headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }, muteHttpExceptions: true };
   if (payload) { opts.contentType = 'application/json'; opts.payload = JSON.stringify(payload); }
-  var r = UrlFetchApp.fetch(SG_BASE + path, opts), code = r.getResponseCode();
+  // Sweep&Go limits how many calls a minute; past it every answer is 429
+  // "Too Many Attempts". Wait and ask again rather than fail the run.
+  var waits = [15, 30, 60], r, code;
+  for (var i = 0; ; i++) {
+    r = UrlFetchApp.fetch(SG_BASE + path, opts); code = r.getResponseCode();
+    if (code !== 429 || i >= waits.length) break;
+    var after = 0; try { after = parseInt((r.getAllHeaders() || {})['Retry-After'], 10) || 0; } catch (e) {}
+    Utilities.sleep(Math.min(Math.max(after, waits[i]), 90) * 1000);
+  }
   if (code >= 400) throw new Error('Sweep&Go ' + code + ' on ' + path + ': ' + r.getContentText().slice(0, 120));
   return JSON.parse(r.getContentText() || '{}');
 }
@@ -1316,11 +1323,10 @@ function followupsDue_(rows, now) {
 }
 function quoteFollowups() {
   if (cfg_('fu_emails') !== 'on') { Logger.log('Follow-up emails are off (CONFIG fu_emails).'); return { ok:true, off:true, sent:0 }; }
+  if (!officeMailReady_()) { Logger.log('Follow-up emails: switch is on but the ' + NO_OFFICE_MAIL + ', so nothing goes.'); return { ok:true, off:true, reason: NO_OFFICE_MAIL, sent:0 }; }
   var sh = sheet_(), rows = sh.getDataRange().getValues(), due = followupsDue_(rows, new Date()), sent = 0, today = new Date().toISOString().slice(0, 10);
   var idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes');
   due.slice(0, 40).forEach(function(d) {
-    var left = 0; try { left = MailApp.getRemainingDailyQuota(); } catch (e) { left = 1; }
-    if (left < 5) return;   // leave room for the lead alerts
     var step = FU_STEPS[d.step - 1];
     try {
       sendCustomerMail_({ to: d.email, subject: fuFill_(step.subject, d), body: fuFill_(step.body, d) + FU_FOOTER });
@@ -1367,12 +1373,11 @@ function welcomeDue_(rows, now, reviewLink) {
 }
 function welcomeEmails() {
   if (cfg_('welcome_emails') !== 'on') return { ok:true, off:true, sent:0 };
+  if (!officeMailReady_()) { Logger.log('Welcome emails: switch is on but the ' + NO_OFFICE_MAIL + ', so nothing goes.'); return { ok:true, off:true, reason: NO_OFFICE_MAIL, sent:0 }; }
   var link = cfg_('review_link'); if (!/^https:\/\//.test(link)) link = '';
   var sh = sheet_(), rows = sh.getDataRange().getValues(), due = welcomeDue_(rows, new Date(), link), sent = 0, today = new Date().toISOString().slice(0, 10);
   var idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes');
   due.slice(0, 30).forEach(function(d) {
-    var left = 0; try { left = MailApp.getRemainingDailyQuota(); } catch (e) { left = 1; }
-    if (left < 5) return;
     var w = WE_STEPS[d.step - 1], fill = function(t) { return String(t).split('{first}').join(d.first).split('{day}').join(d.day).split('{review}').join(d.review); };
     try {
       sendCustomerMail_({ to: d.email, subject: fill(w.subject), body: fill(w.body) + WE_FOOTER });
@@ -1389,6 +1394,7 @@ function welcomeEmails() {
 function priceMove_(body) {
   var items = Array.isArray(body.items) ? body.items.slice(0, 60) : [], reason = clip_(body.reason, 300).trim(), when = String(body.date || '');
   if (!items.length || !/^\d{4}-\d{2}-\d{2}$/.test(when)) return { ok:false, error:'nothing to send' };
+  if (!officeMailReady_()) return { ok:false, error: NO_OFFICE_MAIL };
   var sh = sheet_(), rows = sh.getDataRange().getValues(), idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes');
   var pretty = new Date(when + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   var sent = [], failed = [];
@@ -1527,13 +1533,12 @@ function blast_(body) {
   var tag = String(body.tag || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24) || 'promo';
   var to = Array.isArray(body.to) ? body.to.slice(0, BLAST_MAX) : [];
   if (!subject || !text.trim() || !to.length) return { ok:false, error:'nothing to send' };
+  if (!officeMailReady_()) return { ok:false, error: NO_OFFICE_MAIL };
   var sent = [], failed = [], stamp = '[EM:' + tag + '@' + new Date().toISOString().slice(0, 10) + '] ';
   var sh = sheet_(), data = sh.getDataRange().getValues(), idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes');
   for (var k = 0; k < to.length; k++) {
     var r = to[k] || {}, email = String(r.email || '').trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { failed.push({ id:r.id, error:'bad email' }); continue; }
-    var left = 0; try { left = MailApp.getRemainingDailyQuota(); } catch (e) { left = 1; }
-    if (left < 1) { failed.push({ id:r.id, error:'quota' }); continue; }
     try {
       sendCustomerMail_({ to: email, subject: fillBlast_(subject, r), body: fillBlast_(text, r) });
       sent.push(r.id);
@@ -1545,8 +1550,7 @@ function blast_(body) {
       }
     } catch (e) { failed.push({ id:r.id, error:String(e && e.message || e).slice(0, 80) }); }
   }
-  var remaining = 0; try { remaining = MailApp.getRemainingDailyQuota(); } catch (e2) {}
-  return { ok:true, sent:sent, failed:failed, remaining:remaining, tag:tag };
+  return { ok:true, sent:sent, failed:failed, remaining: MS_DAILY_LIMIT, tag:tag };
 }
 
 /**

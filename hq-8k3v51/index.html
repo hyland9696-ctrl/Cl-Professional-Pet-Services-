@@ -359,9 +359,9 @@
         <div style="font-weight:800;font-size:15px;">&#9993;&#65039; Email blast</div>
         <button onclick="toggleBlast()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:40px;">Close</button>
       </div>
-      <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:10px;">One message, sent as a separate email to each person from the business account, reply-to the office. Use <code>{first}</code>, <code>{price}</code> and <code>{plan}</code> and they fill in per person. Everyone emailed gets stamped, so running the same promotion twice only reaches the people it missed. <span id="bl-quota" style="color:#0F6E56;font-weight:700;"></span></div>
-      <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="fu-auto-box" onchange="toggleFuEmails(this.checked)" style="margin-top:3px;"><span><strong>Automatic follow-ups for quotes that went quiet.</strong> Two days after a quote with no answer, a short email from Corey with their price; one more at six days; then it stops. It also stops the moment they accept, decline, get a call or a text, or ask to be left alone. Sent from the business account each morning at 9. <span id="fu-stat" style="color:#0F6E56;"></span></span></label>
-      <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="we-auto-box" onchange="toggleWelcomeEmails(this.checked)" style="margin-top:3px;"><span><strong>Welcome sequence for new customers.</strong> The day after someone starts, a what-to-expect email with their day and how to reach us. A month in, a how-are-we-doing with the Google review link (counts as the review ask, so the card does not ask again). Nothing for paused customers or opt-outs. <span id="we-stat" style="color:#0F6E56;"></span></span></label>
+      <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:10px;">One message, sent as a separate email to each person from the office mailbox, info@clpropetservices.com, through Microsoft. Replies land in Outlook. Use <code>{first}</code>, <code>{price}</code> and <code>{plan}</code> and they fill in per person. Everyone emailed gets stamped, so running the same promotion twice only reaches the people it missed. <span id="bl-quota" style="color:#0F6E56;font-weight:700;"></span></div>
+      <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="fu-auto-box" onchange="toggleFuEmails(this.checked)" style="margin-top:3px;"><span><strong>Automatic follow-ups for quotes that went quiet.</strong> <span class="office-note" style="color:#b45309;"></span> Two days after a quote with no answer, a short email from Corey with their price; one more at six days; then it stops. It also stops the moment they accept, decline, get a call or a text, or ask to be left alone. Sent from the business account each morning at 9. <span id="fu-stat" style="color:#0F6E56;"></span></span></label>
+      <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="we-auto-box" onchange="toggleWelcomeEmails(this.checked)" style="margin-top:3px;"><span><strong>Welcome sequence for new customers.</strong> <span class="office-note" style="color:#b45309;"></span> The day after someone starts, a what-to-expect email with their day and how to reach us. A month in, a how-are-we-doing with the Google review link (counts as the review ask, so the card does not ask again). Nothing for paused customers or opt-outs. <span id="we-stat" style="color:#0F6E56;"></span></span></label>
       <div style="font-weight:700;font-size:13px;margin-bottom:4px;">Who</div>
       <div id="bl-who" style="display:grid;gap:6px;font-size:12.5px;margin-bottom:10px;"></div>
       <div style="display:grid;gap:8px;font-size:12.5px;">
@@ -3669,7 +3669,7 @@ function renderBlast(){
   if (sk.dup) notes.push(sk.dup + ' duplicate address' + (sk.dup === 1 ? '' : 'es'));
   var btn = document.getElementById('bl-send');
   btn.textContent = 'Send to ' + a.list.length + ' ' + (a.list.length === 1 ? 'person' : 'people');
-  btn.disabled = !(a.list.length && subj.trim() && body.trim() && tag);
+  btn.disabled = !(a.list.length && subj.trim() && body.trim() && tag) || officeMail !== true;   // and never without the office mailbox
   document.getElementById('bl-status').textContent = (notes.length ? 'Left out: ' + notes.join(', ') + '. ' : '') + (!tag ? 'Give the promotion a name first.' : '');
 }
 function fuEmailsOn(){ var c = config.fu_emails; return !!c && String(c.value) === 'on'; }
@@ -3704,17 +3704,39 @@ function toggleBlast(){
   p.scrollIntoView({ behavior: 'smooth', block: 'start' });
   var q = document.getElementById('bl-quota'); q.textContent = '';
   if (!CRM_ENDPOINT) return;
+  officeMail = null; renderOfficeMail(); checkOfficeMail(function(){ renderOfficeMail(); });
+}
+/* Customer emails leave only as the office mailbox through Microsoft. The
+   script says whether that is connected; until it is, every send button
+   is off and says why, so nothing ever goes out from a Gmail address. */
+var officeMail = null, officeFrom = '', officeChecking = false;
+var NO_OFFICE_TEXT = 'Customer emails are off: the office mailbox is not connected yet (Corey\u2019s Microsoft setup). Nothing is ever sent from a Gmail address.';
+function checkOfficeMail(cb){
+  if (!CRM_ENDPOINT || !KEY){ if (cb) cb(); return; }
+  if (officeChecking) return; officeChecking = true;
   fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'quota', key: KEY }) })
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (d && d.ok && d.remaining != null) q.textContent = 'Gmail will let you send ' + d.remaining + ' more today.'; else if (d && d.ok === false) q.textContent = 'The script needs its update before it can send (the quota check came back empty).'; })
-    .catch(function(){});
+    .then(function(d){ officeChecking = false; officeMail = !!(d && d.ok && d.office); officeFrom = d && d.from ? String(d.from) : ''; if (cb) cb(); })
+    .catch(function(){ officeChecking = false; officeMail = null; if (cb) cb(); });
+}
+function renderOfficeMail(){
+  var q = document.getElementById('bl-quota'), btn = document.getElementById('bl-send');
+  if (q){
+    if (officeMail === true) q.innerHTML = '<span style="color:#0F6E56;">Sending as ' + esc(officeFrom) + ' through Microsoft.</span>';
+    else if (officeMail === false) q.innerHTML = '<span style="color:#b45309;">' + esc(NO_OFFICE_TEXT) + '</span>';
+    else q.textContent = 'Checking the office mailbox\u2026';
+  }
+  if (btn){ if (officeMail !== true) btn.disabled = true; else if (document.getElementById('blastPanel') && document.getElementById('blastPanel').style.display !== 'none') renderBlast(); }
+  Array.prototype.forEach.call(document.querySelectorAll('.office-note'), function(n){ n.textContent = officeMail === false ? 'Waits for the office mailbox to be connected; the switch can be on, nothing goes until then.' : ''; });
+  renderPricePlan();
 }
 var blastBusy = false;
 function sendBlast(){
   if (blastBusy) return;
   var a = blastAudience(), tag = blastTag(), subj = document.getElementById('bl-subject').value.trim(), body = document.getElementById('bl-body').value + BLAST_FOOTER;
   if (!a.list.length || !subj || !tag) return;
-  if (!confirm('Send \u201c' + subj.replace(/\{first\}/g, a.list[0].name.split(' ')[0]) + '\u201d to ' + a.list.length + ' people now? Each gets their own email from the business account.')) return;
+  if (officeMail !== true){ toast(NO_OFFICE_TEXT); return; }
+  if (!confirm('Send \u201c' + subj.replace(/\{first\}/g, a.list[0].name.split(' ')[0]) + '\u201d to ' + a.list.length + ' people now? Each gets their own email from ' + (officeFrom || 'the office mailbox') + '.')) return;
   blastBusy = true;
   var btn = document.getElementById('bl-send'), out = document.getElementById('bl-out'); btn.disabled = true;
   var todo = a.list.map(blastFields), i = 0, sent = 0, failed = [], stopped = false, today = new Date().toISOString().slice(0, 10);
@@ -4325,17 +4347,19 @@ function renderPricePlan(){
   var items = pmItems();
   if (!items.length){ box.innerHTML = '<div style="font-size:11.5px;color:#9aa5a0;">Tick a customer to plan a price move; the notice goes out from the office with 30 days or more.</div>'; return; }
   if (!pricePlan.date){ var d = new Date(); d.setDate(d.getDate() + 30); pricePlan.date = d.toISOString().slice(0, 10); }
+  if (officeMail === null) checkOfficeMail(function(){ renderPricePlan(); });
   box.innerHTML = '<div style="background:#F3F8F5;border-radius:10px;padding:10px 12px;font-size:12.5px;">' +
     '<div style="font-weight:700;margin-bottom:6px;">Price move for ' + items.length + ' customer' + (items.length === 1 ? '' : 's') + '</div>' +
     items.map(function(it){ return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0;"><span>' + esc(it.l ? it.l.name : it.id) + ' <span style="color:#707070;">$' + it.oldPrice + ' now</span></span><span>&rarr; $<input type="number" class="pm-new" data-id="' + esc(it.id) + '" value="' + it.newPrice + '" oninput="pricePlan.prices[this.getAttribute(\'data-id\')]=this.value;pmRefresh()" style="width:64px;padding:5px;border:1px solid #ddd;border-radius:7px;font-size:13px;"></span></div>'; }).join('') +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;"><label>Takes effect <input type="date" id="pm-date" value="' + esc(pricePlan.date) + '" onchange="pricePlan.date=this.value;pmRefresh()" style="padding:6px;border:1px solid #ddd;border-radius:7px;font-size:13px;"></label></div>' +
     '<textarea id="pm-reason" rows="2" placeholder="One sentence on why (optional): e.g. Fuel and supply costs have gone up this year and we have held prices as long as we could." oninput="pricePlan.reason=this.value;pmRefresh()" style="width:100%;margin-top:8px;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">' + esc(pricePlan.reason) + '</textarea>' +
     '<div style="font-size:11px;color:#707070;margin:8px 0 4px;">The email ' + esc((items[0].l && items[0].l.name || '').split(' ')[0] || 'the first one') + ' gets, from the office address:</div><div id="pm-preview" style="background:#fff;border:1px solid #E4EBE7;border-radius:8px;padding:8px 10px;font-size:12px;white-space:pre-wrap;color:#2B3A34;">' + esc(pmPreview(items)) + '</div>' +
-    '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;"><button class="copybtn" id="pm-send" onclick="sendPriceMove()" style="background:#188663;color:#fff;border-color:#188663;">Send ' + items.length + ' notice' + (items.length === 1 ? '' : 's') + '</button><span style="font-size:11.5px;color:#707070;">Each card then reminds you to change the price in Sweep&amp;Go on the day.</span></div></div>';
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;"><button class="copybtn" id="pm-send" onclick="sendPriceMove()" ' + (officeMail === true ? '' : 'disabled ') + 'style="background:#188663;color:#fff;border-color:#188663;">Send ' + items.length + ' notice' + (items.length === 1 ? '' : 's') + '</button><span style="font-size:11.5px;color:' + (officeMail === false ? '#b45309' : '#707070') + ';">' + (officeMail === true ? 'From ' + esc(officeFrom) + '. Each card then reminds you to change the price in Sweep&amp;Go on the day.' : officeMail === false ? esc(NO_OFFICE_TEXT) : 'Checking the office mailbox\u2026') + '</span></div></div>';
 }
 var pmBusy = false;
 function sendPriceMove(){
   if (pmBusy || !CRM_ENDPOINT) return;
+  if (officeMail !== true){ toast(NO_OFFICE_TEXT); return; }
   var items = pmItems().map(function(it){ return { id: it.id, oldPrice: it.oldPrice, newPrice: it.newPrice }; }); if (!items.length) return;
   if (!confirm('Send ' + items.length + ' price notice' + (items.length === 1 ? '' : 's') + ' now, effective ' + pricePlan.date + '?')) return;
   pmBusy = true; var btn = document.getElementById('pm-send'); if (btn){ btn.disabled = true; btn.textContent = 'Sending\u2026'; }
