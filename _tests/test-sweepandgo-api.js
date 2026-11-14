@@ -83,14 +83,15 @@ const { ok, done } = reporter();
   const p = await ctx.newPage();
   await p.clock.install({ time: new Date('2026-11-12T15:00:00Z') });   // a Thursday
   const errs = []; p.on('pageerror', e => errs.push(e.message));
-  const posts = [], sgcreates = [];
+  const posts = [], sgcreates = [], pricemoves = [];
+  p.on('dialog', d => d.accept());
   const rows = [
     // pinned by the sync: an exact spot, not the ZIP centre
     { id:'D1', type:'SAVED', name:'Dana Deo', phone:'6363750001', email:'dana@gmail.com', zip:'63376', address:'1 Oak St, St. Peters, MO 63376', dogs:'2', service:'weekly', deodorize:'every visit ($15/treatment)', price:'$151/mo (includes $60 deodorize)', status:'closed', crmnotes:'[CD:2026-06-01] [DAY:thu] [LL:38.79123,-90.60111] [SGID:rcl_ABC] [QA:a] ', created:'2026-06-01T12:00:00Z' },
     // paused in Sweep&Go until next month: off the route, still a customer; and a stop with Sweep&Go's own 14-minute estimate
     { id:'P1', type:'SAVED', name:'Paused Pat', phone:'6363750003', email:'pat@gmail.com', zip:'63376', address:'3 Ash St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-05-01] [DAY:thu] [PZ:2026-11-01~2026-12-15] [QA:a] ', created:'2026-05-01T12:00:00Z' },
     { id:'E1', type:'SAVED', name:'Eddie Eow', phone:'6363750002', email:'eddie@gmail.com', zip:'63366', address:'2 Pine St, O\'Fallon, MO 63366', dogs:'1', service:'every other week', deodorize:'no', price:'$95/mo', status:'closed', crmnotes:'[CD:2026-07-01] [DAY:thu] [ET:14] [QA:a] ', created:'2026-07-01T12:00:00Z' },
-    { id:'N1', type:'SAVED', name:'Near Ned', phone:'6363750008', email:'ned@gmail.com', zip:'63376', address:'5 Oak St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-08-01] [DAY:thu] [LL:38.79200,-90.60150] [QA:a] ', created:'2026-08-01T12:00:00Z' },
+    { id:'N1', type:'SAVED', name:'Near Ned', phone:'6363750008', email:'ned@gmail.com', zip:'63376', address:'5 Oak St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$75/mo', status:'closed', crmnotes:'[CD:2026-08-01] [DAY:thu] [LL:38.79200,-90.60150] [WE:1@2026-08-02] [WE:2@2026-09-01] [RV:2026-09-01] [QA:a] ', created:'2026-08-01T12:00:00Z' },
     // accepted on the website, not in Sweep&Go yet: the card offers the sign-up
     { id:'A1', type:'ACTIVATE', name:'Ann Accept', phone:'6363750020', email:'ann@gmail.com', zip:'63376', address:'12 Elm St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'called', crmnotes:'[HH:A friend or neighbor] [QA:a] ', created:'2026-11-11T12:00:00Z' },
     { id:'az1', type:'AUTH', name:'Ann Accept', zip:'A1', price:'$85/mo', service:'weekly', dogs:'1', email:'ann@gmail.com', created:'2026-11-11T13:00:00Z' },
@@ -114,6 +115,8 @@ const { ok, done } = reporter();
     if (body.action === 'billing') return r.fulfill({ contentType:'application/json', body: JSON.stringify(billing) });
     if (body.action === 'jobs') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, days: 30, visits: 310, minutes: 2790, timed: 300, skipped: 4, skipReasons: { 'Gate locked': 3, 'Client request': 1 }, skippedBy: { 'Eddie Eow': 2, 'Someone Else': 1 }, rate: { byPlan: { weekly: { n: 250, price: 5000, min: 2250, perHour: 133 }, 'every other week': { n: 50, price: 2200, min: 540, perHour: 244 } }, byDogs: { '1': { n: 120, price: 2400, min: 840, perHour: 171 }, '2': { n: 140, price: 3500, min: 1540, perHour: 136 } }, byWeekday: { thu: { n: 60, price: 1500, min: 600, perHour: 150 } } }, byClient: { 'Dana Deo': { n: 4, med: 20, price: 35 }, 'Eddie Eow': { n: 2, med: 8, price: 44 }, 'Near Ned': { n: 4, med: 7, price: 20 } }, byDogs: { '1': { n: 120, median: 7 }, '2': { n: 140, median: 11 }, '3': { n: 40, median: 15 } }, byDate: { '2026-11-11': { visits: 18, skipped: 1, minutes: 170, price: 500 }, '2026-11-10': { visits: 20, skipped: 0, minutes: 190, price: 560 } }, techs: { 'Jesse Duncan': 310 } }) });
     if (body.action === 'sgcreate'){ sgcreates.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, created:true, priceOk:false, sgPrice: 95, quoted: 85 }) }); }
+    if (body.action === 'pricemove'){ pricemoves.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, sent: body.items.map(i => i.id), failed: [], date: body.date }) }); }
+    if (body.action === 'billingcsv') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, rows: 2, csv: 'kind,number,date,client\ninvoice,1,2026-11-02,Dana Deo\npayment,,2026-11-02,Dana Deo\n', months: 'month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced\n2026-11,8078,0,6796,2154,40,16,86\n' }) });
     if (body.action === 'sgsync') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, clients: 94, added: 0, updated: 3, errors: [] }) });
     return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: rows }) });
   });
@@ -179,7 +182,26 @@ const { ok, done } = reporter();
   ok('the switch starts off and explains itself', !(await p.isChecked('#fu-auto-box')) && /Two days after a quote with no answer/.test(await p.textContent('#blastPanel')) && /1 emailed so far, 0 became customers/.test(await p.textContent('#fu-stat')));
   await p.click('#fu-auto-box'); await p.waitForTimeout(400);
   ok('ticking it writes the setting the script reads each morning', posts.some(x => x.action === 'lead' && x.lead && x.lead.type === 'CONFIG' && x.lead.name === 'fu_emails' && x.lead.notes === 'on' && x.key));
+  /* ---- the welcome sequence: the switch, the card ---- */
+  ok('a customer the script welcomed says so on his card, both emails, the second counted as the review ask', /Welcome emails sent day 1 \(2026-08-02\), day 30, with the review ask \(2026-09-01\)/.test((await p.textContent('#card-N1')).replace(/\s+/g, ' ')), (await p.textContent('#card-N1')).replace(/\s+/g, ' ').slice(0, 400));
+  ok('the welcome switch starts off, explains the two emails and counts who got them', !(await p.isChecked('#we-auto-box')) && /The day after someone starts, a what-to-expect email/.test(await p.textContent('#blastPanel')) && /A month in, a how-are-we-doing with the Google review link/.test(await p.textContent('#blastPanel')) && (await p.textContent('#we-stat')).trim() === '1 customer welcomed so far.', await p.textContent('#we-stat'));
+  await p.click('#we-auto-box'); await p.waitForTimeout(400);
+  ok('ticking it writes the setting the 9am job reads', posts.some(x => x.action === 'lead' && x.lead && x.lead.type === 'CONFIG' && x.lead.name === 'welcome_emails' && x.lead.notes === 'on' && x.key));
   await p.click('#blastPanel button:has-text("Close")'); await p.waitForTimeout(200);
+  /* ---- the price-move planner ---- */
+  const ut = (await p.textContent('#undertable')).replace(/\s+/g, ' ');
+  ok('Ned pays $75 against an $85 table, and sits on the left-on-the-table list with a box to tick', /Near Ned 1 dog weekly · 63376 [A-Za-z ]*\$75 → \$85 \+\$10/.test(ut) && (await p.$$('#undertable .pm-box[data-id="N1"]')).length === 1 && /Tick a customer to plan a price move/.test(ut), ut.slice(0, 300));
+  await p.click('#undertable .pm-box[data-id="N1"]'); await p.waitForTimeout(300);
+  const plan = (await p.textContent('#priceplan')).replace(/\s+/g, ' ');
+  ok('ticking him opens the plan: the table price, thirty days out, and the email he would get', /Price move for 1 customer/.test(plan) && (await p.inputValue('#priceplan .pm-new[data-id="N1"]')) === '85' && (await p.inputValue('#pm-date')) === '2026-12-12' && /Hi Near, A quick note about your service, with plenty of notice\. Your price has been \$75 a month, and on December 12, 2026 it moves to \$85 a month\. Nothing else changes/.test(plan) && /— Corey/.test(plan), plan.slice(0, 500));
+  await p.fill('#priceplan .pm-new[data-id="N1"]', '89'); await p.fill('#pm-date', '2027-01-01'); await p.type('#pm-reason', 'Fuel costs are up.'); await p.waitForTimeout(200);
+  ok('changing the price, the date and the reason redraws the preview and keeps the cursor in the box', /it moves to \$89 a month\. Fuel costs are up\./.test(await p.textContent('#pm-preview')) && /January 1, 2027/.test(await p.textContent('#pm-preview')) && await p.evaluate(() => document.activeElement && document.activeElement.id === 'pm-reason'), await p.textContent('#pm-preview'));
+  await p.click('#pm-send'); await p.waitForTimeout(600);
+  ok('Send asks the script, signed, with who, the old and new price, the date and the reason', pricemoves.length === 1 && pricemoves[0].key && pricemoves[0].date === '2027-01-01' && pricemoves[0].reason === 'Fuel costs are up.' && JSON.stringify(pricemoves[0].items) === JSON.stringify([{ id:'N1', oldPrice: 75, newPrice: 89 }]), JSON.stringify(pricemoves));
+  const nedAfter = (await p.textContent('#card-N1')).replace(/\s+/g, ' ');
+  ok('his card now carries the move and the reminder to change it in Sweep&Go on the day', /Price moves to \$89\/mo on 2027-01-01 — notice sent\. Change it in Sweep&Go on the day/.test(nedAfter) && await p.evaluate(() => fuParse(leads.filter(l => l.id === 'N1')[0].crmnotes).pm === '89@2027-01-01'), nedAfter.slice(0, 400));
+  ok('and the list says the notice went, with the box greyed so it is not sent twice', /notice sent, \$89 from 2027-01-01/.test((await p.textContent('#undertable')).replace(/\s+/g, ' ')) && await p.$eval('#undertable .pm-box[data-id="N1"]', e => e.disabled));
+  ok('the toast counts it', /1 notice sent/.test(await p.textContent('#toast')), await p.textContent('#toast'));
   /* ---- month in review ---- */
   const [review] = await Promise.all([ctx.waitForEvent('page'), p.click('#billing button:has-text("Month in review")')]);
   await review.waitForLoadState(); await review.waitForTimeout(300);
@@ -202,6 +224,13 @@ const { ok, done } = reporter();
   ok('one tap puts the amount and the date on their card', !!owed, JSON.stringify(posts.filter(x => x.id === 'E1').slice(-1)));
   ok('and the card shows it', /\$190 behind on payment since/.test((await p.textContent('#card-E1')).replace(/\s+/g, ' ')));
   ok('the closed heading carries the month', /\$8,078 billed · \$6,796 in · \$255 owed/.test(await p.$eval('#billing .fsum', e => e.textContent)), await p.$eval('#billing .fsum', e => e.textContent));
+  /* ---- for the accountant ---- */
+  const dl1p = p.waitForEvent('download');
+  await p.click('#billing button:has-text("For the accountant")');
+  const dl1 = await dl1p, dl2 = await p.waitForEvent('download');
+  const readDl = async (d) => { const fs2 = require('fs'); return fs2.readFileSync(await d.path(), 'utf8'); };
+  ok('one tap asks the script, signed, and saves two files: the months, and every invoice and payment', posts.some(x => x.action === 'billingcsv' && x.key) && dl1.suggestedFilename() === 'clpps-billing-2026-by-month.csv' && dl2.suggestedFilename() === 'clpps-billing-2026-every-invoice-and-payment.csv', dl1.suggestedFilename() + ' ' + dl2.suggestedFilename());
+  ok('with the script\'s rows in them, untouched', /^month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced\n2026-11,8078,0,6796,2154,40,16,86\n$/.test(await readDl(dl1)) && /^kind,number,date,client\ninvoice,1,2026-11-02,Dana Deo\npayment,,2026-11-02,Dana Deo\n$/.test(await readDl(dl2)));
   await p.click('#importBtn'); await p.waitForTimeout(300);
   ok('the import panel says the uploads are a one-off now', /Connected to Sweep&Go\. Customers, service days, prices and billing sync every night/.test(await p.textContent('#sg-auto')));
   /* ---- the automatic sign-up switch ---- */

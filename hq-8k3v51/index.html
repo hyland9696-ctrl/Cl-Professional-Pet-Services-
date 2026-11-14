@@ -361,6 +361,7 @@
       </div>
       <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:10px;">One message, sent as a separate email to each person from the business account, reply-to the office. Use <code>{first}</code>, <code>{price}</code> and <code>{plan}</code> and they fill in per person. Everyone emailed gets stamped, so running the same promotion twice only reaches the people it missed. <span id="bl-quota" style="color:#0F6E56;font-weight:700;"></span></div>
       <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="fu-auto-box" onchange="toggleFuEmails(this.checked)" style="margin-top:3px;"><span><strong>Automatic follow-ups for quotes that went quiet.</strong> Two days after a quote with no answer, a short email from Corey with their price; one more at six days; then it stops. It also stops the moment they accept, decline, get a call or a text, or ask to be left alone. Sent from the business account each morning at 9. <span id="fu-stat" style="color:#0F6E56;"></span></span></label>
+      <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="we-auto-box" onchange="toggleWelcomeEmails(this.checked)" style="margin-top:3px;"><span><strong>Welcome sequence for new customers.</strong> The day after someone starts, a what-to-expect email with their day and how to reach us. A month in, a how-are-we-doing with the Google review link (counts as the review ask, so the card does not ask again). Nothing for paused customers or opt-outs. <span id="we-stat" style="color:#0F6E56;"></span></span></label>
       <div style="font-weight:700;font-size:13px;margin-bottom:4px;">Who</div>
       <div id="bl-who" style="display:grid;gap:6px;font-size:12.5px;margin-bottom:10px;"></div>
       <div style="display:grid;gap:8px;font-size:12.5px;">
@@ -1582,13 +1583,13 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
   // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
   // ll = lat,lng from Sweep&Go's dispatch board; sgid = their client id. Both written by the nightly sync.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1628,6 +1629,8 @@ function fuParse(crmnotes){
     else if (hit[1] === 'SGC') m.sgc = hit[2];     // signed up in Sweep&Go through the API, date
     else if (hit[1] === 'QP') m.qp = hit[2];       // the quoted price still to be set in Sweep&Go
     else if (hit[1] === 'FE') m.fe = m.fe ? m.fe + ',' + hit[2] : hit[2];   // follow-up emails sent: step@date
+    else if (hit[1] === 'WE') m.we = m.we ? m.we + ',' + hit[2] : hit[2];   // welcome emails sent: step@date
+    else if (hit[1] === 'PM') m.pm = hit[2];                                 // price move: new@effective date
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -1672,7 +1675,9 @@ function fuCompose(m){
          (m.hh ? '[HH:' + m.hh + '] ' : '') +
          (m.sgc ? '[SGC:' + m.sgc + '] ' : '') +
          (m.qp ? '[QP:' + m.qp + '] ' : '') +
-         (m.fe ? m.fe.split(',').map(function(x){ return '[FE:' + x + '] '; }).join('') : '') + (m.text || '');
+         (m.fe ? m.fe.split(',').map(function(x){ return '[FE:' + x + '] '; }).join('') : '') +
+         (m.we ? m.we.split(',').map(function(x){ return '[WE:' + x + '] '; }).join('') : '') +
+         (m.pm ? '[PM:' + m.pm + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -3665,6 +3670,13 @@ function toggleFuEmails(on){
   post({ action: 'lead', lead: { id: 'cfg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), created: now, type: 'CONFIG', name: 'fu_emails', notes: v, status: 'config', crmnotes: '' } },
     on ? 'Follow-up emails on: quiet quotes get an email at day 2 and day 6' : 'Follow-up emails off');
 }
+function welcomeOn(){ var c = config.welcome_emails; return !!c && String(c.value) === 'on'; }
+function toggleWelcomeEmails(on){
+  var v = on ? 'on' : 'off', now = new Date().toISOString();
+  config.welcome_emails = { value: v, created: now }; saveStatsCache();
+  post({ action: 'lead', lead: { id: 'cfg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), created: now, type: 'CONFIG', name: 'welcome_emails', notes: v, status: 'config', crmnotes: '' } },
+    on ? 'Welcome emails on: day 1 and day 30 for every new customer' : 'Welcome emails off');
+}
 function fuEmailStats(){
   var sent = 0, won = 0;
   leads.forEach(function(l){ if (!isLead(l)) return; var fu = fuParse(l.crmnotes); if (!fu.fe) return; sent++; if (wonLead(l)) won++; });
@@ -3675,6 +3687,8 @@ function toggleBlast(){
   p.style.display = opening ? 'block' : 'none';
   if (!opening) return;
   var fb = document.getElementById('fu-auto-box'); if (fb) fb.checked = fuEmailsOn();
+  var wb = document.getElementById('we-auto-box'); if (wb) wb.checked = welcomeOn();
+  var wn = leads.filter(function(l){ return isLead(l) && fuParse(l.crmnotes).we; }).length, ws = document.getElementById('we-stat'); if (ws) ws.textContent = wn ? wn + ' customer' + (wn === 1 ? '' : 's') + ' welcomed so far.' : '';
   var fs = fuEmailStats(), fst = document.getElementById('fu-stat'); if (fst) fst.textContent = fs.sent ? fs.sent + ' emailed so far, ' + fs.won + ' became customers.' : '';
   document.getElementById('bl-out').innerHTML = '';
   renderBlast();
@@ -4275,10 +4289,75 @@ function renderUnderTable(){
     '<div style="font-size:11.5px;color:#707070;margin-bottom:6px;">Active customers paying less than the table would quote them today for the same ZIP, dogs and plan. Whether and when to move anyone is Corey\u2019s call; this only shows the size of it. ' + checked + ' customer' + (checked === 1 ? '' : 's') + ' compared.</div>' +
     (rows.length
       ? '<div class="big" style="font-size:22px;font-weight:800;color:#188663;">' + money(total) + '/mo</div><div class="sub" style="font-size:12px;color:#555;margin-bottom:6px;">' + money(total * 12) + ' a year, across ' + rows.length + ' customer' + (rows.length === 1 ? '' : 's') + ' below today\u2019s price</div>' +
-        rows.map(function(r){ return '<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
-          '<span><a href="#card-' + esc(r.l.id) + '" onclick="jumpToLead(\'' + esc(r.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(r.l.name || '(no name)') + '</a> <span style="color:#707070;">' + esc(dogsLabel(r.l.dogs)) + ' ' + esc(planLabel(r.l.service)) + ' &middot; ' + esc(zipOf(r.l)) + ' ' + esc(r.g.tier) + '</span></span>' +
-          '<span style="white-space:nowrap;">$' + r.g.paid + ' &rarr; $' + r.g.table + ' <strong style="color:#188663;">+$' + r.g.gap + '</strong></span></div>'; }).join('')
+        rows.map(function(r){ var pm = fuParse(r.l.crmnotes).pm; return '<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;align-items:center;">' +
+          '<span><label style="display:inline-flex;align-items:center;gap:6px;"><input type="checkbox" class="pm-box" data-id="' + esc(r.l.id) + '" data-old="' + r.g.paid + '" data-table="' + r.g.table + '" ' + (pm ? 'disabled' : '') + ' onchange="renderPricePlan()"> <a href="#card-' + esc(r.l.id) + '" onclick="jumpToLead(\'' + esc(r.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(r.l.name || '(no name)') + '</a></label> <span style="color:#707070;">' + esc(dogsLabel(r.l.dogs)) + ' ' + esc(planLabel(r.l.service)) + ' &middot; ' + esc(zipOf(r.l)) + ' ' + esc(r.g.tier) + (pm ? ' &middot; <span style="color:#7a5c00;">notice sent, $' + esc(pm.split('@')[0]) + ' from ' + esc(pm.split('@')[1] || '') + '</span>' : '') + '</span></span>' +
+          '<span style="white-space:nowrap;">$' + r.g.paid + ' &rarr; $' + r.g.table + ' <strong style="color:#188663;">+$' + r.g.gap + '</strong></span></div>'; }).join('') +
+        '<div id="priceplan" style="margin-top:8px;"></div>'
       : '<div style="font-size:12.5px;color:#9aa5a0;">Everyone is at or above today\u2019s table price.</div>') + keepHtml();
+  renderPricePlan();
+}
+/* ---- the price-move planner ----
+   Tick the customers, set the new price (the table by default) and the
+   date, say why in a sentence, read the email, send. Corey decides who
+   and how much; this does the paperwork and remembers. */
+var pricePlan = { date: '', reason: '', prices: {} };
+function pmItems(){
+  return Array.prototype.slice.call(document.querySelectorAll('.pm-box:checked')).map(function(b){ var id = b.getAttribute('data-id'); return { id: id, l: leads.filter(function(x){ return x.id === id; })[0], oldPrice: parseFloat(b.getAttribute('data-old')), newPrice: parseFloat(pricePlan.prices[id] || b.getAttribute('data-table')) }; });
+}
+function pmPreview(items){
+  var it = items[0], first = String(it.l && it.l.name || '').trim().split(' ')[0] || 'there';
+  var pretty = new Date(pricePlan.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  return 'Hi ' + first + ',\n\nA quick note about your service, with plenty of notice. Your price has been $' + it.oldPrice + ' a month, and on ' + pretty + ' it moves to $' + it.newPrice + ' a month.' + (pricePlan.reason.trim() ? ' ' + pricePlan.reason.trim() : '') + '\n\nNothing else changes: same day, same crew, same clean yard, still month to month with no contract. If you have any questions, or if money is tight right now, reply here and we will work it out - I would much rather talk than lose you.\n\nThank you for having us.\n\n— Corey';
+}
+/* typing a price, a date or the reason only redraws the preview, so the cursor stays put */
+function pmRefresh(){ var items = pmItems(), pv = document.getElementById('pm-preview'); if (pv && items.length) pv.textContent = pmPreview(items); }
+function renderPricePlan(){
+  var box = document.getElementById('priceplan'); if (!box) return;
+  var items = pmItems();
+  if (!items.length){ box.innerHTML = '<div style="font-size:11.5px;color:#9aa5a0;">Tick a customer to plan a price move; the notice goes out from the office with 30 days or more.</div>'; return; }
+  if (!pricePlan.date){ var d = new Date(); d.setDate(d.getDate() + 30); pricePlan.date = d.toISOString().slice(0, 10); }
+  box.innerHTML = '<div style="background:#F3F8F5;border-radius:10px;padding:10px 12px;font-size:12.5px;">' +
+    '<div style="font-weight:700;margin-bottom:6px;">Price move for ' + items.length + ' customer' + (items.length === 1 ? '' : 's') + '</div>' +
+    items.map(function(it){ return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0;"><span>' + esc(it.l ? it.l.name : it.id) + ' <span style="color:#707070;">$' + it.oldPrice + ' now</span></span><span>&rarr; $<input type="number" class="pm-new" data-id="' + esc(it.id) + '" value="' + it.newPrice + '" oninput="pricePlan.prices[this.getAttribute(\'data-id\')]=this.value;pmRefresh()" style="width:64px;padding:5px;border:1px solid #ddd;border-radius:7px;font-size:13px;"></span></div>'; }).join('') +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;"><label>Takes effect <input type="date" id="pm-date" value="' + esc(pricePlan.date) + '" onchange="pricePlan.date=this.value;pmRefresh()" style="padding:6px;border:1px solid #ddd;border-radius:7px;font-size:13px;"></label></div>' +
+    '<textarea id="pm-reason" rows="2" placeholder="One sentence on why (optional): e.g. Fuel and supply costs have gone up this year and we have held prices as long as we could." oninput="pricePlan.reason=this.value;pmRefresh()" style="width:100%;margin-top:8px;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">' + esc(pricePlan.reason) + '</textarea>' +
+    '<div style="font-size:11px;color:#707070;margin:8px 0 4px;">The email ' + esc((items[0].l && items[0].l.name || '').split(' ')[0] || 'the first one') + ' gets, from the office address:</div><div id="pm-preview" style="background:#fff;border:1px solid #E4EBE7;border-radius:8px;padding:8px 10px;font-size:12px;white-space:pre-wrap;color:#2B3A34;">' + esc(pmPreview(items)) + '</div>' +
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;"><button class="copybtn" id="pm-send" onclick="sendPriceMove()" style="background:#188663;color:#fff;border-color:#188663;">Send ' + items.length + ' notice' + (items.length === 1 ? '' : 's') + '</button><span style="font-size:11.5px;color:#707070;">Each card then reminds you to change the price in Sweep&amp;Go on the day.</span></div></div>';
+}
+var pmBusy = false;
+function sendPriceMove(){
+  if (pmBusy || !CRM_ENDPOINT) return;
+  var items = pmItems().map(function(it){ return { id: it.id, oldPrice: it.oldPrice, newPrice: it.newPrice }; }); if (!items.length) return;
+  if (!confirm('Send ' + items.length + ' price notice' + (items.length === 1 ? '' : 's') + ' now, effective ' + pricePlan.date + '?')) return;
+  pmBusy = true; var btn = document.getElementById('pm-send'); if (btn){ btn.disabled = true; btn.textContent = 'Sending\u2026'; }
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'pricemove', key: KEY, items: items, date: pricePlan.date, reason: pricePlan.reason }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      pmBusy = false;
+      if (!d || !d.ok){ toast(d && d.error ? 'Not sent: ' + d.error : 'Not sent'); renderPricePlan(); return; }
+      (d.sent || []).forEach(function(id){ var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return; var m = fuParse(l.crmnotes); var it = items.filter(function(x){ return x.id === id; })[0]; m.pm = (it ? it.newPrice : '') + '@' + d.date; l.crmnotes = fuCompose(m); });
+      pricePlan = { date: '', reason: '', prices: {} };
+      saveLocal(); render();
+      toast((d.sent || []).length + ' notice' + ((d.sent || []).length === 1 ? '' : 's') + ' sent' + (d.failed && d.failed.length ? ', ' + d.failed.length + ' failed' : ''));
+    })
+    .catch(function(){ pmBusy = false; toast('No connection'); renderPricePlan(); });
+}
+/* ---- the accountant's file ---- */
+function downloadText(name, text){
+  try { var blob = new Blob([text], { type: 'text/csv' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); } catch (e) { toast('Could not save the file'); }
+}
+function accountantExport(){
+  if (!CRM_ENDPOINT) return; toast('Building the files\u2026');
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'billingcsv', key: KEY }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || !d.ok){ toast('Could not build the export'); return; }
+      var y = new Date().getFullYear();
+      downloadText('clpps-billing-' + y + '-by-month.csv', d.months || '');
+      setTimeout(function(){ downloadText('clpps-billing-' + y + '-every-invoice-and-payment.csv', d.csv || ''); }, 400);
+      toast('Two files: by month, and every invoice and payment');
+    })
+    .catch(function(){ toast('No connection'); });
 }
 /* Dollars an hour per customer: Sweep&Go's measured minutes for their
    stop, their visit price, and the drive leg to them on their day. */
@@ -4943,7 +5022,7 @@ function markOwed(id, amt, since){
 function renderBilling(){
   var box = document.getElementById('billing'); if (!box) return;
   var head = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;"><div style="font-weight:800;font-size:14px;">&#128179; Billed, collected, owed <span style="font-size:11px;font-weight:600;color:#707070;">from Sweep&amp;Go</span></div>' +
-    (billing && billing.months ? '<button onclick="monthReview()" style="padding:5px 9px;min-height:32px;font-size:11.5px;white-space:nowrap;">&#128196; Month in review</button>' : '') + '</div>';
+    (billing && billing.months ? '<span style="white-space:nowrap;"><button onclick="monthReview()" style="padding:5px 9px;min-height:32px;font-size:11.5px;">&#128196; Month in review</button> <button onclick="accountantExport()" title="Two CSV files: by month, and every invoice and payment" style="padding:5px 9px;min-height:32px;font-size:11.5px;">&#11015;&#65039; For the accountant</button></span>' : '') + '</div>';
   if (!billing){
     box.innerHTML = head + '<div style="font-size:12.5px;color:#9aa5a0;">' + (sgSyncInfo() ? 'Loading\u2026' : 'Not connected yet. Once the Sweep&amp;Go token is in the script and setupSweepAndGo() has run, every invoice and payment lands here on its own.') + '</div>';
     return;
@@ -6236,6 +6315,9 @@ function render(){
     }
     if (st === 'closed' && isPaused(l)){ var pzo = pauseOf(l); wcRow = '<div style="color:#707070;font-size:12px;font-weight:600;margin-top:6px;">&#9208;&#65039; Paused in Sweep&amp;Go' + (pzo.to ? ' until ' + esc(pzo.to) : '') + ' &mdash; off the route, still a customer</div>' + wcRow; }
     if (fu.sv && fu.sv !== 'skip') wcRow = '<div style="color:#7a4a00;font-size:12px;font-weight:600;margin-top:6px;">&#128737;&#65039; Save offer made ' + esc(fu.sv) + (st === 'closed' ? ' &mdash; still active' : '') + '</div>' + wcRow;
+    var weLine = fu.we ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128075; Welcome email' + (fu.we.indexOf(',') > 0 ? 's' : '') + ' sent ' + esc(fu.we.split(',').map(function(x){ var p = x.split('@'); return (p[0] === '1' ? 'day 1' : 'day 30, with the review ask') + ' (' + p[1] + ')'; }).join(', ')) + '</div>' : '';
+    var pmRow = '';
+    if (fu.pm){ var pmp = fu.pm.split('@'); pmRow = '<div style="background:#FFF8E1;color:#7a5c00;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:700;margin-top:8px;">&#128200; Price moves to $' + esc(pmp[0]) + '/mo on ' + esc(pmp[1] || '') + ' &mdash; notice sent. Change it in Sweep&amp;Go on the day; this clears when the sync sees it.</div>'; }
     var feLine = fu.fe ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128231; Follow-up email' + (fu.fe.indexOf(',') > 0 ? 's' : '') + ' sent ' + esc(fu.fe.split(',').map(function(x){ var p = x.split('@'); return (p[0] === '1' ? 'day 2' : 'day 6') + ' (' + p[1] + ')'; }).join(', ')) + '</div>' : '';
     var attLine = (fu.att || fu.tx)
       ? '<div style="font-size:12px;color:#555;margin-top:6px;">' +
@@ -6417,7 +6499,7 @@ function render(){
         '<br><span class="price">' + esc(String(l.price || '').indexOf('$') >= 0 ? l.price : (priceLabel(l) || l.price || '')) + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(honoredText(l.honored)) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' + srcChip + refChip + bestRow + icChip + azBadge + feLine + sdBadge + attLine + fuBadge + ageBadge + owedRow + expRow + wcRow + rvRow + whyRow + cxRow + saveRow +
+      '</div>' + srcChip + refChip + bestRow + icChip + azBadge + feLine + weLine + pmRow + sdBadge + attLine + fuBadge + ageBadge + owedRow + expRow + wcRow + rvRow + whyRow + cxRow + saveRow +
       '<div class="stbtns">' + STATUSES.filter(function(s){
         // "Cancelled" is a thing that happens to a customer, not a lead
         return s.k !== 'cancelled' || st === 'closed' || st === 'cancelled';

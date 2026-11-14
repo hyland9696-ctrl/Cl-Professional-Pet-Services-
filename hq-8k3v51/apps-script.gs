@@ -60,6 +60,82 @@ function sheet_() {
   return sh;
 }
 
+/* Customer-facing emails (follow-ups, welcome, price notices, the blast)
+   go out through this. The office address, info@clpropetservices.com,
+   lives on Microsoft 365 (Outlook). With four Script Properties set the
+   mail is sent by Microsoft itself, from that mailbox, with a copy in its
+   Sent folder and replies landing in its inbox:
+     MS_TENANT  the Directory (tenant) ID of the app registration
+     MS_CLIENT  its Application (client) ID
+     MS_SECRET  a client secret (note the expiry; make a new one before it)
+     MAIL_FROM  info@clpropetservices.com
+   The app needs the Microsoft Graph application permission Mail.Send
+   with admin consent. Without those properties, or if Microsoft is
+   unreachable, the mail goes from the Google account that owns the
+   script with reply-to the office, as it always has. Run testOfficeMail
+   from the editor to check the Microsoft path. */
+var MS_LOGIN = 'https://login.microsoftonline.com/';
+var MS_GRAPH = 'https://graph.microsoft.com/v1.0/';
+function msCfg_() {
+  try {
+    var p = PropertiesService.getScriptProperties(), c = { tenant: p.getProperty('MS_TENANT') || '', client: p.getProperty('MS_CLIENT') || '', secret: p.getProperty('MS_SECRET') || '', from: p.getProperty('MAIL_FROM') || '' };
+    return c.tenant && c.client && c.secret && /@/.test(c.from) ? c : null;
+  } catch (e) { return null; }
+}
+function msToken_(c) {
+  var cache = null; try { cache = CacheService.getScriptCache(); var hit = cache.get('ms_token'); if (hit) return hit; } catch (e) {}
+  var r = UrlFetchApp.fetch(MS_LOGIN + encodeURIComponent(c.tenant) + '/oauth2/v2.0/token', {
+    method: 'post', muteHttpExceptions: true,
+    payload: { client_id: c.client, client_secret: c.secret, scope: 'https://graph.microsoft.com/.default', grant_type: 'client_credentials' }
+  });
+  if (r.getResponseCode() !== 200) throw new Error('Microsoft sign-in failed: ' + String(r.getContentText()).slice(0, 200));
+  var tok = JSON.parse(r.getContentText()).access_token;
+  if (!tok) throw new Error('Microsoft sign-in returned no token');
+  try { cache.put('ms_token', tok, 3000); } catch (e) {}
+  return tok;
+}
+/* Send as the office mailbox through Microsoft Graph. Returns true when
+   Microsoft took it (202), throws otherwise so the caller can fall back. */
+function msSend_(c, o) {
+  var msg = {
+    message: {
+      subject: String(o.subject || ''),
+      body: { contentType: 'Text', content: String(o.body || '') },
+      toRecipients: [{ emailAddress: { address: String(o.to) } }],
+      replyTo: [{ emailAddress: { address: o.replyTo || c.from, name: o.name || 'CL Professional Pet Services' } }]
+    },
+    saveToSentItems: true
+  };
+  var r = UrlFetchApp.fetch(MS_GRAPH + 'users/' + encodeURIComponent(c.from) + '/sendMail', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + msToken_(c) }, payload: JSON.stringify(msg)
+  });
+  var code = r.getResponseCode();
+  if (code === 401) { try { CacheService.getScriptCache().remove('ms_token'); } catch (e) {} }
+  if (code < 200 || code >= 300) throw new Error('Microsoft would not send (' + code + '): ' + String(r.getContentText()).slice(0, 200));
+  return true;
+}
+function sendCustomerMail_(o) {
+  var c = msCfg_();
+  if (c) {
+    try { msSend_(c, o); return 'microsoft'; }
+    catch (e) { try { Logger.log('Office mail fell back to Google: ' + e.message); } catch (e2) {} }
+  }
+  MailApp.sendEmail({ to: o.to, subject: o.subject, body: o.body, name: o.name || 'CL Professional Pet Services', replyTo: o.replyTo || NOTIFY_CC });
+  return 'google';
+}
+/* Run this from the editor after setting the four properties: it sends
+   one test email from the office mailbox to the office mailbox and logs
+   which way it went. */
+function testOfficeMail() {
+  var c = msCfg_();
+  if (!c) { Logger.log('Not set up: MS_TENANT, MS_CLIENT, MS_SECRET and MAIL_FROM all need to be in Script Properties.'); return 'not configured'; }
+  try {
+    msSend_(c, { to: c.from, subject: 'Tracker test: this came from the office mailbox', body: 'If you are reading this in Outlook, the tracker can send as ' + c.from + '. A copy is in Sent, and replies to customer emails will land here.\n\nSent ' + new Date().toString() });
+    Logger.log('Sent from ' + c.from + ' through Microsoft. Check the Outlook inbox and Sent folder.');
+    return 'ok';
+  } catch (e) { Logger.log(e.message); return e.message; }
+}
 var NOTIFY_TO = 'clpropetservices@gmail.com';
 var NOTIFY_CC = 'info@clpropetservices.com';
 
@@ -466,6 +542,14 @@ function doPost(e) {
     if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
     return json_(sgJobs_());
   }
+  if (body.action === 'pricemove') {
+    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    return json_(priceMove_(body));
+  }
+  if (body.action === 'billingcsv') {
+    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    return json_(billingCsv_());
+  }
   if (body.action === 'sgcreate') {
     if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
     try { return json_(sgCreate_(String(body.id || ''), !!body.force)); } catch (e3) { return json_({ok:false, reason:'error', error:String(e3 && e3.message || e3).slice(0, 200)}); }
@@ -749,6 +833,8 @@ function sgSync(dry) {
       // a quoted price still waiting to be set in Sweep&Go: clear the reminder once their price matches
       var qpRow = latest[id] && latest[id].row >= 0 ? String(data[latest[id].row][HEADERS.indexOf('crmnotes')] || '').match(/\[QP:(\d+(?:\.\d+)?)\]/) : null;
       if (qpRow && sub && Math.abs(sub.monthly - parseFloat(qpRow[1])) <= 1) set.QP = '';
+      var pmRow = latest[id] && latest[id].row >= 0 ? String(data[latest[id].row][HEADERS.indexOf('crmnotes')] || '').match(/\[PM:(\d+(?:\.\d+)?)@/) : null;
+      if (pmRow && sub && sub.monthly >= parseFloat(pmRow[1]) - 1) set.PM = '';
       // Sweep&Go's marketing opt-out is the law of the land for the email blast
       if (c.marketing_allowed === 0 || c.marketing_allowed === '0' || c.marketing_allowed === false) set.NOEM = '1';
       if (!active) { set.CX = (sub && sub.end) || ''; set.CXR = sgReason_(sub && (sub.reason + ' ' + sub.comment)); } else { set.CX = ''; set.CXR = ''; }
@@ -1179,17 +1265,105 @@ function quoteFollowups() {
     if (left < 5) return;   // leave room for the lead alerts
     var step = FU_STEPS[d.step - 1];
     try {
-      MailApp.sendEmail({ to: d.email, subject: fuFill_(step.subject, d), body: fuFill_(step.body, d) + FU_FOOTER, name: 'CL Professional Pet Services', replyTo: NOTIFY_CC });
+      sendCustomerMail_({ to: d.email, subject: fuFill_(step.subject, d), body: fuFill_(step.body, d) + FU_FOOTER });
       sent++;
       for (var i = 1; i < rows.length; i++) if (String(rows[i][idCol]) === d.id) sh.getRange(i + 1, nCol + 1).setValue(safeCell_('[FE:' + d.step + '@' + today + '] ' + String(rows[i][nCol] || '')));
     } catch (e) {}
   });
   return { ok:true, due: due.length, sent: sent };
 }
+/* ---- the welcome sequence ----
+   Day 1 after a customer starts: what to expect and how to reach us.
+   Day 30: how is it going, and the review link if there is one. Off
+   until the office switches it on (CONFIG welcome_emails). The day-30
+   email counts as the review ask, so the card does not ask again. */
+var WE_STEPS = [
+  { step: 1, from: 1, to: 6, subject: 'Welcome aboard, {first} - what happens next',
+    body: 'Hi {first},\n\nThanks for choosing CL Professional Pet Services - we are glad to have you.\n\nHere is how it works: we come on your service day, clean the whole yard, haul the waste away and make sure the gate is shut behind us. You will get a text when we are on the way and another when we are done. If the gate is locked or a dog is out, we text you and come back.\n\nAnything at all - a different day, a gate code, a dog who needs a minute to warm up to us - reply here or text (636) 375-4342.\n\nSee you on {day}!' },
+  { step: 2, from: 30, to: 46, subject: 'How are we doing, {first}?',
+    body: 'Hi {first},\n\nYou have been with us about a month now, so a quick check-in: is everything the way you want it? If anything is off, reply here and I will fix it myself.\n\nAnd if we have earned it, a Google review would mean the world to a small local business like ours. It takes a minute: {review}\n\nThank you for having us in your yard.' }
+];
+var WE_FOOTER = '\n\n\u2014 Corey\nCL Professional Pet Services LLC \u00b7 St. Peters, MO \u00b7 (636) 375-4342 \u00b7 clpropetservices.com\nReply STOP and we\u2019ll leave you off future emails.';
+function welcomeDue_(rows, now, reviewLink) {
+  now = now || new Date();
+  var H = {}; HEADERS.forEach(function(h, i) { H[h] = i; });
+  var latest = {}, NOT = { VIEW:1, QVIEW:1, OUTAREA:1, WAITLIST:1, AUTH:1, SPEND:1, CONFIG:1 };
+  for (var i = 1; i < rows.length; i++) { var t = String(rows[i][H.type] || ''); if (NOT[t]) continue; var id = String(rows[i][H.id]), key = String(rows[i][H.created] || ''); if (!latest[id] || key >= latest[id].key) latest[id] = { key: key, r: rows[i] }; }
+  var due = [], days = { mon:'Monday', tue:'Tuesday', wed:'Wednesday', thu:'Thursday', fri:'Friday', sat:'Saturday', sun:'Sunday' };
+  Object.keys(latest).forEach(function(id) {
+    var r = latest[id].r, st = String(r[H.status] || 'new'), notes = String(r[H.crmnotes] || '');
+    if (st !== 'closed') return;
+    if (/\[(NOEM|TM|PZ):/.test(notes)) return;
+    var email = String(r[H.email] || '').trim(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    var cd = (notes.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1]; if (!cd) return;
+    var age = (now.getTime() - new Date(cd + 'T12:00:00').getTime()) / 86400000;
+    var sent = {}; (notes.match(/\[WE:(\d)@[^\]]+\]/g) || []).forEach(function(m) { sent[m.match(/\[WE:(\d)/)[1]] = 1; });
+    var next = null;
+    WE_STEPS.forEach(function(w) { if (!next && !sent[w.step] && age >= w.from && age < w.to) next = w; });
+    if (!next) return;
+    if (next.step === 2 && /\[RV:/.test(notes)) return;   // already asked for a review by hand
+    var dayKey = ((notes.match(/\[DAY:([^\]]*)\]/) || [])[1] || '').split(',')[0];
+    due.push({ id: id, step: next.step, email: email, first: String(r[H.name] || '').trim().split(/\s+/)[0] || 'there', day: days[dayKey] || 'your service day', review: reviewLink || 'search for CL Professional Pet Services on Google' });
+  });
+  return due;
+}
+function welcomeEmails() {
+  if (cfg_('welcome_emails') !== 'on') return { ok:true, off:true, sent:0 };
+  var link = cfg_('review_link'); if (!/^https:\/\//.test(link)) link = '';
+  var sh = sheet_(), rows = sh.getDataRange().getValues(), due = welcomeDue_(rows, new Date(), link), sent = 0, today = new Date().toISOString().slice(0, 10);
+  var idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes');
+  due.slice(0, 30).forEach(function(d) {
+    var left = 0; try { left = MailApp.getRemainingDailyQuota(); } catch (e) { left = 1; }
+    if (left < 5) return;
+    var w = WE_STEPS[d.step - 1], fill = function(t) { return String(t).split('{first}').join(d.first).split('{day}').join(d.day).split('{review}').join(d.review); };
+    try {
+      sendCustomerMail_({ to: d.email, subject: fill(w.subject), body: fill(w.body) + WE_FOOTER });
+      sent++;
+      for (var i = 1; i < rows.length; i++) if (String(rows[i][idCol]) === d.id) sh.getRange(i + 1, nCol + 1).setValue(safeCell_('[WE:' + d.step + '@' + today + '] ' + (d.step === 2 ? '[RV:' + today + '] ' : '') + String(rows[i][nCol] || '')));
+    } catch (e) {}
+  });
+  return { ok:true, due: due.length, sent: sent };
+}
+/* ---- price notices ----
+   The office picks who, the new price and the date; this sends each one
+   a plain notice from Corey and stamps [PM:new@date] so the card shows
+   it and the sync clears it once Sweep&Go carries the new price. */
+function priceMove_(body) {
+  var items = Array.isArray(body.items) ? body.items.slice(0, 60) : [], reason = clip_(body.reason, 300).trim(), when = String(body.date || '');
+  if (!items.length || !/^\d{4}-\d{2}-\d{2}$/.test(when)) return { ok:false, error:'nothing to send' };
+  var sh = sheet_(), rows = sh.getDataRange().getValues(), idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes');
+  var pretty = new Date(when + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  var sent = [], failed = [];
+  items.forEach(function(it) {
+    var l = latestRow_(sh, String(it.id || '')); if (!l) { failed.push({ id: it.id, error: 'not found' }); return; }
+    var email = String(l.email || '').trim(), first = String(l.name || '').trim().split(/\s+/)[0] || 'there', oldP = parseFloat(it.oldPrice) || 0, newP = parseFloat(it.newPrice) || 0;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { failed.push({ id: it.id, error: 'no email' }); return; }
+    if (!(newP > 0)) { failed.push({ id: it.id, error: 'no price' }); return; }
+    var text = 'Hi ' + first + ',\n\nA quick note about your service, with plenty of notice.' + (oldP ? ' Your price has been $' + oldP + ' a month' : '') + (oldP ? ', and on ' + pretty + ' it moves to $' + newP + ' a month' : ' On ' + pretty + ' your price moves to $' + newP + ' a month') + '.' +
+      (reason ? ' ' + reason : '') + '\n\nNothing else changes: same day, same crew, same clean yard, still month to month with no contract. If you have any questions, or if money is tight right now, reply here and we will work it out - I would much rather talk than lose you.\n\nThank you for having us.';
+    try {
+      sendCustomerMail_({ to: email, subject: 'Your CL Professional Pet Services price from ' + pretty, body: text + WE_FOOTER });
+      sent.push(it.id);
+      for (var i = 1; i < rows.length; i++) if (String(rows[i][idCol]) === String(it.id)) sh.getRange(i + 1, nCol + 1).setValue(safeCell_(sgSetMarkers_(String(rows[i][nCol] || ''), { PM: newP + '@' + when })));
+    } catch (e) { failed.push({ id: it.id, error: String(e && e.message || e).slice(0, 80) }); }
+  });
+  return { ok:true, sent: sent, failed: failed, date: when };
+}
+/* ---- the accountant's file: every invoice and payment, and the months ---- */
+function billingCsv_() {
+  var sh = billingSheet_(); if (sh.getLastRow() < 2) return { ok:true, csv: BILLING_HEADERS.join(',') + '\n', months: '' };
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, BILLING_HEADERS.length).getValues();
+  var q = function(v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  var csv = BILLING_HEADERS.join(',') + '\n' + rows.map(function(r) { return r.map(q).join(','); }).join('\n') + '\n';
+  var f = sgBilling_(), ms = Object.keys(f.months || {}).sort();
+  var months = 'month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced\n' + ms.map(function(k) { var m = f.months[k]; return [k, m.billed, m.onetime, m.collected, m.unpaid, m.tips, m.failed, m.customers].join(','); }).join('\n') + '\n';
+  return { ok:true, csv: csv, months: months, rows: rows.length };
+}
+function dailyEmails() { var a = quoteFollowups(), b = welcomeEmails(); return { followups: a, welcome: b }; }
 function setupFollowups() {
-  ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'quoteFollowups') ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('quoteFollowups').timeBased().everyDays(1).atHour(9).create();
-  Logger.log('Follow-up emails scheduled for 9am daily. They send only while the switch in the tracker (Email > automatic follow-ups) is on. Due right now: ' + JSON.stringify(followupsDue_(sheet_().getDataRange().getValues(), new Date()).map(function(d) { return d.first + ' step ' + d.step; })));
+  ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'quoteFollowups' || t.getHandlerFunction() === 'dailyEmails') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('dailyEmails').timeBased().everyDays(1).atHour(9).create();
+  Logger.log('Daily emails scheduled for 9am: follow-ups for quiet quotes and the welcome sequence, each only while its switch in the tracker (under Email) is on. Follow-ups due right now: ' + JSON.stringify(followupsDue_(sheet_().getDataRange().getValues(), new Date()).map(function(d) { return d.first + ' step ' + d.step; })));
 }
 /* ---- the Monday push: last week in numbers, to both phones ----
    Jesse: "a Monday morning push". Goes through the same free ntfy topic
@@ -1303,7 +1477,7 @@ function blast_(body) {
     var left = 0; try { left = MailApp.getRemainingDailyQuota(); } catch (e) { left = 1; }
     if (left < 1) { failed.push({ id:r.id, error:'quota' }); continue; }
     try {
-      MailApp.sendEmail({ to: email, subject: fillBlast_(subject, r), body: fillBlast_(text, r), name: 'CL Professional Pet Services', replyTo: NOTIFY_CC });
+      sendCustomerMail_({ to: email, subject: fillBlast_(subject, r), body: fillBlast_(text, r) });
       sent.push(r.id);
       // stamp every row that carries the id, same as an update
       for (var i = 1; i < data.length; i++) {

@@ -15,7 +15,7 @@ const { ok, done } = reporter();
   ok('and has words for the blanks', fill('Hi {first}, {price} for {plan}', {}) === 'Hi there, your quoted price for your plan');
   ok('blast and quota need the key', /action === 'blast'[^]*?bad pin/.test(gs) && /action === 'quota'[^]*?bad pin/.test(gs));
   ok('a batch is capped and the message clipped', /BLAST_MAX = 60/.test(gs) && /slice\(0, BLAST_MAX\)/.test(gs) && /clip_\(body\.body, BLAST_BODY_MAX\)/.test(gs));
-  ok('every send is stamped on the lead and sent reply-to the office', /\[EM:' \+ tag \+ '@/.test(gs) && /replyTo: NOTIFY_CC/.test(gs));
+  ok('every send is stamped on the lead and goes through the office mailbox, reply-to the office', /\[EM:' \+ tag \+ '@/.test(gs) && /sendCustomerMail_\(\{ to: email, subject: fillBlast_/.test(gs) && /replyTo: o\.replyTo \|\| NOTIFY_CC/.test(gs) && /address: o\.replyTo \|\| c\.from/.test(gs));
 }
 
 (async () => {

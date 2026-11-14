@@ -89,6 +89,7 @@ const API = {
 };
 const calls = [];
 const pushes = [], onboardings = [], mails = [];
+const msCalls = [];
 function fakeFetch(url, opts){
   calls.push(url);
   if (/residential\/onboarding$/.test(url)){
@@ -104,6 +105,8 @@ function fakeFetch(url, opts){
     const price = freq === 'bi_weekly' ? 70 : dogs === '2' ? 91 : 95;
     return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ price: { value: String(price), category: 'prepaid', billing_interval: 'monthly' }, cross_sells: [ { id: 7, name: 'Deodorizing and Sanitizing', unit_amount: '15.00' } ] }) };
   }
+  if (/login\.microsoftonline\.com\//.test(url)){ msCalls.push({ url, payload: opts.payload }); return { getResponseCode: () => opts.payload && opts.payload.client_secret === 'sec-1' ? 200 : 401, getContentText: () => JSON.stringify(opts.payload && opts.payload.client_secret === 'sec-1' ? { access_token: 'ms-tok' } : { error: 'invalid_client' }) }; }
+  if (/graph\.microsoft\.com\//.test(url)){ const b = JSON.parse(opts.payload || '{}'); msCalls.push({ url, auth: opts.headers && opts.headers.Authorization, body: b }); const to = b.message && b.message.toRecipients[0].emailAddress.address; return to === 'bounce@gmail.com' ? { getResponseCode: () => 500, getContentText: () => '{"error":{"code":"ErrorInternalServerError"}}' } : { getResponseCode: () => 202, getContentText: () => '' }; }
   if (/ntfy\.sh\//.test(url)){ pushes.push({ url, title: opts.headers && opts.headers.Title, body: opts.payload }); return { getResponseCode: () => 200, getContentText: () => '{}' }; }
   const p = url.replace('https://openapi.sweepandgo.com', '').replace(/([?&])(page|length)=\d+/g, '$1').replace(/[?&]+$/, '').replace(/\?&/, '?').replace(/&&/g, '&');
   const key = Object.keys(API).find(k => p === k || p.startsWith(k + '?') || p.startsWith(k + '&') || (k.indexOf('?') > 0 && p.startsWith(k)));
@@ -118,7 +121,7 @@ function seed(){
   const row = (o) => HEADERS.map(h => o[h] == null ? '' : o[h]);
   return [HEADERS.slice(),
     // matched by phone; office notes and a follow-up to keep; the site's old price
-    row({ id:'p6363750001', created:'2026-06-01T12:00:00Z', type:'ENQUIRY', name:'Dana D', phone:'6363750001', email:'dana@gmail.com', address:'1 Oak St, St. Peters, MO 63376', zip:'63376', service:'weekly', dogs:'2', price:'$91/mo', status:'closed', crmnotes:'[FU:2026-12-01] [CD:2026-06-01] [QA:a] gate 4321', updated:'' }),
+    row({ id:'p6363750001', created:'2026-06-01T12:00:00Z', type:'ENQUIRY', name:'Dana D', phone:'6363750001', email:'dana@gmail.com', address:'1 Oak St, St. Peters, MO 63376', zip:'63376', service:'weekly', dogs:'2', price:'$91/mo', status:'closed', crmnotes:'[FU:2026-12-01] [CD:2026-06-01] [PM:91@2026-11-01] [QA:a] gate 4321', updated:'' }),
     // matched by name only (no phone or email on the old row)
     row({ id:'sgkelly', created:'2026-03-01T12:00:00Z', type:'SAVED', name:'Kelly .', phone:'', email:'', address:'14 Creekside Dr, St Peters, MO 63376', zip:'63376', service:'weekly', dogs:'3', price:'$99/mo', status:'closed', crmnotes:'[SGC:2026-03-01] [QP:87] [CD:2026-03-01] [QA:a] ', updated:'' }),
     // the office said no to this one: Sweep&Go must not reopen him
@@ -139,7 +142,7 @@ function build(leadRows){
     MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: () => '202611' }, Session: { getScriptTimeZone: () => 'America/Chicago' },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (txt) => ({ _t: txt, setMimeType(){ return this; } }) },
   };
-  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS };')(...Object.values(G));
+  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups };')(...Object.values(G));
   return { F, sheets, props };
 }
 
@@ -292,5 +295,96 @@ function build(leadRows){
   const on = F.quoteFollowups();
   ok('with it on, the two due emails go from the business account, reply-to the office, with the words filled in and the opt-out footer', on.sent === 2 && mails.length === 2 && mails[0].to === 'a1@gmail.com' && /Quiet, your yard price is saved/.test(mails[0].subject) && /Your price of \$85\/mo is saved for six months/.test(mails[0].body) && /Reply STOP/.test(mails[0].body) && mails[0].replyTo === 'info@clpropetservices.com' && mails[1].to === 'a9@gmail.com' && /Last note from me, Quiet/.test(mails[1].subject), JSON.stringify(mails.map(m => [m.to, m.subject])));
   ok('and each row is stamped, so tomorrow sends nothing twice', /\[FE:1@\d{4}-\d{2}-\d{2}\]/.test(sheets.leads.rows.find(r => r[0] === 'a1')[HEADERS.indexOf('crmnotes')]) && /\[FE:2@/.test(sheets.leads.rows.find(r => r[0] === 'a9')[HEADERS.indexOf('crmnotes')]) && F.followupsDue_(sheets.leads.rows, new Date()).length === 0);
+}
+
+/* ---- the sync clears a price-move stamp once Sweep&Go carries the new price ---- */
+{
+  const { F, sheets } = build(seed());
+  F.sgSync(false);
+  const dana = sheets.leads.rows.filter(r => r[0] === 'p6363750001').pop()[HEADERS.indexOf('crmnotes')];
+  ok('Dana was told $91 and now pays $91: the stamp goes, the office notes stay', !/\[PM:/.test(dana) && /gate 4321/.test(dana) && /\[FU:2026-12-01\]/.test(dana), dana);
+}
+
+/* ---- the office mailbox: Microsoft sends it, Google is the fallback ---- */
+{
+  const { F, props } = build(seed());
+  mails.length = 0; msCalls.length = 0;
+  ok('with nothing set up the mail goes from Google with reply-to the office', F.sendCustomerMail_({ to:'x@gmail.com', subject:'s', body:'b' }) === 'google' && mails.length === 1 && mails[0].replyTo === 'info@clpropetservices.com' && mails[0].name === 'CL Professional Pet Services' && msCalls.length === 0);
+  ok('and testOfficeMail says so instead of pretending', F.testOfficeMail() === 'not configured');
+  Object.assign(props, { MS_TENANT:'ten-1', MS_CLIENT:'cli-1', MS_SECRET:'sec-1', MAIL_FROM:'info@clpropetservices.com' });
+  mails.length = 0; msCalls.length = 0;
+  const how = F.sendCustomerMail_({ to:'x@gmail.com', subject:'Hello', body:'Line one\nline two' });
+  const tok = msCalls[0], send = msCalls[1];
+  ok('with the four properties set, the script signs in to Microsoft as the app and sends as the office mailbox', how === 'microsoft' && mails.length === 0 && msCalls.length === 2 && /login\.microsoftonline\.com\/ten-1\/oauth2\/v2\.0\/token$/.test(tok.url) && tok.payload.client_id === 'cli-1' && tok.payload.grant_type === 'client_credentials' && /graph\.microsoft\.com\/v1\.0\/users\/info%40clpropetservices\.com\/sendMail$/.test(send.url) && send.auth === 'Bearer ms-tok', JSON.stringify(msCalls));
+  ok('the message is plain text to the customer, reply-to the office, and kept in Outlook\'s Sent folder', send.body.message.subject === 'Hello' && send.body.message.body.contentType === 'Text' && send.body.message.body.content === 'Line one\nline two' && send.body.message.toRecipients[0].emailAddress.address === 'x@gmail.com' && send.body.message.replyTo[0].emailAddress.address === 'info@clpropetservices.com' && send.body.saveToSentItems === true, JSON.stringify(send.body));
+  mails.length = 0; msCalls.length = 0;
+  ok('if Microsoft refuses, the email still goes, from Google', F.sendCustomerMail_({ to:'bounce@gmail.com', subject:'s', body:'b' }) === 'google' && mails.length === 1 && mails[0].to === 'bounce@gmail.com');
+  msCalls.length = 0;
+  ok('the test button sends the office a note from itself', F.testOfficeMail() === 'ok' && msCalls.some(c => c.body && c.body.message.toRecipients[0].emailAddress.address === 'info@clpropetservices.com' && /came from the office mailbox/.test(c.body.message.subject)));
+  props.MS_SECRET = 'wrong';
+  mails.length = 0;
+  ok('a bad secret falls back too, and says why in the log rather than losing the email', F.sendCustomerMail_({ to:'x@gmail.com', subject:'s', body:'b' }) === 'google' && mails.length === 1);
+}
+
+/* ---- the welcome sequence: day 1 and day 30 for new customers ---- */
+{
+  const row = (o) => HEADERS.map(h => o[h] == null ? '' : o[h]);
+  const ago = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+  const c = (id, cdDaysAgo, extra) => row(Object.assign({ id, created: '2026-01-01T12:00:00Z', type:'SAVED', name: 'New ' + id.toUpperCase(), phone:'636375' + id.replace(/\D/g, '').padStart(4, '0'), email: id + '@gmail.com', zip:'63376', service:'weekly', dogs:'1', price:'$85/mo', status:'closed', crmnotes:'[CD:' + ago(cdDaysAgo) + '] [DAY:thu] [QA:a] ' }, extra || {}));
+  const leadRows = [HEADERS.slice(),
+    c('w1', 2),                                                            // started two days ago: the welcome
+    c('w2', 35),                                                           // a month in: how are we doing, with the review link
+    c('w3', 35, { crmnotes:'[CD:' + ago(35) + '] [RV:' + ago(3) + '] [QA:a] ' }),   // Jesse already asked for a review by hand
+    c('w4', 35, { crmnotes:'[CD:' + ago(35) + '] [WE:1@' + ago(34) + '] [DAY:tue,fri] [QA:a] ' }),   // got the welcome, due the check-in
+    c('w5', 2, { crmnotes:'[CD:' + ago(2) + '] [NOEM:1] [QA:a] ' }),      // no marketing emails
+    c('w6', 2, { crmnotes:'[CD:' + ago(2) + '] [PZ:2026-11-01~2026-12-15] [QA:a] ' }),   // paused
+    c('w7', 2, { status:'called' }),                                       // not a customer yet
+    c('w8', 2, { email:'' }),                                              // no email
+    c('w9', 12),                                                           // between the two windows
+    c('x1', 60),                                                           // too late for either
+    c('x2', 0),                                                            // started today: tomorrow
+    c('x3', 2, { crmnotes:'[CD:' + ago(2) + '] [WE:1@' + ago(1) + '] [QA:a] ' }),   // already welcomed
+    row({ id:'cfg_rl', created: ago(0), type:'CONFIG', name:'review_link', notes:'https://g.page/r/abc/review', status:'config', crmnotes:'' }),
+  ];
+  const { F, sheets } = build(leadRows);
+  const due = F.welcomeDue_(sheets.leads.rows, new Date(), 'https://g.page/r/abc/review');
+  ok('exactly the right customers are due, with the right step', due.map(d => d.id + ':' + d.step).sort().join(',') === 'w1:1,w2:2,w4:2', JSON.stringify(due.map(d => d.id + ':' + d.step)));
+  const w1 = due.find(d => d.id === 'w1'), w4 = due.find(d => d.id === 'w4');
+  ok('each carries the first name, their day in words and the review link', w1.first === 'New' && w1.day === 'Thursday' && w4.day === 'Tuesday' && w1.review === 'https://g.page/r/abc/review');
+  mails.length = 0; msCalls.length = 0;
+  const off = F.welcomeEmails();
+  ok('with the switch off nothing is sent', off.off && mails.length === 0);
+  sheets.leads.rows.push(row({ id:'cfg_we', created: ago(0), type:'CONFIG', name:'welcome_emails', notes:'on', status:'config', crmnotes:'' }));
+  const on = F.welcomeEmails();
+  const m1 = mails.find(m => m.to === 'w1@gmail.com'), m2 = mails.find(m => m.to === 'w2@gmail.com');
+  ok('with it on, the three go out: the welcome names the day, the check-in carries the review link, both end with Corey and the opt-out', on.sent === 3 && mails.length === 3 && /Welcome aboard, New/.test(m1.subject) && /See you on Thursday!/.test(m1.body) && /How are we doing, New\?/.test(m2.subject) && /https:\/\/g\.page\/r\/abc\/review/.test(m2.body) && /— Corey/.test(m1.body) && /Reply STOP/.test(m2.body), JSON.stringify(mails.map(m => [m.to, m.subject])));
+  const notes = (id) => sheets.leads.rows.filter(r => r[0] === id).pop()[HEADERS.indexOf('crmnotes')];
+  ok('each row is stamped; the day-30 email also counts as the review ask', /\[WE:1@/.test(notes('w1')) && !/\[RV:/.test(notes('w1')) && /\[WE:2@/.test(notes('w2')) && /\[RV:\d{4}-\d{2}-\d{2}\]/.test(notes('w2')) && /\[WE:1@/.test(notes('w4')) && /\[WE:2@/.test(notes('w4')), notes('w2'));
+  ok('so tomorrow nothing goes twice', F.welcomeDue_(sheets.leads.rows, new Date(), '').length === 0);
+  ok('the one 9am job runs both the quote follow-ups and the welcome sequence', (() => { const r = F.dailyEmails(); return r && r.followups && r.welcome && r.welcome.sent === 0; })());
+}
+
+/* ---- price notices ---- */
+{
+  const { F, sheets } = build(seed());
+  mails.length = 0;
+  const bad = F.priceMove_({ items: [], date: '2026-12-15' });
+  ok('nothing ticked, nothing sent', bad.ok === false);
+  const r = F.priceMove_({ items: [{ id:'p6363750001', oldPrice: 91, newPrice: 99 }, { id:'nobody', oldPrice: 1, newPrice: 2 }, { id:'sgkelly', oldPrice: 99, newPrice: 105 }], date: '2026-12-15', reason: 'Fuel and supply costs have gone up this year.' });
+  ok('Dana gets hers, the unknown id and the customer with no email are reported, not dropped silently', r.ok && r.sent.join() === 'p6363750001' && r.failed.length === 2 && r.failed[0].error === 'not found' && r.failed[1].error === 'no email' && r.date === '2026-12-15', JSON.stringify(r));
+  ok('the notice says the old price, the new price, the date in words and the reason, and comes from Corey', mails.length === 1 && mails[0].to === 'dana@gmail.com' && /price from December 15, 2026/.test(mails[0].subject) && /Your price has been \$91 a month, and on December 15, 2026 it moves to \$99 a month\. Fuel and supply costs have gone up this year\./.test(mails[0].body) && /— Corey/.test(mails[0].body), mails[0] && mails[0].body);
+  const dana = sheets.leads.rows.filter(r => r[0] === 'p6363750001').pop()[HEADERS.indexOf('crmnotes')];
+  ok('and her row carries the move, next to the office notes', /\[PM:99@2026-12-15\]/.test(dana) && /gate 4321/.test(dana), dana);
+}
+
+/* ---- the accountant's two files ---- */
+{
+  const { F, sheets } = build(seed());
+  F.sgSync(false);
+  const x = F.billingCsv_();
+  const lines = x.csv.trim().split('\n');
+  ok('every invoice and payment, one a line, under the sheet\'s own headers', x.ok && lines[0] === 'kind,number,date,client,type,status,total,paid,remaining,interval,period_start,pay_type,description' && lines.length === x.rows + 1 && x.rows === sheets.billing.rows.length - 1 && x.rows > 3, lines[0] + ' | ' + lines.length + ' vs ' + x.rows);
+  const ml = x.months.trim().split('\n');
+  ok('and the months beside it: billed, one-time, collected, unpaid, tips, failed payments, customers', ml[0] === 'month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced' && ml.length >= 2 && /^\d{4}-\d{2},\d+,\d+,\d+,\d+,\d+,\d+,\d+$/.test(ml[1]), x.months);
 }
 done();
