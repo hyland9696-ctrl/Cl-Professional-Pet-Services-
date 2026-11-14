@@ -14,7 +14,7 @@ ok('nor any Google key', !/AIza[0-9A-Za-z_-]{20,}/.test(tracker));
 ok('the tracker page carries no password of its own any more', !/clpps-8k3v51/.test(tracker) && /var KEY = '';/.test(tracker));
 const gs = fs.readFileSync(path.join(ROOT, 'hq-8k3v51', 'apps-script.gs'), 'utf8');
 ok('code.txt is byte-identical to apps-script.gs', gs === fs.readFileSync(path.join(ROOT, 'hq-8k3v51', 'code.txt'), 'utf8'));
-ok('the backend reads the key from a script property, with the old key only as the fallback', /getProperty\('TRACKER_KEY'\)/.test(gs) && /LEGACY_PIN/.test(gs) && !/p\.key !== PIN\b/.test(gs));
+ok('the backend reads the key from a script property, and the old built-in key is gone for good: with none set, nobody gets in', /getProperty\('TRACKER_KEY'\)/.test(gs) && !/LEGACY_PIN|clpps-8k3v51/.test(gs) && /no-key-set/.test(gs) && !/p\.key !== PIN\b/.test(gs));
 ok('the backend caps the size of a post and the rate of lead posts', /MAX_POST_BYTES/.test(gs) && /floodGate_\(\)/.test(gs) && /clip_\(l\[h\]/.test(gs));
 // the pure helpers, outside Apps Script
 const clip = new Function(gs + '\nreturn clip_;')();

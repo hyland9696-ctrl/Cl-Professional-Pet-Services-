@@ -147,6 +147,10 @@ function seed(){
     row({ id:'p6363750001', created:'2026-06-01T12:00:00Z', type:'ENQUIRY', name:'Dana D', phone:'6363750001', email:'dana@gmail.com', address:'1 Oak St, St. Peters, MO 63376', zip:'63376', service:'weekly', dogs:'2', price:'$91/mo', status:'closed', crmnotes:'[FU:2026-12-01] [CD:2026-06-01] [PM:91@2026-11-01] [QA:a] gate 4321', updated:'' }),
     // matched by name only (no phone or email on the old row)
     row({ id:'sgkelly', created:'2026-03-01T12:00:00Z', type:'SAVED', name:'Kelly .', phone:'', email:'', address:'14 Creekside Dr, St Peters, MO 63376', zip:'63376', service:'weekly', dogs:'3', price:'$99/mo', status:'closed', crmnotes:'[SGC:2026-03-01] [QP:87] [CD:2026-03-01] [QA:a] ', updated:'' }),
+    // left six weeks ago over price: the win-back's customer
+    row({ id:'p6363750040', created:'2026-01-05T12:00:00Z', type:'SAVED', name:'Price Pam', phone:'6363750040', email:'pricepam@gmail.com', zip:'63376', service:'weekly', dogs:'1', price:'$85/mo', status:'cancelled', crmnotes:'[CD:2026-01-05] [CX:' + d(40) + '] [CXR:price] [QA:a] ', updated:'' }),
+    // asked for a price six weeks ago and went quiet: the revival's
+    row({ id:'q_old', created: new Date(Date.now() - 45 * 864e5).toISOString(), type:'ENQUIRY', name:'Old Quote', phone:'6363750045', email:'oldq@gmail.com', zip:'63376', service:'weekly', dogs:'1', price:'$85/mo', status:'new', crmnotes:'[QA:w] ', updated:'' }),
     // typed by hand before the commercial side was synced: matched by its name
     row({ id:'greens', created:'2024-11-18T12:00:00Z', type:'SAVED', name:'Greens of Broadmoor - 14995 Green Cir Dr.', phone:'', email:'', zip:'63376', service:'commercial', dogs:'', price:'$60/mo (billed $60 per visit)', status:'closed', crmnotes:'[CD:2024-11-18] [QA:a] ', updated:'' }),
     // the office said no to this one: Sweep&Go must not reopen him
@@ -170,7 +174,7 @@ function build(leadRows){
     MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: (d, tz, f) => f === 'yyyy-MM-dd' ? new Date(d).toISOString().slice(0, 10) : '202611', sleep: (ms) => { sleeps.push(ms); }, base64Encode: (s) => Buffer.from(String(s), 'utf8').toString('base64'), Charset: { UTF_8: 'utf8' }, newBlob: (c, type, name) => ({ c, type, name }) }, Session: { getScriptTimeZone: () => 'America/Chicago' },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (txt) => ({ _t: txt, setMimeType(){ return this; } }) },
   };
-  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups, install, INSTALL, sgBillingSync, sgSyncOnce, sgStatus, sgAllUntil_, tidySheet, payRemind_, paymentReminders, monthlyReport, eveningNudge, weeklyHousekeeping };')(...Object.values(G));
+  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups, install, INSTALL, sgBillingSync, sgSyncOnce, sgStatus, sgAllUntil_, tidySheet, payRemind_, paymentReminders, monthlyReport, eveningNudge, weeklyHousekeeping, publicDays_, cardFailedEmails, winbackEmails, leadRevival, referralThanks, campaignsDue, yearlyReport, yearlyReportText_, refCode_, doGet, pin_ };')(...Object.values(G));
   return { F, sheets, props };
 }
 
@@ -565,5 +569,70 @@ function build(leadRows){
   sheets.leads.rows.forEach(r => { if (r[0] === 'p6363750007') r[HEADERS.indexOf('status')] = 'called'; });
   pushes.length = 0;
   ok('once she is called, nothing is sent', F.eveningNudge().waiting === 0 && pushes.length === 0);
+}
+
+/* ---- the quote page's question: which days are we already on this ZIP ---- */
+{
+  const { F } = build(seed());
+  F.sgSync(false);
+  const d1 = F.publicDays_();
+  ok('a ZIP with three or more customers answers with its days, two or more customers each, busiest first; a ZIP with one customer, and anyone off schedule, without a subscription, commercial or a test phone, say nothing', d1.ok && d1.zips['63376'] && d1.zips['63376'].slice().sort().join() === 'fri,thu,tue' && !d1.zips['63366'], JSON.stringify(d1));
+  const viaGet = JSON.parse(F.doGet({ parameter: { action: 'days' } })._t);
+  ok('and it is public, by GET, with no key: there is nothing in it about anyone', viaGet.ok && viaGet.zips['63376'] && Object.keys(viaGet).join() === 'ok,zips');
+}
+
+/* ---- no key, no entry ---- */
+{
+  const { F, props } = build(seed());
+  delete props.TRACKER_KEY;
+  const r = JSON.parse(F.doPost({ postData: { length: 40, contents: JSON.stringify({ action:'list', key:'' }) }, parameter: {} })._t);
+  ok('with no TRACKER_KEY set, an empty key is refused too: the old built-in password is gone', r.ok === false && r.error === 'bad pin' && /no-key-set/.test(F.pin_()));
+}
+
+/* ---- the other automatic rounds: card failed, win-back, revival, referral thanks, the calendar ---- */
+{
+  const { F, sheets, props } = build(seed());
+  F.sgSync(false); F.sgBillingSync();
+  Object.assign(props, MS);
+  const on = (k) => sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_' + k, created: new Date().toISOString(), type:'CONFIG', name: k, notes:'on', status:'config' })[h] || ''));
+  const notes = (id) => sheets.leads.rows.filter(r => r[0] === id).pop()[HEADERS.indexOf('crmnotes')];
+  // a card that failed last night
+  const BH = ['kind','number','date','client','type','status','total','paid','remaining','interval','period_start','pay_type','description'];
+  sheets.billing.rows.push(BH.map(h => ({ kind:'payment', date: d(1), client:'Dana Deo', type:'credit_card', status:'failed', total:'151', paid:'151' })[h] || ''));
+  msCalls.length = 0;
+  ok('every round is off until its switch is on', F.cardFailedEmails().off && F.winbackEmails().off && F.leadRevival().off && F.referralThanks().off && sentMs().length === 0);
+  on('card_emails'); on('winback_emails'); on('revival_emails'); on('referral_emails');
+  const cf = F.cardFailedEmails(), cfMail = sentMs().pop();
+  ok('Dana, whose card failed last night, gets the note the same day, from the office, and her row is stamped', cf.sent === 1 && cfMail.to === 'dana@gmail.com' && /Your card did not go through/.test(cfMail.subject) && new RegExp('\\$151 on ' + d(1)).test(cfMail.body) && /\[CF:151@/.test(notes('p6363750001')), JSON.stringify(cf) + ' ' + (cfMail && cfMail.body));
+  ok('run again the same week, nothing more', F.cardFailedEmails().sent === 0);
+  msCalls.length = 0;
+  const wb = F.winbackEmails(), wbMail = sentMs().pop();
+  ok('Pam, gone six weeks over price, gets the come-back note; Gus, who moved, does not', wb.sent === 1 && wbMail.to === 'pricepam@gmail.com' && /love to have you back/.test(wbMail.subject) && /no initial clean fee to restart/.test(wbMail.body) && /\[WK:/.test(notes('p6363750040')) && !/\[WK:/.test(notes('p6363750003')), JSON.stringify(wb));
+  msCalls.length = 0;
+  const lr = F.leadRevival(), lrMail = sentMs().filter(m => m.to === 'oldq@gmail.com')[0];
+  ok('the quote that went quiet six weeks ago is revived, and so is the one who said no: the price still stands, the initial clean waived; the lead that came in today is left alone', lr.sent === 2 && sentMs().some(m => m.to === 'larry@gmail.com') && lrMail && /is the yard still on the list/.test(lrMail.subject) && /Your price of \$85\/mo for weekly still stands/.test(lrMail.body) && /\[LR:/.test(notes('q_old')) && !/\[LR:/.test(notes('p6363750007')), JSON.stringify(lr) + ' ' + (lrMail && lrMail.body));
+  ok('and only once, ever', F.leadRevival().sent === 0);
+  // a referral: Rita came through Dana's link and started this week
+  const code = F.refCode_('p6363750001', 'Dana D');
+  sheets.leads.rows.push(HEADERS.map(h => ({ id:'p6363750050', created: new Date().toISOString(), type:'ACTIVATE', name:'Ref Rita', phone:'6363750050', email:'rita@gmail.com', zip:'63376', service:'weekly', dogs:'1', price:'$85/mo', status:'closed', crmnotes:'[CD:' + d(3) + '] [RF:' + code + '] [QA:a] ' })[h] || ''));
+  msCalls.length = 0; pushes.length = 0;
+  const rt = F.referralThanks(), rtMail = sentMs().pop();
+  ok('Dana is thanked from the office, told the free deodorize is on her next visit; the phones are told to add it in Sweep&Go; Rita\'s row is stamped', rt.sent === 1 && rtMail.to === 'dana@gmail.com' && /your free deodorize is on the way/.test(rtMail.subject) && /Ref just started with us/.test(rtMail.body) && pushes.some(p => p.title === 'Referral reward owed' && /Dana D referred Ref Rita/.test(p.body)) && /\[RT:/.test(notes('p6363750050')), JSON.stringify({ rt, pushes }));
+  ok('and not twice', F.referralThanks().sent === 0);
+  // the calendar: the fall email, dated today for the test
+  const md = ('0' + (new Date().getMonth() + 1)).slice(-2) + '-' + ('0' + new Date().getDate()).slice(-2);
+  ok('with nothing ticked the calendar sends nothing', F.campaignsDue().due.length === 0);
+  sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_campaigns', created: new Date().toISOString(), type:'CONFIG', name:'campaigns', notes: JSON.stringify({ fall: { on: true, date: md }, deo: { on: false } }), status:'config' })[h] || ''));
+  msCalls.length = 0;
+  const cd = F.campaignsDue(), cMail = sentMs().filter(m => m.to === 'oldq@gmail.com')[0], year = new Date().getFullYear();
+  ok('on its day the fall email goes to the quotes that never went ahead and the one who said no, filled in, stamped with the year, and not to today\'s lead or to customers', cd.due.join() === 'fall' && cd.results.fall.sent === 2 && cMail && !sentMs().some(m => m.to === 'newlead@gmail.com' || m.to === 'dana@gmail.com') && /the leaves are coming/.test(cMail.subject) && /Your price of \$85\/mo for weekly/.test(cMail.body) && new RegExp('\\[EM:fall' + year + '@').test(notes('q_old')), JSON.stringify(cd));
+  ok('and not again this year', F.campaignsDue().results.fall.sent === 0);
+  // the year in review
+  msCalls.length = 0;
+  const yr = F.yearlyReport(), ySent = msCalls.filter(c => c.body && c.body.message).pop();
+  ok('the year in review goes to the office with the two files, and reads: money, customers and how long they stay, leads', yr.ok && yr.how === 'microsoft' && ySent.body.message.attachments.length === 2 && /in review$/.test(ySent.body.message.subject) && /Money: \$/.test(ySent.body.message.body.content) && /Customers: \d+ active at year end/.test(ySent.body.message.body.content) && /Leads: \d+ came in/.test(ySent.body.message.body.content), ySent && ySent.body.message.body.content);
+  // the daily job runs them all and reports each
+  const daily = F.dailyEmails();
+  ok('the 9am job runs every round and reports each by name', ['followups', 'welcome', 'cards', 'winback', 'revival', 'referral', 'campaigns'].every(k => daily[k] && daily[k].ok), JSON.stringify(Object.keys(daily)));
 }
 done();

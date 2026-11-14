@@ -23,7 +23,9 @@ const refCode = (l) => { const first = String(l.name).trim().split(/\s+/)[0].toL
     await p.goto(ORIGIN + '/?ref=Dana-1NX'); await p.waitForTimeout(500);
     ok('the referral code is remembered for the visit, lower-cased', await p.evaluate(() => sessionStorage.getItem('lead_ref')) === 'dana-1nx');
     await p.goto(ORIGIN + '/#quote'); await p.waitForTimeout(700);   // on to the quote without the tag, as a person would
-    await p.fill('#q-zip', '63376'); await p.waitForTimeout(400);
+    await p.route('**/script.google.com/**?action=days**', r => r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, zips: { '63376': ['tue', 'thu'] } }) }));
+    await p.fill('#q-zip', '63376'); await p.waitForTimeout(700);
+    ok('the quote page says which days we are already on this ZIP\'s streets, from the route, with nothing about anyone', /We’re already on 63376’s streets on Tuesdays and Thursdays\./.test(await p.textContent('#q-zipmsg')), await p.textContent('#q-zipmsg'));
     await p.fill('#qf2-name', 'Gina Guest'); await p.fill('#qf2-phone', '(636) 375-0104');
     ok('somebody who came through a customer\'s link is told so on the quote page', await p.isVisible('#ref-note') && /A customer of ours sent you/.test(await p.textContent('#ref-note')));
     await p.fill('#qf2-email', 'gina@gmail.com'); await p.fill('#qf2-addr', '12 Elm St');

@@ -1200,6 +1200,7 @@
       msg.innerHTML = '&#10004; Great news, we serve your area!';
       document.getElementById('q-wait').style.display = 'none';
       form.style.display = 'block';
+      qAreaDays(v, msg);
     } else {
       msg.classList.add('ok');
       msg.innerHTML = '&#128205; ' + v + " isn't on one of our routes yet &mdash; but routes grow every month, and where they grow depends on who asks.";
@@ -1221,6 +1222,26 @@
                     count demand even from people who never fill the form in.
      qWaitSubmit  - the person actually asking us to come to them.
      Both are typed WAITLIST so they never land in the lead or revenue counts. */
+  /* The days we are already on this ZIP's streets, from the real route: a
+     ZIP with three or more customers, days with two or more, nothing about
+     anyone. Picking a day that already exists is good for us and sells. */
+  var areaDays = null, areaDaysAsked = false;
+  var DAY_WORDS = { mon: 'Mondays', tue: 'Tuesdays', wed: 'Wednesdays', thu: 'Thursdays', fri: 'Fridays', sat: 'Saturdays', sun: 'Sundays' };
+  function qAreaDays(zip, msg){
+    var show = function(){
+      var d = areaDays && areaDays.zips && areaDays.zips[zip]; if (!d || !d.length) return;
+      if ((document.getElementById('q-zip').value || '').trim() !== zip) return;
+      var words = d.map(function(k){ return DAY_WORDS[k] || k; });
+      var line = words.length === 1 ? words[0] : words.slice(0, -1).join(', ') + ' and ' + words[words.length - 1];
+      msg.innerHTML = '&#10004; Great news, we serve your area! We\u2019re already on ' + zip + '\u2019s streets on ' + line + '.';
+    };
+    if (areaDays) { show(); return; }
+    if (areaDaysAsked || !CRM_ENDPOINT) return;
+    areaDaysAsked = true;
+    try {
+      fetch(CRM_ENDPOINT + '?action=days').then(function(r){ return r.json(); }).then(function(d){ if (d && d.ok) { areaDays = d; show(); } }).catch(function(){});
+    } catch (e) {}
+  }
   var waitBeaconed = {};
   function qWaitBeacon(zip){
     if (waitBeaconed[zip]) return;

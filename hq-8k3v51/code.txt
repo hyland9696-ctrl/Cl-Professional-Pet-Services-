@@ -39,12 +39,12 @@ function install() {
   L('1. Saved to Script Properties: ' + (saved.length ? saved.join(', ') : 'nothing new (blank lines keep what was already saved)'));
   if (!sgToken_()) { L('STOP: there is no Sweep&Go token. Put the new token in INSTALL.SG_TOKEN and run install again.'); return { ok:false, step:'token' }; }
   if (!sgHookWord_()) L('   Note: no SG_HOOK, so the Sweep&Go webhook will be refused until one is set.');
-  if (pin_() === LEGACY_PIN) L('   Note: no TRACKER_KEY, so the tracker still takes the old built-in password.');
+  if (/no-key-set/.test(pin_())) L('   Note: no TRACKER_KEY, so nobody can open the tracker until one is set.');
   var who;
   try { who = sgFetch_('/api/v2/welcome'); } catch (e) { L('STOP: Sweep&Go did not accept the token: ' + e.message + '. Make a new token in Sweep&Go, put it in INSTALL.SG_TOKEN, run install again. Nothing was written.'); return { ok:false, step:'token', error: e.message }; }
   L('2. Sweep&Go accepts the token.');
   setupSweepAndGo();
-  L('3. Jobs scheduled: the customer sync at 4am daily, the invoice pull right after it, the Monday 7am push, the 9am daily emails, the 5pm nudge, the month in review on the 1st. The FIRST sync starts by itself in about a minute and the invoice history a minute after that, each in its own window. In five minutes pick sgStatus and press Run to read the result.');
+  L('3. Jobs scheduled: the customer sync at 4am daily, the invoice pull right after it, the Monday 7am push, the 9am daily emails, the 5pm nudge, the month in review on the 1st, the year in review each January. The FIRST sync starts by itself in about a minute and the invoice history a minute after that, each in its own window. In five minutes pick sgStatus and press Run to read the result.');
   try { setupBackupTrigger(); var tidied = tidySheet(); L('4. Backups: every Sunday night to the Drive folder "CLPPS Backups", one made now, and the sheet tidied: ' + tidied.removed + ' duplicate or stale rows folded away, ' + tidied.kept + ' kept.'); }
   catch (e) { L('4. Backup trigger scheduled; the first copy or tidy failed: ' + e.message); }
   if (placesKey_() && placeId_()) { try { setupReviews(); L('5. Reviews: refreshing every Monday.'); } catch (e) { L('5. Reviews not set up: ' + e.message); } }
@@ -66,10 +66,9 @@ function install() {
    press Run, read the key in the execution log) and type that key into the
    tracker on each phone. Until it has been run, the old built-in key still
    works so nothing breaks on the day the new code goes live. */
-var LEGACY_PIN = 'clpps-8k3v51';
 function pin_() {
   try { var k = PropertiesService.getScriptProperties().getProperty('TRACKER_KEY'); if (k) return k; } catch (e) {}
-  return LEGACY_PIN;
+  return '\u0000no-key-set';   // nothing a browser can send: until TRACKER_KEY is set, nobody gets in
 }
 function setupTrackerKey() {
   var key = Utilities.getUuid().replace(/-/g, '').slice(0, 20);
@@ -483,6 +482,34 @@ function json_(obj) {
 var PLACES_API_KEY = '';   // Google Cloud → APIs → Places API (New or Legacy). Restrict it to the Places API only.
 var PLACE_ID       = '';   // the business's Place ID: https://developers.google.com/maps/documentation/places/web-service/place-id
 
+/* For the quote page: the days we already serve each ZIP, from the route.
+   Nothing about anyone: only ZIPs with three or more customers, only days
+   with two or more, no counts. Cached for six hours. */
+function publicDays_() {
+  var cache = CacheService.getScriptCache(), hit = null;
+  try { hit = cache.get('public_days'); } catch (e) {}
+  if (hit) return JSON.parse(hit);
+  var rows = sheet_().getDataRange().getValues(), H = {}; HEADERS.forEach(function(h, i) { H[h] = i; });
+  var latest = {}, NOT = { VIEW:1, QVIEW:1, OUTAREA:1, WAITLIST:1, AUTH:1, SPEND:1, CONFIG:1 };
+  for (var i = 1; i < rows.length; i++) { var t = String(rows[i][H.type] || ''); if (NOT[t]) continue; var id = String(rows[i][H.id]), key = String(rows[i][H.created] || ''); if (!latest[id] || key >= latest[id].key) latest[id] = { key: key, r: rows[i] }; }
+  var byZip = {};
+  Object.keys(latest).forEach(function(id) {
+    var r = latest[id].r, notes = String(r[H.crmnotes] || '');
+    if (String(r[H.status] || '') !== 'closed' || !/\[SGID:/.test(notes) || /\[(OS:1|SS:none|CM:1|TM:1)\]/.test(notes)) return;
+    var zip = String(r[H.zip] || '').slice(0, 5), days = ((notes.match(/\[DAY:([^\]]*)\]/) || [])[1] || '').split(',').filter(Boolean);
+    if (!/^\d{5}$/.test(zip) || !days.length) return;
+    var z = byZip[zip] || (byZip[zip] = { n: 0, days: {} }); z.n++;
+    days.forEach(function(d) { z.days[d] = (z.days[d] || 0) + 1; });
+  });
+  var out = { ok:true, zips: {} }, order = ['mon','tue','wed','thu','fri','sat','sun'];
+  Object.keys(byZip).forEach(function(zip) {
+    var z = byZip[zip]; if (z.n < 3) return;
+    var days = order.filter(function(d) { return (z.days[d] || 0) >= 2; }).sort(function(a, b) { return z.days[b] - z.days[a]; });
+    if (days.length) out.zips[zip] = days.slice(0, 3);
+  });
+  try { cache.put('public_days', JSON.stringify(out), 21600); } catch (e2) {}
+  return out;
+}
 function publicStats_() {
   var cache = CacheService.getScriptCache();
   var hit = cache.get('public_stats');
@@ -557,6 +584,7 @@ function doGet(e) {
   var p = (e && e.parameter) || {};
   // Public on purpose: it is the number already printed on the website.
   if (p.action === 'public') return json_(publicStats_());
+  if (p.action === 'days') return json_(publicDays_());
   if (p.action === 'list') return list_(p);
   return json_({ok:true, service:'CLPPS lead tracker'});
 }
@@ -1666,6 +1694,50 @@ function monthlyReport() {
   Logger.log('Month in review for ' + mk + ' sent (' + how + ') to ' + to);
   return { ok:true, month: mk, how: how };
 }
+/* The year in review, 1 January: how long customers stay by the month they
+   started, measured lifetime, the best and worst months, churn by quarter. */
+function yearlyReportText_(year) {
+  var money = function(v) { return '$' + Math.round(v || 0).toLocaleString(); };
+  var f = sgBilling_(), E = emailRows_(), L = [];
+  var months = Object.keys(f.months || {}).filter(function(k) { return k.indexOf(year + '-') === 0; }).sort();
+  var billed = 0, collected = 0, best = null, worst = null;
+  months.forEach(function(k) { var m = f.months[k]; billed += m.billed; collected += m.collected; if (!best || m.billed > f.months[best].billed) best = k; if (!worst || m.billed < f.months[worst].billed) worst = k; });
+  var cohorts = {}, lifetimes = [], churn = {}, started = 0, left = 0, leadsIn = 0, won = 0;
+  E.people.forEach(function(p) {
+    var st = String(p.status || 'new'), n = String(p.crmnotes || '');
+    if (/\[TM:1\]/.test(n)) return;
+    var cd = (n.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '', cx = (n.match(/\[CX:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '';
+    if (cd && cd.indexOf(year) === 0 && (st === 'closed' || st === 'cancelled')) { started++; var c = cohorts[cd.slice(0, 7)] || (cohorts[cd.slice(0, 7)] = { n: 0, still: 0 }); c.n++; if (st === 'closed') c.still++; }
+    if (st === 'cancelled' && cx && cx.indexOf(year) === 0) { left++; var q = 'Q' + (Math.floor(parseInt(cx.slice(5, 7), 10) / 3.01) + 1), why = (n.match(/\[CXR:([^\]]*)\]/) || [])[1] || 'no reason'; churn[q] = churn[q] || {}; churn[q][why] = (churn[q][why] || 0) + 1; if (cd) lifetimes.push(Math.round((new Date(cx) - new Date(cd)) / DAY_MS / 30.4)); }
+    if (String(p.created || '').indexOf(year) === 0 && /^(ENQUIRY|ACTIVATE|DECLINED)$/.test(String(p.type || ''))) { leadsIn++; if (st === 'closed' || st === 'cancelled') won++; }
+  });
+  var active = E.people.filter(function(p) { return String(p.status) === 'closed' && !/\[(OS:1|SS:none|TM:1)\]/.test(String(p.crmnotes || '')); }).length;
+  L.push('CL Professional Pet Services, ' + year + ' in review');
+  L.push('');
+  L.push('Money: ' + money(billed) + ' billed, ' + money(collected) + ' collected' + (best ? '. Best month ' + best + ' (' + money(f.months[best].billed) + '), quietest ' + worst + ' (' + money(f.months[worst].billed) + ')' : '') + '.');
+  L.push('Customers: ' + active + ' active at year end. ' + started + ' started during the year, ' + left + ' left.' + (lifetimes.length >= 5 ? ' Those who left had stayed a median ' + median_(lifetimes) + ' months.' : ''));
+  var ck = Object.keys(cohorts).sort();
+  if (ck.length) L.push('Still with us, by the month they started: ' + ck.map(function(k) { return k.slice(5) + ': ' + cohorts[k].still + ' of ' + cohorts[k].n; }).join(', ') + '.');
+  var qk = Object.keys(churn).sort();
+  if (qk.length) L.push('Why people left, by quarter: ' + qk.map(function(q) { return q + ' ' + Object.keys(churn[q]).map(function(w) { return churn[q][w] + ' ' + w; }).join(', '); }).join('; ') + '.');
+  L.push('Leads: ' + leadsIn + ' came in through the website and the phone, ' + won + ' became customers' + (leadsIn ? ' (' + Math.round(won / leadsIn * 100) + '%)' : '') + '.');
+  L.push('');
+  L.push('The two files attached cover every invoice and payment on record and the month by month totals.');
+  return L.join('\n');
+}
+function yearlyReport() {
+  var year = String(new Date().getFullYear() - 1), text = yearlyReportText_(year), files = billingCsv_();
+  var to = NOTIFY_CC + (NOTIFY_TO && NOTIFY_TO !== NOTIFY_CC ? ',' + NOTIFY_TO : '');
+  var how = sendOfficeMail_({ to: to, subject: 'CLPPS ' + year + ' in review', body: text, attachments: [
+    { name: 'clpps-billing-by-month.csv', type: 'text/csv', content: files.months || '' },
+    { name: 'clpps-invoices-and-payments.csv', type: 'text/csv', content: files.csv || '' } ] });
+  return { ok:true, year: year, how: how };
+}
+function setupYearly() {
+  ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'yearlyReport') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('yearlyReportIfJanuary').timeBased().onMonthDay(1).atHour(8).create();   // checked monthly; sends only in January
+}
+function yearlyReportIfJanuary() { if (new Date().getMonth() === 0) return yearlyReport(); return { ok:true, skipped: true }; }
 function setupMonthly() {
   ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'monthlyReport') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('monthlyReport').timeBased().onMonthDay(1).atHour(7).create();
@@ -1693,7 +1765,142 @@ function setupNudge() {
   ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'eveningNudge') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('eveningNudge').timeBased().everyDays(1).atHour(17).create();
 }
-function dailyEmails() { var a = quoteFollowups(), b = welcomeEmails(), c = null; if (new Date().getDay() === 1) { try { c = paymentReminders(); } catch (e) { c = { ok:false, error: String(e && e.message || e) }; } } return { followups: a, welcome: b, reminders: c }; }
+/* Shared plumbing for the daily rounds: the newest row per person, a
+   stamp writer, and the three checks every customer email passes. */
+function emailRows_() {
+  var sh = sheet_(), rows = sh.getDataRange().getValues(), H = {}; HEADERS.forEach(function(h, i) { H[h] = i; });
+  var latest = {}, NOT = { VIEW:1, QVIEW:1, OUTAREA:1, WAITLIST:1, AUTH:1, SPEND:1, CONFIG:1 };
+  for (var i = 1; i < rows.length; i++) { var t = String(rows[i][H.type] || ''); if (NOT[t]) continue; var id = String(rows[i][H.id]), key = String(rows[i][H.created] || ''); if (!latest[id] || key >= latest[id].key) latest[id] = { key: key, row: i }; }
+  var people = Object.keys(latest).map(function(id) { var o = {}; HEADERS.forEach(function(h, j) { o[h] = rows[latest[id].row][j]; }); o._row = latest[id].row; return o; });
+  return { sh: sh, rows: rows, H: H, people: people,
+    stamp: function(p, marker) { var cur = String(rows[p._row][H.crmnotes] || ''), next = marker.EM ? '[EM:' + marker.EM + '] ' + cur : sgSetMarkers_(cur, marker); rows[p._row][H.crmnotes] = next; sh.getRange(p._row + 1, H.crmnotes + 1).setValue(safeCell_(next)); },
+    mailable: function(p) { var n = String(p.crmnotes || ''); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(p.email || '').trim()) && !/\[(NOEM|TM):/.test(n); },
+    first: function(p) { return String(p.name || '').trim().split(/\s+/)[0] || 'there'; } };
+}
+function round_(name, cfgKey, fn) {
+  if (cfgKey && cfg_(cfgKey) !== 'on') return { ok:true, off:true, sent:0 };
+  if (!officeMailReady_()) { Logger.log(name + ': switch is on but the ' + NO_OFFICE_MAIL + ', so nothing goes.'); return { ok:true, off:true, reason: NO_OFFICE_MAIL, sent:0 }; }
+  var E = emailRows_(), today = new Date().toISOString().slice(0, 10), sent = 0, failed = 0;
+  var send = function(p, subject, body, marker) {
+    if (sent >= 30) return;
+    try { sendCustomerMail_({ to: String(p.email).trim(), subject: subject, body: body + WE_FOOTER }); E.stamp(p, marker); sent++; }
+    catch (e) { failed++; }
+  };
+  fn(E, today, send);
+  return { ok:true, sent: sent, failed: failed };
+}
+var DAY_MS = 86400000;
+function ageDays_(d) { return d ? (Date.now() - new Date(String(d).slice(0, 10) + 'T12:00:00').getTime()) / DAY_MS : -1; }
+/* A card that failed: the same night, once a week at most. */
+function cardFailedEmails() {
+  return round_('Card-failed notices', 'card_emails', function(E, today, send) {
+    var f = sgBilling_(), cut7 = new Date(Date.now() - 7 * DAY_MS).toISOString().slice(0, 10), cut3 = new Date(Date.now() - 3 * DAY_MS).toISOString().slice(0, 10);
+    var byName = {}; E.people.forEach(function(p) { byName[sgNorm_(p.name)] = p; var aka = (String(p.crmnotes || '').match(/\[AKA:([^\]]*)\]/) || [])[1]; if (aka) byName[sgNorm_(aka)] = p; });
+    (f.declining || []).forEach(function(d) {
+      if (d.when < cut3) return;   // older failures are the payment reminder's job
+      var p = byName[sgNorm_(d.name)]; if (!p || String(p.status) !== 'closed' || !E.mailable(p)) return;
+      var last = (String(p.crmnotes || '').match(/\[CF:\d+@(\d{4}-\d{2}-\d{2})\]/) || [])[1] || ''; if (last && last >= cut7) return;
+      send(p, 'Your card did not go through', 'Hi ' + E.first(p) + ',\n\nA quick heads-up from the office: the card on file did not go through for $' + Math.round(d.amount) + ' on ' + d.when + '. Nine times out of ten it is an expired card or a new one that was never added.\n\nIf you can update it in the client portal, or reply here with a good time to call, we will have it sorted in a minute. Service carries on as normal either way.\n\nThanks for having us.', { CF: Math.round(d.amount) + '@' + today });
+    });
+  });
+}
+/* Thirty days after someone leaves, one come-back note, unless they moved or lost the dog. */
+function winbackEmails() {
+  return round_('Win-back emails', 'winback_emails', function(E, today, send) {
+    E.people.forEach(function(p) {
+      if (String(p.status) !== 'cancelled' || !E.mailable(p)) return;
+      var n = String(p.crmnotes || ''), cx = (n.match(/\[CX:(\d{4}-\d{2}-\d{2})\]/) || [])[1], why = (n.match(/\[CXR:([^\]]*)\]/) || [])[1] || '';
+      var age = ageDays_(cx); if (!cx || age < 30 || age > 75) return;
+      if (/moved|nodog/.test(why) || /\[(WK|WC):/.test(n) || /\[EM:winback/.test(n)) return;
+      send(p, E.first(p) + ', we\u2019d love to have you back', 'Hi ' + E.first(p) + ',\n\nIt\u2019s Corey with CL Professional Pet Services. We miss your yard! If you\u2019d like us to pick it back up, there is no initial clean fee to restart and your old price holds.\n\nJust reply here or text (636) 375-4342 and we\u2019ll put you back on the route.', { WK: today });
+    });
+  });
+}
+/* The ones who got a price and never went ahead, or said no: one note a
+   month or more later, once. Jesse: "send those out and see if we get anyone". */
+function leadRevival() {
+  return round_('Lead revival', 'revival_emails', function(E, today, send) {
+    E.people.forEach(function(p) {
+      var st = String(p.status || 'new'), n = String(p.crmnotes || '');
+      if (!/^(new|called|lost)$/.test(st) || !/^(ENQUIRY|ACTIVATE|DECLINED|SAVED)$/.test(String(p.type || '')) || !E.mailable(p)) return;
+      var age = ageDays_(p.created); if (age < 30 || age > 400) return;
+      if (/\[LR:/.test(n) || /\[SGID:/.test(n)) return;
+      var price = String(p.price || '').trim(), plan = String(p.service || '').trim() || 'your plan', when = new Date(String(p.created)).toLocaleDateString('en-US', { month: 'long' });
+      var body = 'Hi ' + E.first(p) + ',\n\nIt\u2019s Corey with CL Professional Pet Services. You asked us for a price back in ' + when + ' and I wanted to check in, in case the yard is still on the to-do list.\n\n' +
+        (price && /\d/.test(price) ? 'Your price of ' + price + ' for ' + plan + ' still stands, ' : 'The price we gave you still stands, ') + 'the $40 initial clean is waived if you start this month, and there is no contract \u2014 month to month, cancel any time.\n\nIf you\u2019d like us to take it off your plate, just reply to this email or text me at (636) 375-4342 and I\u2019ll get you on the schedule this week.';
+      send(p, E.first(p) + ', is the yard still on the list?', body, { LR: today });
+    });
+  });
+}
+/* When someone a customer referred starts, thank the referrer and remind the office of the free deodorize. */
+function refCode_(id, name) {
+  var first = String(name || '').trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z]/g, '').slice(0, 6) || 'clpps';
+  var h = 0, str = String(id || ''); for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return first + '-' + ('000' + (h % 46656).toString(36)).slice(-3);
+}
+function referralThanks() {
+  return round_('Referral thank-yous', 'referral_emails', function(E, today, send) {
+    var byCode = {}, byName = {};
+    E.people.forEach(function(p) { var st = String(p.status || ''); if (st === 'closed' || st === 'cancelled') { byCode[refCode_(p.id, p.name)] = p; byName[sgNorm_(p.name)] = p; } });
+    E.people.forEach(function(p) {
+      var n = String(p.crmnotes || ''); if (String(p.status) !== 'closed' || /\[RT:/.test(n)) return;
+      var cd = (n.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1]; var age = ageDays_(cd); if (!cd || age < 0 || age > 21) return;
+      var rb = (n.match(/\[RB:([^\]]*)\]/) || [])[1], rf = (n.match(/\[RF:([^\]]*)\]/) || [])[1];
+      var ref = (rb && byName[sgNorm_(rb)]) || (rf && byCode[rf]); if (!ref || ref.id === p.id) return;
+      var newFirst = E.first(p);
+      if (E.mailable(ref)) send(ref, 'Thank you, ' + E.first(ref) + ' \u2014 your free deodorize is on the way', 'Hi ' + E.first(ref) + ',\n\n' + newFirst + ' just started with us and mentioned you sent them our way. Thank you \u2014 that is the best compliment a small business can get.\n\nAs promised, your next visit includes a free deodorizing and sanitizing treatment on the house. Nothing to do on your end.\n\nThanks again for having us, and for the kind word.', { RT: today });
+      else E.stamp(p, { RT: today });
+      // the office: the reward to apply in Sweep&Go
+      var topic = pushTopic_();
+      if (topic) { try { UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(topic), { method: 'post', contentType: 'text/plain; charset=utf-8', payload: String(ref.name || '').trim() + ' referred ' + String(p.name || '').trim() + ', who just started. Add the free deodorize to ' + E.first(ref) + '\u2019s next visit in Sweep&Go.', headers: { 'Title': 'Referral reward owed', 'Tags': 'handshake' }, muteHttpExceptions: true }); } catch (e) {} }
+      if (E.mailable(ref)) { /* stamped by send */ } else { /* stamped above */ }
+      if (E.mailable(ref)) E.stamp(p, { RT: today });
+    });
+  });
+}
+/* The campaign calendar: four seasonal emails, each with a date and a
+   switch (CONFIG campaigns), sent on the day to its audience, once a year. */
+var CAMPAIGNS = {
+  spring:  { date: '03-15', name: 'Spring cleanup', who: 'quotes', subject: '{first}, spring is here \u2014 your yard price still stands',
+             body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. The snow is gone and so is the excuse: everything the dog left all winter is out there now.\n\nYour price of {price} for {plan} still stands, the $40 initial clean is waived this month, and there is no contract \u2014 month to month, cancel any time.\n\nReply here or text (636) 375-4342 and we\u2019ll get the yard back to normal this week.' },
+  deo:     { date: '05-01', name: 'Deodorize season', who: 'customers-no-deo', subject: '{first}, the warm months are coming: deodorize and sanitize',
+             body: 'Hi {first},\n\nQuick one from Corey. Once it warms up, a clean yard can still smell like a dog yard. Our deodorizing and sanitizing treatment fixes that: $15 a visit, added to your regular service, and you can stop it any time in the fall.\n\nReply \u201cyes\u201d and we\u2019ll add it from your next visit.' },
+  fall:    { date: '10-01', name: 'Fall leaves', who: 'quotes', subject: '{first}, your yard price is still good \u2014 and the leaves are coming',
+             body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. You asked us for a price a while back and I wanted to check in before the yard disappears under the leaves.\n\nYour price of {price} for {plan} still stands, the $40 initial clean is waived right now, and there is no contract \u2014 month to month, cancel any time.\n\nIf you\u2019d like us to take the yard off your plate this season, just reply or text me at (636) 375-4342.' },
+  holiday: { date: '12-01', name: 'Holiday deep clean', who: 'quotes-and-former', subject: '{first}, a clean yard before the guests arrive',
+             body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. If family is coming for the holidays, we can do a one-time deep clean of the yard the week before \u2014 $75 covers the first half hour, and we haul everything away.\n\nReply here or text (636) 375-4342 with the week you want, and consider it done.' }
+};
+function campaignsDue() {
+  var cfg = {}; try { cfg = JSON.parse(cfg_('campaigns') || '{}') || {}; } catch (e) {}
+  var today = new Date(), md = ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2), year = String(today.getFullYear());
+  var due = Object.keys(CAMPAIGNS).filter(function(k) { var c = cfg[k] || {}; return c.on && (c.date || CAMPAIGNS[k].date) === md; });
+  if (!due.length) return { ok:true, due: [] };
+  var out = {};
+  due.forEach(function(k) {
+    var C = CAMPAIGNS[k], tag = k + year;
+    out[k] = round_('Campaign ' + C.name, null, function(E, todayStr, send) {
+      E.people.forEach(function(p) {
+        var st = String(p.status || 'new'), n = String(p.crmnotes || '');
+        if (!E.mailable(p) || n.indexOf('[EM:' + tag + '@') >= 0) return;
+        var ok = C.who === 'quotes' ? /^(new|called|lost)$/.test(st) && ageDays_(p.created) >= 7 && ageDays_(p.created) <= 400 && !/\[SGID:/.test(n)
+               : C.who === 'customers-no-deo' ? st === 'closed' && !/every visit|\$15/.test(String(p.deodorize || '')) && !/\[(OS:1|SS:none|CM:1)\]/.test(n)
+               : /^(new|called|lost|cancelled)$/.test(st) && ageDays_(p.created) >= 7 && ageDays_(p.created) <= 730 && !/\[SGID:/.test(n) || (st === 'cancelled' && ageDays_((n.match(/\[CX:(\d{4}-\d{2}-\d{2})\]/) || [])[1]) <= 365);
+        if (!ok) return;
+        var r = { first: E.first(p), price: String(p.price || '').trim() || 'your quoted price', plan: String(p.service || '').trim() || 'your plan' };
+        send(p, fillBlast_(C.subject, r), fillBlast_(C.body, r), { EM: tag + '@' + todayStr });
+      });
+    });
+  });
+  return { ok:true, due: due, results: out };
+}
+function dailyEmails() {
+  var out = {};
+  [['followups', quoteFollowups], ['welcome', welcomeEmails], ['cards', cardFailedEmails], ['winback', winbackEmails], ['revival', leadRevival], ['referral', referralThanks], ['campaigns', campaignsDue]].forEach(function(j) {
+    try { out[j[0]] = j[1](); } catch (e) { out[j[0]] = { ok:false, error: String(e && e.message || e).slice(0, 160) }; }
+  });
+  if (new Date().getDay() === 1) { try { out.reminders = paymentReminders(); } catch (e) { out.reminders = { ok:false, error: String(e && e.message || e) }; } }
+  return out;
+}
 function setupFollowups() {
   ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'quoteFollowups' || t.getHandlerFunction() === 'dailyEmails') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('dailyEmails').timeBased().everyDays(1).atHour(9).create();
@@ -1780,6 +1987,7 @@ function setupSweepAndGo() {
   try { setupFollowups(); } catch (e) { Logger.log('follow-ups not scheduled: ' + e); }
   try { setupNudge(); } catch (e) { Logger.log('evening nudge not scheduled: ' + e); }
   try { setupMonthly(); } catch (e) { Logger.log('month in review not scheduled: ' + e); }
+  try { setupYearly(); } catch (e) { Logger.log('year in review not scheduled: ' + e); }
   // the first sync runs on its own a minute from now, so this call stays short
   ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'sgSyncOnce') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('sgSyncOnce').timeBased().after(60 * 1000).create();
