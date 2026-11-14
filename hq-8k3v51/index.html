@@ -547,8 +547,17 @@ function unlock(){
   var btn = document.getElementById('gate-btn'); if (btn) btn.textContent = 'Checking\u2026';
   var finish = function(){ gateBusy = false; if (btn) btn.textContent = 'Unlock'; };
   if (!CRM_ENDPOINT){ KEY = pw; finish(); document.getElementById('gate').style.display = 'none'; return; }
-  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'list', key: pw, days: 1 }) })
+  // Checked the same way the list is loaded: by POST, and if the script is
+  // a version behind and does not know a POST list, by the older GET.
+  // Otherwise the gate would lock everyone out until the script is updated.
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, cache: 'no-store', body: JSON.stringify({ action: 'list', key: pw, days: 1, _: Date.now() }) })
     .then(function(r){ return r.json(); })
+    .catch(function(){ return { ok: false, error: 'network' }; })
+    .then(function(d){
+      if (d && d.ok) return d;
+      if (d && d.error === 'bad pin') return d;
+      return fetch(CRM_ENDPOINT + '?action=list&key=' + encodeURIComponent(pw) + '&days=1&_=' + Date.now(), { cache: 'no-store' }).then(function(r){ return r.json(); });
+    })
     .then(function(d){
       finish();
       if (d && d.error === 'bad pin'){ needKey('That password did not work. It is set in the Google script under TRACKER_KEY; ask Corey.'); return; }

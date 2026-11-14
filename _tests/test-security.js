@@ -109,6 +109,24 @@ ok('the site still has no file that would turn Jekyll off', !fs.existsSync(path.
     p.on('dialog', d => d.accept());
     await p.evaluate(() => toggleToolMore(true)); await p.click('#lockBtn'); await p.waitForTimeout(400);
     ok('Lock clears the password and the saved customer list and brings the gate back', await p.isVisible('#gate') && (await p.evaluate(() => localStorage.getItem('clpps_key') === null && localStorage.getItem('clpps_leads') === null)));
+    // the script is a version behind: it answers {"ok":false} to a POST list
+    // (it has never heard of one) and only knows the older GET with the key
+    // in the address. The gate must try that too, like the page does, or it
+    // locks everyone out until the script is updated.
+    await p.unroute('**/script.google.com/**');
+    const gets = [];
+    await p.route('**/script.google.com/**', r => {
+      const req = r.request();
+      if (req.method() === 'POST') return r.fulfill({ contentType:'application/json', body: '{"ok":false}' });
+      gets.push(req.url());
+      const key = decodeURIComponent((req.url().match(/[?&]key=([^&]*)/) || [])[1] || '');
+      if (key !== 'old-script-key') return r.fulfill({ contentType:'application/json', body: '{"ok":false,"error":"bad pin"}' });
+      return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: rows }) });
+    });
+    await p.fill('#gate-pw', 'wrong'); await p.click('#gate-btn'); await p.waitForTimeout(600);
+    ok('against an old script a wrong password is still refused, by the GET', await p.isVisible('#gate') && /did not work/.test(await p.textContent('#gate-err')) && gets.length === 1 && /action=list&key=wrong&days=1/.test(gets[0]), gets.join());
+    await p.fill('#gate-pw', 'old-script-key'); await p.click('#gate-btn'); await p.waitForTimeout(1200);
+    ok('and the right one opens the page through the GET the old script understands', !(await p.isVisible('#gate')) && /Gated Gwen/.test(await p.textContent('#list')) && (await p.evaluate(() => localStorage.getItem('clpps_key'))) === 'old-script-key', await p.textContent('#gate-err'));
     await ctx.close();
   }
 
