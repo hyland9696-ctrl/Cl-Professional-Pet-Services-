@@ -11,6 +11,7 @@ const { ok, done } = reporter();
 
 const tracker = fs.readFileSync(path.join(ROOT, 'hq-8k3v51', 'index.html'), 'utf8');
 ok('nor any Google key', !/AIza[0-9A-Za-z_-]{20,}/.test(tracker));
+ok('the tracker page carries no password of its own any more', !/clpps-8k3v51/.test(tracker) && /var KEY = '';/.test(tracker));
 const gs = fs.readFileSync(path.join(ROOT, 'hq-8k3v51', 'apps-script.gs'), 'utf8');
 ok('code.txt is byte-identical to apps-script.gs', gs === fs.readFileSync(path.join(ROOT, 'hq-8k3v51', 'code.txt'), 'utf8'));
 ok('the backend reads the key from a script property, with the old key only as the fallback', /getProperty\('TRACKER_KEY'\)/.test(gs) && /LEGACY_PIN/.test(gs) && !/p\.key !== PIN\b/.test(gs));
@@ -73,6 +74,42 @@ ok('the site still has no file that would turn Jekyll off', !fs.existsSync(path.
     ok('the dogs and address values are text, not markup', (await p.$$('#q-details b, #q-details i, img[src="x"]')).length === 0 && /<b>2<\/b>/.test(await p.textContent('#q-details')));
     ok('the pixel is not loaded on a page whose address carries a name', (await p.$('script[src*="meta-pixel"]')) === null);
     await p.close();
+  }
+
+  /* ---- the password gate: typed once per phone, checked by the script ---- */
+  {
+    const ctx = await b.newContext({ viewport:{ width:430, height:900 } });
+    const p = await ctx.newPage();
+    await p.addInitScript(() => { try { sessionStorage.setItem('gate-test', '1'); } catch (e) {} });   // a phone that has never typed it
+    const posts = [];
+    const rows = [{ id:'g1', type:'ENQUIRY', name:'Gated Gwen', phone:'6363754342', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'new', crmnotes:'[QA:w] ', created: new Date().toISOString() }];
+    stubNetwork(p, {});
+    await p.route('**/script.google.com/**', r => {
+      let body = {}; try { body = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
+      posts.push(body);
+      if (body.key !== 'right-one') return r.fulfill({ contentType:'application/json', body: '{"ok":false,"error":"bad pin"}' });
+      return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: rows }) });
+    });
+    await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(800);
+    ok('with no password on the phone the gate covers the page and nothing is fetched', await p.isVisible('#gate') && posts.length === 0, String(posts.length));
+    await p.fill('#gate-pw', 'wrong'); await p.click('#gate-btn'); await p.waitForTimeout(500);
+    ok('a wrong password is refused by the script, and the gate says so', await p.isVisible('#gate') && /did not work/.test(await p.textContent('#gate-err')) && (await p.evaluate(() => localStorage.getItem('clpps_key'))) === null);
+    await p.fill('#gate-pw', 'right-one'); await p.press('#gate-pw', 'Enter'); await p.waitForTimeout(1200);
+    ok('the right one opens the page, loads the leads and is kept on the phone', !(await p.isVisible('#gate')) && /Gated Gwen/.test(await p.textContent('#list')) && (await p.evaluate(() => localStorage.getItem('clpps_key'))) === 'right-one');
+    ok('every write from then on carries it', posts.filter(x => x.action === 'list').slice(-1)[0].key === 'right-one');
+    await p.reload(); await p.waitForTimeout(1000);
+    ok('after a reload it stays open', !(await p.isVisible('#gate')) && /Gated Gwen/.test(await p.textContent('#list')));
+    // the password changes in the script: the next load is refused and the gate returns
+    await p.route('**/script.google.com/**', r => r.fulfill({ contentType:'application/json', body: '{"ok":false,"error":"bad pin"}' }));
+    await p.click('header button:has-text("Refresh")'); await p.waitForTimeout(1000);
+    ok('when the script stops accepting it, the phone forgets it and asks again', await p.isVisible('#gate') && (await p.evaluate(() => localStorage.getItem('clpps_key'))) === null);
+    await p.unroute('**/script.google.com/**');
+    await p.route('**/script.google.com/**', r => r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: rows }) }));
+    await p.fill('#gate-pw', 'new-one'); await p.click('#gate-btn'); await p.waitForTimeout(1000);
+    p.on('dialog', d => d.accept());
+    await p.evaluate(() => toggleToolMore(true)); await p.click('#lockBtn'); await p.waitForTimeout(400);
+    ok('Lock clears the password and the saved customer list and brings the gate back', await p.isVisible('#gate') && (await p.evaluate(() => localStorage.getItem('clpps_key') === null && localStorage.getItem('clpps_leads') === null)));
+    await ctx.close();
   }
 
   /* ---- a backend that has not been redeployed answers no to a POST list; the page falls back to GET ---- */

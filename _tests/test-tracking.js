@@ -58,6 +58,7 @@ for (let d = 0; d < 40; d++) ROWS.push({ id:'v' + d, type:'VIEW', name:'Home', y
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   const fetches = [], posts = [];
   await p.clock.install({ time: NOW });
+  await p.addInitScript(() => { try { localStorage.setItem('clpps_key', 'test-password'); } catch (e) {} });   // this phone has typed the password
   p.route('**/script.google.com/**', r => {
     if (r.request().method() === 'POST'){
       let body = {}; try { body = JSON.parse(r.request().postData()); } catch (e) {}

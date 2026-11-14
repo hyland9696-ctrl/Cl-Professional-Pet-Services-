@@ -80,7 +80,11 @@ function stubNetwork(page, collect) {
   const mails = (collect && collect.mails) || [];
   // the tracker keeps most toolbar buttons behind More; tests reach them as if it were open
   // (test-tracker-layout checks the closed default on its own)
-  if (page.addInitScript) page.addInitScript(() => { try { if (localStorage.getItem('clpps_toolmore') === null) localStorage.setItem('clpps_toolmore', 'open'); } catch (e) {} });
+  if (page.addInitScript) page.addInitScript(() => { try {
+    if (localStorage.getItem('clpps_toolmore') === null) localStorage.setItem('clpps_toolmore', 'open');
+    // the tracker asks for its password once per phone; every test phone has already typed it (test-security tries the gate itself)
+    if (localStorage.getItem('clpps_key') === null && !sessionStorage.getItem('gate-test')) localStorage.setItem('clpps_key', 'test-password');
+  } catch (e) {} });
   page.route('**/script.google.com/**', r => {
     if (r.request().method() === 'POST') {
       try { posts.push(JSON.parse(r.request().postData()).lead); } catch (e) {}

@@ -115,6 +115,16 @@
 <body>
 
 <div id="app">
+  <div id="gate" style="display:none;position:fixed;inset:0;z-index:1000;background:#0F6E56;color:#fff;align-items:center;justify-content:center;padding:24px;">
+    <form onsubmit="unlock();return false;" style="width:100%;max-width:360px;background:#fff;color:#1f2a26;border-radius:16px;padding:22px 20px;box-shadow:0 10px 40px rgba(0,0,0,.25);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;"><img src="../images/logo.png" alt="" style="width:40px;height:40px;border-radius:8px;"><div style="font-weight:800;font-size:17px;">Lead Tracker</div></div>
+      <div style="font-size:13px;color:#555;margin-bottom:12px;">This page holds customer details and money. Enter the password once on this phone.</div>
+      <input id="gate-pw" type="password" autocomplete="current-password" placeholder="Password" style="width:100%;padding:12px;border:1px solid #cfd8d3;border-radius:10px;font-size:16px;font-family:inherit;margin-bottom:8px;">
+      <div id="gate-err" style="display:none;color:#c0392b;font-size:12.5px;margin-bottom:8px;"></div>
+      <button id="gate-btn" type="submit" style="width:100%;background:#188663;color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;min-height:44px;">Unlock</button>
+      <div style="font-size:11.5px;color:#9aa5a0;margin-top:10px;">The password is set in the Google script (Project Settings &rarr; Script Properties &rarr; TRACKER_KEY). Changing it there locks every phone until the new one is typed.</div>
+    </form>
+  </div>
   <header>
     <img src="../images/logo.png" alt="">
     <h1>Lead Tracker</h1>
@@ -211,6 +221,7 @@
       <button class="copybtn" onclick="toggleTests()" id="testBtn">&#129514; Test leads</button>
       <button class="copybtn" onclick="exportCsv()">&#11015;&#65039; Download CSV</button>
       <button class="copybtn" onclick="copyEmails()">Copy emails</button>
+      <button class="copybtn" onclick="lockTracker()" id="lockBtn" style="color:#c0392b;border-color:#e0b4ad;">&#128274; Lock</button>
       </div>
     </div>
     <div id="addPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
@@ -506,9 +517,52 @@ var QUIET_DAYS = 7;       // a called lead with no follow-up booked goes back on
 var leads = [], views = [], qviews = [], waitlist = [], outarea = [], auths = {}, spends = {}, config = {}, filter = 'all';
 /* The key the backend wants with every read and write. Jesse and Corey
    chose to keep it built into the page rather than typed per phone. */
-var KEY = 'clpps-8k3v51';
-function needKey(){}
-function badKey(){}
+/* Corey, once the money went on the page: a unique password. The page
+   carries no key any more. The password is typed once per phone, kept on
+   the phone, and checked by the script against TRACKER_KEY (Project
+   Settings > Script Properties). A wrong one, or one that stops working
+   after the password changes, brings the gate back. */
+var KEY = '';
+try { KEY = localStorage.getItem('clpps_key') || ''; } catch (e) {}
+function needKey(msg){
+  var g = document.getElementById('gate'); if (!g) return;
+  g.style.display = 'flex';
+  var err = document.getElementById('gate-err'); if (err){ err.textContent = msg || ''; err.style.display = msg ? 'block' : 'none'; }
+  var inp = document.getElementById('gate-pw'); if (inp){ inp.value = ''; setTimeout(function(){ try { inp.focus(); } catch (e) {} }, 50); }
+}
+function badKey(){
+  KEY = ''; try { localStorage.removeItem('clpps_key'); } catch (e) {}
+  needKey('That password did not work. It is set in the Google script under TRACKER_KEY; ask Corey.');
+}
+var gateBusy = false;
+function unlock(){
+  if (gateBusy) return;
+  var pw = String((document.getElementById('gate-pw') || {}).value || '').trim();
+  if (!pw){ needKey('Type the password first.'); return; }
+  gateBusy = true;
+  var btn = document.getElementById('gate-btn'); if (btn) btn.textContent = 'Checking\u2026';
+  var finish = function(){ gateBusy = false; if (btn) btn.textContent = 'Unlock'; };
+  if (!CRM_ENDPOINT){ KEY = pw; finish(); document.getElementById('gate').style.display = 'none'; return; }
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'list', key: pw, days: 1 }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      finish();
+      if (d && d.error === 'bad pin'){ needKey('That password did not work. It is set in the Google script under TRACKER_KEY; ask Corey.'); return; }
+      if (!d || !d.ok){ needKey('Could not reach the database to check it. Try again in a moment.'); return; }
+      KEY = pw; try { localStorage.setItem('clpps_key', pw); } catch (e) {}
+      document.getElementById('gate').style.display = 'none';
+      loadLeads(true);
+    })
+    .catch(function(){ finish(); needKey('No connection. Try again in a moment.'); });
+}
+/* Lock: the password and the cached customer list leave the phone. */
+function lockTracker(){
+  if (!confirm('Lock the tracker on this phone? The password and the saved customer list are cleared; the password unlocks it again.')) return;
+  KEY = '';
+  try { ['clpps_key', 'clpps_leads', 'clpps_stats', 'clpps_billing', 'clpps_jobs', 'clpps_geo'].forEach(function(k){ localStorage.removeItem(k); }); } catch (e) {}
+  leads = []; render();
+  needKey('');
+}
 var testLeads = [];       // forms sent from team phones: shown, never counted
 var reviewCounts = [];    // {n, at}: every review count ever saved, oldest first
 /* lastLoadAt = when we last ASKED. lastSyncAt = when real data last came
@@ -6362,7 +6416,7 @@ function renderDetail(){
     '<div style="font-weight:800;font-size:13px;margin:14px 0 4px;">&#128197; Day by day, last 14 days</div>' +
     (dayRows || '<div style="font-size:12px;color:#707070;">No activity recorded yet.</div>');
 }
-loadLeads(false);
+if (KEY) loadLeads(false); else { loadLocal(); render(); needKey(''); }
 // Keep the page live: quietly re-check the database every 60 seconds, and again
 // the moment the tab comes back into view, so an acceptance shows up on its own.
 setInterval(function(){ loadLeads(false, null, true); }, 60000);
