@@ -7,6 +7,62 @@
  * "CLPPS Leads" in your Google Drive and stores everything there.
  */
 
+/* ---- ONE-TIME INSTALL ----------------------------------------------------
+   Fill in the values below, pick install in the toolbar, press Run, read the
+   log. It saves them as Script Properties (where the code reads them from),
+   checks the Sweep&Go token, schedules every job, runs the first sync and
+   tells you the two things it cannot do itself: publish the new version and
+   paste the webhook address into Sweep&Go.
+
+   Blank values change nothing, so pasting a fresh copy of this file over
+   the old one later is safe: what was saved stays saved. The copy of this
+   file in the repository is always blank here. Never commit a filled one. */
+var INSTALL = {
+  SG_TOKEN:    '',   // Sweep&Go > Settings > Integrations > Open API: a NEW token
+  SG_HOOK:     '',   // the secret word in the webhook address
+  TRACKER_KEY: '',   // the tracker password everyone types once per phone
+  NTFY_TOPIC:  '',   // the topic the phones already follow in the ntfy app
+  MAIL_FROM:   '',   // the office mailbox, info@...
+  MS_TENANT:   '',   // from Corey's Microsoft app registration (Directory ID)
+  MS_CLIENT:   '',   // Application (client) ID
+  MS_SECRET:   '',   // the client secret's Value
+  PLACES_KEY:  '',   // optional: Google Places key, for the review count
+  PLACE_ID:    ''    // optional: the business's Place ID
+};
+function install() {
+  var L = function(t) { Logger.log(t); };
+  var p = PropertiesService.getScriptProperties(), saved = [];
+  Object.keys(INSTALL).forEach(function(k) {
+    var v = String(INSTALL[k] == null ? '' : INSTALL[k]).trim();
+    if (v && !/paste|here|xxx/i.test(v)) { p.setProperty(k, v); saved.push(k); }
+  });
+  L('1. Saved to Script Properties: ' + (saved.length ? saved.join(', ') : 'nothing new (blank lines keep what was already saved)'));
+  if (!sgToken_()) { L('STOP: there is no Sweep&Go token. Put the new token in INSTALL.SG_TOKEN and run install again.'); return { ok:false, step:'token' }; }
+  if (!sgHookWord_()) L('   Note: no SG_HOOK, so the Sweep&Go webhook will be refused until one is set.');
+  if (pin_() === LEGACY_PIN) L('   Note: no TRACKER_KEY, so the tracker still takes the old built-in password.');
+  var pre;
+  try { pre = sgSync(true); } catch (e) { L('STOP: Sweep&Go did not answer: ' + e.message + '. Is the token right? Nothing was written.'); return { ok:false, step:'preview', error: e.message }; }
+  L('2. Preview against Sweep&Go: ' + pre.clients + ' clients, would add ' + pre.added + ', update ' + pre.updated + ', skip ' + pre.skippedNeverStarted + ' never started' + (pre.noSubscription && pre.noSubscription.length ? '; active with no subscription: ' + pre.noSubscription.join(', ') : ''));
+  if (pre.errors && pre.errors.length) { L('STOP: Sweep&Go answered with errors, nothing written: ' + JSON.stringify(pre.errors)); return { ok:false, step:'preview', errors: pre.errors }; }
+  var s = setupSweepAndGo();
+  L('3. First sync done: ' + s.added + ' added, ' + s.updated + ' updated, ' + (s.pinned || 0) + ' pinned, ' + (s.invoices || 0) + ' invoices. Jobs scheduled: sync 4am daily, Monday 7am push, 9am daily emails.');
+  try { setupBackupTrigger(); L('4. Backups: every Sunday night to the Drive folder "CLPPS Backups", and one made now.'); }
+  catch (e) { L('4. Backup trigger scheduled; the first copy failed: ' + e.message); }
+  if (placesKey_() && placeId_()) { try { setupReviews(); L('5. Reviews: refreshing every Monday.'); } catch (e) { L('5. Reviews not set up: ' + e.message); } }
+  else L('5. Reviews: skipped (no PLACES_KEY / PLACE_ID). Optional.');
+  if (msCfg_()) L('6. Office mailbox test: ' + testOfficeMail());
+  else L('6. Office mailbox: not set up yet, so customer emails go from this Google account with reply-to ' + NOTIFY_CC + '. Fill in MS_TENANT, MS_CLIENT, MS_SECRET and MAIL_FROM when Corey has them, and run install again.');
+  if (pushTopic_()) { try { UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(pushTopic_()), { method:'post', contentType:'text/plain; charset=utf-8', payload:'The new tracker script is installed. New leads keep arriving here.', headers: { 'Title': 'CLPPS Lead Tracker', 'Tags': 'white_check_mark' }, muteHttpExceptions:true }); L('7. Push: a test went to the phones.'); } catch (e) { L('7. Push test failed: ' + e.message); } }
+  else L('7. Push: no NTFY_TOPIC, so no phone pushes until one is set.');
+  var url = ''; try { url = ScriptApp.getService().getUrl() || ''; } catch (e) {}
+  L('');
+  L('DONE HERE. Two things left, by hand:');
+  L('  A. Publish: Deploy > Manage deployments > pencil on the existing deployment > Version: New version > Deploy. (Not "New deployment": that changes the address.)');
+  L('  B. In Sweep&Go, Settings > Integrations > Open API, paste the webhook address and tick the client and subscription events:');
+  L('     ' + (url || '(your /exec address)') + '?hook=' + (sgHookWord_() || '(SG_HOOK)'));
+  L('Then open the tracker on your phone and type the password once.');
+  return { ok:true, saved: saved, preview: { clients: pre.clients, added: pre.added, updated: pre.updated }, sync: { added: s.added, updated: s.updated }, webhook: url ? url + '?hook=' + sgHookWord_() : '' };
+}
 /* The tracker password. Run setupTrackerKey() once (pick it in the toolbar,
    press Run, read the key in the execution log) and type that key into the
    tracker on each phone. Until it has been run, the old built-in key still

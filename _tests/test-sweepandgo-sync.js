@@ -89,7 +89,7 @@ const API = {
 };
 const calls = [];
 const pushes = [], onboardings = [], mails = [];
-const msCalls = [];
+const msCalls = [], logs = [], triggers = [];
 function fakeFetch(url, opts){
   calls.push(url);
   if (/residential\/onboarding$/.test(url)){
@@ -138,11 +138,13 @@ function build(leadRows){
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] || null, setProperty: (k, v) => { props[k] = v; } }) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
     CacheService: { getScriptCache: () => ({ get: () => null, put: () => {}, remove: () => {} }) },
-    Logger: { log: () => {} }, ScriptApp: { getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyDays: () => ({ atHour: () => ({ create: () => {} }) }) }) }) },
+    Logger: { log: (m) => { logs.push(String(m)); } },
+    ScriptApp: { WeekDay: { MONDAY:'mon', SUNDAY:'sun' }, getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/XYZ/exec' }), getProjectTriggers: () => [], deleteTrigger: () => {},
+      newTrigger: (fn) => { const chain = { everyDays: () => chain, onWeekDay: () => chain, atHour: () => chain, create: () => { triggers.push(fn); } }; return { timeBased: () => chain }; } },
     MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: () => '202611' }, Session: { getScriptTimeZone: () => 'America/Chicago' },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (txt) => ({ _t: txt, setMimeType(){ return this; } }) },
   };
-  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups };')(...Object.values(G));
+  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups, install, INSTALL };')(...Object.values(G));
   return { F, sheets, props };
 }
 
@@ -386,5 +388,29 @@ function build(leadRows){
   ok('every invoice and payment, one a line, under the sheet\'s own headers', x.ok && lines[0] === 'kind,number,date,client,type,status,total,paid,remaining,interval,period_start,pay_type,description' && lines.length === x.rows + 1 && x.rows === sheets.billing.rows.length - 1 && x.rows > 3, lines[0] + ' | ' + lines.length + ' vs ' + x.rows);
   const ml = x.months.trim().split('\n');
   ok('and the months beside it: billed, one-time, collected, unpaid, tips, failed payments, customers', ml[0] === 'month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced' && ml.length >= 2 && /^\d{4}-\d{2},\d+,\d+,\d+,\d+,\d+,\d+,\d+$/.test(ml[1]), x.months);
+}
+
+/* ---- the one-time install: fill in, press Run ---- */
+{
+  ok('the committed file has every INSTALL value blank, so no secret ever reaches the repository', /var INSTALL = \{[^}]*\}/.test(gs) && !/INSTALL = \{[^}]*:\s*'[^']+'/.test(gs.match(/var INSTALL = \{[^}]*\}/)[0]));
+  const { F, sheets, props } = build(seed());
+  delete props.SG_TOKEN; delete props.SG_HOOK; delete props.NTFY_TOPIC;
+  logs.length = 0; triggers.length = 0;
+  const stop = F.install();
+  ok('with no token it stops before touching anything, and says what to do', stop.ok === false && stop.step === 'token' && logs.some(l => /STOP: there is no Sweep&Go token/.test(l)) && sheets.leads.writes === 0 && triggers.length === 0);
+  Object.assign(F.INSTALL, { SG_TOKEN: 'tok-123', SG_HOOK: 'word', TRACKER_KEY: 'NxcT-test', NTFY_TOPIC: 'clpps-test-topic', MAIL_FROM: 'info@clpropetservices.com', MS_TENANT: 'PASTE-HERE' });
+  logs.length = 0; triggers.length = 0; pushes.length = 0;
+  const r = F.install();
+  ok('filled in, it saves the real values and skips the placeholder', r.ok && props.SG_TOKEN === 'tok-123' && props.SG_HOOK === 'word' && props.TRACKER_KEY === 'NxcT-test' && props.NTFY_TOPIC === 'clpps-test-topic' && props.MAIL_FROM === 'info@clpropetservices.com' && !props.MS_TENANT && r.saved.join() === 'SG_TOKEN,SG_HOOK,TRACKER_KEY,NTFY_TOPIC,MAIL_FROM', JSON.stringify(r));
+  ok('previews, then syncs for real, and says so in plain numbers', /2\. Preview against Sweep&Go: 8 clients, would add 4, update 2/.test(logs.join('\n')) && /3\. First sync done: 4 added, 2 updated/.test(logs.join('\n')) && sheets.leads.writes > 0, logs.join(' | ').slice(0, 600));
+  ok('every job is scheduled: the nightly sync, the Monday push, the 9am emails, the Sunday backup', ['sgSync', 'weeklyPush', 'dailyEmails', 'backupSheet'].every(fn => triggers.includes(fn)), triggers.join());
+  ok('the office mailbox is reported as not set up rather than failing', logs.some(l => /6\. Office mailbox: not set up yet/.test(l)));
+  ok('a test push goes to the phones', pushes.some(x => /clpps-test-topic/.test(x.url) && /installed/.test(x.body)));
+  ok('and the log ends with the two hand steps, with the webhook address filled in', logs.some(l => /A\. Publish: Deploy > Manage deployments > pencil/.test(l)) && logs.some(l => l.trim() === 'https://script.google.com/macros/s/XYZ/exec?hook=word') && r.webhook === 'https://script.google.com/macros/s/XYZ/exec?hook=word', logs.slice(-5).join(' | '));
+  // a later paste of the blank repository file over this one must not undo anything
+  Object.keys(F.INSTALL).forEach(k => { F.INSTALL[k] = ''; });
+  logs.length = 0;
+  const again = F.install();
+  ok('run again with everything blank, nothing saved is lost', again.ok && props.SG_TOKEN === 'tok-123' && props.TRACKER_KEY === 'NxcT-test' && logs.some(l => /nothing new \(blank lines keep what was already saved\)/.test(l)));
 }
 done();
