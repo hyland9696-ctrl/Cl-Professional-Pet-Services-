@@ -180,6 +180,7 @@
       <div id="t-detail" style="display:none;border-top:1px solid #eee;margin-top:10px;padding-top:10px;"></div>
     </div>
     <div id="jobs" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
+    <div id="risk" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="billing" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="revenue" style="display:none;background:#0F6E56;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;font-weight:600;"></div>
     <div id="roi" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
@@ -4139,8 +4140,39 @@ function renderTerritory(){
       conv.map(function(b){ var pct = Math.round(100 * b.rate); return line(b, '<span style="color:' + terrColour(b) + ';">' + pct + '%</span> <span style="color:#707070;font-weight:400;">of ' + b.leads + '</span>', b.customers + ' customer' + (b.customers === 1 ? '' : 's') + (b.lost ? ', ' + b.lost + ' said no' : '')); }), 'conv') +
     card('&#128564; Dead zones', 'people look at a price or ask for one, and nobody has signed up - worth a look at the price tier or the ad',
       dead.map(function(b){ return line(b, '<span style="color:#c0392b;">0 won</span>', (b.leads ? b.leads + ' quote' + (b.leads === 1 ? '' : 's') : '') + (b.leads && b.looks ? ', ' : '') + (b.looks ? b.looks + ' price look' + (b.looks === 1 ? '' : 's') : '') + (b.lost ? ' · ' + b.lost + ' said no' : '')); }), 'dead') +
+    nearProspectsCard(card) +
     card('&#127968; Neighbours', 'streets with two or more customers already - the easiest doors to knock on',
       nb.slice(0, 10).map(function(x){ return '<div style="padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;"><strong>' + esc(x.street.replace(/\b\w/g, function(c){ return c.toUpperCase(); })) + '</strong> <span style="color:#707070;">' + esc(x.b.town) + ' ' + x.b.zip + '</span> &middot; ' + x.names.length + ' customers <span style="color:#707070;">(' + esc(x.names.join(', ')) + ')</span></div>'; }), 'nb');
+}
+/* ---- neighbour prospects ----
+   With every home pinned, the spots where stops already sit close
+   together, and the quotes nearby that never signed up. The referral
+   link goes to the customers in the cluster; the quotes get a text. */
+function nearProspects(){
+  var cust = activeRecurring().map(function(l){ var p = routePt(l); return p && !p.approx ? { l: l, pt: p.pt } : null; }).filter(Boolean);
+  var open = leads.filter(function(l){ var st = l.status || 'new'; return isLead(l) && isRecurring(l) && (st === 'new' || st === 'called' || st === 'lost') && !fuParse(l.crmnotes).tm; })
+    .map(function(l){ var p = routePt(l); return p && !p.approx ? { l: l, pt: p.pt } : null; }).filter(Boolean);
+  var used = {}, out = [];
+  cust.forEach(function(c){
+    if (used[c.l.id]) return;
+    var members = cust.filter(function(o){ return kmBetween(c.pt, o.pt) <= 0.4; });
+    if (members.length < 2) return;
+    members.forEach(function(m){ used[m.l.id] = 1; });
+    var lat = members.reduce(function(a, m){ return a + m.pt[0]; }, 0) / members.length, lng = members.reduce(function(a, m){ return a + m.pt[1]; }, 0) / members.length;
+    var quotes = open.filter(function(q){ return kmBetween([lat, lng], q.pt) <= 0.6; });
+    out.push({ members: members, quotes: quotes, town: townOf(zipOf(c.l), c.l), street: streetOf(c.l.address) });
+  });
+  out.sort(function(a, b){ return (b.members.length + b.quotes.length) - (a.members.length + a.quotes.length); });
+  return out;
+}
+function nearProspectsCard(card){
+  var cl = nearProspects();
+  var pinned = activeRecurring().filter(function(l){ var p = routePt(l); return p && !p.approx; }).length;
+  var items = cl.slice(0, 8).map(function(c){
+    return '<div style="padding:6px 0;border-top:1px solid #f3f5f4;font-size:12.5px;"><strong>' + esc(c.town) + (c.street ? ' &middot; ' + esc(c.street.replace(/\b\w/g, function(x){ return x.toUpperCase(); })) : '') + '</strong> <span style="color:#707070;">' + c.members.length + ' customers within a quarter mile: ' + esc(c.members.map(function(m){ return String(m.l.name || '').trim().split(' ')[0]; }).join(', ')) + '</span>' +
+      (c.quotes.length ? '<div style="color:#b45309;margin-top:2px;">' + c.quotes.length + ' quote' + (c.quotes.length === 1 ? '' : 's') + ' nearby never signed up: ' + c.quotes.slice(0, 4).map(function(q){ return '<a href="#card-' + esc(q.l.id) + '" onclick="jumpToLead(\'' + esc(q.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(q.l.name || '(no name)') + '</a>' + ((q.l.status || 'new') === 'lost' || quoteState(q.l) === 'declined' ? ' (said no)' : ''); }).join(', ') + '</div>' : '<div style="color:#9aa5a0;margin-top:2px;">no open quotes nearby; the referral link to these ' + c.members.length + ' is the move</div>') + '</div>'; });
+  if (!items.length) items = ['<div style="font-size:12.5px;color:#9aa5a0;padding:4px 0;">' + (pinned < 2 ? 'Needs the homes pinned (the Sweep&amp;Go sync does it, or Pin the homes under Schedule).' : 'No two customers within a quarter mile of each other yet.') + '</div>'];
+  return card('&#127919; Neighbour prospects', 'where stops already sit close together, and the quotes nearby that never signed up', items, 'near');
 }
 /* ============================================================
    MONEY LEFT ON THE TABLE. Customers from before the tracker are on the
@@ -4505,7 +4537,7 @@ function loadJobs(force){
   if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_jobs') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ jobsData = c.data; renderJobs(); return; } } catch (e) {} }
   fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'jobs', key: KEY }) })
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (d && d.ok && (d.byDate || d.empty)){ jobsData = d; try { localStorage.setItem('clpps_jobs', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderJobs(); } })
+    .then(function(d){ if (d && d.ok && (d.byDate || d.empty)){ jobsData = d; try { localStorage.setItem('clpps_jobs', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderJobs(); renderRisk(); } })
     .catch(function(){});
 }
 function sgRoutesByDate(){ var c = config.sg_routes; if (!c) return {}; try { return JSON.parse(c.value) || {}; } catch (e) { return {}; } }
@@ -4554,6 +4586,18 @@ function renderJobs(){
         'The Day plan assumes ' + a.base + ' min a stop, ' + a.perDog + ' per extra dog, ' + a.mph + ' mph. Measured: ' + (m.base || a.base) + ' min, ' + (m.perDog != null ? m.perDog : a.perDog) + ' per extra dog' + (m.mph ? ', ' + m.mph + ' mph' : '') + '. <button onclick="useMeasured()" style="padding:5px 9px;min-height:32px;font-size:11.5px;margin-left:4px;">Use the measured numbers</button>') + '</div>';
     }
   }
+  // what the work pays, on site, from real minutes and real prices
+  var rate = J.rate || {}, rowsOf = function(map, label){ var ks = Object.keys(map || {}).filter(function(k){ return map[k].n >= 3 && map[k].perHour; }).sort(function(a, b){ return map[b].perHour - map[a].perHour; }); return ks.map(function(k){ var b = map[k]; return '<tr style="border-top:1px solid #f0f0f0;"><td>' + esc(label(k)) + '</td><td style="text-align:right;">' + b.n + '</td><td style="text-align:right;">' + Math.round(b.min / b.n) + ' min</td><td style="text-align:right;font-weight:700;color:#188663;">$' + b.perHour + '</td></tr>'; }).join(''); };
+  var withDrive = (function(){ var price = 0, mins = 0; Object.keys(J.byDate).forEach(function(d){ var rr = routes[d] || [], dr = rr.reduce(function(s2, r){ return s2 + (r.drive || 0); }, 0); if (dr && J.byDate[d].minutes){ price += J.byDate[d].price || 0; mins += J.byDate[d].minutes + dr; } }); return mins ? Math.round(price / (mins / 60)) : 0; })();
+  var onSite = J.minutes ? Math.round(Object.keys(J.byDate).reduce(function(a, d){ return a + (J.byDate[d].price || 0); }, 0) / (J.minutes / 60)) : 0;
+  var planLab = function(k){ return k === 'other' ? 'other' : k; }, dogLab = function(k){ return k === '?' ? 'unknown dogs' : k + ' dog' + (k === '1' ? '' : 's'); }, wdLab = function(k){ return dayLabel(k) || k; };
+  if (onSite){
+    h += '<div class="fold folded" data-fold="jobs-rate" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong>Dollars an hour</strong><span style="color:#555;">$' + onSite + ' on site' + (withDrive ? ' &middot; $' + withDrive + ' with driving' : '') + '</span></div><div class="fold-body">' +
+      '<div class="sub" style="font-size:11px;color:#9aa5a0;margin:2px 0 4px;">Visit price against the minutes on site, from Sweep&amp;Go\u2019s own records. The number that should steer pricing: which plans and which dogs pay for the time.</div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;"><tr style="color:#707070;text-align:left;"><th>By plan</th><th style="text-align:right;">Visits</th><th style="text-align:right;">A stop</th><th style="text-align:right;">$/hour</th></tr>' + rowsOf(rate.byPlan, planLab) +
+      '<tr style="color:#707070;text-align:left;"><th style="padding-top:8px;">By dogs</th><th></th><th></th><th></th></tr>' + rowsOf(rate.byDogs, dogLab) +
+      '<tr style="color:#707070;text-align:left;"><th style="padding-top:8px;">By day</th><th></th><th></th><th></th></tr>' + rowsOf(rate.byWeekday, wdLab) + '</table></div></div>';
+  }
   if (reasons.length){
     h += '<div class="fold folded" data-fold="jobs-skips" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong style="color:#b45309;">Skipped, and why</strong><span style="color:#555;">' + J.skipped + '</span></div><div class="fold-body">' +
       reasons.map(function(r){ return '<div style="font-size:12.5px;padding:2px 0 2px 10px;">' + esc(r) + ' <span style="color:#707070;">' + J.skipReasons[r] + '</span></div>'; }).join('') + '</div></div>';
@@ -4564,6 +4608,96 @@ function renderJobs(){
       return '<tr style="border-top:1px solid #f0f0f0;"><td>' + esc(new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })) + '</td><td style="text-align:right;">' + x.visits + '</td><td style="text-align:right;">' + (x.minutes ? hoursText(x.minutes) : '\u2014') + '</td><td style="text-align:right;">' + (mi ? Math.round(mi) : '\u2014') + '</td><td style="text-align:right;">' + (dr ? hoursText(dr) : '\u2014') + '</td><td style="text-align:right;color:' + (x.skipped ? '#b45309' : '#9aa5a0') + ';">' + (x.skipped || '\u2014') + '</td></tr>'; }).join('') + '</table></div></div>';
   box.innerHTML = h;
   box.querySelectorAll('.fold[data-fold]').forEach(function(c){ foldApply(c, false); });
+}
+
+/* ============================================================
+   MONTH IN REVIEW. The page Corey got for the collections question,
+   made from live data in one tap: this month against last, where the
+   money is, who came and went, the work done. Opens as its own page so
+   the phone's share or print turns it into a PDF.
+   ============================================================ */
+function monthReviewHtml(){
+  var nowK = monthKeyOf(new Date()), prevK = monthAdd(nowK, -1), M = billing && billing.months || {}, cur = M[nowK] || { billed: 0, collected: 0, unpaid: 0, onetime: 0, customers: 0, failed: 0, tips: 0 }, prev = M[prevK] || { billed: 0, collected: 0, unpaid: 0, onetime: 0, customers: 0, failed: 0, tips: 0 };
+  var monthName = function(k){ return new Date(k + '-15T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); };
+  var ss = seasonStats(), newC = ss.cust[nowK] || 0, newP = ss.cust[prevK] || 0;
+  var leftC = leads.filter(function(l){ var fu = fuParse(l.crmnotes); return (l.status || 'new') === 'cancelled' && String(fu.cx || '').slice(0, 7) === nowK; });
+  var leftWhy = {}; leftC.forEach(function(l){ var r = fuParse(l.crmnotes).cxr || 'no reason'; var lab = (CX_TAGS.filter(function(t){ return t[0] === r; })[0] || [0, r])[1]; leftWhy[lab] = (leftWhy[lab] || 0) + 1; });
+  var active = leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed' && isRecurring(l); }).length;
+  var quotes = ss.quotes[nowK] || 0, quotesP = ss.quotes[prevK] || 0;
+  var un = (billing && billing.unpaid || []).slice(0, 8), owedTotal = (billing && billing.unpaid || []).reduce(function(a, u){ return a + u.owed; }, 0);
+  var J = jobsData && jobsData.byDate ? jobsData : null;
+  var pct = function(a, b){ if (!b) return ''; var d = Math.round(100 * (a - b) / b); return ' <span style="color:' + (d >= 0 ? '#188663' : '#c0392b') + ';font-size:13px;">' + (d >= 0 ? '+' : '') + d + '% vs ' + monthShort(prevK) + '</span>'; };
+  var notes = [];
+  if (cur.billed && cur.collected / cur.billed < 0.85) notes.push('Collections are behind billing this month: ' + money(cur.billed - cur.collected) + ' invoiced and not yet in. ' + (cur.failed ? cur.failed + ' card payments failed.' : ''));
+  if (prev.billed && cur.billed < prev.billed * 0.9) notes.push('Billing is down ' + Math.round(100 * (1 - cur.billed / prev.billed)) + '% on ' + monthShort(prevK) + (cur.customers < prev.customers ? ', with ' + (prev.customers - cur.customers) + ' fewer customers invoiced' : ', with the same number of customers invoiced, so it is timing, not customers') + '.');
+  if (leftC.length > newC) notes.push('More customers left (' + leftC.length + ') than started (' + newC + ') this month.');
+  if (newC > leftC.length && newC) notes.push(newC + ' new customer' + (newC === 1 ? '' : 's') + ' against ' + leftC.length + ' who left.');
+  if (J && J.skipped >= 5) notes.push(J.skipped + ' visits were skipped in the last 30 days' + (Object.keys(J.skipReasons).length ? ', mostly ' + Object.keys(J.skipReasons).sort(function(a, b){ return J.skipReasons[b] - J.skipReasons[a]; })[0].toLowerCase() : '') + '.');
+  if (!notes.length) notes.push('A steady month: billing, collections and the customer count all moved together.');
+  var tile = function(n, l){ return '<div class="t"><div class="n">' + n + '</div><div class="l">' + l + '</div></div>'; };
+  return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + esc(monthName(nowK)) + ' in review</title>' +
+    '<style>body{margin:0;background:#fff;color:#1f2a26;font:15px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}.w{max-width:680px;margin:0 auto;padding:22px 16px 40px}h1{font-size:22px;margin:0 0 2px}.sub{color:#55635d;font-size:13.5px;margin:0 0 16px}.c{border:1px solid #e4ebe7;border-radius:14px;padding:14px 16px;margin-bottom:12px;break-inside:avoid}h2{font-size:15px;margin:0 0 8px}.g{display:grid;grid-template-columns:1fr 1fr;gap:8px}.t{background:#f7f9f8;border-radius:10px;padding:9px 11px}.t .n{font-size:22px;font-weight:800;line-height:1.1}.t .l{font-size:12px;color:#55635d;margin-top:2px}.pt{background:#FFF3E0;border-radius:10px;padding:10px 12px;margin:8px 0;font-size:14px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:5px 4px;border-bottom:1px solid #e4ebe7;text-align:left}td.n,th.n{text-align:right}.note{font-size:12px;color:#8a968f}@media print{.c{break-inside:avoid}}</style></head><body><div class="w">' +
+    '<h1>' + esc(monthName(nowK)) + ' in review</h1><p class="sub">CL Professional Pet Services &middot; made ' + esc(new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })) + ' from Sweep&amp;Go and the tracker</p>' +
+    '<div class="c"><h2>Money</h2><div class="g">' + tile(money(cur.billed) + pct(cur.billed, prev.billed), 'billed') + tile(money(cur.collected) + pct(cur.collected, prev.collected), 'collected') + tile(money(cur.unpaid), 'invoiced this month, unpaid') + tile(money(owedTotal), 'owed in total, all months') + '</div>' +
+      (cur.onetime ? '<div class="note" style="margin-top:6px;">' + money(cur.onetime) + ' of the billing was one-time jobs' + (cur.tips ? '; ' + money(cur.tips) + ' in tips' : '') + '.</div>' : '') + '</div>' +
+    '<div class="c"><h2>Customers</h2><div class="g">' + tile(active, 'active recurring customers') + tile('+' + newC + ' / \u2212' + leftC.length, 'started / left this month' + (newP || prev.customers ? ' (' + monthShort(prevK) + ': +' + newP + ')' : '')) + tile(quotes + pct(quotes, quotesP), 'quotes asked for') + tile(cur.customers || active, 'customers invoiced') + '</div>' +
+      (leftC.length ? '<div class="note" style="margin-top:6px;">Why they left: ' + esc(Object.keys(leftWhy).map(function(k){ return leftWhy[k] + ' ' + k.toLowerCase(); }).join(', ')) + '.</div>' : '') + '</div>' +
+    (J ? '<div class="c"><h2>Work done, last 30 days</h2><div class="g">' + tile(J.visits, 'visits') + tile(hoursText(J.minutes), 'on site') + tile(J.skipped, 'skipped') + tile(J.timed ? Math.round(J.minutes / J.timed) + ' min' : '\u2014', 'an average stop') + '</div></div>' : '') +
+    '<div class="c"><h2>What moved</h2>' + notes.map(function(n){ return '<div class="pt">' + esc(n) + '</div>'; }).join('') + '</div>' +
+    (un.length ? '<div class="c"><h2>Largest unpaid balances</h2><table>' + un.map(function(u){ return '<tr><td>' + esc(u.name) + '</td><td class="n">' + money(u.owed) + '</td></tr>'; }).join('') + '</table></div>' : '') +
+    '<p class="note">Billed excludes voided invoices. Collected is successful card and check payments by the date they landed.</p></div></body></html>';
+}
+function monthReview(){
+  var html = monthReviewHtml(), w = null;
+  try { w = window.open('', '_blank'); } catch (e) {}
+  if (w && w.document){ w.document.open(); w.document.write(html); w.document.close(); return; }
+  // a popup blocker: hand the page over as a file instead
+  try { var blob = new Blob([html], { type: 'text/html' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'month-in-review.html'; document.body.appendChild(a); a.click(); a.remove(); } catch (e2) { toast('Could not open the review'); }
+}
+
+/* ============================================================
+   AT RISK. The signals were all on the page, on different cards: a card
+   that keeps failing, money owed, visits skipped, a pause, a save offer
+   already made. One list, worst first, with the text ready, so the call
+   happens before the cancellation does.
+   ============================================================ */
+function riskList(){
+  var byName = {}, out = [];
+  (billing && billing.declining || []).forEach(function(d){ byName[sgNormName(d.name)] = byName[sgNormName(d.name)] || {}; byName[sgNormName(d.name)].declining = d; });
+  (billing && billing.unpaid || []).forEach(function(u){ byName[sgNormName(u.name)] = byName[sgNormName(u.name)] || {}; byName[sgNormName(u.name)].owed = u; });
+  var sk = jobsData && jobsData.skippedBy || {};
+  Object.keys(sk).forEach(function(nm){ byName[sgNormName(nm)] = byName[sgNormName(nm)] || {}; byName[sgNormName(nm)].skipped = sk[nm]; });
+  leads.forEach(function(l){
+    if (!isLead(l) || (l.status || 'new') !== 'closed') return;
+    var sig = byName[sgNormName(l.name)] || {}, fu = fuParse(l.crmnotes), why = [], score = 0;
+    if (sig.declining){ why.push('card declining since ' + sig.declining.when); score += 3; }
+    if (sig.owed && sig.owed.owed >= 50){ why.push(money(sig.owed.owed) + ' owed' + (sig.owed.oldest ? ' since ' + sig.owed.oldest : '')); score += 2; }
+    else if (fu.ow){ why.push('$' + fu.ow + ' behind on payment'); score += 2; }
+    if (sig.skipped >= 2){ why.push(sig.skipped + ' visits skipped in 30 days'); score += 2; } else if (sig.skipped === 1){ why.push('1 visit skipped'); score += 1; }
+    if (isPaused(l)){ why.push('paused' + (pauseOf(l).to ? ' until ' + pauseOf(l).to : '')); score += 1; }
+    if (fu.sv && fu.sv !== 'skip'){ why.push('save offer out ' + fu.sv); score += 2; }
+    if (score >= 2) out.push({ l: l, why: why, score: score });
+  });
+  out.sort(function(a, b){ return b.score - a.score; });
+  return out;
+}
+function renderRisk(){
+  var box = document.getElementById('risk'); if (!box) return;
+  var list = riskList();
+  var h = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128680; At risk <span style="font-size:11px;font-weight:600;color:#707070;">customers showing more than one warning sign</span></div>';
+  if (!list.length){
+    box.innerHTML = h + '<div style="font-size:12.5px;color:#9aa5a0;">' + (billing || jobsData ? 'Nobody is showing two warning signs at once.' : 'Fills in once Sweep&Go is synced: a failing card, money owed, skipped visits, a pause, or a save offer already out.') + '</div>';
+    return;
+  }
+  h += '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">A failing card, money owed, skipped visits, a pause, an open save offer. Two or more and they are here, worst first. A text today beats a cancellation next week.</div>' +
+    list.slice(0, 15).map(function(r){
+      var first = String(r.l.name || '').trim().split(' ')[0] || 'there', d = String(r.l.phone || '').replace(/\D/g, ''); if (d.length === 10) d = '1' + d;
+      var body = 'Hi ' + first + ", it's Corey with CL Professional Pet Services. Just checking in - is everything still working for you with the yard? If anything needs changing, the day, the plan, the card on file, just reply here and I'll sort it.";
+      return '<div style="padding:7px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><a href="#card-' + esc(r.l.id) + '" onclick="jumpToLead(\'' + esc(r.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(r.l.name || '(no name)') + '</a>' +
+        (d ? '<a href="sms:' + esc(d) + '?&body=' + encodeURIComponent(body).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(r.l.id) + '\')" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:6px 10px;font-size:11.5px;font-weight:700;text-decoration:none;white-space:nowrap;">&#128172; Check in</a>' : '') + '</div>' +
+        '<div style="color:#b45309;margin-top:2px;">' + r.why.map(esc).join(' &middot; ') + '</div></div>'; }).join('');
+  box.innerHTML = h;
 }
 
 /* ============================================================
@@ -4579,7 +4713,7 @@ function loadBilling(force){
   if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_billing') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ billing = c.data; renderBilling(); return; } } catch (e) {} }
   fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'billing', key: KEY }) })
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (d && d.ok && (d.months || d.empty)){ billing = d; try { localStorage.setItem('clpps_billing', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderBilling(); renderGlance(); } })
+    .then(function(d){ if (d && d.ok && (d.months || d.empty)){ billing = d; try { localStorage.setItem('clpps_billing', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderBilling(); renderRisk(); renderGlance(); } })
     .catch(function(){});
 }
 function billingKind(name){
@@ -4597,7 +4731,8 @@ function markOwed(id, amt, since){
 }
 function renderBilling(){
   var box = document.getElementById('billing'); if (!box) return;
-  var head = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128179; Billed, collected, owed <span style="font-size:11px;font-weight:600;color:#707070;">from Sweep&amp;Go</span></div>';
+  var head = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;"><div style="font-weight:800;font-size:14px;">&#128179; Billed, collected, owed <span style="font-size:11px;font-weight:600;color:#707070;">from Sweep&amp;Go</span></div>' +
+    (billing && billing.months ? '<button onclick="monthReview()" style="padding:5px 9px;min-height:32px;font-size:11.5px;white-space:nowrap;">&#128196; Month in review</button>' : '') + '</div>';
   if (!billing){
     box.innerHTML = head + '<div style="font-size:12.5px;color:#9aa5a0;">' + (sgSyncInfo() ? 'Loading\u2026' : 'Not connected yet. Once the Sweep&amp;Go token is in the script and setupSweepAndGo() has run, every invoice and payment lands here on its own.') + '</div>';
     return;
@@ -4815,7 +4950,7 @@ function renderReviewTrend(){
 }
 
 /* ---- fold-up cards in the numbers panel ---- */
-var FOLD_CARDS = ['territory', 'undertable', 'season', 'pricelog', 'schedule', 'deo', 'traffic', 'jobs', 'billing', 'revenue', 'roi', 'insights', 'reviews'];
+var FOLD_CARDS = ['territory', 'undertable', 'season', 'pricelog', 'schedule', 'deo', 'traffic', 'jobs', 'billing', 'risk', 'revenue', 'roi', 'insights', 'reviews'];
 function foldKey(card){ return card.id || card.getAttribute('data-fold') || ''; }
 function foldState(key){ try { return localStorage.getItem('clpps_fold_' + key); } catch (e) { return null; } }
 function foldApply(card, openByDefault){
@@ -4846,7 +4981,7 @@ function foldInit(){
    short labels. Done once in the page rather than by moving the HTML. */
 var NUMBERS_ORDER = [
   ['Today and the route', ['schedule', 'jobs']],
-  ['Money', ['billing', 'revenue', 'undertable', 'roi']],
+  ['Money', ['billing', 'risk', 'revenue', 'undertable', 'roi']],
   ['Customers and area', ['territory', 'season', 'deo', 'pricelog']],
   ['Marketing', ['traffic', 'insights']]   // Ask for a review stays on the main page: it is a to-do, not a number
 ];
@@ -4919,6 +5054,7 @@ function renderFoldSums(){
   try { var due = leads.filter(reviewDue).length; foldSum('reviews', due ? due + ' to ask' : 'nobody due'); } catch (e) {}
   try { var lt = lifetimeStats(); if (lt.value) foldSum('roi', 'a customer is worth ~' + money(lt.value) + (lt.measured ? '' : ' (assumed)')); } catch (e) {}
   try { if (jobsData && !jobsData.empty && jobsData.byDate){ foldSum('jobs', jobsData.visits + ' visits &middot; ' + hoursText(jobsData.minutes) + (jobsData.skipped ? ' &middot; ' + jobsData.skipped + ' skipped' : '')); } } catch (e) {}
+  try { var rk = riskList(); foldSum('risk', rk.length ? rk.length + ' to check in on' : 'nobody'); } catch (e) {}
   try { if (billing && !billing.empty){ var bk = monthKeyOf(new Date()), bm = billing.months[bk] || { billed: 0, collected: 0 }; var owed = (billing.unpaid || []).reduce(function(a, u){ return a + u.owed; }, 0); foldSum('billing', money(bm.billed) + ' billed &middot; ' + money(bm.collected) + ' in' + (owed ? ' &middot; ' + money(owed) + ' owed' : '')); } } catch (e) {}
 }
 function openTerritory(){
@@ -5783,6 +5919,7 @@ function render(){
   renderDeo();
   renderBilling();
   renderJobs();
+  renderRisk();
   renderReviews();
   renderReviewTrend();
   renderFoldSums();   // last: it writes onto headings the renderers above just rebuilt

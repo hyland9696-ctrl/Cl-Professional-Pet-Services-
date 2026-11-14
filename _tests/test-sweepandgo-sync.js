@@ -46,7 +46,7 @@ const API = {
     sub({ client_name:'Dana Deo', client_email:'dana@gmail.com', price:91, number_of_dogs:'2', service_plan:'2d-1xW' }),
     sub({ client_name:'Dana Deo', client_email:'dana@gmail.com', price:60, name:'Deodorizing and Sanitizing Spray', service_plan:'' }),   // the add-on
     sub({ client_name:'Kelly .', client_email:'', price:20, billing_interval:'per_cleanup', number_of_dogs:'3', service_plan:'3d-1xW' }),  // per visit, no email: matched by name
-    sub({ client_name:'New Nancy', client_email:'nancy@gmail.com', price:75, number_of_dogs:'1', service_plan:'1d-bW', frequency:'bi_weekly', start_date:'2026-10-20' }),
+    sub({ client_name:'New Nancy', client_email:'nancy@gmail.com', price:75, number_of_dogs:'1', service_plan:'1d-bW', frequency:'bi_weekly', start_date: d(3) }),
     sub({ client_name:'Gone Gus', client_email:'gus@gmail.com', status:'canceled', price:85, start_date:'2026-01-10', canceled_at:'2026-09-02 10:00:00', termination_reason:'Moving out of state' }),
     sub({ client_name:'Paused Pat', client_email:'pat@gmail.com', status:'paused', pause_start_date:'2026-11-01', pause_end_date:'2026-12-15', service_plan:'1d-1xW' }),
     sub({ client_name:'Twice Tom', client_email:'tom@gmail.com', price:153, number_of_dogs:'1', service_plan:'1d-2xW', frequency:'two_times_a_week' }),
@@ -88,8 +88,10 @@ const API = {
   ], paginate: { total_pages: 1 } },
 };
 const calls = [];
+const pushes = [];
 function fakeFetch(url, opts){
   calls.push(url);
+  if (/ntfy\.sh\//.test(url)){ pushes.push({ url, title: opts.headers && opts.headers.Title, body: opts.payload }); return { getResponseCode: () => 200, getContentText: () => '{}' }; }
   const p = url.replace('https://openapi.sweepandgo.com', '').replace(/([?&])(page|length)=\d+/g, '$1').replace(/[?&]+$/, '').replace(/\?&/, '?').replace(/&&/g, '&');
   const key = Object.keys(API).find(k => p === k || p.startsWith(k + '?') || p.startsWith(k + '&') || (k.indexOf('?') > 0 && p.startsWith(k)));
   if (!key) return { getResponseCode: () => 404, getContentText: () => '{"errors":["no such route ' + p + '"]}' };
@@ -113,7 +115,7 @@ function seed(){
 }
 function build(leadRows){
   const { ss, sheets } = fakeSpreadsheet(leadRows);
-  const props = { SHEET_ID:'x', SG_TOKEN:'tok-123', SG_HOOK:'word' };
+  const props = { SHEET_ID:'x', SG_TOKEN:'tok-123', SG_HOOK:'word', NTFY_TOPIC:'clpps-test-topic' };
   const G = {
     UrlFetchApp: { fetch: fakeFetch },
     SpreadsheetApp: { openById: () => ss, create: () => ss },
@@ -123,7 +125,7 @@ function build(leadRows){
     Logger: { log: () => {} }, ScriptApp: { getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyDays: () => ({ atHour: () => ({ create: () => {} }) }) }) }) },
     MailApp: { sendEmail: () => {}, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u' },
   };
-  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo };')(...Object.values(G));
+  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_ };')(...Object.values(G));
   return { F, sheets, props };
 }
 
@@ -155,7 +157,7 @@ function build(leadRows){
   const larry = by('p6363750006');
   ok('Lost Larry stays Not interested whatever Sweep&Go says', larry.status === 'lost' && !/SGID/.test(larry.crmnotes));
   const nancy = by('p6363750009');
-  ok('New Nancy is added: every other week, Monday, created on her start date, opted out of marketing', nancy && nancy.status === 'closed' && nancy.service === 'every other week' && nancy.price === '$75/mo' && /\[DAY:mon\]/.test(nancy.crmnotes) && /\[NOEM:1\]/.test(nancy.crmnotes) && nancy.created.indexOf('2026-10-20') === 0 && /\[CD:2026-10-20\]/.test(nancy.crmnotes) && nancy.type === 'SAVED', nancy && JSON.stringify(nancy));
+  ok('New Nancy is added: every other week, Monday, created on her start date, opted out of marketing', nancy && nancy.status === 'closed' && nancy.service === 'every other week' && nancy.price === '$75/mo' && /\[DAY:mon\]/.test(nancy.crmnotes) && /\[NOEM:1\]/.test(nancy.crmnotes) && nancy.created.indexOf(d(3)) === 0 && nancy.crmnotes.indexOf('[CD:' + d(3) + ']') >= 0 && nancy.type === 'SAVED', nancy && JSON.stringify(nancy));
   const gus = by('p6363750003');
   ok('Gone Gus is a former customer with the leaving date and reason', gus && gus.status === 'cancelled' && /\[CX:2026-09-02\]/.test(gus.crmnotes) && /\[CXR:moved\]/.test(gus.crmnotes) && /\[CD:2026-01-10\]/.test(gus.crmnotes), gus && gus.crmnotes);
   ok('Never Started is not added at all', !by('p6363750099'));
@@ -171,6 +173,12 @@ function build(leadRows){
   ok('the billing fold reads it back: Kelly owes $87 and her card is declining, Dana tipped $5', bill.unpaid.length === 1 && bill.unpaid[0].name === 'Kelly .' && bill.unpaid[0].owed === 87 && bill.declining.length === 1 && bill.declining[0].name === 'Kelly .' && Object.values(bill.months).reduce((a, m) => a + m.tips, 0) === 5, JSON.stringify(bill));
   const jobs = F.sgJobs_();
   ok('the jobs fold reads the visits: one done in 12 minutes for 2 dogs, one skipped for the gate', jobs.visits === 1 && jobs.skipped === 1 && jobs.byDogs['2'].median === 12 && jobs.skipReasons['Gate locked'] === 1, JSON.stringify(jobs));
+  ok('who was skipped, and dollars an hour by plan, dogs and weekday', jobs.skippedBy['Kelly .'] === 1 && jobs.rate.byPlan.weekly.n === 1 && jobs.rate.byPlan.weekly.perHour === 175 && jobs.rate.byDogs['2'].perHour === 175 && Object.keys(jobs.rate.byWeekday).length === 1, JSON.stringify(jobs.rate));
+  /* ---- the Monday push ---- */
+  const n = F.weeklyNumbers_();
+  ok('last week in numbers, from the sheets: customers, comings and goings, leads, money, work', n.active === 5 && n.newCust === 1 && n.left === 0 && n.leadsIn >= 1 && n.billed === 75 && n.collected === 0 && Math.round(n.owed) === 87   /* Dana's invoice and payment are ten days old: last week holds the one-time job only */ && n.visits === 1 && n.skipped === 1, JSON.stringify(n));
+  const text = F.weeklyPush();
+  ok('the push went to the topic with the week on four or five lines', pushes.length === 1 && pushes[0].title === 'CLPPS last week' && /\$75 billed, \$0 collected, \$87 still owed/.test(text) && /5 active, \+1 new/.test(text) && /1 visits done, 1 skipped/.test(text), JSON.stringify(pushes) + ' ' + text);
   const cfg = (n) => rows.filter(r => r.type === 'CONFIG' && r.name === n).slice(-1)[0];
   ok('the sync wrote its own status and the route report as settings', cfg('sg_last_sync') && JSON.parse(cfg('sg_last_sync').notes).clients === 8 && cfg('sg_routes') && JSON.parse(cfg('sg_routes').notes)[today][0].mi === 61.5);
   ok('writes are batched: well under one per row touched', sheets.leads.writes <= 12, String(sheets.leads.writes));

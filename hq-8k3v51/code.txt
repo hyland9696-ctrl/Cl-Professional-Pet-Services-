@@ -917,19 +917,30 @@ function sgJobs_() {
   var sh = jobsSheet_(); if (sh.getLastRow() < 2) return { ok:true, empty:true };
   var rows = sh.getRange(2, 1, sh.getLastRow() - 1, JOBS_HEADERS.length).getValues(), H = {}; JOBS_HEADERS.forEach(function(h, i) { H[h] = i; });
   var cut = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  var out = { ok:true, days: 30, visits: 0, minutes: 0, timed: 0, skipped: 0, skipReasons: {}, byDogs: {}, byDate: {}, techs: {} };
-  var mins = {};
+  var out = { ok:true, days: 30, visits: 0, minutes: 0, timed: 0, skipped: 0, skipReasons: {}, byDogs: {}, byDate: {}, techs: {}, skippedBy: {}, rate: { byPlan: {}, byDogs: {}, byWeekday: {} } };
+  var mins = {}, WD = ['sun','mon','tue','wed','thu','fri','sat'];
+  var bump = function(map, k, price, m) { var b = map[k] || (map[k] = { n: 0, price: 0, min: 0 }); b.n++; b.price += price; b.min += m; };
   rows.forEach(function(r) {
     var dt = String(r[H.date] || ''); if (!dt || dt < cut) return;
     var st = String(r[H.status] || ''), m = parseFloat(r[H.minutes]) || 0, dogs = String(r[H.dogs] || '') || '?';
     var day = out.byDate[dt] || (out.byDate[dt] = { visits: 0, skipped: 0, minutes: 0, price: 0 });
-    if (/skip/.test(st)) { out.skipped++; day.skipped++; var why = String(r[H.skip_reason] || 'no reason given'); out.skipReasons[why] = (out.skipReasons[why] || 0) + 1; return; }
+    if (/skip/.test(st)) { out.skipped++; day.skipped++; var why = String(r[H.skip_reason] || 'no reason given'); out.skipReasons[why] = (out.skipReasons[why] || 0) + 1; var who = String(r[H.client] || ''); if (who) out.skippedBy[who] = (out.skippedBy[who] || 0) + 1; return; }
     if (!/complet|done/.test(st)) return;
-    out.visits++; day.visits++; day.price += parseFloat(r[H.price]) || 0;
+    var price = parseFloat(r[H.price]) || 0;
+    out.visits++; day.visits++; day.price += price;
     if (r[H.tech]) out.techs[r[H.tech]] = (out.techs[r[H.tech]] || 0) + 1;
-    if (m > 0 && m < 180) { out.minutes += m; out.timed++; day.minutes += m; (mins[dogs] = mins[dogs] || []).push(m); }
+    if (m > 0 && m < 180) {
+      out.minutes += m; out.timed++; day.minutes += m; (mins[dogs] = mins[dogs] || []).push(m);
+      if (price > 0) {
+        var plan = String(r[H.plan] || '').toLowerCase().replace(/[^a-z]/g, '') || 'other';
+        plan = /twotimes|2xw|twice/.test(plan) ? 'twice a week' : /biweek|everyother|bw/.test(plan) ? 'every other week' : /month|1xm/.test(plan) ? 'monthly' : /week|1xw/.test(plan) ? 'weekly' : plan;
+        bump(out.rate.byPlan, plan, price, m); bump(out.rate.byDogs, dogs, price, m);
+        var wd = WD[new Date(dt + 'T12:00:00').getDay()]; bump(out.rate.byWeekday, wd, price, m);
+      }
+    }
   });
   Object.keys(mins).forEach(function(k) { out.byDogs[k] = { n: mins[k].length, median: Math.round(median_(mins[k]) * 10) / 10 }; });
+  ['byPlan', 'byDogs', 'byWeekday'].forEach(function(g) { Object.keys(out.rate[g]).forEach(function(k) { var b = out.rate[g][k]; b.price = Math.round(b.price); b.min = Math.round(b.min); b.perHour = b.min ? Math.round(b.price / (b.min / 60)) : 0; }); });
   out.minutes = Math.round(out.minutes);
   Object.keys(out.byDate).forEach(function(k) { out.byDate[k].minutes = Math.round(out.byDate[k].minutes); out.byDate[k].price = Math.round(out.byDate[k].price); });
   return out;
@@ -992,6 +1003,75 @@ function sgHook_(word, e) {
   }
   return { ok:true, event: ev };
 }
+/* ---- the Monday push: last week in numbers, to both phones ----
+   Jesse: "a Monday morning push". Goes through the same free ntfy topic
+   as new leads (setupPush). Everything in it is already in the sheets. */
+function weeklyNumbers_() {
+  var sh = sheet_(), rows = sh.getDataRange().getValues(), H = {}; HEADERS.forEach(function(h, i) { H[h] = i; });
+  var now = new Date(), cut = new Date(now.getTime() - 7 * 86400000), cutD = cut.toISOString().slice(0, 10), nowD = now.toISOString().slice(0, 10);
+  var latest = {}, NOT = { VIEW:1, QVIEW:1, OUTAREA:1, WAITLIST:1, AUTH:1, SPEND:1, CONFIG:1 };
+  for (var i = 1; i < rows.length; i++) {
+    var id = String(rows[i][H.id]), t = String(rows[i][H.type] || ''); if (NOT[t]) continue;
+    var key = String(rows[i][H.created] || ''); if (!latest[id] || key >= latest[id].key) latest[id] = { key: key, r: rows[i] };
+  }
+  var n = { active: 0, newCust: 0, left: 0, leftWhy: {}, leadsIn: 0, waiting: 0, reviews: '' };
+  Object.keys(latest).forEach(function(id) {
+    var r = latest[id].r, st = String(r[H.status] || 'new'), notes = String(r[H.crmnotes] || '');
+    if (st === 'deleted' || /\[TM:1\]/.test(notes)) return;
+    var cd = (notes.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '', cx = (notes.match(/\[CX:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '';
+    if (st === 'closed') { n.active++; if (cd >= cutD && cd <= nowD) n.newCust++; }
+    if (st === 'cancelled' && cx >= cutD && cx <= nowD) { n.left++; var why = (notes.match(/\[CXR:([^\]]*)\]/) || [])[1] || 'no reason'; n.leftWhy[why] = (n.leftWhy[why] || 0) + 1; }
+    if (String(r[H.created] || '') >= cut.toISOString()) n.leadsIn++;
+    if (st === 'new' && String(r[H.created] || '') >= new Date(now.getTime() - 30 * 86400000).toISOString()) n.waiting++;
+  });
+  for (var j = rows.length - 1; j >= 1; j--) { if (String(rows[j][H.type]) === 'CONFIG' && String(rows[j][H.name]) === 'review_count') { n.reviews = String(rows[j][H.notes] || ''); break; } }
+  // money and work, from the Sweep&Go sheets if they exist
+  n.billed = 0; n.collected = 0; n.owed = 0; n.visits = 0; n.skipped = 0;
+  try {
+    var bs = sheet_().getParent().getSheetByName('billing');
+    if (bs && bs.getLastRow() > 1) {
+      var BH = {}; BILLING_HEADERS.forEach(function(h, i) { BH[h] = i; });
+      bs.getRange(2, 1, bs.getLastRow() - 1, BILLING_HEADERS.length).getValues().forEach(function(r) {
+        var d = String(r[BH.date] || ''), st = String(r[BH.status] || ''), tot = parseFloat(r[BH.total]) || 0;
+        if (r[BH.kind] === 'invoice') { if (st === 'voided') return; if (d >= cutD) n.billed += tot; if (st !== 'paid') { var rem = parseFloat(r[BH.remaining]); n.owed += rem > 0 ? rem : tot; } }
+        else if (st === 'succeeded' && d >= cutD) n.collected += tot;
+      });
+    }
+    var js = sheet_().getParent().getSheetByName('jobs');
+    if (js && js.getLastRow() > 1) {
+      var JH = {}; JOBS_HEADERS.forEach(function(h, i) { JH[h] = i; });
+      js.getRange(2, 1, js.getLastRow() - 1, JOBS_HEADERS.length).getValues().forEach(function(r) {
+        var d = String(r[JH.date] || ''); if (d < cutD) return;
+        if (/skip/.test(String(r[JH.status]))) n.skipped++; else if (/complet|done/.test(String(r[JH.status]))) n.visits++;
+      });
+    }
+  } catch (e) {}
+  return n;
+}
+function weeklyPushText_(n) {
+  var money = function(v) { return '$' + Math.round(v).toLocaleString(); };
+  var why = Object.keys(n.leftWhy).map(function(k) { return n.leftWhy[k] + ' ' + k; }).join(', ');
+  var L = [];
+  if (n.billed || n.collected) L.push(money(n.billed) + ' billed, ' + money(n.collected) + ' collected' + (n.owed ? ', ' + money(n.owed) + ' still owed' : ''));
+  L.push(n.active + ' active' + (n.newCust ? ', +' + n.newCust + ' new' : '') + (n.left ? ', -' + n.left + ' left (' + why + ')' : '') + (!n.newCust && !n.left ? ', no comings or goings' : ''));
+  L.push(n.leadsIn + ' lead' + (n.leadsIn === 1 ? '' : 's') + ' in' + (n.waiting ? ', ' + n.waiting + ' still waiting for a call' : ''));
+  if (n.visits || n.skipped) L.push(n.visits + ' visits done' + (n.skipped ? ', ' + n.skipped + ' skipped' : ''));
+  if (n.reviews) L.push(n.reviews + ' Google reviews');
+  return L.join('\n');
+}
+function weeklyPush() {
+  var n = weeklyNumbers_(), body = weeklyPushText_(n), topic = pushTopic_();
+  var title = 'CLPPS last week';
+  if (topic) {
+    try { UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(topic), { method: 'post', contentType: 'text/plain; charset=utf-8', payload: body, headers: { 'Title': title, 'Priority': 'default', 'Tags': 'bar_chart', 'Click': PUSH_TRACKER_URL }, muteHttpExceptions: true }); } catch (e) {}
+  } else { Logger.log('No push topic yet (run setupPush). Would have sent:\n' + body); }
+  return body;
+}
+function setupWeeklyPush() {
+  ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'weeklyPush') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('weeklyPush').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(7).create();
+  Logger.log('Monday 7am push scheduled. A sample of what it sends:\n' + weeklyPushText_(weeklyNumbers_()));
+}
 /* Run once, from the editor: checks the token, syncs, and schedules 4am. */
 function setupSweepAndGo() {
   if (!sgToken_()) throw new Error('Add SG_TOKEN under Project Settings > Script Properties first');
@@ -999,6 +1079,7 @@ function setupSweepAndGo() {
   Logger.log('Token works: ' + JSON.stringify(who).slice(0, 200));
   ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'sgSync') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('sgSync').timeBased().everyDays(1).atHour(4).create();
+  try { setupWeeklyPush(); } catch (e) { Logger.log('weekly push not scheduled: ' + e); }
   var s = sgSync();
   Logger.log('First sync: ' + JSON.stringify(s, null, 1));
   return s;
