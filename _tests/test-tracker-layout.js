@@ -91,7 +91,7 @@ const visibleIn = (p, cardId, text) => p.evaluate(([id, t]) => {
     const glance = (await q.textContent('#glance')).replace(/\s+/g, ' ');
     ok('the glance strip answers today, leads, money and customers before any card opens', /stops today/.test(glance) && /not called yet/.test(glance) && /(billed|on the books)/.test(glance) && /active ·/.test(glance), glance);
     const order = await q.$$eval('#numbers > *', els => els.filter(e => e.id || e.className === 'nsec').map(e => e.className === 'nsec' ? e.textContent.toUpperCase() : e.id));
-    ok('cards sit under their labels, in the order the day asks for them', order.join(',') === 'glance,foldbar,TODAY AND THE ROUTE,schedule,jobs,MONEY,billing,revenue,undertable,roi,CUSTOMERS AND AREA,territory,season,deo,pricelog,MARKETING,traffic,insights', order.join(','));
+    ok('cards sit under their labels, in the order the day asks for them', order.join(',') === 'glance,foldbar,TODAY AND THE ROUTE,schedule,jobs,MONEY,billing,risk,revenue,undertable,roi,CUSTOMERS AND AREA,territory,season,deo,pricelog,MARKETING,traffic,insights', order.join(','));
     ok('Insights folds section by section, the first open', (await q.$$('#insights .fold[data-fold^="ins-"]')).length >= 8 && await q.$eval('#insights .fold[data-fold="ins-0"]', e => !e.classList.contains('folded')) && await q.$eval('#insights .fold[data-fold="ins-1"]', e => e.classList.contains('folded')));
     await q.close();
   }
