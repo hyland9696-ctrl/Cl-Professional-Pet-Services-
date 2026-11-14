@@ -88,7 +88,7 @@ const API = {
   ], paginate: { total_pages: 1 } },
 };
 const calls = [];
-const pushes = [], onboardings = [];
+const pushes = [], onboardings = [], mails = [];
 function fakeFetch(url, opts){
   calls.push(url);
   if (/residential\/onboarding$/.test(url)){
@@ -136,10 +136,10 @@ function build(leadRows){
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
     CacheService: { getScriptCache: () => ({ get: () => null, put: () => {}, remove: () => {} }) },
     Logger: { log: () => {} }, ScriptApp: { getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyDays: () => ({ atHour: () => ({ create: () => {} }) }) }) }) },
-    MailApp: { sendEmail: () => {}, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: () => '202611' }, Session: { getScriptTimeZone: () => 'America/Chicago' },
+    MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: () => '202611' }, Session: { getScriptTimeZone: () => 'America/Chicago' },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (txt) => ({ _t: txt, setMimeType(){ return this; } }) },
   };
-  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost };')(...Object.values(G));
+  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS };')(...Object.values(G));
   return { F, sheets, props };
 }
 
@@ -257,5 +257,40 @@ function build(leadRows){
   const n1 = onboardings.length;
   post({ id:'p6363751010', created: new Date().toISOString(), type:'ACTIVATE', name:'Off Otto', phone:'6363751010', email:'otto@gmail.com', address:'11 Oak St, St. Peters, MO 63376', zip:'63376', service:'weekly', dogs:'2', price:'$91/mo', crmnotes:'[QA:a] ' });
   ok('with the switch off, nothing is created without a tap', onboardings.length === n1);
+}
+
+/* ---- follow-up emails for quotes that went quiet ---- */
+{
+  const row = (o) => HEADERS.map(h => o[h] == null ? '' : o[h]);
+  const ago = (days) => new Date(Date.now() - days * 864e5).toISOString();
+  const q = (id, o) => row(Object.assign({ id, created: ago(3), type:'ENQUIRY', name:'Quiet ' + id, phone:'63637' + id.padStart(5, '0'), email: id + '@gmail.com', zip:'63376', service:'weekly', dogs:'1', price:'$85/mo', status:'new', crmnotes:'[QA:w] ' }, o));
+  const leadRows = [HEADERS.slice(),
+    q('a1'),                                                       // 3 days, no answer: step 1 due
+    q('a2', { created: ago(1) }),                                  // too soon
+    q('a3', { status:'called' }),                                  // somebody called
+    q('a4', { crmnotes:'[TX:1@' + ago(1).slice(0, 10) + '] [QA:w] ' }),   // texted
+    q('a5', { crmnotes:'[NOEM:1] [QA:w] ' }),                      // asked to be left alone
+    q('a6', { crmnotes:'[QA:d] too much' }),                       // said no: the win-back email's job
+    q('a7', { email:'' }),                                         // no email
+    q('a8', { price:'', manual:'YES' }),                           // no price to remind them of
+    q('a9', { created: ago(8), crmnotes:'[FE:1@' + ago(5).slice(0, 10) + '] [QA:w] ' }),   // step 1 went five days ago: step 2 due
+    q('b1', { created: ago(8), crmnotes:'[FE:1@' + ago(1).slice(0, 10) + '] [QA:w] ' }),   // step 1 yesterday: wait
+    q('b2', { created: ago(12), crmnotes:'[FE:1@' + ago(9).slice(0, 10) + '] [FE:2@' + ago(5).slice(0, 10) + '] [QA:w] ' }),   // both sent: done
+    q('b3', { created: ago(25) }),                                 // too old
+    q('b4', { status:'closed', crmnotes:'[CD:2026-11-01] [QA:a] ' }),
+    q('b5'), row({ id:'azx', created: ago(1), type:'AUTH', zip:'b5', name:'Quiet b5', price:'$85/mo' }),   // authorized through the emailed link
+    q('b6', { crmnotes:'[TM:1] [QA:w] ' }),                        // a team phone's test
+  ];
+  const { F, sheets } = build(leadRows);
+  const due = F.followupsDue_(sheets.leads.rows, new Date());
+  ok('exactly the right quotes are due, with the right step', due.map(d => d.id + ':' + d.step).sort().join(',') === 'a1:1,a9:2', JSON.stringify(due.map(d => d.id + ':' + d.step)));
+  ok('each carries the first name, price and plan for the words', due[0].first === 'Quiet' && due[0].price === '$85/mo' && due[0].plan === 'weekly');
+  mails.length = 0;
+  const off = F.quoteFollowups();
+  ok('with the switch off nothing is sent', off.off && mails.length === 0);
+  sheets.leads.rows.push(row({ id:'cfg_fu_emails', created: ago(0), type:'CONFIG', name:'fu_emails', notes:'on', status:'config', crmnotes:'' }));
+  const on = F.quoteFollowups();
+  ok('with it on, the two due emails go from the business account, reply-to the office, with the words filled in and the opt-out footer', on.sent === 2 && mails.length === 2 && mails[0].to === 'a1@gmail.com' && /Quiet, your yard price is saved/.test(mails[0].subject) && /Your price of \$85\/mo is saved for six months/.test(mails[0].body) && /Reply STOP/.test(mails[0].body) && mails[0].replyTo === 'info@clpropetservices.com' && mails[1].to === 'a9@gmail.com' && /Last note from me, Quiet/.test(mails[1].subject), JSON.stringify(mails.map(m => [m.to, m.subject])));
+  ok('and each row is stamped, so tomorrow sends nothing twice', /\[FE:1@\d{4}-\d{2}-\d{2}\]/.test(sheets.leads.rows.find(r => r[0] === 'a1')[HEADERS.indexOf('crmnotes')]) && /\[FE:2@/.test(sheets.leads.rows.find(r => r[0] === 'a9')[HEADERS.indexOf('crmnotes')]) && F.followupsDue_(sheets.leads.rows, new Date()).length === 0);
 }
 done();

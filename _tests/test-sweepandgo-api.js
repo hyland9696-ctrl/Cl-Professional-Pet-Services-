@@ -94,6 +94,8 @@ const { ok, done } = reporter();
     // accepted on the website, not in Sweep&Go yet: the card offers the sign-up
     { id:'A1', type:'ACTIVATE', name:'Ann Accept', phone:'6363750020', email:'ann@gmail.com', zip:'63376', address:'12 Elm St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'called', crmnotes:'[HH:A friend or neighbor] [QA:a] ', created:'2026-11-11T12:00:00Z' },
     { id:'az1', type:'AUTH', name:'Ann Accept', zip:'A1', price:'$85/mo', service:'weekly', dogs:'1', email:'ann@gmail.com', created:'2026-11-11T13:00:00Z' },
+    // a quiet quote the script emailed two days in
+    { id:'F1', type:'ENQUIRY', name:'Quiet Quincy', phone:'6363750030', email:'quincy@gmail.com', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'new', crmnotes:'[FE:1@2026-11-10] [QA:w] ', created:'2026-11-08T12:00:00Z' },
     { id:'Q1', type:'DECLINED', name:'Quote Quinn', phone:'6363750010', email:'quinn@gmail.com', zip:'63376', address:'9 Oak St, St. Peters, MO 63376', dogs:'1', service:'weekly', price:'$85/mo', status:'new', crmnotes:'[LL:38.79300,-90.60200] [QA:d] too much', created:'2026-10-01T12:00:00Z' },
     { id:'k1', type:'CONFIG', name:'sg_last_sync', notes: JSON.stringify({ at:'2026-11-12T09:00:00Z', clients: 94, added: 2, updated: 11, pinned: 90, invoices: 1200, errors: [] }), status:'config', crmnotes:'', created:'2026-11-12T09:00:00Z' },
     { id:'k2', type:'CONFIG', name:'sg_routes', notes: JSON.stringify({ '2026-11-12': [{ who:'Jesse Duncan', min: 250, drive: 70, clean: 180, mi: 61.5, jobs: 20, price: 540 }], '2026-11-11': [{ who:'Jesse Duncan', min: 230, drive: 60, clean: 170, mi: 50, jobs: 18, price: 500 }], '2026-11-10': [{ who:'Jesse Duncan', min: 240, drive: 60, clean: 180, mi: 50, jobs: 20, price: 560 }] }), status:'config', crmnotes:'', created:'2026-11-12T09:00:00Z' },
@@ -110,7 +112,7 @@ const { ok, done } = reporter();
     let body = {}; try { body = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
     if (body.action) posts.push(body);
     if (body.action === 'billing') return r.fulfill({ contentType:'application/json', body: JSON.stringify(billing) });
-    if (body.action === 'jobs') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, days: 30, visits: 310, minutes: 2790, timed: 300, skipped: 4, skipReasons: { 'Gate locked': 3, 'Client request': 1 }, skippedBy: { 'Eddie Eow': 2, 'Someone Else': 1 }, rate: { byPlan: { weekly: { n: 250, price: 5000, min: 2250, perHour: 133 }, 'every other week': { n: 50, price: 2200, min: 540, perHour: 244 } }, byDogs: { '1': { n: 120, price: 2400, min: 840, perHour: 171 }, '2': { n: 140, price: 3500, min: 1540, perHour: 136 } }, byWeekday: { thu: { n: 60, price: 1500, min: 600, perHour: 150 } } }, byDogs: { '1': { n: 120, median: 7 }, '2': { n: 140, median: 11 }, '3': { n: 40, median: 15 } }, byDate: { '2026-11-11': { visits: 18, skipped: 1, minutes: 170, price: 500 }, '2026-11-10': { visits: 20, skipped: 0, minutes: 190, price: 560 } }, techs: { 'Jesse Duncan': 310 } }) });
+    if (body.action === 'jobs') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, days: 30, visits: 310, minutes: 2790, timed: 300, skipped: 4, skipReasons: { 'Gate locked': 3, 'Client request': 1 }, skippedBy: { 'Eddie Eow': 2, 'Someone Else': 1 }, rate: { byPlan: { weekly: { n: 250, price: 5000, min: 2250, perHour: 133 }, 'every other week': { n: 50, price: 2200, min: 540, perHour: 244 } }, byDogs: { '1': { n: 120, price: 2400, min: 840, perHour: 171 }, '2': { n: 140, price: 3500, min: 1540, perHour: 136 } }, byWeekday: { thu: { n: 60, price: 1500, min: 600, perHour: 150 } } }, byClient: { 'Dana Deo': { n: 4, med: 20, price: 35 }, 'Eddie Eow': { n: 2, med: 8, price: 44 }, 'Near Ned': { n: 4, med: 7, price: 20 } }, byDogs: { '1': { n: 120, median: 7 }, '2': { n: 140, median: 11 }, '3': { n: 40, median: 15 } }, byDate: { '2026-11-11': { visits: 18, skipped: 1, minutes: 170, price: 500 }, '2026-11-10': { visits: 20, skipped: 0, minutes: 190, price: 560 } }, techs: { 'Jesse Duncan': 310 } }) });
     if (body.action === 'sgcreate'){ sgcreates.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, created:true, priceOk:false, sgPrice: 95, quoted: 85 }) }); }
     if (body.action === 'sgsync') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, clients: 94, added: 0, updated: 3, errors: [] }) });
     return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: rows }) });
@@ -158,6 +160,26 @@ const { ok, done } = reporter();
   /* ---- neighbour prospects ---- */
   const terr = (await p.textContent('#territory')).replace(/\s+/g, ' ');
   ok('two pinned customers within a quarter mile make a cluster, and the quote nearby that said no is named', /Neighbour prospects \(1\)/.test(terr) && /St\. Peters · Oak St 2 customers within a quarter mile: (Dana, Near|Near, Dana)/.test(terr) && /1 quote nearby never signed up: Quote Quinn \(said no\)/.test(terr), terr.slice(terr.indexOf('Neighbour prospects'), terr.indexOf('Neighbour prospects') + 260));
+  /* ---- who earns their keep ---- */
+  const keep = (await p.textContent('#undertable')).replace(/\s+/g, ' ');
+  ok('dollars an hour per customer from measured minutes, price and the drive, worst first', /Who earns their keep\s*median \$\d+\/h · \d+ well under/.test(keep) && /Dana Deo 2 dogs · \$35 a visit · 20 min/.test(keep) && /Eddie Eow 1 dog · \$44 a visit · 8 min/.test(keep), keep.slice(keep.indexOf('Who earns'), keep.indexOf('Who earns') + 300));
+  ok('the drive counts: Ned, seven minutes next to the start, beats Eddie\'s $44 with a ten-minute leg to O\'Fallon; Dana, 20 minutes for $35, is under the line', /Under the line\s*Dana Deo/.test(keep) && /Best\s*Near Ned 1 dog · \$20 a visit · 7 min \+ 0 drive\s*\$169\/h\s*Eddie Eow.*?\+ 10 drive\s*\$150\/h/.test(keep), keep.slice(keep.indexOf('Best'), keep.indexOf('Best') + 200));
+  /* ---- when do we need a second person ---- */
+  const hire = (await p.textContent('#hire')).replace(/\s+/g, ' ');
+  ok('hours a week measured from Sweep&Go, net growth from the last three months, and a verdict in a sentence', /\d+(\.\d)?h\s*a week on the route now, measured/.test(hire) && /customers a month, net, last 3 months \(\d+ started, \d+ left\)/.test(hire) && /At this pace the route (stays under 40 hours a week for the next twelve months|reaches 40 hours a week in)/.test(hire), hire.slice(0, 400));
+  ok('what the hire costs, in dollars and in customers', /A second person at 20 hours a week costs about \$1,559 a month, which is \d+ customers’ revenue/.test(hire), hire.slice(hire.indexOf('A second person'), hire.indexOf('A second person') + 160));
+  await p.$eval('#hire [data-fold="hire-assume"]', e => e.classList.remove('folded'));
+  await p.fill('#hr-cap', '12'); await p.click('#hire button:has-text("Save")'); await p.waitForTimeout(400);
+  const hire2 = (await p.textContent('#hire')).replace(/\s+/g, ' ');
+  ok('lower the cap and the month the route fills moves up, on the card and the closed heading', /reaches 12 hours a week in [A-Z][a-z]+ 20\d\d/.test(hire2) && /route fills [A-Z][a-z]{2} 20\d\d/.test(await p.$eval('#hire .fsum', e => e.textContent)), hire2.slice(hire2.indexOf('At this pace'), hire2.indexOf('At this pace') + 160));
+  /* ---- follow-up emails: the switch, the card, the count ---- */
+  ok('a quiet quote the script emailed says so on its card', /Follow-up email sent day 2 \(2026-11-10\)/.test((await p.textContent('#card-F1')).replace(/\s+/g, ' ')));
+  ok('Insights counts them', /Follow-up emails\s*0 of 1/.test((await p.textContent('#insights')).replace(/\s+/g, ' ')));
+  await p.click('#blastBtn'); await p.waitForTimeout(500);
+  ok('the switch starts off and explains itself', !(await p.isChecked('#fu-auto-box')) && /Two days after a quote with no answer/.test(await p.textContent('#blastPanel')) && /1 emailed so far, 0 became customers/.test(await p.textContent('#fu-stat')));
+  await p.click('#fu-auto-box'); await p.waitForTimeout(400);
+  ok('ticking it writes the setting the script reads each morning', posts.some(x => x.action === 'lead' && x.lead && x.lead.type === 'CONFIG' && x.lead.name === 'fu_emails' && x.lead.notes === 'on' && x.key));
+  await p.click('#blastPanel button:has-text("Close")'); await p.waitForTimeout(200);
   /* ---- month in review ---- */
   const [review] = await Promise.all([ctx.waitForEvent('page'), p.click('#billing button:has-text("Month in review")')]);
   await review.waitForLoadState(); await review.waitForTimeout(300);

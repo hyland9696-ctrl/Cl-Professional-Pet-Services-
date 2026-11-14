@@ -940,8 +940,8 @@ function sgJobs_() {
   var sh = jobsSheet_(); if (sh.getLastRow() < 2) return { ok:true, empty:true };
   var rows = sh.getRange(2, 1, sh.getLastRow() - 1, JOBS_HEADERS.length).getValues(), H = {}; JOBS_HEADERS.forEach(function(h, i) { H[h] = i; });
   var cut = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  var out = { ok:true, days: 30, visits: 0, minutes: 0, timed: 0, skipped: 0, skipReasons: {}, byDogs: {}, byDate: {}, techs: {}, skippedBy: {}, rate: { byPlan: {}, byDogs: {}, byWeekday: {} } };
-  var mins = {}, WD = ['sun','mon','tue','wed','thu','fri','sat'];
+  var out = { ok:true, days: 30, visits: 0, minutes: 0, timed: 0, skipped: 0, skipReasons: {}, byDogs: {}, byDate: {}, techs: {}, skippedBy: {}, rate: { byPlan: {}, byDogs: {}, byWeekday: {} }, byClient: {} };
+  var mins = {}, WD = ['sun','mon','tue','wed','thu','fri','sat'], cm = {};
   var bump = function(map, k, price, m) { var b = map[k] || (map[k] = { n: 0, price: 0, min: 0 }); b.n++; b.price += price; b.min += m; };
   rows.forEach(function(r) {
     var dt = String(r[H.date] || ''); if (!dt || dt < cut) return;
@@ -954,6 +954,7 @@ function sgJobs_() {
     if (r[H.tech]) out.techs[r[H.tech]] = (out.techs[r[H.tech]] || 0) + 1;
     if (m > 0 && m < 180) {
       out.minutes += m; out.timed++; day.minutes += m; (mins[dogs] = mins[dogs] || []).push(m);
+      var who2 = String(r[H.client] || ''); if (who2) { var cc = cm[who2] || (cm[who2] = { mins: [], price: 0, n: 0 }); cc.mins.push(m); cc.price += price; cc.n++; }
       if (price > 0) {
         var plan = String(r[H.plan] || '').toLowerCase().replace(/[^a-z]/g, '') || 'other';
         plan = /twotimes|2xw|twice/.test(plan) ? 'twice a week' : /biweek|everyother|bw/.test(plan) ? 'every other week' : /month|1xm/.test(plan) ? 'monthly' : /week|1xw/.test(plan) ? 'weekly' : plan;
@@ -963,6 +964,7 @@ function sgJobs_() {
     }
   });
   Object.keys(mins).forEach(function(k) { out.byDogs[k] = { n: mins[k].length, median: Math.round(median_(mins[k]) * 10) / 10 }; });
+  Object.keys(cm).forEach(function(k) { var c = cm[k]; out.byClient[k] = { n: c.n, med: Math.round(median_(c.mins) * 10) / 10, price: Math.round(c.price / c.n * 100) / 100 }; });
   ['byPlan', 'byDogs', 'byWeekday'].forEach(function(g) { Object.keys(out.rate[g]).forEach(function(k) { var b = out.rate[g][k]; b.price = Math.round(b.price); b.min = Math.round(b.min); b.perHour = b.min ? Math.round(b.price / (b.min / 60)) : 0; }); });
   out.minutes = Math.round(out.minutes);
   Object.keys(out.byDate).forEach(function(k) { out.byDate[k].minutes = Math.round(out.byDate[k].minutes); out.byDate[k].price = Math.round(out.byDate[k].price); });
@@ -1116,6 +1118,79 @@ function sgCreate_(id, force) {
   }
   return { ok:true, created: true, sgPrice: Math.round(sgMonthly * 100) / 100, quoted: q.base, priceOk: priceOk, deo: !!(wantsDeo && deoId), sent: body };
 }
+/* ---- follow-up emails for quotes that went quiet ----
+   Jesse: "the one feature here that makes money by itself". A quote with
+   no answer gets a short personal email two days on, one more six days
+   on, then nothing. It stops the moment they accept, decline, get
+   called or texted, or ask to be left alone. Each send is stamped
+   [FE:step@date] so it never repeats and the office can see it. Off
+   until the office switches it on (CONFIG fu_emails = on). */
+var FU_STEPS = [
+  { step: 1, afterDays: 2, subject: '{first}, your yard price is saved - any questions?',
+    body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. You looked at a price for {plan} the other day and I wanted to make sure you had what you needed.\n\nYour price of {price} is saved for six months either way, the $40 initial clean is waived right now, and there is no contract - month to month, cancel any time.\n\nIf you have a question about the yard, the day, or the dogs, just reply here or text me at (636) 375-4342. Happy to help either way.' },
+  { step: 2, afterDays: 6, subject: 'Last note from me, {first}',
+    body: 'Hi {first},\n\nOne last note so I am not filling your inbox. Your price of {price} for {plan} stays locked for six months, so there is no rush.\n\nIf the timing is off, no problem at all. If you would like us to take the yard off your plate, reply here or text (636) 375-4342 and I will get you on the schedule this week.' }
+];
+var FU_FOOTER = '\n\n\u2014 Corey\nCL Professional Pet Services LLC \u00b7 St. Peters, MO \u00b7 (636) 375-4342 \u00b7 clpropetservices.com\nReply STOP and we\u2019ll leave you off future emails.';
+function fuFill_(t, r) { return String(t).split('{first}').join(r.first).split('{price}').join(r.price).split('{plan}').join(r.plan); }
+/* Which quotes are due which step, today. Pure, so it can be tested. */
+function followupsDue_(rows, now) {
+  now = now || new Date();
+  var H = {}; HEADERS.forEach(function(h, i) { H[h] = i; });
+  var latest = {}, NOT = { VIEW:1, QVIEW:1, OUTAREA:1, WAITLIST:1, AUTH:1, SPEND:1, CONFIG:1 }, auths = {};
+  for (var i = 1; i < rows.length; i++) {
+    var t = String(rows[i][H.type] || '');
+    if (t === 'AUTH') { auths[String(rows[i][H.zip] || '')] = 1; continue; }
+    if (NOT[t]) continue;
+    var id = String(rows[i][H.id]), key = String(rows[i][H.created] || '');
+    if (!latest[id] || key >= latest[id].key) latest[id] = { key: key, r: rows[i], anyType: {} };
+  }
+  var due = [];
+  Object.keys(latest).forEach(function(id) {
+    var r = latest[id].r, st = String(r[H.status] || 'new'), notes = String(r[H.crmnotes] || ''), type = String(r[H.type] || '');
+    if (st !== 'new' || auths[id]) return;                                   // called, closed, lost, cancelled: not ours to chase
+    if (type === 'ACTIVATE' || type === 'DECLINED' || type === 'COMMERCIAL') return;
+    if (/\[QA:[ad]\]/.test(notes)) return;                                   // answered
+    if (/\[(ATT|TX|NOEM|TM):/.test(notes)) return;                           // somebody reached out, or they asked to be left alone, or a test
+    var email = String(r[H.email] || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    var price = String(r[H.price] || '').split(',')[0].split(' (')[0].trim();
+    if (price.indexOf('$') < 0 || String(r[H.manual] || '').toUpperCase() === 'YES') return;   // no price to remind them of
+    var created = new Date(r[H.created]); if (isNaN(created.getTime())) return;
+    var ageDays = (now.getTime() - created.getTime()) / 86400000;
+    if (ageDays > 21) return;                                                 // too old to chase by email
+    var sent = {}; (notes.match(/\[FE:(\d)@(\d{4}-\d{2}-\d{2})\]/g) || []).forEach(function(m) { var mm = m.match(/\[FE:(\d)@([^\]]+)\]/); sent[mm[1]] = mm[2]; });
+    var next = null;
+    FU_STEPS.forEach(function(sstep) { if (!next && !sent[sstep.step] && ageDays >= sstep.afterDays && (sstep.step === 1 || sent[sstep.step - 1])) next = sstep; });
+    if (!next) return;
+    if (next.step === 2 && sent[1] && (now.getTime() - new Date(sent[1] + 'T12:00:00').getTime()) / 86400000 < 3) return;   // not two emails in three days
+    var name = String(r[H.name] || '').trim().split(/\s+/)[0] || 'there';
+    var plan = String(r[H.service] || '').toLowerCase() || 'your plan';
+    due.push({ id: id, step: next.step, email: email, first: name, price: price, plan: plan, notes: notes });
+  });
+  return due;
+}
+function quoteFollowups() {
+  if (cfg_('fu_emails') !== 'on') { Logger.log('Follow-up emails are off (CONFIG fu_emails).'); return { ok:true, off:true, sent:0 }; }
+  var sh = sheet_(), rows = sh.getDataRange().getValues(), due = followupsDue_(rows, new Date()), sent = 0, today = new Date().toISOString().slice(0, 10);
+  var idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes');
+  due.slice(0, 40).forEach(function(d) {
+    var left = 0; try { left = MailApp.getRemainingDailyQuota(); } catch (e) { left = 1; }
+    if (left < 5) return;   // leave room for the lead alerts
+    var step = FU_STEPS[d.step - 1];
+    try {
+      MailApp.sendEmail({ to: d.email, subject: fuFill_(step.subject, d), body: fuFill_(step.body, d) + FU_FOOTER, name: 'CL Professional Pet Services', replyTo: NOTIFY_CC });
+      sent++;
+      for (var i = 1; i < rows.length; i++) if (String(rows[i][idCol]) === d.id) sh.getRange(i + 1, nCol + 1).setValue(safeCell_('[FE:' + d.step + '@' + today + '] ' + String(rows[i][nCol] || '')));
+    } catch (e) {}
+  });
+  return { ok:true, due: due.length, sent: sent };
+}
+function setupFollowups() {
+  ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'quoteFollowups') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('quoteFollowups').timeBased().everyDays(1).atHour(9).create();
+  Logger.log('Follow-up emails scheduled for 9am daily. They send only while the switch in the tracker (Email > automatic follow-ups) is on. Due right now: ' + JSON.stringify(followupsDue_(sheet_().getDataRange().getValues(), new Date()).map(function(d) { return d.first + ' step ' + d.step; })));
+}
 /* ---- the Monday push: last week in numbers, to both phones ----
    Jesse: "a Monday morning push". Goes through the same free ntfy topic
    as new leads (setupPush). Everything in it is already in the sheets. */
@@ -1193,6 +1268,7 @@ function setupSweepAndGo() {
   ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'sgSync') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('sgSync').timeBased().everyDays(1).atHour(4).create();
   try { setupWeeklyPush(); } catch (e) { Logger.log('weekly push not scheduled: ' + e); }
+  try { setupFollowups(); } catch (e) { Logger.log('follow-ups not scheduled: ' + e); }
   var s = sgSync();
   Logger.log('First sync: ' + JSON.stringify(s, null, 1));
   return s;
