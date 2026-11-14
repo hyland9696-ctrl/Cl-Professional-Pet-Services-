@@ -126,6 +126,8 @@ function clppsLeadSource(){
    for the visit so the quote they go on to ask for carries it. */
 (function(){ try { var r = clppsParam('ref').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30); if (r) clppsStore('lead_ref', r); } catch (e) {} })();
 function clppsLeadRef(){ try { return clppsStore('lead_ref') || ''; } catch (e) { return ''; } }
+/* the quote page says a word to somebody who came through a customer's link */
+try { document.addEventListener('DOMContentLoaded', function(){ try { var n = document.getElementById('ref-note'); if (n && clppsLeadRef()) n.style.display = 'block'; } catch (e) {} }); } catch (e) {}
 /* The campaign and ad names remembered for this visit, or ''. */
 function clppsLeadCampaign(){ try { return clppsStore('lead_camp') || ''; } catch (e) { return ''; } }
 function clppsLeadAd(){ try { return clppsStore('lead_ad') || ''; } catch (e) { return ''; } }

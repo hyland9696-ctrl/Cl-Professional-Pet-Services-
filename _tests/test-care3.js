@@ -25,9 +25,12 @@ const refCode = (l) => { const first = String(l.name).trim().split(/\s+/)[0].toL
     await p.goto(ORIGIN + '/#quote'); await p.waitForTimeout(700);   // on to the quote without the tag, as a person would
     await p.fill('#q-zip', '63376'); await p.waitForTimeout(400);
     await p.fill('#qf2-name', 'Gina Guest'); await p.fill('#qf2-phone', '(636) 375-0104');
+    ok('somebody who came through a customer\'s link is told so on the quote page', await p.isVisible('#ref-note') && /A customer of ours sent you/.test(await p.textContent('#ref-note')));
     await p.fill('#qf2-email', 'gina@gmail.com'); await p.fill('#qf2-addr', '12 Elm St');
+    await p.selectOption('#qf2-how', 'Nextdoor');
     await p.click('#q-see-btn'); await p.waitForTimeout(700);
     const lead = posts.find(l => l && l.type === 'ENQUIRY');
+    ok('how they heard rides along in their own words, beside the measured source', lead && /\[HH:Nextdoor\]/.test(lead.crmnotes), lead && lead.crmnotes);
     ok('the quote row carries the referral code', lead && /\[RF:dana-1nx\]/.test(lead.crmnotes), lead && lead.crmnotes);
     // the text-us button: on a phone, beside the call button, and the call button stays first
     const fabs = await p.$$eval('.fab', els => els.map(e => ({ href: e.getAttribute('href'), shown: getComputedStyle(e).display !== 'none' })));

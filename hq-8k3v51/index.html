@@ -1450,7 +1450,7 @@ try { if (localStorage.getItem('clpps_toolmore') === 'open') document.addEventLi
 function toggleNumbers(){
   var box = document.getElementById('numbers'), open = box.style.display === 'none';
   box.style.display = open ? 'block' : 'none';
-  if (open){ loadBilling(false); loadJobs(false); }
+  if (open){ loadBilling(false); loadJobs(false); loadWeather(); }
   // the panel wants the whole history; the list only ever needed a month
   if (open && trafficDaysLoaded < TRAFFIC_DAYS_FULL) loadLeads(false, null, true, TRAFFIC_DAYS_FULL);
   document.getElementById('numbersArrow').innerHTML = open ? '&#9652;' : '&#9662;';
@@ -1574,13 +1574,13 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
   // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
   // ll = lat,lng from Sweep&Go's dispatch board; sgid = their client id. Both written by the nightly sync.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1616,6 +1616,8 @@ function fuParse(crmnotes){
     else if (hit[1] === 'SGID') m.sgid = hit[2];
     else if (hit[1] === 'PZ') m.pz = hit[2];       // paused in Sweep&Go: start~end
     else if (hit[1] === 'ET') m.et = hit[2];       // Sweep&Go's estimate for the stop, minutes
+    else if (hit[1] === 'HH') m.hh = hit[2];       // how they heard about us, in their words, from the form
+    else if (hit[1] === 'SGC') m.sgc = hit[2];     // signed up in Sweep&Go through the API, date
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -1656,7 +1658,9 @@ function fuCompose(m){
          (m.ll ? '[LL:' + m.ll + '] ' : '') +
          (m.sgid ? '[SGID:' + m.sgid + '] ' : '') +
          (m.pz ? '[PZ:' + m.pz + '] ' : '') +
-         (m.et ? '[ET:' + m.et + '] ' : '') + (m.text || '');
+         (m.et ? '[ET:' + m.et + '] ' : '') +
+         (m.hh ? '[HH:' + m.hh + '] ' : '') +
+         (m.sgc ? '[SGC:' + m.sgc + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -3524,6 +3528,47 @@ function sgDaysImport(){
   };
   next();
 }
+/* ---- sign-up into Sweep&Go from the card ----
+   The script checks Sweep&Go's own price for the ZIP, dogs and plan
+   against the quote. A match creates the customer; a mismatch comes back
+   here for a decision. */
+var sgcBusy = {};
+function sgCreateLead(id, force){
+  if (sgcBusy[id] || !CRM_ENDPOINT) return;
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  var out = document.getElementById('sgc-out-' + id), btn = document.getElementById('sgc-' + id);
+  sgcBusy[id] = true; if (btn){ btn.disabled = true; btn.textContent = 'Asking Sweep&Go\u2026'; }
+  var say = function(h){ if (out) out.innerHTML = '<div style="font-weight:400;color:#2B3A34;margin-top:6px;">' + h + '</div>'; };
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'sgcreate', key: KEY, id: id, force: !!force }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      sgcBusy[id] = false; if (btn){ btn.disabled = false; btn.innerHTML = '&#10133; Sign them up in Sweep&amp;Go'; }
+      if (d && d.ok){
+        var m = fuParse(l.crmnotes); m.sgc = new Date().toISOString().slice(0, 10); if (!m.cd) m.cd = m.sgc; l.crmnotes = fuCompose(m); l.status = 'closed'; l.updated = new Date().toISOString();
+        saveLocal(); render(); toast((l.name || 'Customer') + ' is in Sweep&Go' + (d.forced ? ' at $' + d.sgPrice : '') + ' \u2713');
+        return;
+      }
+      var r = d && d.reason;
+      if (r === 'price') say('&#9888;&#65039; Sweep&amp;Go would bill <strong>$' + d.sgPrice + '/' + (d.sgInterval === 'monthly' ? 'mo' : esc(d.sgInterval)) + '</strong> for this ZIP, dogs and plan; the quote was <strong>$' + d.quoted + '/mo</strong>' + (d.deo ? ' before deodorize' : '') + '. Sweep&amp;Go\u2019s price table and the website disagree here. ' +
+        '<button onclick="sgCreateLead(\'' + esc(id) + '\', true)" style="padding:6px 10px;min-height:34px;font-size:12px;margin:4px 4px 0 0;">Sign them up at Sweep&amp;Go\u2019s $' + d.sgPrice + '</button> <span style="color:#707070;">or add them by hand at the quoted price and fix the table in Sweep&amp;Go.</span>');
+      else if (r === 'exists') say('Sweep&amp;Go already has an active client with ' + esc(d.email || 'this email') + '. Nothing created; the nightly sync will match them up.');
+      else if (r === 'done') say('Already signed up through here on ' + esc(d.when || '') + '.');
+      else if (r === 'zip') say('Sweep&amp;Go says ZIP ' + esc(d.zip || '') + ' is outside its service area. Add the ZIP there first.');
+      else if (r === 'no email') say('They gave no email, and Sweep&amp;Go needs one. Tap Edit, add it, try again.');
+      else if (r === 'no plan' || r === 'dogs') say('Sweep&amp;Go needs a plan and 1 to 5 dogs. Tap Edit and check those.');
+      else if (r === 'wait') say('Sweep&amp;Go asks for a minute between tries for the same email.');
+      else if (d && d.error === 'bad pin'){ badKey(); }
+      else say('Sweep&amp;Go did not take it: ' + esc(d && d.error || d && d.reason || 'no answer') + '. Add them by hand this time.');
+    })
+    .catch(function(){ sgcBusy[id] = false; if (btn){ btn.disabled = false; btn.innerHTML = '&#10133; Sign them up in Sweep&amp;Go'; } say('No connection. Try again in a moment.'); });
+}
+function sgAutoOn(){ var c = config.sg_auto_create; return !!c && String(c.value) === 'on'; }
+function toggleSgAuto(on){
+  var v = on ? 'on' : 'off', now = new Date().toISOString();
+  config.sg_auto_create = { value: v, created: now }; saveStatsCache(); render();
+  post({ action: 'lead', lead: { id: 'cfg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), created: now, type: 'CONFIG', name: 'sg_auto_create', notes: v, status: 'config', crmnotes: '' } },
+    on ? 'Accepted quotes now go into Sweep&Go on their own when the price matches' : 'Automatic sign-up is off; the button on each card still works');
+}
 /* ---- email blast ----
    Who can be mailed: a real email, not a team phone's test lead, not
    deleted, not somebody who asked to be left alone, one email once. The
@@ -3665,7 +3710,8 @@ function toggleImport(){
   var opening = p.style.display === 'none';
   p.style.display = opening ? 'block' : 'none';
   var auto = document.getElementById('sg-auto'), si = sgSyncInfo();
-  if (auto){ auto.style.display = si ? 'block' : 'none'; if (si) auto.innerHTML = '<strong>Connected to Sweep&amp;Go.</strong> Customers, service days, prices and billing sync every night at 4am, and within minutes of a change. Last sync ' + esc(agoText(si.at)) + '. The uploads below are only for a one-off. <button onclick="sgSyncNow()" style="padding:4px 8px;min-height:28px;font-size:11px;margin-left:4px;">Sync now</button>'; }
+  if (auto){ auto.style.display = si ? 'block' : 'none'; if (si) auto.innerHTML = '<strong>Connected to Sweep&amp;Go.</strong> Customers, service days, prices and billing sync every night at 4am, and within minutes of a change. Last sync ' + esc(agoText(si.at)) + '. The uploads below are only for a one-off. <button onclick="sgSyncNow()" style="padding:4px 8px;min-height:28px;font-size:11px;margin-left:4px;">Sync now</button>' +
+    '<label style="display:flex;align-items:flex-start;gap:8px;margin-top:8px;font-weight:400;"><input type="checkbox" id="sg-auto-box" ' + (sgAutoOn() ? 'checked' : '') + ' onchange="toggleSgAuto(this.checked)" style="margin-top:3px;"> <span><strong>Sign up accepted quotes in Sweep&amp;Go automatically.</strong> The moment someone accepts on the website, the script creates them in Sweep&amp;Go with their address, dogs, plan and deodorize, if Sweep&amp;Go\u2019s own price for that ZIP matches the quote. When it does not match, nothing is created and the card gets a button to decide.</span></label>'; }
   if (opening) p.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function sgRead(id){
@@ -4419,6 +4465,27 @@ function dayPlan(k){
   if (stops.length){ miles += home; drive += hmin; t += hmin; }
   return { k: k, stops: stops, miles: miles, drive: drive, onsite: onsite, total: drive + onsite, money: money, dogs: dogs, start: parseInt(sm[0], 10) * 60 + parseInt(sm[1], 10), end: t, approx: stops.some(function(x){ return x.approx; }) };
 }
+/* Rain and temperature for the week, from Open-Meteo (free, no key),
+   for the start address. Kept three hours. The Day plan shows each day's
+   rain chance and lows; the Deodorize card uses the lows for the switch. */
+var weather = null;
+function loadWeather(){
+  try { var c = JSON.parse(localStorage.getItem('clpps_wx') || 'null'); if (c && c.at && Date.now() - c.at < 3 * 3600000){ weather = c.data; return; } } catch (e) {}
+  var b = routeBase().pt;
+  fetch('https://api.open-meteo.com/v1/forecast?latitude=' + b[0].toFixed(3) + '&longitude=' + b[1].toFixed(3) + '&daily=precipitation_probability_max,temperature_2m_min,temperature_2m_max&temperature_unit=fahrenheit&timezone=America%2FChicago&forecast_days=7')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || !d.daily || !d.daily.time) return;
+      var out = {}; d.daily.time.forEach(function(t, i){ out[t] = { rain: d.daily.precipitation_probability_max[i], lo: Math.round(d.daily.temperature_2m_min[i]), hi: Math.round(d.daily.temperature_2m_max[i]) }; });
+      weather = out; try { localStorage.setItem('clpps_wx', JSON.stringify({ at: Date.now(), data: out })); } catch (e) {}
+      render();
+    })
+    .catch(function(){});
+}
+function wxFor(dateKey){ return weather && weather[dateKey] || null; }
+function wxChip(w){ if (!w) return ''; return '<span style="color:' + (w.rain >= 50 ? '#2980ef' : '#9aa5a0') + ';font-size:11px;white-space:nowrap;">' + (w.rain >= 30 ? '&#9748; ' + w.rain + '% ' : '') + w.lo + '&ndash;' + w.hi + '&deg;</span>'; }
+/* the date each weekday key next falls on, from today */
+function nextDateFor(k){ var days = ['sun','mon','tue','wed','thu','fri','sat'], i = days.indexOf(k); if (i < 0) return ''; var d = new Date(); var diff = (i - d.getDay() + 7) % 7; d.setDate(d.getDate() + diff); return d.toISOString().slice(0, 10); }
 var schedDay = null;
 function pickSchedDay(k){ schedDay = k; render(); var el = document.getElementById('dayplan'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 function todayKey(){ return ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()]; }
@@ -4445,7 +4512,7 @@ function renderDayPlan(rp){
     '<div class="fold-body">' +
     // the week, one line a day
     '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px;"><tr style="color:#707070;text-align:left;"><th>Day</th><th>Stops</th><th>Dogs</th><th>Road mi</th><th>Hours</th><th>Brings in</th></tr>' +
-    withStops.map(function(d){ var p = plans[d]; return '<tr onclick="pickSchedDay(\'' + d + '\')" style="border-top:1px solid #e6ece8;cursor:pointer;' + (d === k ? 'font-weight:700;color:#0F6E56;' : '') + '"><td>' + dayLabel(d) + (d === today ? ' <span style="font-size:10px;color:#188663;">today</span>' : '') + '</td><td>' + p.stops.length + '</td><td>' + p.dogs + '</td><td>~' + Math.round(p.miles) + '</td><td>' + hoursText(p.total) + '</td><td>' + money(p.money) + '</td></tr>'; }).join('') + '</table>' +
+    withStops.map(function(d){ var p = plans[d], w = wxFor(nextDateFor(d)); return '<tr onclick="pickSchedDay(\'' + d + '\')" style="border-top:1px solid #e6ece8;cursor:pointer;' + (d === k ? 'font-weight:700;color:#0F6E56;' : '') + '"><td>' + dayLabel(d) + (d === today ? ' <span style="font-size:10px;color:#188663;">today</span>' : '') + (w ? '<br>' + wxChip(w) : '') + '</td><td>' + p.stops.length + '</td><td>' + p.dogs + '</td><td>~' + Math.round(p.miles) + '</td><td>' + hoursText(p.total) + '</td><td>' + money(p.money) + '</td></tr>'; }).join('') + '</table>' +
     // the chosen day
     '<div style="display:flex;gap:4px;flex-wrap:wrap;margin:10px 0 6px;">' + withStops.map(function(d){ return '<button onclick="pickSchedDay(\'' + d + '\')" style="padding:6px 10px;min-height:34px;font-size:12px;border-radius:8px;border:1px solid ' + (d === k ? '#188663' : '#cfd8d3') + ';background:' + (d === k ? '#188663' : '#fff') + ';color:' + (d === k ? '#fff' : '#2B3A34') + ';font-weight:700;cursor:pointer;font-family:inherit;">' + dayLabel(d) + '</button>'; }).join('') + '</div>' +
     '<div class="stats" style="margin-bottom:6px;grid-template-columns:1fr 1fr;">' +
@@ -4802,6 +4869,9 @@ function renderDeo(){
   var person = function(l, extra){ return '<div style="font-size:12.5px;padding:3px 0 3px 10px;"><a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(l.name || '(no name)') + '</a> <span style="color:#707070;">' + extra + '</span></div>'; };
   var h = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#129532; Deodorize <span style="font-size:11px;font-weight:600;color:' + (season === 'on' ? '#188663' : '#b45309') + ';">season ' + season.toUpperCase() + '</span></div>' +
     '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">Who has it on their plan, what it brings in, and who is waiting for the season. The switch is at the top of the page.</div>' +
+    (function(){ if (!weather) return ''; var ks = Object.keys(weather).sort().slice(0, 7), lows = ks.map(function(k){ return weather[k].lo; }); if (!lows.length) return ''; var minLo = Math.min.apply(null, lows), maxLo = Math.max.apply(null, lows);
+      var msg = season === 'on' && minLo < 50 ? 'This week\u2019s lows drop to ' + minLo + '&deg;F, below the 50&deg; line: time to flip the season OFF.' : season === 'off' && minLo >= 50 ? 'Every low this week is ' + minLo + '&deg;F or above: the season could go back ON.' : 'Lows this week ' + minLo + '&ndash;' + maxLo + '&deg;F' + (season === 'on' ? ', fine to keep spraying.' : ', stay off.');
+      return '<div style="background:#F3F8F5;border-radius:9px;padding:7px 10px;font-size:12px;color:#2B3A34;margin-bottom:8px;">&#127777;&#65039; ' + msg + '</div>'; })() +
     '<div class="stats" style="margin-bottom:8px;">' +
       '<div><div class="big">' + on.length + '</div><div class="sub">have it' + (act.length ? ' &middot; ' + Math.round(100 * on.length / act.length) + '% of ' + act.length : '') + '</div></div>' +
       '<div><div class="big">' + money(mo) + '</div><div class="sub">a month &middot; ' + money(mo * 12) + '/yr</div></div>' +
@@ -6027,7 +6097,8 @@ function render(){
           (fu.tx ? '&#128172; ' + fu.tx + ' text' + (fu.tx > 1 ? 's' : '') + ' &middot; last ' + esc(fu.txDate) : '') + '</div>'
       : '';
     var icChip = fu.ic === 'w' ? '<div style="color:#5E35B1;font-size:12px;font-weight:700;margin-top:6px;">&#128142; Initial clean fee: WAIVED</div>' : '';
-    var srcChip = fu.src ? '<div style="color:#8a6d1a;font-size:12px;font-weight:600;margin-top:6px;">&#128227; Source: ' + esc(fu.src) + '</div>' : '';
+    var srcChip = fu.src ? '<div style="color:#8a6d1a;font-size:12px;font-weight:600;margin-top:6px;">&#128227; Source: ' + esc(fu.src) + (fu.hh ? ' <span style="font-weight:400;color:#707070;">&middot; they said: ' + esc(fu.hh) + '</span>' : '') + '</div>'
+      : (fu.hh ? '<div style="color:#8a6d1a;font-size:12px;font-weight:600;margin-top:6px;">&#128227; How they heard of us: ' + esc(fu.hh) + '</div>' : '');
     var refName = referrerOf(fu);
     var refChip = refName
       ? '<div style="color:#0F6E56;font-size:12px;font-weight:600;margin-top:6px;">&#129309; Referred by ' + esc(refName) + (fu.rb ? '' : ' <span style="color:#707070;font-weight:400;">(used their link)</span>') +
@@ -6080,8 +6151,10 @@ function render(){
     }
     var azBadge = auths[l.id]
       ? '<div style="background:#E1F5EE;color:#0F6E56;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;margin-top:8px;">&#9989; AUTHORIZED the quoted price on ' + esc(auths[l.id]) +
-        ((l.status || 'new') !== 'closed' ? ' &mdash; add them in Sweep&amp;Go, send the start date, and mark Closed!' : '') + '</div>'
-      : '';
+        (fu.sgc ? ' &mdash; signed up in Sweep&amp;Go ' + esc(fu.sgc) : ((l.status || 'new') !== 'closed' ? ' &mdash; put them in Sweep&amp;Go and send the start date.' : '')) +
+        (!fu.sgc && (l.status || 'new') !== 'closed' && sgSyncInfo() ? '<div style="margin-top:6px;"><button onclick="sgCreateLead(\'' + esc(l.id) + '\')" id="sgc-' + esc(l.id) + '" style="background:#188663;color:#fff;border:none;border-radius:8px;padding:8px 12px;min-height:38px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#10133; Sign them up in Sweep&amp;Go</button> <span style="font-weight:400;color:#555;">name, address, dogs, plan, deodorize; Sweep&amp;Go bills from its own price table and this checks it matches first</span></div>' : '') +
+        '<div id="sgc-out-' + esc(l.id) + '"></div></div>'
+      : (fu.sgc ? '<div style="background:#E1F5EE;color:#0F6E56;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:700;margin-top:8px;">&#9989; Signed up in Sweep&amp;Go ' + esc(fu.sgc) + '</div>' : '');
     var rvRow = '';
     if (reviewDue(l)){
       rvRow = '<div style="background:#FFF8E1;border-radius:9px;padding:8px 11px;margin-top:8px;font-size:12.5px;color:#7a5c00;font-weight:700;">' +

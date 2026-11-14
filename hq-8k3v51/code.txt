@@ -377,10 +377,21 @@ function publicStats_() {
    only these two fields is in Google's free monthly allowance many times
    over at once a day. Leave the key blank and nothing is fetched; the
    numbers come from the tracker instead. */
+/* The Places key and the Place ID live in Script Properties (PLACES_KEY,
+   PLACE_ID); the two variables above are only a fallback. Run
+   setupReviews() once and the count refreshes every Monday on its own. */
+function placesKey_() { try { return PropertiesService.getScriptProperties().getProperty('PLACES_KEY') || PLACES_API_KEY; } catch (e) { return PLACES_API_KEY; } }
+function placeId_() { try { return PropertiesService.getScriptProperties().getProperty('PLACE_ID') || PLACE_ID; } catch (e) { return PLACE_ID; } }
+function setupReviews() {
+  if (!placesKey_() || !placeId_()) throw new Error('Add PLACES_KEY and PLACE_ID under Project Settings > Script Properties first');
+  ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'refreshReviews') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('refreshReviews').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(6).create();
+  refreshReviews();
+}
 function refreshReviews() {
-  if (!PLACES_API_KEY || !PLACE_ID) { Logger.log('No Places key or Place ID set; nothing fetched.'); return; }
-  var url = 'https://maps.googleapis.com/maps/api/place/details/json?place_id=' + encodeURIComponent(PLACE_ID) +
-            '&fields=rating,user_ratings_total&key=' + encodeURIComponent(PLACES_API_KEY);
+  if (!placesKey_() || !placeId_()) { Logger.log('No Places key or Place ID set; nothing fetched.'); return; }
+  var url = 'https://maps.googleapis.com/maps/api/place/details/json?place_id=' + encodeURIComponent(placeId_()) +
+            '&fields=rating,user_ratings_total&key=' + encodeURIComponent(placesKey_());
   var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
   var d = JSON.parse(res.getContentText() || '{}');
   var r = d && d.result;
@@ -455,6 +466,10 @@ function doPost(e) {
     if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
     return json_(sgJobs_());
   }
+  if (body.action === 'sgcreate') {
+    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    try { return json_(sgCreate_(String(body.id || ''), !!body.force)); } catch (e3) { return json_({ok:false, reason:'error', error:String(e3 && e3.message || e3).slice(0, 200)}); }
+  }
   if (body.action === 'sgsync') {
     if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
     try { return json_(sgSync()); } catch (e2) { return json_({ok:false, error:String(e2 && e2.message || e2).slice(0, 200)}); }
@@ -513,6 +528,11 @@ function doPost(e) {
     try { notifyLead_(l); } catch (e) {}
     try { pushLead_(l); } catch (e) {}
     if (String(l.type) === 'CONFIG') { try { CacheService.getScriptCache().remove('public_stats'); } catch (e) {} }
+    // an acceptance, and the office has switched on automatic sign-up:
+    // put them in Sweep&Go now, if Sweep&Go's own price agrees with the quote
+    if ((t0 === 'ACTIVATE' || t0 === 'AUTH') && cfg_('sg_auto_create') === 'on') {
+      try { sgCreate_(t0 === 'AUTH' ? String(l.zip || '') : String(l.id || ''), false); } catch (e4) {}
+    }
     return json_({ok:true});
   }
 
@@ -1002,6 +1022,96 @@ function sgHook_(word, e) {
     } catch (e3) {}
   }
   return { ok:true, event: ev };
+}
+/* The latest value of a CONFIG row, or ''. */
+function cfg_(name) {
+  try {
+    var sh = sheet_(), rows = sh.getDataRange().getValues(), iT = HEADERS.indexOf('type'), iN = HEADERS.indexOf('name'), iV = HEADERS.indexOf('notes');
+    for (var i = rows.length - 1; i >= 1; i--) if (String(rows[i][iT]) === 'CONFIG' && String(rows[i][iN]) === name) return String(rows[i][iV] == null ? '' : rows[i][iV]);
+  } catch (e) {}
+  return '';
+}
+/* ---- sign-up straight into Sweep&Go ----
+   Jesse: "if they pressed accept, it will automatically upload all the
+   information, including the price and dogs and once a week". Everything
+   but the price goes across as typed. Sweep&Go sets the price from ITS
+   OWN table for that ZIP, dogs and frequency - the API has no price
+   field - so before creating anyone we ask Sweep&Go what it would charge
+   and compare it with the quote. Equal: create. Different: stop and say
+   so, unless the office taps "add anyway". Nothing is created twice:
+   Sweep&Go refuses an email it already has, and we stamp [SGC:date]. */
+var SG_FREQ = { 'weekly': 'once_a_week', 'every other week': 'bi_weekly', 'twice a week': 'two_times_a_week', 'monthly': 'once_a_month', 'one-time': 'one_time' };
+function sgSplitAddress_(addr, zip) {
+  // "316 Old Forester Dr., Lake St. Louis, MO 63367" -> street, city, state
+  var a = String(addr || '').replace(/,\s*USA$/i, '').split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+  var street = a[0] || '', city = a[1] || '', state = 'MO';
+  var tail = a.slice(2).join(' ') + ' ' + (a[1] || '');
+  var sm = tail.match(/\b(MO|IL|Missouri|Illinois)\b/i);
+  if (sm) state = /^il/i.test(sm[1]) ? 'IL' : 'MO'; else if (/^62/.test(String(zip || ''))) state = 'IL';
+  if (a.length >= 2 && /\b(MO|IL|Missouri|Illinois)\b/i.test(a[1]) && !a[2]) city = a[1].replace(/\b(MO|IL|Missouri|Illinois)\b.*$/i, '').trim();
+  return { street: street, city: city, state: state };
+}
+function sgQuotedBase_(price) {
+  var p = String(price || ''), m = p.match(/\$?(\d+(?:\.\d+)?)/), total = m ? parseFloat(m[1]) : 0;
+  var d = p.match(/includes \$(\d+(?:\.\d+)?) deodorize/i), deo = d ? parseFloat(d[1]) : 0;
+  return { total: total, base: total - deo, deo: deo, monthly: /\/mo|month/i.test(p) };
+}
+function sgCreate_(id, force) {
+  if (!id) return { ok:false, reason:'no id' };
+  var sh = sheet_(), l = latestRow_(sh, id);
+  if (!l) return { ok:false, reason:'not found' };
+  var notes = String(l.crmnotes || '');
+  if (/\[SGC:/.test(notes)) return { ok:false, reason:'done', when: (notes.match(/\[SGC:([^\]]*)\]/) || [])[1] };
+  var email = String(l.email || '').trim().toLowerCase(), zip = String(l.zip || '').match(/\b(6[23]\d{3})\b/) ? String(l.zip).match(/\b(6[23]\d{3})\b/)[1] : (String(l.address || '').match(/\b(6[23]\d{3})\b/) || [])[1] || '';
+  var name = String(l.name || '').trim().split(/\s+/), first = name[0] || '', last = name.slice(1).join(' ') || '-';
+  var plan = String(l.service || '').toLowerCase(), freq = SG_FREQ[plan], dogs = parseInt(l.dogs, 10) || 0;
+  if (!email) return { ok:false, reason:'no email' };
+  if (!zip) return { ok:false, reason:'no zip' };
+  if (!freq) return { ok:false, reason:'no plan', plan: plan };
+  if (!dogs || dogs > 5) return { ok:false, reason:'dogs', dogs: l.dogs };
+  // 1. does Sweep&Go cover the ZIP, and is the email new to it
+  var zc = sgFetch_('/api/v2/client_on_boarding/check_zip_code_exists', 'post', { value: zip });
+  if (String(zc.exists) !== 'exists') return { ok:false, reason:'zip', zip: zip };
+  var ex = sgFetch_('/api/v2/client_on_boarding/check_client_email_exists?email=' + encodeURIComponent(email));
+  if (ex && ex.exists === true) return { ok:false, reason:'exists', email: email };
+  // 2. what Sweep&Go would charge, against what the website quoted
+  var q = sgQuotedBase_(l.price), sgPrice = 0, deoId = null, interval = 'monthly';
+  var pr = sgFetch_('/api/v2/client_on_boarding/price_registration_form?last_time_yard_was_thoroughly_cleaned=one_month&clean_up_frequency=' + freq + '&number_of_dogs=' + dogs + '&zip_code=' + zip);
+  if (pr && pr.price) { sgPrice = parseFloat(pr.price.value) || 0; interval = String(pr.price.billing_interval || 'monthly'); }
+  (pr && pr.cross_sells || []).forEach(function(c) { if (!deoId && /deodor|sanit/i.test(String(c.name || ''))) deoId = c.id; });
+  var sgMonthly = interval === 'monthly' ? sgPrice : interval === 'weekly' ? sgPrice * 4.33 : sgPrice * (freq === 'two_times_a_week' ? 8.67 : freq === 'bi_weekly' ? 2.17 : freq === 'once_a_month' ? 1 : 4.33);
+  var wantsDeo = /every|other/i.test(String(l.deodorize || '')) && !/season reopens/i.test(String(l.deodorize || ''));
+  var priceOk = freq === 'one_time' ? true : (q.base > 0 && sgMonthly > 0 && Math.abs(sgMonthly - q.base) <= 1);
+  if (!priceOk && !force) return { ok:false, reason:'price', sgPrice: Math.round(sgMonthly * 100) / 100, sgInterval: interval, quoted: q.base, quotedTotal: q.total, deo: q.deo };
+  // 3. create
+  var adr = sgSplitAddress_(l.address, zip), how = (notes.match(/\[HH:([^\]]*)\]/) || [])[1] || '', src = (notes.match(/\[SRC:([^\]]*)\]/) || [])[1] || '';
+  var body = {
+    zip_code: zip, number_of_dogs: dogs, last_time_yard_was_thoroughly_cleaned: 'one_month', clean_up_frequency: freq,
+    first_name: first, last_name: last, email: email, city: adr.city, home_address: adr.street, state: adr.state,
+    cell_phone_number: String(l.phone || '').replace(/\D/g, '').slice(-10),
+    initial_cleanup_required: 1, cleanup_notification_type: 'on_the_way,completed', cleanup_notification_channel: 'sms',
+    how_heard_about_us: how || src ? 'other' : undefined, how_heard_answer: how || src || undefined,
+    additional_comment: ('From the website quote' + (l.price ? ', quoted ' + String(l.price).split(',')[0] : '') + (l.notes ? '. ' + String(l.notes).slice(0, 300) : '')).slice(0, 400),
+    marketing_allowed: 1, marketing_allowed_source: 'open_api', terms_open_api: 1,
+    tracking_field: [ (notes.match(/\[CAMP:([^\]]*)\]/) || [])[1] ? 'utm_campaign=' + (notes.match(/\[CAMP:([^\]]*)\]/) || [])[1] : '', src ? 'utm_source=' + src : '' ].filter(Boolean).join('&') || undefined
+  };
+  if (wantsDeo && deoId) { body.cross_sells = [deoId]; body.cross_sells_names = 'Deodorizing'; }
+  Object.keys(body).forEach(function(k) { if (body[k] === undefined || body[k] === '') delete body[k]; });
+  var r = UrlFetchApp.fetch(SG_BASE + '/api/v1/residential/onboarding', { method: 'put', contentType: 'application/json', payload: JSON.stringify(body), headers: { 'Authorization': 'Bearer ' + sgToken_(), 'Accept': 'application/json' }, muteHttpExceptions: true });
+  var code = r.getResponseCode(), txt = r.getContentText() || '';
+  if (code === 409) return { ok:false, reason:'exists', email: email };
+  if (code === 429) return { ok:false, reason:'wait' };
+  if (code >= 400) return { ok:false, reason:'error', error: ('Sweep&Go ' + code + ': ' + txt).slice(0, 200), sent: body };
+  // 4. stamp it, and the customer is on the books
+  var today = new Date().toISOString().slice(0, 10), data = sh.getDataRange().getValues(), idCol = HEADERS.indexOf('id');
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]) !== String(id)) continue;
+    var old = String(data[i][HEADERS.indexOf('crmnotes')] || '');
+    sh.getRange(i + 1, HEADERS.indexOf('crmnotes') + 1).setValue(safeCell_(sgSetMarkers_(old, { SGC: today, CD: (old.match(/\[CD:([^\]]*)\]/) || [])[1] || today })));
+    sh.getRange(i + 1, HEADERS.indexOf('status') + 1).setValue('closed');
+    sh.getRange(i + 1, HEADERS.indexOf('updated') + 1).setValue(new Date().toISOString());
+  }
+  return { ok:true, created: true, sgPrice: Math.round(sgMonthly * 100) / 100, quoted: q.base, forced: !priceOk, deo: !!(wantsDeo && deoId), sent: body };
 }
 /* ---- the Monday push: last week in numbers, to both phones ----
    Jesse: "a Monday morning push". Goes through the same free ntfy topic

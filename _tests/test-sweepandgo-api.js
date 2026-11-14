@@ -83,7 +83,7 @@ const { ok, done } = reporter();
   const p = await ctx.newPage();
   await p.clock.install({ time: new Date('2026-11-12T15:00:00Z') });   // a Thursday
   const errs = []; p.on('pageerror', e => errs.push(e.message));
-  const posts = [];
+  const posts = [], sgcreates = [];
   const rows = [
     // pinned by the sync: an exact spot, not the ZIP centre
     { id:'D1', type:'SAVED', name:'Dana Deo', phone:'6363750001', email:'dana@gmail.com', zip:'63376', address:'1 Oak St, St. Peters, MO 63376', dogs:'2', service:'weekly', deodorize:'every visit ($15/treatment)', price:'$151/mo (includes $60 deodorize)', status:'closed', crmnotes:'[CD:2026-06-01] [DAY:thu] [LL:38.79123,-90.60111] [SGID:rcl_ABC] [QA:a] ', created:'2026-06-01T12:00:00Z' },
@@ -91,6 +91,9 @@ const { ok, done } = reporter();
     { id:'P1', type:'SAVED', name:'Paused Pat', phone:'6363750003', email:'pat@gmail.com', zip:'63376', address:'3 Ash St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-05-01] [DAY:thu] [PZ:2026-11-01~2026-12-15] [QA:a] ', created:'2026-05-01T12:00:00Z' },
     { id:'E1', type:'SAVED', name:'Eddie Eow', phone:'6363750002', email:'eddie@gmail.com', zip:'63366', address:'2 Pine St, O\'Fallon, MO 63366', dogs:'1', service:'every other week', deodorize:'no', price:'$95/mo', status:'closed', crmnotes:'[CD:2026-07-01] [DAY:thu] [ET:14] [QA:a] ', created:'2026-07-01T12:00:00Z' },
     { id:'N1', type:'SAVED', name:'Near Ned', phone:'6363750008', email:'ned@gmail.com', zip:'63376', address:'5 Oak St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-08-01] [DAY:thu] [LL:38.79200,-90.60150] [QA:a] ', created:'2026-08-01T12:00:00Z' },
+    // accepted on the website, not in Sweep&Go yet: the card offers the sign-up
+    { id:'A1', type:'ACTIVATE', name:'Ann Accept', phone:'6363750020', email:'ann@gmail.com', zip:'63376', address:'12 Elm St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'called', crmnotes:'[HH:A friend or neighbor] [QA:a] ', created:'2026-11-11T12:00:00Z' },
+    { id:'az1', type:'AUTH', name:'Ann Accept', zip:'A1', price:'$85/mo', service:'weekly', dogs:'1', email:'ann@gmail.com', created:'2026-11-11T13:00:00Z' },
     { id:'Q1', type:'DECLINED', name:'Quote Quinn', phone:'6363750010', email:'quinn@gmail.com', zip:'63376', address:'9 Oak St, St. Peters, MO 63376', dogs:'1', service:'weekly', price:'$85/mo', status:'new', crmnotes:'[LL:38.79300,-90.60200] [QA:d] too much', created:'2026-10-01T12:00:00Z' },
     { id:'k1', type:'CONFIG', name:'sg_last_sync', notes: JSON.stringify({ at:'2026-11-12T09:00:00Z', clients: 94, added: 2, updated: 11, pinned: 90, invoices: 1200, errors: [] }), status:'config', crmnotes:'', created:'2026-11-12T09:00:00Z' },
     { id:'k2', type:'CONFIG', name:'sg_routes', notes: JSON.stringify({ '2026-11-12': [{ who:'Jesse Duncan', min: 250, drive: 70, clean: 180, mi: 61.5, jobs: 20, price: 540 }], '2026-11-11': [{ who:'Jesse Duncan', min: 230, drive: 60, clean: 170, mi: 50, jobs: 18, price: 500 }], '2026-11-10': [{ who:'Jesse Duncan', min: 240, drive: 60, clean: 180, mi: 50, jobs: 20, price: 560 }] }), status:'config', crmnotes:'', created:'2026-11-12T09:00:00Z' },
@@ -102,11 +105,13 @@ const { ok, done } = reporter();
     unpaid: [ { name:'Eddie Eow', owed: 190, n: 2, oldest:'2026-10-05', statuses: { overdue: 1, draft: 1 } }, { name:'Nobody Known', owed: 65, n: 1, oldest:'2026-11-01', statuses: { failed: 1 } } ],
     declining: [ { name:'Eddie Eow', when:'2026-11-08', amount: 95 } ] };
   stubNetwork(p, {});
+  await p.route('**/api.open-meteo.com/**', r => r.fulfill({ contentType:'application/json', body: JSON.stringify({ daily: { time: ['2026-11-12','2026-11-13','2026-11-14','2026-11-15','2026-11-16','2026-11-17','2026-11-18'], precipitation_probability_max: [60, 10, 0, 0, 20, 70, 5], temperature_2m_min: [41, 38, 36, 40, 44, 47, 45], temperature_2m_max: [55, 52, 50, 58, 61, 59, 57] } }) }));
   await p.route('**/script.google.com/**', r => {
     let body = {}; try { body = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
     if (body.action) posts.push(body);
     if (body.action === 'billing') return r.fulfill({ contentType:'application/json', body: JSON.stringify(billing) });
     if (body.action === 'jobs') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, days: 30, visits: 310, minutes: 2790, timed: 300, skipped: 4, skipReasons: { 'Gate locked': 3, 'Client request': 1 }, skippedBy: { 'Eddie Eow': 2, 'Someone Else': 1 }, rate: { byPlan: { weekly: { n: 250, price: 5000, min: 2250, perHour: 133 }, 'every other week': { n: 50, price: 2200, min: 540, perHour: 244 } }, byDogs: { '1': { n: 120, price: 2400, min: 840, perHour: 171 }, '2': { n: 140, price: 3500, min: 1540, perHour: 136 } }, byWeekday: { thu: { n: 60, price: 1500, min: 600, perHour: 150 } } }, byDogs: { '1': { n: 120, median: 7 }, '2': { n: 140, median: 11 }, '3': { n: 40, median: 15 } }, byDate: { '2026-11-11': { visits: 18, skipped: 1, minutes: 170, price: 500 }, '2026-11-10': { visits: 20, skipped: 0, minutes: 190, price: 560 } }, techs: { 'Jesse Duncan': 310 } }) });
+    if (body.action === 'sgcreate'){ sgcreates.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify(body.force ? { ok:true, created:true, forced:true, sgPrice: 95, quoted: 85 } : { ok:false, reason:'price', sgPrice: 95, sgInterval:'monthly', quoted: 85, quotedTotal: 85, deo: 0 }) }); }
     if (body.action === 'sgsync') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, clients: 94, added: 0, updated: 3, errors: [] }) });
     return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: rows }) });
   });
@@ -177,6 +182,26 @@ const { ok, done } = reporter();
   ok('the closed heading carries the month', /\$8,078 billed · \$6,796 in · \$255 owed/.test(await p.$eval('#billing .fsum', e => e.textContent)), await p.$eval('#billing .fsum', e => e.textContent));
   await p.click('#importBtn'); await p.waitForTimeout(300);
   ok('the import panel says the uploads are a one-off now', /Connected to Sweep&Go\. Customers, service days, prices and billing sync every night/.test(await p.textContent('#sg-auto')));
+  /* ---- the automatic sign-up switch ---- */
+  ok('the switch starts off', !(await p.isChecked('#sg-auto-box')));
+  await p.click('#sg-auto-box'); await p.waitForTimeout(400);
+  const cfgPost = posts.find(x => x.action === 'lead' && x.lead && x.lead.type === 'CONFIG' && x.lead.name === 'sg_auto_create');
+  ok('ticking it writes the setting, signed, so the script can act on acceptances', cfgPost && cfgPost.lead.notes === 'on' && cfgPost.key, JSON.stringify(cfgPost));
+  /* ---- sign-up from the card ---- */
+  const ann = (await p.textContent('#card-A1')).replace(/\s+/g, ' ');
+  ok('an accepted quote not yet in Sweep&Go offers the sign-up, and says how they heard', /AUTHORIZED the quoted price/.test(ann) && /Sign them up in Sweep&Go/.test(ann) && /How they heard of us: A friend or neighbor/.test(ann), ann.slice(0, 300));
+  await p.click('#sgc-A1'); await p.waitForTimeout(500);
+  ok('the script is asked, signed, without force', sgcreates.length === 1 && sgcreates[0].id === 'A1' && sgcreates[0].key && !sgcreates[0].force);
+  const after = (await p.textContent('#card-A1')).replace(/\s+/g, ' ');
+  ok('a price mismatch is explained on the card with the two numbers and a choice', /Sweep&Go would bill \$95\/mo for this ZIP, dogs and plan; the quote was \$85\/mo/.test(after) && /Sign them up at Sweep&Go’s \$95/.test(after), after.slice(after.indexOf('would bill'), after.indexOf('would bill') + 200));
+  await p.click('#card-A1 button:has-text("Sign them up at Sweep&Go’s $95")'); await p.waitForTimeout(500);
+  ok('going ahead anyway sends force, closes the card and stamps the date', sgcreates.length === 2 && sgcreates[1].force === true && await p.evaluate(() => { const l = leads.filter(x => x.id === 'A1')[0]; return l.status === 'closed' && /^\d{4}-\d{2}-\d{2}$/.test(fuParse(l.crmnotes).sgc); }) && /signed up in Sweep&Go 2026-11-12/.test((await p.textContent('#card-A1')).replace(/\s+/g, ' ')), (await p.textContent('#card-A1')).replace(/\s+/g, ' ').slice(0, 200));
+  /* ---- weather ---- */
+  await p.evaluate(() => { schedDay = 'thu'; render(); }); await p.waitForTimeout(300);
+  const dp = (await p.textContent('#dayplan')).replace(/\s+/g, ' ');
+  ok('each day in the plan shows its rain chance and temperatures', /Thu today\s*☔ 60% 41–55°/.test(dp), dp.slice(0, 200));
+  const deo = (await p.textContent('#deo')).replace(/\s+/g, ' ');
+  ok('the Deodorize card reads the lows against the 50° line', /Lows this week 36–47°F, stay off\./.test(deo), deo.slice(0, 300));
   ok('no page errors', errs.length === 0, errs.join('; '));
   await ctx.close(); await b.close();
   done();
