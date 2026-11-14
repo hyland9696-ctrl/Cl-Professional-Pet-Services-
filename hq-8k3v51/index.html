@@ -182,6 +182,7 @@
     <div id="jobs" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="hire" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="risk" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
+    <div id="dormant" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="billing" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="revenue" style="display:none;background:#0F6E56;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;font-weight:600;"></div>
     <div id="roi" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
@@ -4429,7 +4430,32 @@ function visitsPerWeek(l){ var s = String(l.service || '').toLowerCase(); return
 /* Paused in Sweep&Go: [PZ:start~end]. Off the route between those dates (no end = until further notice). */
 function pauseOf(l){ var p = String(fuParse(l.crmnotes).pz || ''); if (!p) return null; var a = p.split('~'); return { from: a[0] || '', to: a[1] || '' }; }
 function isPaused(l){ var p = pauseOf(l); if (!p) return false; var t = new Date().toISOString().slice(0, 10); return (!p.from || p.from <= t) && (!p.to || p.to >= t); }
-function activeRecurring(){ return leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed' && isRecurring(l) && !isPaused(l); }); }
+/* "Active" in Sweep&Go is loose: a client stays active until somebody
+   deactivates them, long after the last visit. Jesse: "he was active but
+   not disabled". So a synced customer who started 45+ days ago, with no
+   recurring invoice or payment in 60 days and no visit in the jobs report,
+   is "to check": listed on their own card, kept out of the route, the
+   money and the active count, until they are disabled in Sweep&Go (the
+   next sync then closes them here) or start paying again. Nothing is
+   judged until the billing has loaded. */
+var DORMANT_DAYS = 60, DORMANT_NEW = 45;
+function sgNormJs(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+function lastMoney(l){ if (!billing || !billing.last) return undefined; var v = billing.last[sgNormJs(l.name)]; return v || ''; }
+function recentVisits(l){ if (!jobsData || !jobsData.byClient) return null; var k = sgNormJs(l.name), hit = Object.keys(jobsData.byClient).filter(function(n){ return sgNormJs(n) === k; })[0]; return hit ? jobsData.byClient[hit].n : 0; }
+function dormantInfo(l){
+  if (!billing || !billing.last) return null;
+  if (!isLead(l) || (l.status || 'new') !== 'closed' || !isRecurring(l)) return null;
+  var fu = fuParse(l.crmnotes); if (!fu.sgid) return null;   // only what Sweep&Go itself calls active
+  var since = fu.cd || String(l.created || '').slice(0, 10), now = Date.now();
+  if (since && now - new Date(since + 'T12:00:00').getTime() < DORMANT_NEW * 86400000) return null;   // new: not billed yet is normal
+  var last = lastMoney(l);
+  if (last && now - new Date(last + 'T12:00:00').getTime() < DORMANT_DAYS * 86400000) return null;
+  var v = recentVisits(l); if (v) return null;
+  return { last: last || '', days: last ? Math.round((now - new Date(last + 'T12:00:00').getTime()) / 86400000) : null, visits: v };
+}
+function isDormant(l){ return !!dormantInfo(l); }
+function dormantList(){ return leads.filter(isDormant).map(function(l){ return { l: l, d: dormantInfo(l) }; }).sort(function(a, b){ return (a.d.last || '') < (b.d.last || '') ? -1 : 1; }); }
+function activeRecurring(){ return leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed' && isRecurring(l) && !isPaused(l) && !isDormant(l); }); }
 function pausedCustomers(){ return leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed' && isRecurring(l) && isPaused(l); }); }
 function scheduleStats(){
   var by = {}, unset = [];
@@ -4767,7 +4793,7 @@ function loadJobs(force){
   if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_jobs') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ jobsData = c.data; renderJobs(); return; } } catch (e) {} }
   fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'jobs', key: KEY }) })
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (d && d.ok && (d.byDate || d.empty)){ jobsData = d; try { localStorage.setItem('clpps_jobs', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderJobs(); renderRisk(); } })
+    .then(function(d){ if (d && d.ok && (d.byDate || d.empty)){ jobsData = d; try { localStorage.setItem('clpps_jobs', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderJobs(); renderRisk(); renderDormant(); renderGlance(); renderSchedule(); renderFoldSums(); } })
     .catch(function(){});
 }
 function sgRoutesByDate(){ var c = config.sg_routes; if (!c) return {}; try { return JSON.parse(c.value) || {}; } catch (e) { return {}; } }
@@ -5023,6 +5049,21 @@ function renderRisk(){
   box.innerHTML = h;
 }
 
+function renderDormant(){
+  var box = document.getElementById('dormant'); if (!box) return;
+  var list = dormantList();
+  var h = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128269; Sweep&amp;Go says active, but&hellip; <span style="font-size:11px;font-weight:600;color:#707070;">nothing billed or visited in a while</span></div>';
+  if (!billing || !billing.last){ box.innerHTML = h + '<div style="font-size:12.5px;color:#9aa5a0;">Fills in once the billing has loaded.</div>'; return; }
+  if (!list.length){ box.innerHTML = h + '<div style="font-size:12.5px;color:#9aa5a0;">Everyone Sweep&amp;Go calls active has been billed or visited recently.</div>'; return; }
+  h += '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">Started ' + DORMANT_NEW + '+ days ago, no recurring invoice or payment in ' + DORMANT_DAYS + ' days, no visit in the jobs report. They are left out of the route, the money and the active count. If they are gone, <strong>deactivate them in Sweep&amp;Go</strong>; the next sync moves them to Account closed here with the right date. If they are real, a visit or an invoice clears them by itself.</div>' +
+    list.map(function(r){
+      return '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid #f3f5f4;font-size:12.5px;align-items:center;">' +
+        '<span><a href="#card-' + esc(r.l.id) + '" onclick="jumpToLead(\'' + esc(r.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(r.l.name || '(no name)') + '</a> <span style="color:#707070;">' + esc(r.l.price || '') + ' &middot; since ' + esc(fuParse(r.l.crmnotes).cd || String(r.l.created || '').slice(0, 10)) + '</span></span>' +
+        '<span style="white-space:nowrap;color:#b45309;font-weight:600;">' + (r.d.last ? 'last money ' + esc(r.d.last) : 'never billed') + '</span></div>';
+    }).join('');
+  box.innerHTML = h;
+}
+
 /* ============================================================
    BILLING, from Sweep&Go. Corey: "a month we did $7k and the next month
    only $4.9k, is it one-time jobs or did recurring customers cancel?"
@@ -5036,7 +5077,7 @@ function loadBilling(force){
   if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_billing') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ billing = c.data; renderBilling(); return; } } catch (e) {} }
   fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'billing', key: KEY }) })
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (d && d.ok && (d.months || d.empty)){ billing = d; try { localStorage.setItem('clpps_billing', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderBilling(); renderRisk(); renderGlance(); } })
+    .then(function(d){ if (d && d.ok && (d.months || d.empty)){ billing = d; try { localStorage.setItem('clpps_billing', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderBilling(); renderRisk(); renderDormant(); renderSchedule(); renderUnderTable(); renderRevenue(); renderDeo(); renderTerritory(); renderFoldSums(); renderGlance(); } })
     .catch(function(){});
 }
 function billingKind(name){
@@ -5276,7 +5317,7 @@ function renderReviewTrend(){
 }
 
 /* ---- fold-up cards in the numbers panel ---- */
-var FOLD_CARDS = ['territory', 'undertable', 'season', 'pricelog', 'schedule', 'deo', 'traffic', 'jobs', 'billing', 'risk', 'hire', 'revenue', 'roi', 'insights', 'reviews'];
+var FOLD_CARDS = ['territory', 'undertable', 'season', 'pricelog', 'schedule', 'deo', 'traffic', 'jobs', 'billing', 'risk', 'dormant', 'hire', 'revenue', 'roi', 'insights', 'reviews'];
 function foldKey(card){ return card.id || card.getAttribute('data-fold') || ''; }
 function foldState(key){ try { return localStorage.getItem('clpps_fold_' + key); } catch (e) { return null; } }
 function foldApply(card, openByDefault){
@@ -5291,7 +5332,10 @@ function foldInit(){
   // filling up the screen with too much information".
   arrangeNumbers();
   FOLD_CARDS.forEach(function(id){ var el = document.getElementById(id); if (el) foldApply(el, false); });
-  var panel = document.getElementById('numbers');
+  // the panel, and the one folding card that stays on the main page (Ask
+  // for a review): a tap on a heading opens or closes its card
+  ['numbers', 'reviews'].forEach(function(rootId){
+  var panel = document.getElementById(rootId);
   if (!panel || panel.foldWired) return;
   panel.foldWired = true;
   panel.addEventListener('click', function(ev){
@@ -5302,13 +5346,14 @@ function foldInit(){
     try { localStorage.setItem('clpps_fold_' + foldKey(card), card.classList.contains('folded') ? 'shut' : 'open'); } catch (e) {}
     if (card.id === 'territory' && terrLeaflet) setTimeout(function(){ try { terrLeaflet.invalidateSize(); } catch (e) {} }, 60);
   });
+  });
 }
 /* The panel's cards, in the order the day asks for them, under four
    short labels. Done once in the page rather than by moving the HTML. */
 var NUMBERS_ORDER = [
   ['Today and the route', ['schedule', 'jobs']],
   ['Money', ['billing', 'risk', 'revenue', 'undertable', 'roi', 'hire']],
-  ['Customers and area', ['territory', 'season', 'deo', 'pricelog']],
+  ['Customers and area', ['dormant', 'territory', 'season', 'deo', 'pricelog']],
   ['Marketing', ['traffic', 'insights']]   // Ask for a review stays on the main page: it is a to-do, not a number
 ];
 function arrangeNumbers(){
@@ -5328,16 +5373,17 @@ function renderGlance(){
   var nowK = monthKeyOf(new Date()), ss = null; try { ss = seasonStats(); } catch (e) {}
   var newM = ss ? (ss.cust[nowK] || 0) : 0;
   var leftM = leads.filter(function(l){ var fu = fuParse(l.crmnotes); return (l.status || 'new') === 'cancelled' && String(fu.cx || '').slice(0, 7) === nowK; }).length;
-  var active = leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed' && isRecurring(l); }).length;
+  var dorm = dormantList().length;
+  var active = leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed' && isRecurring(l) && !isDormant(l); }).length;
   var bm = billing && billing.months ? (billing.months[nowK] || null) : null;
   var owed = billing && billing.unpaid ? billing.unpaid.reduce(function(a, u){ return a + u.owed; }, 0) : 0;
-  var mrr = 0; leads.forEach(function(l){ if (isLead(l) && (l.status || 'new') === 'closed'){ var pp = parsePrice(l); if (pp && pp.isMo) mrr += pp.amt; } });
+  var mrr = 0; leads.forEach(function(l){ if (isLead(l) && (l.status || 'new') === 'closed' && !isDormant(l)){ var pp = parsePrice(l); if (pp && pp.isMo) mrr += pp.amt; } });
   var tile = function(n, l, col){ return '<div class="stat"><div class="n"' + (col ? ' style="color:' + col + ';"' : '') + '>' + n + '</div><div class="l">' + l + '</div></div>'; };
   box.innerHTML =
     tile(tp && tp.stops.length ? tp.stops.length : '0', tp && tp.stops.length ? 'stops today &middot; ' + hoursText(tp.total) + ' &middot; ' + money(tp.money) : 'stops today') +
     tile(waiting, (waiting === 1 ? 'lead' : 'leads') + ' not called yet' + (due ? ' &middot; ' + due + ' follow-up' + (due === 1 ? '' : 's') + ' due' : ''), waiting ? '#c0392b' : null) +
     tile(bm ? money(bm.billed) : money(mrr), bm ? 'billed ' + monthShort(nowK) + ' &middot; ' + money(bm.collected) + ' collected' : 'a month on the books') +
-    tile(active, 'active &middot; +' + newM + ' this month' + (leftM ? ' &middot; &minus;' + leftM + ' left' : '') + (owed ? ' &middot; ' + money(owed) + ' owed' : ''), null);
+    tile(active, 'active' + (dorm ? ' &middot; <span style="color:#b45309;">' + dorm + ' to check</span>' : '') + ' &middot; +' + newM + ' this month' + (leftM ? ' &middot; &minus;' + leftM + ' left' : '') + (owed ? ' &middot; ' + money(owed) + ' owed' : ''), null);
 }
 function foldAll(open){
   FOLD_CARDS.forEach(function(id){
@@ -5378,6 +5424,7 @@ function renderFoldSums(){
   try { var on = activeRecurring().filter(hasDeo); foldSum('deo', on.length + ' have it &middot; ' + money(on.reduce(function(a, l){ return a + deoMonthly(l); }, 0)) + '/mo'); } catch (e) {}
   try { var tk = gDayKey(new Date()); foldSum('traffic', views.filter(function(v){ return gDayKey(new Date(v.created)) === tk; }).length + ' visits today'); } catch (e) {}
   try { var due = leads.filter(reviewDue).length; foldSum('reviews', due ? due + ' to ask' : 'nobody due'); } catch (e) {}
+  try { var dz = dormantList().length; foldSum('dormant', billing && billing.last ? (dz ? dz + ' to check' : 'nobody') : ''); } catch (e) {}
   try { var lt = lifetimeStats(); if (lt.value) foldSum('roi', 'a customer is worth ~' + money(lt.value) + (lt.measured ? '' : ' (assumed)')); } catch (e) {}
   try { if (jobsData && !jobsData.empty && jobsData.byDate){ foldSum('jobs', jobsData.visits + ' visits &middot; ' + hoursText(jobsData.minutes) + (jobsData.skipped ? ' &middot; ' + jobsData.skipped + ' skipped' : '')); } } catch (e) {}
   try { var rk = riskList(); foldSum('risk', rk.length ? rk.length + ' to check in on' : 'nobody'); } catch (e) {}
@@ -6247,6 +6294,7 @@ function render(){
   renderBilling();
   renderJobs();
   renderRisk();
+  renderDormant();
   renderHire();
   renderReviews();
   renderReviewTrend();
@@ -6349,6 +6397,7 @@ function render(){
     if (st === 'closed' && isPaused(l)){ var pzo = pauseOf(l); wcRow = '<div style="color:#707070;font-size:12px;font-weight:600;margin-top:6px;">&#9208;&#65039; Paused in Sweep&amp;Go' + (pzo.to ? ' until ' + esc(pzo.to) : '') + ' &mdash; off the route, still a customer</div>' + wcRow; }
     if (fu.sv && fu.sv !== 'skip') wcRow = '<div style="color:#7a4a00;font-size:12px;font-weight:600;margin-top:6px;">&#128737;&#65039; Save offer made ' + esc(fu.sv) + (st === 'closed' ? ' &mdash; still active' : '') + '</div>' + wcRow;
     var weLine = fu.we ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128075; Welcome email' + (fu.we.indexOf(',') > 0 ? 's' : '') + ' sent ' + esc(fu.we.split(',').map(function(x){ var p = x.split('@'); return (p[0] === '1' ? 'day 1' : 'day 30, with the review ask') + ' (' + p[1] + ')'; }).join(', ')) + '</div>' : '';
+    var dmInfo = dormantInfo(l), dmRow = dmInfo ? '<div style="background:#FFF4E5;color:#7a4a00;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:600;margin-top:8px;">&#128269; Sweep&amp;Go says active, but ' + (dmInfo.last ? 'nothing billed or paid since ' + esc(dmInfo.last) : 'never billed') + ' and no visit in the jobs report. Left out of the route and the numbers. If they are gone, deactivate them in Sweep&amp;Go and the next sync closes them here.</div>' : '';
     var pmRow = '';
     if (fu.pm){ var pmp = fu.pm.split('@'); pmRow = '<div style="background:#FFF8E1;color:#7a5c00;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:700;margin-top:8px;">&#128200; Price moves to $' + esc(pmp[0]) + '/mo on ' + esc(pmp[1] || '') + ' &mdash; notice sent. Change it in Sweep&amp;Go on the day; this clears when the sync sees it.</div>'; }
     var feLine = fu.fe ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128231; Follow-up email' + (fu.fe.indexOf(',') > 0 ? 's' : '') + ' sent ' + esc(fu.fe.split(',').map(function(x){ var p = x.split('@'); return (p[0] === '1' ? 'day 2' : 'day 6') + ' (' + p[1] + ')'; }).join(', ')) + '</div>' : '';
@@ -6532,7 +6581,7 @@ function render(){
         '<br><span class="price">' + esc(String(l.price || '').indexOf('$') >= 0 ? l.price : (priceLabel(l) || l.price || '')) + '</span>' +
         (l.honored ? ' &middot; honored until ' + esc(honoredText(l.honored)) : '') +
         (l.notes ? '<br>&#128172; Customer note: ' + esc(l.notes) : '') +
-      '</div>' + srcChip + refChip + bestRow + icChip + azBadge + feLine + weLine + pmRow + sdBadge + attLine + fuBadge + ageBadge + owedRow + expRow + wcRow + rvRow + whyRow + cxRow + saveRow +
+      '</div>' + srcChip + refChip + bestRow + icChip + azBadge + feLine + weLine + pmRow + dmRow + sdBadge + attLine + fuBadge + ageBadge + owedRow + expRow + wcRow + rvRow + whyRow + cxRow + saveRow +
       '<div class="stbtns">' + STATUSES.filter(function(s){
         // "Cancelled" is a thing that happens to a customer, not a lead
         return s.k !== 'cancelled' || st === 'closed' || st === 'cancelled';

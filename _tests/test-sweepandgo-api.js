@@ -41,6 +41,7 @@ const { ok, done } = reporter();
   const sgBilling = new Function('FAKE', gs + '\nbillingSheet_ = function(){ return FAKE; };\nreturn sgBilling_();')(fake);
   ok('July: billed without the void, one-time apart, collected from succeeded payments, unpaid from what remains', sgBilling.months['2026-07'] && sgBilling.months['2026-07'].billed === 255 && sgBilling.months['2026-07'].onetime === 75 && sgBilling.months['2026-07'].collected === 160 && sgBilling.months['2026-07'].unpaid === 95 && sgBilling.months['2026-07'].failed === 1 && sgBilling.months['2026-07'].customers === 2, JSON.stringify(sgBilling.months));
   ok('a draft with no remaining figure counts in full', sgBilling.months['2026-08'].unpaid === 95);
+  ok('the last day money moved, per customer: a recurring invoice or a payment that went through; a one-time invoice alone does not count, a voided one never does', sgBilling.last['dana deo'] === '2026-07-02' && sgBilling.last['eddie eow'] === '2026-08-02' && sgBilling.last['once olga'] === '2026-07-12' && !sgBilling.last['voided vic'], JSON.stringify(sgBilling.last));
   ok('tips ride along with succeeded payments', sgBilling.months['2026-07'].tips === 0);
   // declining cards: a failure with nothing good after it, inside 60 days (today is real time here, so use recent dates)
   const recent = new Date(Date.now() - 5 * 864e5).toISOString().slice(0, 10), older = new Date(Date.now() - 9 * 864e5).toISOString().slice(0, 10);
@@ -93,6 +94,8 @@ const { ok, done } = reporter();
     { id:'P1', type:'SAVED', name:'Paused Pat', phone:'6363750003', email:'pat@gmail.com', zip:'63376', address:'3 Ash St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-05-01] [DAY:thu] [PZ:2026-11-01~2026-12-15] [QA:a] ', created:'2026-05-01T12:00:00Z' },
     { id:'E1', type:'SAVED', name:'Eddie Eow', phone:'6363750002', email:'eddie@gmail.com', zip:'63366', address:'2 Pine St, O\'Fallon, MO 63366', dogs:'1', service:'every other week', deodorize:'no', price:'$95/mo', status:'closed', crmnotes:'[CD:2026-07-01] [DAY:thu] [ET:14] [QA:a] ', created:'2026-07-01T12:00:00Z' },
     { id:'N1', type:'SAVED', name:'Near Ned', phone:'6363750008', email:'ned@gmail.com', zip:'63376', address:'5 Oak St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$75/mo', status:'closed', crmnotes:'[CD:2026-08-01] [DAY:thu] [LL:38.79200,-90.60150] [WE:1@2026-08-02] [WE:2@2026-09-01] [RV:2026-09-01] [QA:a] ', created:'2026-08-01T12:00:00Z' },
+    // Sweep&Go still calls him active, but nothing has been billed since he started in March and he is not in the jobs report
+    { id:'Z1', type:'SAVED', name:'Zombie Zed', phone:'6363750099', email:'zed@gmail.com', zip:'63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-03-01] [DAY:thu] [SGID:rcl_ZED] [QA:a] ', created:'2026-03-01T12:00:00Z' },
     // accepted on the website, not in Sweep&Go yet: the card offers the sign-up
     { id:'A1', type:'ACTIVATE', name:'Ann Accept', phone:'6363750020', email:'ann@gmail.com', zip:'63376', address:'12 Elm St, St. Peters, MO 63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'called', crmnotes:'[HH:A friend or neighbor] [QA:a] ', created:'2026-11-11T12:00:00Z' },
     { id:'az1', type:'AUTH', name:'Ann Accept', zip:'A1', price:'$85/mo', service:'weekly', dogs:'1', email:'ann@gmail.com', created:'2026-11-11T13:00:00Z' },
@@ -107,7 +110,8 @@ const { ok, done } = reporter();
     '2026-10': { billed: 8144, onetime: 75, collected: 6332, unpaid: 1712, failed: 27, invoices: 95, customers: 90 },
     '2026-11': { billed: 8078, onetime: 0, collected: 6796, unpaid: 2154, failed: 16, invoices: 92, customers: 86 } },
     unpaid: [ { name:'Eddie Eow', owed: 190, n: 2, oldest:'2026-10-05', statuses: { overdue: 1, draft: 1 } }, { name:'Nobody Known', owed: 65, n: 1, oldest:'2026-11-01', statuses: { failed: 1 } } ],
-    declining: [ { name:'Eddie Eow', when:'2026-11-08', amount: 95 } ] };
+    declining: [ { name:'Eddie Eow', when:'2026-11-08', amount: 95 } ],
+    last: { 'dana deo': '2026-11-02', 'eddie eow': '2026-11-08', 'paused pat': '2026-10-28' } };   // Ned has not paid in a while either, but he is being visited
   stubNetwork(p, {});
   await p.route('**/api.open-meteo.com/**', r => r.fulfill({ contentType:'application/json', body: JSON.stringify({ daily: { time: ['2026-11-12','2026-11-13','2026-11-14','2026-11-15','2026-11-16','2026-11-17','2026-11-18'], precipitation_probability_max: [60, 10, 0, 0, 20, 70, 5], temperature_2m_min: [41, 38, 36, 40, 44, 47, 45], temperature_2m_max: [55, 52, 50, 58, 61, 59, 57] } }) }));
   await p.route('**/script.google.com/**', r => {
@@ -142,6 +146,12 @@ const { ok, done } = reporter();
   ok('a paused customer is off the day list but listed as paused, with the return date', /Thu\s*3 stops/.test(sched) && /Paused in Sweep&Go\s*1.*Paused Pat.*back 2026-12-15/.test(sched), sched.slice(sched.indexOf('Paused'), sched.indexOf('Paused') + 120));
   ok('and their card says so', /Paused in Sweep&Go until 2026-12-15 — off the route, still a customer/.test((await p.textContent('#card-P1')).replace(/\s+/g, ' ')));
   ok('the Day plan uses Sweep&Go\'s own minutes for a stop that has them', /2\. ~Eddie Eow[^]*?14 min/.test(sched) || /Eddie Eow[^]*?14 min · \$44/.test(sched), sched.slice(sched.indexOf('Eddie Eow'), sched.indexOf('Eddie Eow') + 120));
+  /* ---- Sweep&Go says active, but... ---- */
+  const dorm = (await p.textContent('#dormant')).replace(/\s+/g, ' ');
+  ok('a customer Sweep&Go calls active with nothing billed in 60 days and no visit is listed to check, with the instruction to disable him in Sweep&Go', /Zombie Zed \$85\/mo · since 2026-03-01\s*never billed/.test(dorm) && /deactivate them in Sweep&Go/.test(dorm), dorm.slice(0, 300));
+  ok('Ned, unpaid for a while but visited four times, is not; neither is anyone new or anyone the office entered by hand', !/Near Ned/.test(dorm) && !/Ann Accept/.test(dorm) && (await p.evaluate(() => dormantList().length)) === 1);
+  ok('he is kept out of the active count, which says so, and off the route', /1 to check/.test((await p.textContent('#glance')).replace(/\s+/g, ' ')) && /Thu\s*3 stops/.test(sched) && /1 to check/.test(await p.$eval('#dormant .fsum', e => e.textContent)), (await p.textContent('#glance')).replace(/\s+/g, ' '));
+  ok('and his card says why', /Sweep&Go says active, but never billed and no visit in the jobs report/.test((await p.textContent('#card-Z1')).replace(/\s+/g, ' ')));
   /* ---- the Work done card ---- */
   const jobs = (await p.textContent('#jobs')).replace(/\s+/g, ' ');
   ok('visits, hours on site, the average stop, skips and the week\'s real miles', /310\s*visits done · 46h 30m on site/.test(jobs) && /9\s*minutes a stop, average · 300 timed/.test(jobs) && /4\s*skipped · Gate locked 3/.test(jobs) && /162\s*road miles this week, Sweep&Go’s count · 3 days/.test(jobs), jobs.slice(0, 400));
@@ -255,6 +265,13 @@ const { ok, done } = reporter();
   ok('each day in the plan shows its rain chance and temperatures', /Thu today\s*☔ 60% 41–55°/.test(dp), dp.slice(0, 200));
   const deo = (await p.textContent('#deo')).replace(/\s+/g, ' ');
   ok('the Deodorize card reads the lows against the 50° line', /Lows this week 36–47°F, stay off\./.test(deo), deo.slice(0, 300));
+  /* ---- the review card lives on the main page, and still opens on a tap ---- */
+  await p.evaluate(() => foldAll(false)); await p.waitForTimeout(200);   // Open all was pressed earlier in this test
+  ok('Ask for a review closes with the rest, with its count on the heading', await p.$eval('#reviews', e => e.classList.contains('folded')) && /to ask/.test(await p.$eval('#reviews .fsum', e => e.textContent)));
+  await p.click('#reviews > :first-child > div:first-child'); await p.waitForTimeout(300);
+  ok('a tap on its heading opens it, like every other card', !(await p.$eval('#reviews', e => e.classList.contains('folded'))) && /Text the ask|Already asked|No Google review link|nobody/.test((await p.textContent('#reviews')).replace(/\s+/g, ' ')), (await p.textContent('#reviews')).replace(/\s+/g, ' ').slice(0, 200));
+  await p.click('#reviews > :first-child > div:first-child'); await p.waitForTimeout(200);
+  ok('and again closes it, remembered on the phone', await p.$eval('#reviews', e => e.classList.contains('folded')) && (await p.evaluate(() => localStorage.getItem('clpps_fold_reviews'))) === 'shut');
   ok('no page errors', errs.length === 0, errs.join('; '));
   await ctx.close(); await b.close();
   done();

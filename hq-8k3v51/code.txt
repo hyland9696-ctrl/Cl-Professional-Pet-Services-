@@ -1127,13 +1127,16 @@ function sgBilling_() {
   var sh = billingSheet_(); if (sh.getLastRow() < 2) return { ok:true, months: {}, unpaid: [], empty: true };
   var rows = sh.getRange(2, 1, sh.getLastRow() - 1, BILLING_HEADERS.length).getValues();
   var H = {}; BILLING_HEADERS.forEach(function(h, i) { H[h] = i; });
-  var months = {}, unpaidBy = {}, lastPay = {};
+  var months = {}, unpaidBy = {}, lastPay = {}, last = {};
+  // the last day money moved for each customer: a recurring invoice or a payment that went through
+  var touch = function(who, when) { var k = sgNorm_(who); if (!k || !/^\d{4}-\d{2}-\d{2}/.test(when)) return; when = when.slice(0, 10); if (!last[k] || when > last[k]) last[k] = when; };
   rows.forEach(function(r) {
     var mo = String(r[H.date] || '').slice(0, 7); if (!/^\d{4}-\d{2}$/.test(mo)) return;
     var m = months[mo] || (months[mo] = { billed: 0, onetime: 0, collected: 0, unpaid: 0, failed: 0, invoices: 0, tips: 0, customers: {} });
     var status = String(r[H.status] || ''), total = parseFloat(r[H.total]) || 0;
     if (r[H.kind] === 'invoice') {
       if (status === 'voided' || status === 'void') return;
+      if (r[H.type] !== 'one-time') touch(r[H.client], String(r[H.date] || ''));
       m.billed += total; m.invoices++;
       if (r[H.type] === 'one-time') m.onetime += total; else if (r[H.client]) m.customers[sgNorm_(r[H.client])] = 1;
       if (status !== 'paid') {
@@ -1145,7 +1148,7 @@ function sgBilling_() {
       }
     } else {
       var when = String(r[H.date] || ''), who = String(r[H.client] || '');
-      if (status === 'succeeded' || status === 'paid') { m.collected += total; m.tips += parseFloat(r[H.remaining]) || 0; }
+      if (status === 'succeeded' || status === 'paid') { m.collected += total; m.tips += parseFloat(r[H.remaining]) || 0; touch(who, when); }
       else if (status === 'failed') m.failed++;
       // the latest card result per customer: a failure with nothing good after it is a card to chase
       if (who && (status === 'succeeded' || status === 'failed') && (!lastPay[who] || when >= lastPay[who].when)) lastPay[who] = { when: when, status: status, amount: total };
@@ -1155,7 +1158,7 @@ function sgBilling_() {
   var declining = Object.keys(lastPay).filter(function(k) { return lastPay[k].status === 'failed' && lastPay[k].when >= cut60; }).map(function(k) { return { name: k, when: lastPay[k].when, amount: Math.round(lastPay[k].amount) }; }).sort(function(a, b) { return b.when < a.when ? -1 : 1; }).slice(0, 40);
   Object.keys(months).forEach(function(k) { months[k].customers = Object.keys(months[k].customers).length; ['billed','onetime','collected','unpaid','tips'].forEach(function(f) { months[k][f] = Math.round(months[k][f]); }); });
   var unpaid = Object.keys(unpaidBy).map(function(k) { var u = unpaidBy[k]; u.owed = Math.round(u.owed); return u; }).sort(function(a, b) { return b.owed - a.owed; }).slice(0, 40);
-  return { ok:true, months: months, unpaid: unpaid, declining: declining, rows: rows.length };
+  return { ok:true, months: months, unpaid: unpaid, declining: declining, last: last, rows: rows.length };
 }
 /* The webhook. Sweep&Go posts here on the events ticked on the token. We
    never act on the body: we log the event and ask for a sync. */
