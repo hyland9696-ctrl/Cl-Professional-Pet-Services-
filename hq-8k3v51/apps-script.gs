@@ -746,6 +746,9 @@ function sgSync(dry) {
       var total = sub ? Math.round(sub.monthly + sub.deo) : 0;
       var price = total ? '$' + total + '/mo' + (sub.deo ? ' (includes $' + Math.round(sub.deo) + ' deodorize)' : '') : '';
       var set = { DAY: sgDayKeys_(c.service_days), CD: (sub && (sub.start || sub.anyStart)) || '', SGID: String(c.client || ''), PZ: (sub && sub.paused && sub.pause) ? sub.pause : '' };
+      // a quoted price still waiting to be set in Sweep&Go: clear the reminder once their price matches
+      var qpRow = latest[id] && latest[id].row >= 0 ? String(data[latest[id].row][HEADERS.indexOf('crmnotes')] || '').match(/\[QP:(\d+(?:\.\d+)?)\]/) : null;
+      if (qpRow && sub && Math.abs(sub.monthly - parseFloat(qpRow[1])) <= 1) set.QP = '';
       // Sweep&Go's marketing opt-out is the law of the land for the email blast
       if (c.marketing_allowed === 0 || c.marketing_allowed === '0' || c.marketing_allowed === false) set.NOEM = '1';
       if (!active) { set.CX = (sub && sub.end) || ''; set.CXR = sgReason_(sub && (sub.reason + ' ' + sub.comment)); } else { set.CX = ''; set.CXR = ''; }
@@ -1032,14 +1035,15 @@ function cfg_(name) {
   return '';
 }
 /* ---- sign-up straight into Sweep&Go ----
-   Jesse: "if they pressed accept, it will automatically upload all the
-   information, including the price and dogs and once a week". Everything
-   but the price goes across as typed. Sweep&Go sets the price from ITS
-   OWN table for that ZIP, dogs and frequency - the API has no price
-   field - so before creating anyone we ask Sweep&Go what it would charge
-   and compare it with the quote. Equal: create. Different: stop and say
-   so, unless the office taps "add anyway". Nothing is created twice:
-   Sweep&Go refuses an email it already has, and we stamp [SGC:date]. */
+   Jesse: "just get the client's main information inserted, I'll add the
+   price and assign the person." Everything but the price goes across as
+   typed. Sweep&Go's sign-up has no price field: it attaches its own
+   default subscription for that frequency and dog count, so the quoted
+   price goes into the client's notes there and is stamped here as
+   [QP:price]. The card reminds the office to set it until the nightly
+   sync sees Sweep&Go's price match, then the reminder clears itself.
+   Nothing is created twice: Sweep&Go refuses an email it already has,
+   and we stamp [SGC:date]. */
 var SG_FREQ = { 'weekly': 'once_a_week', 'every other week': 'bi_weekly', 'twice a week': 'two_times_a_week', 'monthly': 'once_a_month', 'one-time': 'one_time' };
 function sgSplitAddress_(addr, zip) {
   // "316 Old Forester Dr., Lake St. Louis, MO 63367" -> street, city, state
@@ -1082,7 +1086,6 @@ function sgCreate_(id, force) {
   var sgMonthly = interval === 'monthly' ? sgPrice : interval === 'weekly' ? sgPrice * 4.33 : sgPrice * (freq === 'two_times_a_week' ? 8.67 : freq === 'bi_weekly' ? 2.17 : freq === 'once_a_month' ? 1 : 4.33);
   var wantsDeo = /every|other/i.test(String(l.deodorize || '')) && !/season reopens/i.test(String(l.deodorize || ''));
   var priceOk = freq === 'one_time' ? true : (q.base > 0 && sgMonthly > 0 && Math.abs(sgMonthly - q.base) <= 1);
-  if (!priceOk && !force) return { ok:false, reason:'price', sgPrice: Math.round(sgMonthly * 100) / 100, sgInterval: interval, quoted: q.base, quotedTotal: q.total, deo: q.deo };
   // 3. create
   var adr = sgSplitAddress_(l.address, zip), how = (notes.match(/\[HH:([^\]]*)\]/) || [])[1] || '', src = (notes.match(/\[SRC:([^\]]*)\]/) || [])[1] || '';
   var body = {
@@ -1091,7 +1094,7 @@ function sgCreate_(id, force) {
     cell_phone_number: String(l.phone || '').replace(/\D/g, '').slice(-10),
     initial_cleanup_required: 1, cleanup_notification_type: 'on_the_way,completed', cleanup_notification_channel: 'sms',
     how_heard_about_us: how || src ? 'other' : undefined, how_heard_answer: how || src || undefined,
-    additional_comment: ('From the website quote' + (l.price ? ', quoted ' + String(l.price).split(',')[0] : '') + (l.notes ? '. ' + String(l.notes).slice(0, 300) : '')).slice(0, 400),
+    additional_comment: ('From the website quote.' + (q.base ? ' QUOTED PRICE: $' + q.base + '/mo for the cleanup' + (q.deo ? ' plus $' + q.deo + '/mo deodorize' : '') + ' - set the subscription price to this.' : '') + (l.notes ? ' ' + String(l.notes).slice(0, 280) : '')).slice(0, 400),
     marketing_allowed: 1, marketing_allowed_source: 'open_api', terms_open_api: 1,
     tracking_field: [ (notes.match(/\[CAMP:([^\]]*)\]/) || [])[1] ? 'utm_campaign=' + (notes.match(/\[CAMP:([^\]]*)\]/) || [])[1] : '', src ? 'utm_source=' + src : '' ].filter(Boolean).join('&') || undefined
   };
@@ -1107,11 +1110,11 @@ function sgCreate_(id, force) {
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][idCol]) !== String(id)) continue;
     var old = String(data[i][HEADERS.indexOf('crmnotes')] || '');
-    sh.getRange(i + 1, HEADERS.indexOf('crmnotes') + 1).setValue(safeCell_(sgSetMarkers_(old, { SGC: today, CD: (old.match(/\[CD:([^\]]*)\]/) || [])[1] || today })));
+    sh.getRange(i + 1, HEADERS.indexOf('crmnotes') + 1).setValue(safeCell_(sgSetMarkers_(old, { SGC: today, CD: (old.match(/\[CD:([^\]]*)\]/) || [])[1] || today, QP: (!priceOk && q.base) ? String(q.base) : '' })));
     sh.getRange(i + 1, HEADERS.indexOf('status') + 1).setValue('closed');
     sh.getRange(i + 1, HEADERS.indexOf('updated') + 1).setValue(new Date().toISOString());
   }
-  return { ok:true, created: true, sgPrice: Math.round(sgMonthly * 100) / 100, quoted: q.base, forced: !priceOk, deo: !!(wantsDeo && deoId), sent: body };
+  return { ok:true, created: true, sgPrice: Math.round(sgMonthly * 100) / 100, quoted: q.base, priceOk: priceOk, deo: !!(wantsDeo && deoId), sent: body };
 }
 /* ---- the Monday push: last week in numbers, to both phones ----
    Jesse: "a Monday morning push". Goes through the same free ntfy topic

@@ -111,7 +111,7 @@ const { ok, done } = reporter();
     if (body.action) posts.push(body);
     if (body.action === 'billing') return r.fulfill({ contentType:'application/json', body: JSON.stringify(billing) });
     if (body.action === 'jobs') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, days: 30, visits: 310, minutes: 2790, timed: 300, skipped: 4, skipReasons: { 'Gate locked': 3, 'Client request': 1 }, skippedBy: { 'Eddie Eow': 2, 'Someone Else': 1 }, rate: { byPlan: { weekly: { n: 250, price: 5000, min: 2250, perHour: 133 }, 'every other week': { n: 50, price: 2200, min: 540, perHour: 244 } }, byDogs: { '1': { n: 120, price: 2400, min: 840, perHour: 171 }, '2': { n: 140, price: 3500, min: 1540, perHour: 136 } }, byWeekday: { thu: { n: 60, price: 1500, min: 600, perHour: 150 } } }, byDogs: { '1': { n: 120, median: 7 }, '2': { n: 140, median: 11 }, '3': { n: 40, median: 15 } }, byDate: { '2026-11-11': { visits: 18, skipped: 1, minutes: 170, price: 500 }, '2026-11-10': { visits: 20, skipped: 0, minutes: 190, price: 560 } }, techs: { 'Jesse Duncan': 310 } }) });
-    if (body.action === 'sgcreate'){ sgcreates.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify(body.force ? { ok:true, created:true, forced:true, sgPrice: 95, quoted: 85 } : { ok:false, reason:'price', sgPrice: 95, sgInterval:'monthly', quoted: 85, quotedTotal: 85, deo: 0 }) }); }
+    if (body.action === 'sgcreate'){ sgcreates.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, created:true, priceOk:false, sgPrice: 95, quoted: 85 }) }); }
     if (body.action === 'sgsync') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, clients: 94, added: 0, updated: 3, errors: [] }) });
     return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: rows }) });
   });
@@ -191,11 +191,10 @@ const { ok, done } = reporter();
   const ann = (await p.textContent('#card-A1')).replace(/\s+/g, ' ');
   ok('an accepted quote not yet in Sweep&Go offers the sign-up, and says how they heard', /AUTHORIZED the quoted price/.test(ann) && /Sign them up in Sweep&Go/.test(ann) && /How they heard of us: A friend or neighbor/.test(ann), ann.slice(0, 300));
   await p.click('#sgc-A1'); await p.waitForTimeout(500);
-  ok('the script is asked, signed, without force', sgcreates.length === 1 && sgcreates[0].id === 'A1' && sgcreates[0].key && !sgcreates[0].force);
+  ok('the script is asked, signed', sgcreates.length === 1 && sgcreates[0].id === 'A1' && sgcreates[0].key);
   const after = (await p.textContent('#card-A1')).replace(/\s+/g, ' ');
-  ok('a price mismatch is explained on the card with the two numbers and a choice', /Sweep&Go would bill \$95\/mo for this ZIP, dogs and plan; the quote was \$85\/mo/.test(after) && /Sign them up at Sweep&Go’s \$95/.test(after), after.slice(after.indexOf('would bill'), after.indexOf('would bill') + 200));
-  await p.click('#card-A1 button:has-text("Sign them up at Sweep&Go’s $95")'); await p.waitForTimeout(500);
-  ok('going ahead anyway sends force, closes the card and stamps the date', sgcreates.length === 2 && sgcreates[1].force === true && await p.evaluate(() => { const l = leads.filter(x => x.id === 'A1')[0]; return l.status === 'closed' && /^\d{4}-\d{2}-\d{2}$/.test(fuParse(l.crmnotes).sgc); }) && /signed up in Sweep&Go 2026-11-12/.test((await p.textContent('#card-A1')).replace(/\s+/g, ' ')), (await p.textContent('#card-A1')).replace(/\s+/g, ' ').slice(0, 200));
+  ok('created: the card closes, stamps the date, and reminds you to set the price and the day in Sweep&Go', await p.evaluate(() => { const l = leads.filter(x => x.id === 'A1')[0]; return l.status === 'closed' && /^\d{4}-\d{2}-\d{2}$/.test(fuParse(l.crmnotes).sgc) && fuParse(l.crmnotes).qp === '85'; }) && /signed up in Sweep&Go 2026-11-12/.test(after) && /In Sweep&Go: set their price to \$85\/mo and assign their day/.test(after), after.slice(0, 300));
+  ok('and says so in the toast', /is in Sweep&Go - now set their price to \$85 there/.test(await p.textContent('#toast')));
   /* ---- weather ---- */
   await p.evaluate(() => { schedDay = 'thu'; render(); }); await p.waitForTimeout(300);
   const dp = (await p.textContent('#dayplan')).replace(/\s+/g, ' ');

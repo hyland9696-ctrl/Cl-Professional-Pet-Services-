@@ -1574,13 +1574,13 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
   // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
   // ll = lat,lng from Sweep&Go's dispatch board; sgid = their client id. Both written by the nightly sync.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1618,6 +1618,7 @@ function fuParse(crmnotes){
     else if (hit[1] === 'ET') m.et = hit[2];       // Sweep&Go's estimate for the stop, minutes
     else if (hit[1] === 'HH') m.hh = hit[2];       // how they heard about us, in their words, from the form
     else if (hit[1] === 'SGC') m.sgc = hit[2];     // signed up in Sweep&Go through the API, date
+    else if (hit[1] === 'QP') m.qp = hit[2];       // the quoted price still to be set in Sweep&Go
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -1660,7 +1661,8 @@ function fuCompose(m){
          (m.pz ? '[PZ:' + m.pz + '] ' : '') +
          (m.et ? '[ET:' + m.et + '] ' : '') +
          (m.hh ? '[HH:' + m.hh + '] ' : '') +
-         (m.sgc ? '[SGC:' + m.sgc + '] ' : '') + (m.text || '');
+         (m.sgc ? '[SGC:' + m.sgc + '] ' : '') +
+         (m.qp ? '[QP:' + m.qp + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -3544,14 +3546,13 @@ function sgCreateLead(id, force){
     .then(function(d){
       sgcBusy[id] = false; if (btn){ btn.disabled = false; btn.innerHTML = '&#10133; Sign them up in Sweep&amp;Go'; }
       if (d && d.ok){
-        var m = fuParse(l.crmnotes); m.sgc = new Date().toISOString().slice(0, 10); if (!m.cd) m.cd = m.sgc; l.crmnotes = fuCompose(m); l.status = 'closed'; l.updated = new Date().toISOString();
-        saveLocal(); render(); toast((l.name || 'Customer') + ' is in Sweep&Go' + (d.forced ? ' at $' + d.sgPrice : '') + ' \u2713');
+        var m = fuParse(l.crmnotes); m.sgc = new Date().toISOString().slice(0, 10); if (!m.cd) m.cd = m.sgc; if (!d.priceOk && d.quoted) m.qp = String(d.quoted);
+        l.crmnotes = fuCompose(m); l.status = 'closed'; l.updated = new Date().toISOString();
+        saveLocal(); render(); toast((l.name || 'Customer') + ' is in Sweep&Go' + (d.priceOk ? ' \u2713' : ' - now set their price to $' + d.quoted + ' there'));
         return;
       }
       var r = d && d.reason;
-      if (r === 'price') say('&#9888;&#65039; Sweep&amp;Go would bill <strong>$' + d.sgPrice + '/' + (d.sgInterval === 'monthly' ? 'mo' : esc(d.sgInterval)) + '</strong> for this ZIP, dogs and plan; the quote was <strong>$' + d.quoted + '/mo</strong>' + (d.deo ? ' before deodorize' : '') + '. Sweep&amp;Go\u2019s price table and the website disagree here. ' +
-        '<button onclick="sgCreateLead(\'' + esc(id) + '\', true)" style="padding:6px 10px;min-height:34px;font-size:12px;margin:4px 4px 0 0;">Sign them up at Sweep&amp;Go\u2019s $' + d.sgPrice + '</button> <span style="color:#707070;">or add them by hand at the quoted price and fix the table in Sweep&amp;Go.</span>');
-      else if (r === 'exists') say('Sweep&amp;Go already has an active client with ' + esc(d.email || 'this email') + '. Nothing created; the nightly sync will match them up.');
+      if (r === 'exists') say('Sweep&amp;Go already has an active client with ' + esc(d.email || 'this email') + '. Nothing created; the nightly sync will match them up.');
       else if (r === 'done') say('Already signed up through here on ' + esc(d.when || '') + '.');
       else if (r === 'zip') say('Sweep&amp;Go says ZIP ' + esc(d.zip || '') + ' is outside its service area. Add the ZIP there first.');
       else if (r === 'no email') say('They gave no email, and Sweep&amp;Go needs one. Tap Edit, add it, try again.');
@@ -3711,7 +3712,7 @@ function toggleImport(){
   p.style.display = opening ? 'block' : 'none';
   var auto = document.getElementById('sg-auto'), si = sgSyncInfo();
   if (auto){ auto.style.display = si ? 'block' : 'none'; if (si) auto.innerHTML = '<strong>Connected to Sweep&amp;Go.</strong> Customers, service days, prices and billing sync every night at 4am, and within minutes of a change. Last sync ' + esc(agoText(si.at)) + '. The uploads below are only for a one-off. <button onclick="sgSyncNow()" style="padding:4px 8px;min-height:28px;font-size:11px;margin-left:4px;">Sync now</button>' +
-    '<label style="display:flex;align-items:flex-start;gap:8px;margin-top:8px;font-weight:400;"><input type="checkbox" id="sg-auto-box" ' + (sgAutoOn() ? 'checked' : '') + ' onchange="toggleSgAuto(this.checked)" style="margin-top:3px;"> <span><strong>Sign up accepted quotes in Sweep&amp;Go automatically.</strong> The moment someone accepts on the website, the script creates them in Sweep&amp;Go with their address, dogs, plan and deodorize, if Sweep&amp;Go\u2019s own price for that ZIP matches the quote. When it does not match, nothing is created and the card gets a button to decide.</span></label>'; }
+    '<label style="display:flex;align-items:flex-start;gap:8px;margin-top:8px;font-weight:400;"><input type="checkbox" id="sg-auto-box" ' + (sgAutoOn() ? 'checked' : '') + ' onchange="toggleSgAuto(this.checked)" style="margin-top:3px;"> <span><strong>Sign up accepted quotes in Sweep&amp;Go automatically.</strong> The moment someone accepts on the website, the script creates them in Sweep&amp;Go with their address, phone, email, dogs, plan and deodorize. You set the price and assign the day in Sweep&amp;Go; the card reminds you until the price there matches the quote.</span></label>'; }
   if (opening) p.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function sgRead(id){
@@ -6152,9 +6153,10 @@ function render(){
     var azBadge = auths[l.id]
       ? '<div style="background:#E1F5EE;color:#0F6E56;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;margin-top:8px;">&#9989; AUTHORIZED the quoted price on ' + esc(auths[l.id]) +
         (fu.sgc ? ' &mdash; signed up in Sweep&amp;Go ' + esc(fu.sgc) : ((l.status || 'new') !== 'closed' ? ' &mdash; put them in Sweep&amp;Go and send the start date.' : '')) +
-        (!fu.sgc && (l.status || 'new') !== 'closed' && sgSyncInfo() ? '<div style="margin-top:6px;"><button onclick="sgCreateLead(\'' + esc(l.id) + '\')" id="sgc-' + esc(l.id) + '" style="background:#188663;color:#fff;border:none;border-radius:8px;padding:8px 12px;min-height:38px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#10133; Sign them up in Sweep&amp;Go</button> <span style="font-weight:400;color:#555;">name, address, dogs, plan, deodorize; Sweep&amp;Go bills from its own price table and this checks it matches first</span></div>' : '') +
+        (!fu.sgc && (l.status || 'new') !== 'closed' && sgSyncInfo() ? '<div style="margin-top:6px;"><button onclick="sgCreateLead(\'' + esc(l.id) + '\')" id="sgc-' + esc(l.id) + '" style="background:#188663;color:#fff;border:none;border-radius:8px;padding:8px 12px;min-height:38px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#10133; Sign them up in Sweep&amp;Go</button> <span style="font-weight:400;color:#555;">name, address, phone, email, dogs, plan, deodorize; you set the price and the day there</span></div>' : '') +
         '<div id="sgc-out-' + esc(l.id) + '"></div></div>'
       : (fu.sgc ? '<div style="background:#E1F5EE;color:#0F6E56;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:700;margin-top:8px;">&#9989; Signed up in Sweep&amp;Go ' + esc(fu.sgc) + '</div>' : '');
+    if (fu.sgc && fu.qp) azBadge += '<div style="background:#FFF8E1;color:#7a5c00;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:700;margin-top:6px;">&#128221; In Sweep&amp;Go: set their price to <strong>$' + esc(fu.qp) + '/mo</strong> and assign their day. Sweep&amp;Go created them at its default price; this clears on its own once the price there matches.</div>';
     var rvRow = '';
     if (reviewDue(l)){
       rvRow = '<div style="background:#FFF8E1;border-radius:9px;padding:8px 11px;margin-top:8px;font-size:12.5px;color:#7a5c00;font-weight:700;">' +

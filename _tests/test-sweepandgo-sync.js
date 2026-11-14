@@ -120,7 +120,7 @@ function seed(){
     // matched by phone; office notes and a follow-up to keep; the site's old price
     row({ id:'p6363750001', created:'2026-06-01T12:00:00Z', type:'ENQUIRY', name:'Dana D', phone:'6363750001', email:'dana@gmail.com', address:'1 Oak St, St. Peters, MO 63376', zip:'63376', service:'weekly', dogs:'2', price:'$91/mo', status:'closed', crmnotes:'[FU:2026-12-01] [CD:2026-06-01] [QA:a] gate 4321', updated:'' }),
     // matched by name only (no phone or email on the old row)
-    row({ id:'sgkelly', created:'2026-03-01T12:00:00Z', type:'SAVED', name:'Kelly .', phone:'', email:'', address:'14 Creekside Dr, St Peters, MO 63376', zip:'63376', service:'weekly', dogs:'3', price:'$99/mo', status:'closed', crmnotes:'[CD:2026-03-01] [QA:a] ', updated:'' }),
+    row({ id:'sgkelly', created:'2026-03-01T12:00:00Z', type:'SAVED', name:'Kelly .', phone:'', email:'', address:'14 Creekside Dr, St Peters, MO 63376', zip:'63376', service:'weekly', dogs:'3', price:'$99/mo', status:'closed', crmnotes:'[SGC:2026-03-01] [QP:87] [CD:2026-03-01] [QA:a] ', updated:'' }),
     // the office said no to this one: Sweep&Go must not reopen him
     row({ id:'p6363750006', created:'2026-04-01T12:00:00Z', type:'ENQUIRY', name:'Lost Larry', phone:'6363750006', email:'larry@gmail.com', zip:'63376', service:'weekly', dogs:'1', price:'$85/mo', status:'lost', crmnotes:'[QA:d] went elsewhere', updated:'' }),
     row({ id:'v1', created:'2026-11-01T12:00:00Z', type:'VIEW', name:'home', service:'Direct', notes:'how=none', status:'', crmnotes:'' }),
@@ -167,6 +167,7 @@ function build(leadRows){
   ok('her name on the card is not overwritten by Sweep&Go\'s spelling', dana.name === 'Dana D');
   ok('and she got Sweep&Go\'s pin and minutes', /\[LL:38\.79123,-90\.60111\]/.test(dana.crmnotes) && /\[ET:12\]/.test(dana.crmnotes), dana.crmnotes);
   const kelly = by('sgkelly');
+  ok('Kelly\'s price reminder clears once Sweep&Go\'s price matches the quote', !/\[QP:/.test(kelly.crmnotes) && /\[SGC:2026-03-01\]/.test(kelly.crmnotes), kelly.crmnotes);
   ok('Kelly, matched by name: per-cleanup $20 x 4.33 = $87/mo, Tuesday, phone filled in, pinned', kelly && kelly.price === '$87/mo' && /\[DAY:tue\]/.test(kelly.crmnotes) && kelly.phone === '6363750002' && /\[LL:38\.77000,-90\.61000\]/.test(kelly.crmnotes) && /\[ET:20\]/.test(kelly.crmnotes), kelly && JSON.stringify([kelly.price, kelly.phone, kelly.crmnotes]));
   const larry = by('p6363750006');
   ok('Lost Larry stays Not interested whatever Sweep&Go says', larry.status === 'lost' && !/SGID/.test(larry.crmnotes));
@@ -228,14 +229,14 @@ function build(leadRows){
   const a = F.sgCreate_('p6363751001', false);
   const sent = onboardings[0];
   ok('Ann: Sweep&Go\'s $91 matches the $91 quote, so she is created', a.ok && a.created && !a.forced && a.sgPrice === 91 && onboardings.length === 1, JSON.stringify(a));
-  ok('with everything the form knew: name, address split up, dogs, plan, phone, how she heard, the ad, the deodorize add-on, the terms', sent && sent.first_name === 'Ann' && sent.last_name === 'Accept' && sent.home_address === '12 Elm St' && sent.city === 'St. Peters' && sent.state === 'MO' && sent.zip_code === '63376' && sent.number_of_dogs === 2 && sent.clean_up_frequency === 'once_a_week' && sent.cell_phone_number === '6363751001' && sent.how_heard_answer === 'A friend or neighbor' && /utm_campaign=fall/.test(sent.tracking_field) && /utm_source=Meta Ads/.test(sent.tracking_field) && JSON.stringify(sent.cross_sells) === '[7]' && sent.terms_open_api === 1 && sent.initial_cleanup_required === 1 && /quoted \$151\/mo/.test(sent.additional_comment) && /Gate code 1234/.test(sent.additional_comment), JSON.stringify(sent));
+  ok('with everything the form knew: name, address split up, dogs, plan, phone, how she heard, the ad, the deodorize add-on, the terms', sent && sent.first_name === 'Ann' && sent.last_name === 'Accept' && sent.home_address === '12 Elm St' && sent.city === 'St. Peters' && sent.state === 'MO' && sent.zip_code === '63376' && sent.number_of_dogs === 2 && sent.clean_up_frequency === 'once_a_week' && sent.cell_phone_number === '6363751001' && sent.how_heard_answer === 'A friend or neighbor' && /utm_campaign=fall/.test(sent.tracking_field) && /utm_source=Meta Ads/.test(sent.tracking_field) && JSON.stringify(sent.cross_sells) === '[7]' && sent.terms_open_api === 1 && sent.initial_cleanup_required === 1 && /QUOTED PRICE: \$91\/mo for the cleanup plus \$60\/mo deodorize/.test(sent.additional_comment) && /Gate code 1234/.test(sent.additional_comment), JSON.stringify(sent));
   const annRow = sheets.leads.rows.find(r => r[0] === 'p6363751001');
   ok('and her row is stamped signed-up, closed, with a start date', /\[SGC:\d{4}-\d{2}-\d{2}\]/.test(annRow[HEADERS.indexOf('crmnotes')]) && /\[CD:\d{4}-\d{2}-\d{2}\]/.test(annRow[HEADERS.indexOf('crmnotes')]) && annRow[HEADERS.indexOf('status')] === 'closed' && /gate 1234$/.test(annRow[HEADERS.indexOf('crmnotes')]), annRow[HEADERS.indexOf('crmnotes')]);
   ok('asking again does nothing twice', F.sgCreate_('p6363751001', false).reason === 'done' && onboardings.length === 1);
   const b = F.sgCreate_('p6363751002', false);
-  ok('Bob: Sweep&Go would bill $95 against an $85 quote, so nothing is created and it says so', !b.ok && b.reason === 'price' && b.sgPrice === 95 && b.quoted === 85 && onboardings.length === 1, JSON.stringify(b));
-  const b2 = F.sgCreate_('p6363751002', true);
-  ok('told to go ahead anyway, he is created and the result says it was forced', b2.ok && b2.forced && onboardings.length === 2);
+  const bobRow = sheets.leads.rows.find(r => r[0] === 'p6363751002');
+  ok('Bob: Sweep&Go\'s default is $95 against an $85 quote; he is created anyway, the quote goes in his Sweep&Go notes, and the card carries the reminder', b.ok && !b.priceOk && b.sgPrice === 95 && b.quoted === 85 && onboardings.length === 2 && /QUOTED PRICE: \$85\/mo for the cleanup - set the subscription price to this/.test(onboardings[1].additional_comment) && /\[QP:85\]/.test(bobRow[HEADERS.indexOf('crmnotes')]), JSON.stringify(b) + ' ' + bobRow[HEADERS.indexOf('crmnotes')]);
+  ok('Ann, whose price matched, carries no reminder', !/\[QP:/.test(annRow[HEADERS.indexOf('crmnotes')]));
   ok('no email: refused before any call', F.sgCreate_('p6363751003', false).reason === 'no email');
   ok('an email Sweep&Go already has: refused before creating', F.sgCreate_('p6363751004', false).reason === 'exists' && onboardings.length === 2);
   ok('Sweep&Go answering 409 is also "exists"', F.sgCreate_('p6363751005', false).reason === 'exists');
@@ -247,11 +248,11 @@ function build(leadRows){
   const r1 = post({ id:'p6363751007', created: new Date().toISOString(), type:'ACTIVATE', name:'Cara Click', phone:'6363751007', email:'cara@gmail.com', address:'8 Oak St, St. Peters, MO 63376', zip:'63376', service:'weekly', dogs:'2', deodorize:'no', price:'$91/mo', crmnotes:'[QA:a] ' });
   ok('with the switch on, an acceptance from the website is created in Sweep&Go on the spot', r1.ok && onboardings.length === n0 + 1 && onboardings[n0].email === 'cara@gmail.com' && sheets.leads.rows.some(r => r[0] === 'p6363751007' && /\[SGC:/.test(r[HEADERS.indexOf('crmnotes')]) && r[HEADERS.indexOf('status')] === 'closed'), JSON.stringify(r1));
   const r2 = post({ id:'p6363751008', created: new Date().toISOString(), type:'ACTIVATE', name:'Dan Differs', phone:'6363751008', email:'dan@gmail.com', address:'9 Oak St, St. Peters, MO 63376', zip:'63376', service:'weekly', dogs:'1', price:'$85/mo', crmnotes:'[QA:a] ' });
-  ok('a price that does not match is never created automatically; the lead still lands for the card button', r2.ok && onboardings.length === n0 + 1 && sheets.leads.rows.some(r => r[0] === 'p6363751008' && !/\[SGC:/.test(r[HEADERS.indexOf('crmnotes')])));
+  ok('a price that does not match is created too, with the reminder on the row', r2.ok && onboardings.length === n0 + 2 && sheets.leads.rows.some(r => r[0] === 'p6363751008' && /\[SGC:/.test(r[HEADERS.indexOf('crmnotes')]) && /\[QP:85\]/.test(r[HEADERS.indexOf('crmnotes')])));
   // an authorization from the emailed quote link names the lead in its zip field
   sheets.leads.rows.push(row({ id:'p6363751009', created:'2026-11-01T12:00:00Z', type:'ENQUIRY', name:'Eve Emailed', phone:'6363751009', email:'eve@gmail.com', address:'10 Oak St, St. Peters, MO 63376', zip:'63376', service:'weekly', dogs:'2', price:'$91/mo', status:'called', crmnotes:'[QA:w] ', updated:'' }));
   const r3 = post({ id:'az123', created: new Date().toISOString(), type:'AUTH', name:'Eve Emailed', zip:'p6363751009', price:'$91/mo', service:'weekly', dogs:'2', email:'eve@gmail.com' });
-  ok('an authorization through the emailed quote link signs up the lead it points at', r3.ok && onboardings.length === n0 + 2 && onboardings[n0 + 1].email === 'eve@gmail.com', JSON.stringify(onboardings.slice(-1)));
+  ok('an authorization through the emailed quote link signs up the lead it points at', r3.ok && onboardings.length === n0 + 3 && onboardings[n0 + 2].email === 'eve@gmail.com', JSON.stringify(onboardings.slice(-1)));
   sheets.leads.rows.find(r => r[0] === 'cfg_sg_auto_create')[HEADERS.indexOf('notes')] = 'off';
   const n1 = onboardings.length;
   post({ id:'p6363751010', created: new Date().toISOString(), type:'ACTIVATE', name:'Off Otto', phone:'6363751010', email:'otto@gmail.com', address:'11 Oak St, St. Peters, MO 63376', zip:'63376', service:'weekly', dogs:'2', price:'$91/mo', crmnotes:'[QA:a] ' });
