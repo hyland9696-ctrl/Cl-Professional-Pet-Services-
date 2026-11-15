@@ -400,7 +400,7 @@
     </div>
     <div id="briefPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="font-weight:800;font-size:15px;">&#128203; Daily brief</div>
+        <div style="font-weight:800;font-size:15px;">&#128203; Daily brief <button id="brief-say" onclick="sayBrief()" title="Read it out loud" style="margin-left:6px;padding:4px 10px;min-height:32px;font-size:12px;vertical-align:middle;">&#128266; Read it to me</button></div>
         <button onclick="toggleBrief()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;">Close</button>
       </div>
       <div id="brief-body" style="background:#F7F9F8;border:1px solid #E4EBE7;border-radius:10px;padding:12px 13px;font-size:13px;line-height:1.65;color:#2B3A34;white-space:pre-wrap;font-family:inherit;"></div>
@@ -585,6 +585,7 @@ function lockTracker(){
   leads = []; render();
   needKey('');
 }
+var lastRows = null, lastFullAt = 0, deltaLoads = 0;   // the last full list, when it came, and how many quiet refreshes have merged into it
 var testLeads = [];       // forms sent from team phones: shown, never counted
 var reviewCounts = [];    // {n, at}: every review count ever saved, oldest first
 /* lastLoadAt = when we last ASKED. lastSyncAt = when real data last came
@@ -642,12 +643,16 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
   // no-store says it plainly for anything in between.
   lastLoadAt = Date.now();
   if (!KEY){ needKey(''); if (cb) cb(false); return; }
+  // Most minutes nothing has changed, so the quiet refresh asks only for
+  // rows created or updated since the last answer (two minutes of slack for
+  // clocks), and a full list every fifteen minutes or whenever it is forced.
+  var since = (isRetry && !daysWanted && lastRows && lastFullAt && Date.now() - lastFullAt < 15 * 60000 && days === trafficDaysLoaded) ? new Date(lastSyncAt - 120000).toISOString() : '';
   // The list is asked for by POST, which keeps the key out of the address
   // bar. A backend that has not been redeployed since that change answers
   // "no" to a POST list, so the old GET is tried next - the page must never
   // go quiet because the script is a version behind.
   var byPost = fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, cache: 'no-store',
-        body: JSON.stringify({ action: 'list', key: KEY, days: days, _: Date.now() }) })
+        body: JSON.stringify({ action: 'list', key: KEY, days: days, since: since || undefined, _: Date.now() }) })
     .then(function(r){ return r.json(); })
     .catch(function(){ return { ok: false, error: 'network' }; });
   byPost.then(function(d){
@@ -668,6 +673,14 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
       // an id is ours to make (letters, digits, - and _); anything else was
       // posted by hand and would land inside an onclick handler
       d.leads = (d.leads || []).filter(function(l){ return !l.id || /^[A-Za-z0-9_-]{1,64}$/.test(String(l.id)); });
+      if (d.delta && lastRows){
+        // a changed row replaces the copy with the same id and created; a new one is added
+        var have = {}; lastRows.forEach(function(l, i){ if (l.id) have[l.id + '|' + l.created] = i; });
+        var merged = lastRows.slice();
+        d.leads.forEach(function(l){ var k = l.id ? l.id + '|' + l.created : ''; if (k && have[k] != null) merged[have[k]] = l; else merged.push(l); });
+        d.leads = merged; deltaLoads++;
+      } else { lastFullAt = Date.now(); }
+      lastRows = d.leads;
       remoteLoaded = true;
       trafficDaysLoaded = days;
       lastSyncAt = Date.now();
@@ -1601,13 +1614,13 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', cf: '', wk: '', lr: '', rt: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', cf: '', wk: '', lr: '', rt: '', an: '', ng: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
   // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
   // ll = lat,lng from Sweep&Go's dispatch board; sgid = their client id. Both written by the nightly sync.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR|CF|WK|LR|RT):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR|CF|WK|LR|RT|AN|NG):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1657,7 +1670,9 @@ function fuParse(crmnotes){
     else if (hit[1] === 'CF') m.cf = hit[2];                                 // card-failed notice: amount@date
     else if (hit[1] === 'WK') m.wk = hit[2];                                 // win-back email, date
     else if (hit[1] === 'LR') m.lr = hit[2];                                 // revival email to a quote that never went ahead, date
-    else if (hit[1] === 'RT') m.rt = hit[2];                                 // referral thank-you sent, date                                 // price move: new@effective date
+    else if (hit[1] === 'RT') m.rt = hit[2];                                 // referral thank-you sent, date
+    else if (hit[1] === 'AN') m.an = hit[2];                                 // anniversary email: year@date
+    else if (hit[1] === 'NG') m.ng = hit[2];                                 // the hour-later nudge went to the phones                                 // price move: new@effective date
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
   }
@@ -1705,7 +1720,7 @@ function fuCompose(m){
          (m.fe ? m.fe.split(',').map(function(x){ return '[FE:' + x + '] '; }).join('') : '') +
          (m.we ? m.we.split(',').map(function(x){ return '[WE:' + x + '] '; }).join('') : '') +
          (m.pm ? '[PM:' + m.pm + '] ' : '') +
-         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.cf ? '[CF:' + m.cf + '] ' : '') + (m.wk ? '[WK:' + m.wk + '] ' : '') + (m.lr ? '[LR:' + m.lr + '] ' : '') + (m.rt ? '[RT:' + m.rt + '] ' : '') + (m.text || '');
+         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.cf ? '[CF:' + m.cf + '] ' : '') + (m.wk ? '[WK:' + m.wk + '] ' : '') + (m.lr ? '[LR:' + m.lr + '] ' : '') + (m.rt ? '[RT:' + m.rt + '] ' : '') + (m.an ? '[AN:' + m.an + '] ' : '') + (m.ng ? '[NG:' + m.ng + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -2882,6 +2897,21 @@ function renderQR(){
     '<div style="font-size:11px;color:#bbb;margin-top:8px;">Traffic history is kept for about 13 months.</div>' +
     (scans.length > 25 ? '<div style="font-size:11.5px;color:#707070;margin-top:8px;">' + (scans.length - 25) + ' older scans not shown.</div>' : '');
 }
+/* Jesse: "I am driving right now. Is there a way that you can make it so
+   that I can listen". The phone's own voice reads the brief; tap again to stop. */
+var briefSpeaking = false;
+function sayBrief(){
+  var btn = document.getElementById('brief-say');
+  if (!('speechSynthesis' in window)){ toast('This phone cannot read aloud'); return; }
+  if (briefSpeaking){ window.speechSynthesis.cancel(); briefSpeaking = false; if (btn) btn.innerHTML = '&#128266; Read it to me'; return; }
+  var text = String(briefText_() || '').replace(/[\u2022\u00b7\u2014\u2192•·]/g, ', ').replace(/\$(\d[\d,]*)/g, '$1 dollars').replace(/\s+/g, ' ').trim();
+  if (!text){ toast('Nothing to read yet'); return; }
+  var u = new SpeechSynthesisUtterance(text); u.rate = 1; u.lang = 'en-US';
+  u.onend = function(){ briefSpeaking = false; if (btn) btn.innerHTML = '&#128266; Read it to me'; };
+  u.onerror = u.onend;
+  briefSpeaking = true; if (btn) btn.innerHTML = '&#9209;&#65039; Stop';
+  window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+}
 function toggleBrief(){
   var p = document.getElementById('briefPanel');
   var opening = p.style.display === 'none';
@@ -3705,7 +3735,8 @@ var AUTO_SWITCHES = [
   { key: 'card_emails', title: 'Card failed, same night.', text: 'When a payment fails, a plain note from the office that evening: the amount, the date, how to update the card. Once a week at most per person.' },
   { key: 'winback_emails', title: 'Win-back, a month after leaving.', text: 'Thirty days after an account closes, one come-back note: no initial clean fee to restart, old price holds. Not to anyone who moved or lost the dog.' },
   { key: 'revival_emails', title: 'Revival: quotes that never went ahead.', text: 'Anyone who got a price 30+ days ago and never signed up, or said no, gets one note: the quote still stands, the $40 initial clean is waived this month. Once, ever, per person. The older ones go out over a few days.' },
-  { key: 'referral_emails', title: 'Referral thank-you.', text: 'When someone a customer referred starts, the customer gets a thank-you from the office saying the free deodorize is on the next visit, and the phones get a reminder to add it in Sweep&Go.' }
+  { key: 'referral_emails', title: 'Referral thank-you.', text: 'When someone a customer referred starts, the customer gets a thank-you from the office saying the free deodorize is on the next visit, and the phones get a reminder to add it in Sweep&Go.' },
+  { key: 'anniversary_emails', title: 'A year with us.', text: 'On the anniversary of their start, a thank-you from the office with a free deodorize on the next visit. Every year, once.' }
 ];
 function autoOn(key){ var c = config[key]; return !!c && String(c.value) === 'on'; }
 function toggleAuto(key, on){
@@ -3765,7 +3796,7 @@ function emailWeek(){
     (fu.we ? fu.we.split(',') : []).forEach(function(x){ if ((x.split('@')[1] || '') >= cut) n.we++; });
     if (fu.pr && (fu.pr.split('@')[1] || '') >= cut) n.pr++;
     if (fu.cf && (fu.cf.split('@')[1] || '') >= cut) n.other++;
-    [fu.wk, fu.lr, fu.rt].forEach(function(d){ if (d && d >= cut) n.other++; });
+    [fu.wk, fu.lr, fu.rt, fu.an ? (fu.an.split('@')[1] || '') : ''].forEach(function(d){ if (d && d >= cut) n.other++; });
     (String(l.crmnotes || '').match(/\[EM:[a-z]+\d{4}@(\d{4}-\d{2}-\d{2})\]/g) || []).forEach(function(m){ if (m.slice(-11, -1) >= cut) n.other++; }); });
   return n;
 }
@@ -4503,7 +4534,8 @@ function accountantExport(){
       var y = new Date().getFullYear();
       downloadText('clpps-billing-' + y + '-by-month.csv', d.months || '');
       setTimeout(function(){ downloadText('clpps-billing-' + y + '-every-invoice-and-payment.csv', d.csv || ''); }, 400);
-      toast('Two files: by month, and every invoice and payment');
+      if (d.miles) setTimeout(function(){ downloadText('clpps-miles-' + y + '-by-month.csv', d.miles); }, 800);
+      toast((d.miles ? 'Three files: by month, every invoice and payment, and the miles' : 'Two files: by month, and every invoice and payment'));
     })
     .catch(function(){ toast('No connection'); });
 }
@@ -4895,6 +4927,21 @@ function renderSchedule(){
       '<div class="fold-body">' + s.unset.map(function(l){ return '<div style="font-size:12.5px;padding:2px 0 2px 10px;">' + person(l) + ' <span style="color:#9aa5a0;">&middot; ' + esc(townOf(zipOf(l), l)) + '</span></div>'; }).join('') + '</div></div>';
   }
   if (!total) h += '<div style="font-size:12.5px;color:#9aa5a0;">No active recurring customers yet.</div>';
+  // ---- what price closes: quotes by price band and dog count, last 12 months ----
+  try {
+    var q12 = leads.filter(function(l){ return isLead(l) && daysAgo(l.created) <= 365 && /^(ENQUIRY|ACTIVATE|DECLINED)$/.test(String(l.type || '')) && parsePrice(l) && parsePrice(l).isMo; });
+    if (q12.length >= 8){
+      var band = function(a){ return a < 70 ? 'under $70' : a < 90 ? '$70 to $89' : a < 110 ? '$90 to $109' : '$110 and up'; }, ORDER = ['under $70', '$70 to $89', '$90 to $109', '$110 and up'];
+      var byBand = {}, byDogs = {};
+      q12.forEach(function(l){ var a = parsePrice(l).amt, b = band(a), w = wonLead(l); var x = byBand[b] || (byBand[b] = { n: 0, won: 0 }); x.n++; if (w) x.won++; var dk = String(l.dogs || '?').replace(/\D/g, '') || '?'; dk = parseInt(dk, 10) >= 3 ? '3+' : dk; var y = byDogs[dk] || (byDogs[dk] = { n: 0, won: 0 }); y.n++; if (w) y.won++; });
+      h += '<h4 style="margin-top:14px;">&#128178; What price closes <span class="sub">quotes in the last 12 months, and how many became customers</span></h4>';
+      ORDER.forEach(function(b){ var x = byBand[b]; if (!x) return; h += bar(b, x.won, x.n, x.won + ' of ' + x.n + ' (' + Math.round(100 * x.won / x.n) + '%)'); });
+      h += '<div class="sub" style="margin:6px 0 2px;">By dogs</div>';
+      ['1', '2', '3+'].forEach(function(k){ var y = byDogs[k]; if (!y) return; h += bar(k === '3+' ? '3 or more dogs' : k + (k === '1' ? ' dog' : ' dogs'), y.won, y.n, y.won + ' of ' + y.n + ' (' + Math.round(100 * y.won / y.n) + '%)'); });
+      var worst = ORDER.filter(function(b){ return byBand[b] && byBand[b].n >= 5; }).sort(function(a, b){ return byBand[a].won / byBand[a].n - byBand[b].won / byBand[b].n; })[0];
+      if (worst) h += '<div class="sub">The band that closes least often is ' + esc(worst) + '. If that is where the table sits for most yards, that is the number to talk about, with these figures in hand.</div>';
+    }
+  } catch (e) {}
   box.innerHTML = h;
   box.querySelectorAll('.fold[data-fold]').forEach(function(c){ var k = c.getAttribute('data-fold'); foldApply(c, k === 'sched-routes' || k === 'sched-day'); });
 }
@@ -6585,7 +6632,8 @@ function render(){
     var autoRows = (fu.cf ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128179; Card-failed notice emailed ' + esc(fu.cf.split('@')[1] || '') + ' for $' + esc(fu.cf.split('@')[0]) + '</div>' : '') +
       (fu.wk ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128140; Win-back email sent ' + esc(fu.wk) + '</div>' : '') +
       (fu.lr ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128140; Revival email sent ' + esc(fu.lr) + ' (their quote still stands)</div>' : '') +
-      (fu.rt ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#129309; Referral thank-you sent ' + esc(fu.rt) + '</div>' : '');
+      (fu.rt ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#129309; Referral thank-you sent ' + esc(fu.rt) + '</div>' : '') +
+      (fu.an ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#127881; Anniversary thank-you sent ' + esc(fu.an.split('@')[1] || fu.an) + '</div>' : '');
     var pmRow = '';
     if (fu.pm){ var pmp = fu.pm.split('@'); pmRow = '<div style="background:#FFF8E1;color:#7a5c00;border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:700;margin-top:8px;">&#128200; Price moves to $' + esc(pmp[0]) + '/mo on ' + esc(pmp[1] || '') + ' &mdash; notice sent. Change it in Sweep&amp;Go on the day; this clears when the sync sees it.</div>'; }
     var feLine = fu.fe ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128231; Follow-up email' + (fu.fe.indexOf(',') > 0 ? 's' : '') + ' sent ' + esc(fu.fe.split(',').map(function(x){ var p = x.split('@'); return (p[0] === '1' ? 'day 2' : 'day 6') + ' (' + p[1] + ')'; }).join(', ')) + '</div>' : '';

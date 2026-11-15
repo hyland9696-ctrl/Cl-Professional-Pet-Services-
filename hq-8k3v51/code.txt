@@ -44,7 +44,7 @@ function install() {
   try { who = sgFetch_('/api/v2/welcome'); } catch (e) { L('STOP: Sweep&Go did not accept the token: ' + e.message + '. Make a new token in Sweep&Go, put it in INSTALL.SG_TOKEN, run install again. Nothing was written.'); return { ok:false, step:'token', error: e.message }; }
   L('2. Sweep&Go accepts the token.');
   setupSweepAndGo();
-  L('3. Jobs scheduled: the customer sync at 4am daily, the invoice pull right after it, the Monday 7am push, the 9am daily emails, the 5pm nudge, the month in review on the 1st, the year in review each January. The FIRST sync starts by itself in about a minute and the invoice history a minute after that, each in its own window. In five minutes pick sgStatus and press Run to read the result.');
+  L('3. Jobs scheduled: the customer sync at 4am daily, the invoice pull right after it (and the mileage log back to last January, a hundred days a run), the Monday 7am push, the 9am daily emails, the hourly and 5pm lead nudges, the month in review on the 1st, the year in review each January. The FIRST sync starts by itself in about a minute and the invoice history a minute after that, each in its own window. In five minutes pick sgStatus and press Run to read the result.');
   try { setupBackupTrigger(); var tidied = tidySheet(); L('4. Backups: every Sunday night to the Drive folder "CLPPS Backups", one made now, and the sheet tidied: ' + tidied.removed + ' duplicate or stale rows folded away, ' + tidied.kept + ' kept.'); }
   catch (e) { L('4. Backup trigger scheduled; the first copy or tidy failed: ' + e.message); }
   if (placesKey_() && placeId_()) { try { setupReviews(); L('5. Reviews: refreshing every Monday.'); } catch (e) { L('5. Reviews not set up: ' + e.message); } }
@@ -564,6 +564,10 @@ function refreshReviews() {
   var d = JSON.parse(res.getContentText() || '{}');
   var r = d && d.result;
   if (!r || !(r.rating >= 1) || !(r.user_ratings_total >= 1)) { Logger.log('Google did not return a rating: ' + res.getContentText().slice(0, 200)); return; }
+  // one more than last time: a new review to reply to, today
+  try { var prev = parseInt(cfg_('review_count'), 10), topicR = pushTopic_();
+    if (prev >= 1 && r.user_ratings_total > prev && topicR) UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(topicR), { method: 'post', contentType: 'text/plain; charset=utf-8', payload: (r.user_ratings_total - prev) + ' new Google review' + (r.user_ratings_total - prev === 1 ? '' : 's') + ': ' + r.user_ratings_total + ' now at ' + r.rating + ' stars. Reply today; people read the replies.', headers: { 'Title': 'New Google review', 'Tags': 'star' }, muteHttpExceptions: true });
+  } catch (eR) {}
   var sh = sheet_(), now = new Date().toISOString();
   [['review_rating', String(r.rating)], ['review_count', String(r.user_ratings_total)]].forEach(function(pair) {
     sh.appendRow(HEADERS.map(function(h) {
@@ -603,9 +607,13 @@ function list_(p) {
     var days = parseInt(p.days, 10);
     var cut = days > 0 ? Date.now() - days * 86400000 : 0;
     var BULK = { VIEW:1, QVIEW:1, OUTAREA:1 };
-    var iType = HEADERS.indexOf('type'), iCreated = HEADERS.indexOf('created');
+    var iType = HEADERS.indexOf('type'), iCreated = HEADERS.indexOf('created'), iUpdated = HEADERS.indexOf('updated');
+    // since= asks for only the rows created or updated after that moment: the
+    // phone refreshes every minute and most minutes nothing has changed
+    var since = /^\d{4}-\d{2}-\d{2}T/.test(String(p.since || '')) ? String(p.since) : '';
     var leads = [], skipped = 0;
     for (var i = 1; i < rows.length; i++) {
+      if (since) { var c0 = String(rows[i][iCreated] || ''), u0 = String(rows[i][iUpdated] || ''); if (c0 < since && (!u0 || u0 < since)) continue; }
       if (cut && BULK[String(rows[i][iType])]) {
         var when = new Date(rows[i][iCreated]).getTime();
         if (when && when < cut) { skipped++; continue; }
@@ -615,7 +623,7 @@ function list_(p) {
       leads.push(o);
     }
     leads.reverse(); // newest first
-    return json_({ok:true, leads:leads, windowDays: days > 0 ? days : null, olderRowsSkipped: skipped});
+    return json_({ok:true, leads:leads, windowDays: days > 0 ? days : null, olderRowsSkipped: skipped, delta: !!since, since: since || null});
   }
 }
 
@@ -626,7 +634,7 @@ function doPost(e) {
   if (qp.hook) return json_(sgHook_(qp.hook, e));
   if (!e || !e.postData || e.postData.length > MAX_POST_BYTES) return json_({ok:false, error:'too big'});
   try { body = JSON.parse(e.postData.contents); } catch (err) { return json_({ok:false}); }
-  if (body.action === 'list') return list_({ key: body.key, days: body.days });
+  if (body.action === 'list') return list_({ key: body.key, days: body.days, since: body.since });
   if (body.action === 'billing') {
     if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
     return json_(sgBilling_());
@@ -1055,16 +1063,18 @@ function sgSync(dry) {
     // ---- billing: fifty-odd pages the first time, so it runs on its own a
     // minute from now (Google stops any one run at six minutes) ----
     if (!dry) { try { sgScheduleBilling_(); summary.billing = 'scheduled'; } catch (e4) { summary.errors.push('billing: ' + e4.message); } }
-    // ---- Sweep&Go's route report: the last two weeks and the next two days ----
+    // ---- Sweep&Go's route report: the last two weeks and the next two days
+    // for the tracker, and every day kept for good in the routes sheet (the
+    // mileage log the accountant wants) ----
     try {
-      var rep = {};
+      var rep = {}, kept = [];
       for (var k2 = -14; k2 <= 1; k2++) {
         var d2 = new Date(Date.now() + k2 * 86400000).toISOString().slice(0, 10);
         var rr = sgFetch_('/api/v2/report/route_planning_report?date=' + d2);
         var list = (rr.route_reports || []).map(function(x) { return { who: x.assigned_to_name, min: x.duration, drive: x.driving_time, clean: x.cleanup_time, mi: x.distance, jobs: x.number_of_jobs, price: x.price }; });
-        if (list.length) { rep[d2] = list; summary.routes += list.length; }
+        if (list.length) { rep[d2] = list; summary.routes += list.length; if (k2 <= 0) list.forEach(function(x) { kept.push([d2, x.who || '', x.mi || 0, x.min || 0, x.drive || 0, x.clean || 0, x.jobs || 0, x.price || 0]); }); }
       }
-      if (!dry) sgConfig_('sg_routes', JSON.stringify(rep));
+      if (!dry) { sgConfig_('sg_routes', JSON.stringify(rep)); routesUpsert_(kept); }
     } catch (e5) { summary.errors.push('routes: ' + e5.message); }
     // ---- the work actually done: completed and skipped visits, last 45 days ----
     try { summary.jobs = sgPullJobs_(dry); } catch (e6) { summary.errors.push('jobs: ' + e6.message); }
@@ -1093,6 +1103,59 @@ function sgSync(dry) {
   } finally { lock.releaseLock(); }
   return summary;
 }
+/* ---- the routes sheet: one row per driver per day, kept for good ----
+   Miles, minutes, driving minutes, stops and the day's price, from Sweep&Go's
+   own route report. The mileage log: at the standard rate a year of these
+   is real money off the taxes, and nobody was writing it down. */
+var ROUTES_HEADERS = ['date','who','miles','minutes','drive','clean','jobs','price'];
+function routesSheet_() {
+  var ss = sheet_().getParent(), sh = ss.getSheetByName('routes');
+  if (!sh) { sh = ss.insertSheet('routes'); sh.appendRow(ROUTES_HEADERS); try { sh.getRange(1, 1, sh.getMaxRows(), ROUTES_HEADERS.length).setNumberFormat('@'); } catch (e) {} }
+  return sh;
+}
+function routesUpsert_(rows) {
+  if (!rows.length) return 0;
+  var sh = routesSheet_(), W = ROUTES_HEADERS.length, have = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, W).getValues() : [];
+  var key = function(r) { return String(r[0]).slice(0, 10) + '|' + sgNorm_(r[1]); }, fresh = {}; rows.forEach(function(r) { fresh[key(r)] = r; });
+  var out = have.filter(function(r) { return !fresh[key(r)]; }).concat(rows).map(function(r) { return r.map(function(v) { return safeCell_(v == null ? '' : v); }); });
+  out.sort(function(a, b) { return String(a[0]) < String(b[0]) ? -1 : 1; });
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, W).clearContent();
+  sh.getRange(2, 1, out.length, W).setValues(out);
+  return out.length;
+}
+/* Back to the start of last year, a hundred days a run, in its own runs
+   after the first billing pull; stops by itself when it reaches the start. */
+var ROUTES_BACK_TO = (new Date().getFullYear() - 1) + '-01-01';
+function sgRoutesBackfill() {
+  try { ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'sgRoutesBackfill') ScriptApp.deleteTrigger(t); }); } catch (e0) {}
+  var sh = routesSheet_(), have = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().map(function(r) { return String(r[0]).slice(0, 10); }) : [];
+  var oldest = have.length ? have.sort()[0] : new Date().toISOString().slice(0, 10);
+  var rows = [], d = new Date(oldest + 'T12:00:00'), n = 0, from = '';
+  while (n < 100) {
+    d.setDate(d.getDate() - 1); var ds = d.toISOString().slice(0, 10); if (ds < ROUTES_BACK_TO) break;
+    from = ds; n++;
+    try { var rr = sgFetch_('/api/v2/report/route_planning_report?date=' + ds); (rr.route_reports || []).forEach(function(x) { rows.push([ds, x.assigned_to_name || '', x.distance || 0, x.duration || 0, x.driving_time || 0, x.cleanup_time || 0, x.number_of_jobs || 0, x.price || 0]); }); }
+    catch (e) { break; }
+  }
+  // a day with no route still counts as looked at: mark it so the next run moves on
+  if (from && !rows.some(function(r) { return r[0] === from; })) rows.push([from, '', 0, 0, 0, 0, 0, 0]);
+  routesUpsert_(rows);
+  var done = !from || from <= ROUTES_BACK_TO;
+  if (!done) { try { ScriptApp.newTrigger('sgRoutesBackfill').timeBased().after(60 * 1000).create(); } catch (e2) {} }
+  Logger.log('Routes backfill: ' + rows.length + ' rows, back to ' + (from || oldest) + (done ? ', done' : ', more in a minute'));
+  return { ok:true, rows: rows.length, from: from, done: done };
+}
+/* Miles by month, from the routes sheet. */
+function mileage_() {
+  var sh = sheet_().getParent().getSheetByName('routes'), months = {}, days = {};
+  if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, ROUTES_HEADERS.length).getValues().forEach(function(r) {
+    var d = String(r[0] || '').slice(0, 10), mi = parseFloat(r[2]) || 0; if (!/^\d{4}-\d{2}/.test(d) || !mi) return;
+    var mk = d.slice(0, 7), m = months[mk] || (months[mk] = { miles: 0, days: {} }); m.miles += mi; m.days[d] = 1;
+  });
+  var out = {}; Object.keys(months).sort().forEach(function(k) { out[k] = { miles: Math.round(months[k].miles), days: Object.keys(months[k].days).length }; });
+  return out;
+}
+function mileageCsv_() { var m = mileage_(); return 'month,miles,days_driven\n' + Object.keys(m).map(function(k) { return [k, m[k].miles, m[k].days].join(','); }).join('\n') + '\n'; }
 /* The last recurring monthly invoice per customer, from the billing sheet
    (yesterday's pull is fine): what Sweep&Go actually charges them. Only
    invoices inside 45 days count, and not initial or prorated ones. */
@@ -1168,6 +1231,8 @@ function sgBillingSync() {
   try { var r = sgPullBilling_(false); out.rows = r.rows; out.full = r.full; out.fetched = r.fetched; }
   catch (e) { out.ok = false; out.error = String(e && e.message || e).slice(0, 200); }
   finally { lock.releaseLock(); }
+  // the mileage log back to last January, a hundred days a run, when there is little of it yet
+  try { var rs = sheet_().getParent().getSheetByName('routes'); if (!rs || rs.getLastRow() < 60) { ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'sgRoutesBackfill') ScriptApp.deleteTrigger(t); }); ScriptApp.newTrigger('sgRoutesBackfill').timeBased().after(90 * 1000).create(); out.backfill = 'scheduled'; } } catch (e3) {}
   out.finished = new Date().toISOString();
   try { sgConfig_('sg_last_billing', JSON.stringify(out)); } catch (e2) {}
   Logger.log('Billing pull: ' + JSON.stringify(out));
@@ -1357,6 +1422,12 @@ function sgHook_(word, e) {
     sh.appendRow([new Date().toISOString(), ev.slice(0, 80), safeCell_(raw.slice(0, 4000))]);
     if (sh.getLastRow() > 500) sh.deleteRows(2, sh.getLastRow() - 500);
   } catch (e2) {}
+  // somebody signed up straight in Sweep&Go: the phones hear within minutes
+  if (/onboarding|subscription[_: ]?created/i.test(ev)) {
+    try { var b2 = JSON.parse(raw), who = String(b2.client_name || b2.name || ((b2.first_name || '') + ' ' + (b2.last_name || '')) || '').trim() || 'Someone', topic0 = pushTopic_();
+      if (topic0) UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(topic0), { method: 'post', contentType: 'text/plain; charset=utf-8', payload: who + ' just signed up in Sweep&Go (' + ev + '). The tracker picks them up within minutes.', headers: { 'Title': 'New sign-up in Sweep&Go', 'Tags': 'tada', 'Click': 'https://www.clpropetservices.com/hq-8k3v51/' }, muteHttpExceptions: true });
+    } catch (e4) {}
+  }
   // a change worth syncing for, at most once every ten minutes
   if (!/^(notification|staff|payroll|dog|organization)/.test(ev)) {
     try {
@@ -1608,7 +1679,8 @@ function billingCsv_() {
   var csv = BILLING_HEADERS.join(',') + '\n' + rows.map(function(r) { return r.map(q).join(','); }).join('\n') + '\n';
   var f = sgBilling_(), ms = Object.keys(f.months || {}).sort();
   var months = 'month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced\n' + ms.map(function(k) { var m = f.months[k]; return [k, m.billed, m.onetime, m.collected, m.unpaid, m.tips, m.failed, m.customers].join(','); }).join('\n') + '\n';
-  return { ok:true, csv: csv, months: months, rows: rows.length };
+  var miles = ''; try { miles = mileageCsv_(); } catch (e) {}
+  return { ok:true, csv: csv, months: months, miles: miles, rows: rows.length };
 }
 /* ---- payment reminders ----
    Corey's collections question. A plain note from the office with the
@@ -1679,10 +1751,32 @@ function monthlyReportText_(mk) {
   L.push('Leads: ' + leadsIn + ' came in, ' + won + ' of them are customers now.');
   var owed = (f.unpaid || []).slice(0, 8).map(function(u) { return u.name + ' ' + money(u.owed) + (u.oldest ? ' since ' + u.oldest : ''); });
   if (owed.length) L.push('Owed, biggest first: ' + owed.join('; ') + '.');
+  try { var mv = mrrMoves_(Object.keys(latest).map(function(id) { return latest[id].r; }), H, mk); L.push('On the books: ' + money(mv.start) + ' a month at the start, +' + money(mv.added) + ' from ' + mv.n + ' new, -' + money(mv.lost) + ' from ' + mv.left + ' who left' + (Math.abs(mv.changes) >= 1 ? ', ' + (mv.changes > 0 ? '+' : '-') + money(Math.abs(mv.changes)) + ' from price and plan changes' : '') + ', ' + money(mv.end) + ' now.'); } catch (e9) {}
+  try { var mm = mileage_()[mk]; if (mm) L.push('Miles: ' + mm.miles.toLocaleString() + ' driven over ' + mm.days + ' days, from Sweep&Go\u2019s route report.'); } catch (e10) {}
   L.push('');
-  L.push('Two files attached: the month by month summary, and every invoice and payment, for the accountant.');
+  L.push('Three files attached: the month by month summary, every invoice and payment, and the miles by month, for the accountant.');
   L.push('The tracker has the detail: Numbers, then Money.');
   return L.join('\n');
+}
+/* What moved the monthly number: the books at the start of the month, what
+   the new ones added, what the leavers took, and the rest is price and plan
+   changes. From the cards' prices and their start and leaving dates. */
+function mrrMoves_(rows, H, mk) {
+  var first = mk + '-01', next = (mk.slice(5) === '12' ? (parseInt(mk.slice(0, 4), 10) + 1) + '-01' : mk.slice(0, 4) + '-' + ('0' + (parseInt(mk.slice(5), 10) + 1)).slice(-2)) + '-01';
+  var amt = function(r) { var p = String(r[H.price] || ''); if (!/\/mo|month/.test(p)) return 0; var m = p.match(/\$?(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : 0; };
+  var o = { start: 0, added: 0, n: 0, lost: 0, left: 0, end: 0, changes: 0 };
+  rows.forEach(function(r) {
+    var st = String(r[H.status] || ''), notes = String(r[H.crmnotes] || ''); if (/\[(TM:1|OS:1|SS:none)\]/.test(notes) || (st !== 'closed' && st !== 'cancelled')) return;
+    var cd = (notes.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || String(r[H.created] || '').slice(0, 10), cx = (notes.match(/\[CX:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '', a = amt(r);
+    var activeAtStart = cd < first && (!cx || cx >= first), activeNow = st === 'closed';
+    if (activeAtStart) o.start += a;
+    if (cd >= first && cd < next) { o.added += a; o.n++; }
+    if (st === 'cancelled' && cx >= first && cx < next) { o.lost += a; o.left++; }
+    if (activeNow) o.end += a;
+  });
+  o.changes = o.end - (o.start + o.added - o.lost);
+  ['start','added','lost','end','changes'].forEach(function(k) { o[k] = Math.round(o[k]); });
+  return o;
 }
 function monthlyReport() {
   var d = new Date(); d.setDate(0);   // the last day of the month just ended
@@ -1690,7 +1784,8 @@ function monthlyReport() {
   var to = NOTIFY_CC + (NOTIFY_TO && NOTIFY_TO !== NOTIFY_CC ? ',' + NOTIFY_TO : '');
   var how = sendOfficeMail_({ to: to, subject: 'CLPPS ' + mk + ' in review', body: text, attachments: [
     { name: 'clpps-billing-by-month.csv', type: 'text/csv', content: files.months || '' },
-    { name: 'clpps-invoices-and-payments.csv', type: 'text/csv', content: files.csv || '' } ] });
+    { name: 'clpps-invoices-and-payments.csv', type: 'text/csv', content: files.csv || '' },
+    { name: 'clpps-miles-by-month.csv', type: 'text/csv', content: files.miles || '' } ] });
   Logger.log('Month in review for ' + mk + ' sent (' + how + ') to ' + to);
   return { ok:true, month: mk, how: how };
 }
@@ -1721,8 +1816,9 @@ function yearlyReportText_(year) {
   var qk = Object.keys(churn).sort();
   if (qk.length) L.push('Why people left, by quarter: ' + qk.map(function(q) { return q + ' ' + Object.keys(churn[q]).map(function(w) { return churn[q][w] + ' ' + w; }).join(', '); }).join('; ') + '.');
   L.push('Leads: ' + leadsIn + ' came in through the website and the phone, ' + won + ' became customers' + (leadsIn ? ' (' + Math.round(won / leadsIn * 100) + '%)' : '') + '.');
+  try { var mm = mileage_(), miles = 0, days = 0; Object.keys(mm).forEach(function(k) { if (k.indexOf(year + '-') === 0) { miles += mm[k].miles; days += mm[k].days; } }); if (miles) L.push('Miles: ' + miles.toLocaleString() + ' driven over ' + days + ' days. At 70 cents a mile (the 2025 standard rate; check the current one) that is about $' + Math.round(miles * 0.7).toLocaleString() + ' of deductible mileage.'); } catch (e11) {}
   L.push('');
-  L.push('The two files attached cover every invoice and payment on record and the month by month totals.');
+  L.push('The files attached cover every invoice and payment on record, the month by month totals, and the miles by month.');
   return L.join('\n');
 }
 function yearlyReport() {
@@ -1730,7 +1826,8 @@ function yearlyReport() {
   var to = NOTIFY_CC + (NOTIFY_TO && NOTIFY_TO !== NOTIFY_CC ? ',' + NOTIFY_TO : '');
   var how = sendOfficeMail_({ to: to, subject: 'CLPPS ' + year + ' in review', body: text, attachments: [
     { name: 'clpps-billing-by-month.csv', type: 'text/csv', content: files.months || '' },
-    { name: 'clpps-invoices-and-payments.csv', type: 'text/csv', content: files.csv || '' } ] });
+    { name: 'clpps-invoices-and-payments.csv', type: 'text/csv', content: files.csv || '' },
+    { name: 'clpps-miles-by-month.csv', type: 'text/csv', content: files.miles || '' } ] });
   return { ok:true, year: year, how: how };
 }
 function setupYearly() {
@@ -1755,15 +1852,41 @@ function eveningNudge() {
     if (Utilities.formatDate(new Date(String(r[H.created])), tz, 'yyyy-MM-dd') !== today) return;
     names.push(String(r[H.name] || '').trim() || 'someone');
   });
-  if (!names.length) return { ok:true, waiting: 0 };
+  // paused customers back on the route tomorrow
+  var tomorrow = Utilities.formatDate(new Date(Date.now() + 86400000), tz, 'yyyy-MM-dd'), back = [];
+  for (var k = 1; k < rows.length; k++) { var nt = String(rows[k][H.crmnotes] || ''), pz = nt.match(/\[PZ:[^~\]]*~(\d{4}-\d{2}-\d{2})\]/); if (pz && pz[1] === tomorrow && String(rows[k][H.status] || '') === 'closed') back.push(String(rows[k][H.name] || '').trim()); }
+  back = back.filter(function(n, i, a) { return n && a.indexOf(n) === i; });
+  if (back.length) { var topicB = pushTopic_(); if (topicB) { try { UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(topicB), { method: 'post', contentType: 'text/plain; charset=utf-8', payload: back.join(', ') + ' ' + (back.length === 1 ? 'is' : 'are') + ' back on the route tomorrow after a pause. Worth a look at the day plan tonight.', headers: { 'Title': 'Back tomorrow', 'Tags': 'arrows_counterclockwise' }, muteHttpExceptions: true }); } catch (e5) {} } }
+  if (!names.length) return { ok:true, waiting: 0, back: back };
   var body = names.length + ' lead' + (names.length === 1 ? '' : 's') + ' from today still not called: ' + names.slice(0, 6).join(', ') + (names.length > 6 ? ' and ' + (names.length - 6) + ' more' : '') + '. A call tonight beats one tomorrow.';
   var topic = pushTopic_();
   if (topic) { try { UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(topic), { method: 'post', contentType: 'text/plain; charset=utf-8', payload: body, headers: { 'Title': 'Before you clock off', 'Priority': 'default', 'Tags': 'telephone_receiver', 'Click': 'https://www.clpropetservices.com/hq-8k3v51/' }, muteHttpExceptions: true }); } catch (e) {} }
-  return { ok:true, waiting: names.length, body: body };
+  return { ok:true, waiting: names.length, body: body, back: back };
+}
+/* A lead still not called an hour on: one more push, once, then the 5pm round-up. */
+function hourlyNudge() {
+  var tz = Session.getScriptTimeZone(), hour = parseInt(Utilities.formatDate(new Date(), tz, 'H'), 10);
+  if (hour < 8 || hour > 19) return { ok:true, quiet: true };
+  var sh = sheet_(), rows = sh.getDataRange().getValues(), H = {}; HEADERS.forEach(function(h, i) { H[h] = i; });
+  var latest = {}, LEAD = { ENQUIRY:1, ACTIVATE:1, SAVED:1, DECLINED:1 };
+  for (var i = 1; i < rows.length; i++) { var t = String(rows[i][H.type] || ''); if (!LEAD[t]) continue; var id = String(rows[i][H.id]), key = String(rows[i][H.created] || ''); if (!latest[id] || key >= latest[id].key) latest[id] = { key: key, row: i }; }
+  var now = Date.now(), due = [];
+  Object.keys(latest).forEach(function(id) {
+    var r = rows[latest[id].row], notes = String(r[H.crmnotes] || ''), age = (now - new Date(String(r[H.created])).getTime()) / 60000;
+    if (String(r[H.status] || 'new') !== 'new' || /\[(TM:1|TX:|T1:|NG:)/.test(notes) || age < 55 || age > 240) return;
+    due.push({ row: latest[id].row, name: String(r[H.name] || '').trim() || 'someone', mins: Math.round(age) });
+  });
+  if (!due.length) return { ok:true, waiting: 0 };
+  due.forEach(function(d) { sh.getRange(d.row + 1, H.crmnotes + 1).setValue(safeCell_(sgSetMarkers_(String(rows[d.row][H.crmnotes] || ''), { NG: '1' }))); });
+  var body = due.map(function(d) { return d.name + ' (' + d.mins + ' min)'; }).join(', ') + ' still waiting for a call. The first hour wins most of them.';
+  var topic = pushTopic_();
+  if (topic) { try { UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(topic), { method: 'post', contentType: 'text/plain; charset=utf-8', payload: body, headers: { 'Title': 'Lead waiting an hour', 'Priority': 'high', 'Tags': 'hourglass', 'Click': 'https://www.clpropetservices.com/hq-8k3v51/' }, muteHttpExceptions: true }); } catch (e) {} }
+  return { ok:true, waiting: due.length, body: body };
 }
 function setupNudge() {
-  ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'eveningNudge') ScriptApp.deleteTrigger(t); });
+  ScriptApp.getProjectTriggers().forEach(function(t) { if (t.getHandlerFunction() === 'eveningNudge' || t.getHandlerFunction() === 'hourlyNudge') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('eveningNudge').timeBased().everyDays(1).atHour(17).create();
+  ScriptApp.newTrigger('hourlyNudge').timeBased().everyHours(1).create();
 }
 /* Shared plumbing for the daily rounds: the newest row per person, a
    stamp writer, and the three checks every customer email passes. */
@@ -1858,6 +1981,18 @@ function referralThanks() {
     });
   });
 }
+/* A year with us: on the anniversary of their start, a thank-you from the office. */
+function anniversaryEmails() {
+  return round_('Anniversary emails', 'anniversary_emails', function(E, today, send) {
+    var md = today.slice(5), yr = parseInt(today.slice(0, 4), 10);
+    E.people.forEach(function(p) {
+      var n = String(p.crmnotes || ''); if (String(p.status) !== 'closed' || !E.mailable(p) || /\[(OS:1|SS:none|CM:1)\]/.test(n)) return;
+      var cd = (n.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1]; if (!cd || cd.slice(5) !== md) return;
+      var years = yr - parseInt(cd.slice(0, 4), 10); if (years < 1 || n.indexOf('[AN:' + yr) >= 0) return;
+      send(p, (years === 1 ? 'A year with us, ' : years + ' years with us, ') + E.first(p) + ' \u2014 thank you', 'Hi ' + E.first(p) + ',\n\n' + (years === 1 ? 'It has been a year today since we first came out to your yard.' : 'It has been ' + years + ' years today since we first came out to your yard.') + ' Thank you for having us every week; a small business runs on customers like you.\n\nAs a small thank-you, your next visit includes a free deodorizing and sanitizing treatment, on the house. Nothing to do on your end.\n\nIf there is anything we could be doing better, reply here and tell me straight. \u2014 Corey', { AN: yr + '@' + today });
+    });
+  });
+}
 /* The campaign calendar: four seasonal emails, each with a date and a
    switch (CONFIG campaigns), sent on the day to its audience, once a year. */
 var CAMPAIGNS = {
@@ -1895,7 +2030,7 @@ function campaignsDue() {
 }
 function dailyEmails() {
   var out = {};
-  [['followups', quoteFollowups], ['welcome', welcomeEmails], ['cards', cardFailedEmails], ['winback', winbackEmails], ['revival', leadRevival], ['referral', referralThanks], ['campaigns', campaignsDue]].forEach(function(j) {
+  [['followups', quoteFollowups], ['welcome', welcomeEmails], ['cards', cardFailedEmails], ['winback', winbackEmails], ['revival', leadRevival], ['referral', referralThanks], ['anniversary', anniversaryEmails], ['campaigns', campaignsDue]].forEach(function(j) {
     try { out[j[0]] = j[1](); } catch (e) { out[j[0]] = { ok:false, error: String(e && e.message || e).slice(0, 160) }; }
   });
   if (new Date().getDay() === 1) { try { out.reminders = paymentReminders(); } catch (e) { out.reminders = { ok:false, error: String(e && e.message || e) }; } }

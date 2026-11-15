@@ -96,6 +96,7 @@ const API = {
     { date: d(9), amount: 87, amount_refunded:'0.00', status:'failed', type:'credit_card', description:'Payment for invoice 768-2-1', client_name:'Kelly .', tip_amount:'0.00' },
   ], last_page: 1 } },
   '/api/v2/report/route_planning_report': { route_reports: [ { assigned_to_name:'Jesse Duncan', date: today, duration: 240, driving_time: 60, cleanup_time: 180, distance: 61.5, number_of_jobs: 18, price: 540 } ] },
+  '/api/v2/old_list_unused': {},
   '/api/v2/report/completed_jobs_report': { job_list: [
     { first_name:'Dana', last_name:'Deo', zip:'63376', status_name:'completed', start_time: d(1) + ' 09:00:00', end_time: d(1) + ' 09:12:00', service_plan_name:'2d-1xW', service_plan_slug:'once_a_week', date: d(1), price:'35.00', duration:'12:00', assigned_to_name:'Jesse Duncan' },
     { first_name:'Kelly', last_name:'.', zip:'63376', status_name:'skipped', skip_reason_title:'Gate locked', date: d(1), service_plan_name:'3d-1xW', duration:'-' },
@@ -112,6 +113,7 @@ const MS = { MS_TENANT:'ten-1', MS_CLIENT:'cli-1', MS_SECRET:'sec-1', MAIL_FROM:
 /* what went out through Microsoft, as the customer sees it */
 const sentMs = () => msCalls.filter(c => c.body && c.body.message).map(c => ({ to: c.body.message.toRecipients[0].emailAddress.address, subject: c.body.message.subject, body: c.body.message.body.content, replyTo: c.body.message.replyTo[0].emailAddress.address }));
 let throttle = 0;   // how many times in a row Sweep&Go answers 429
+let googleReviews = 40;   // what Google says the review count is
 function fakeFetch(url, opts){
   calls.push(url);
   if (/residential\/onboarding$/.test(url)){
@@ -127,6 +129,7 @@ function fakeFetch(url, opts){
     const price = freq === 'bi_weekly' ? 70 : dogs === '2' ? 91 : 95;
     return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ price: { value: String(price), category: 'prepaid', billing_interval: 'monthly' }, cross_sells: [ { id: 7, name: 'Deodorizing and Sanitizing', unit_amount: '15.00' } ] }) };
   }
+  if (/maps\.googleapis\.com\//.test(url)) return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ result: { rating: 4.9, user_ratings_total: googleReviews } }) };
   if (/login\.microsoftonline\.com\//.test(url)){ msCalls.push({ url, payload: opts.payload }); return { getResponseCode: () => opts.payload && opts.payload.client_secret === 'sec-1' ? 200 : 401, getContentText: () => JSON.stringify(opts.payload && opts.payload.client_secret === 'sec-1' ? { access_token: 'ms-tok' } : { error: 'invalid_client' }) }; }
   if (/graph\.microsoft\.com\//.test(url)){ const b = JSON.parse(opts.payload || '{}'); msCalls.push({ url, auth: opts.headers && opts.headers.Authorization, body: b }); const to = b.message && b.message.toRecipients[0].emailAddress.address; return to === 'bounce@gmail.com' ? { getResponseCode: () => 500, getContentText: () => '{"error":{"code":"ErrorInternalServerError"}}' } : { getResponseCode: () => 202, getContentText: () => '' }; }
   if (/ntfy\.sh\//.test(url)){ pushes.push({ url, title: opts.headers && opts.headers.Title, body: opts.payload }); return { getResponseCode: () => 200, getContentText: () => '{}' }; }
@@ -170,11 +173,11 @@ function build(leadRows){
     CacheService: { getScriptCache: () => ({ get: () => null, put: () => {}, remove: () => {} }) },
     Logger: { log: (m) => { logs.push(String(m)); } },
     ScriptApp: { WeekDay: { MONDAY:'mon', SUNDAY:'sun' }, getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/XYZ/exec' }), getProjectTriggers: () => [], deleteTrigger: () => {},
-      newTrigger: (fn) => { const chain = { everyDays: () => chain, onWeekDay: () => chain, onMonthDay: () => chain, after: () => chain, atHour: () => chain, create: () => { triggers.push(fn); } }; return { timeBased: () => chain }; } },
-    MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: (d, tz, f) => f === 'yyyy-MM-dd' ? new Date(d).toISOString().slice(0, 10) : '202611', sleep: (ms) => { sleeps.push(ms); }, base64Encode: (s) => Buffer.from(String(s), 'utf8').toString('base64'), Charset: { UTF_8: 'utf8' }, newBlob: (c, type, name) => ({ c, type, name }) }, Session: { getScriptTimeZone: () => 'America/Chicago' },
+      newTrigger: (fn) => { const chain = { everyDays: () => chain, everyHours: () => chain, onWeekDay: () => chain, onMonthDay: () => chain, after: () => chain, atHour: () => chain, create: () => { triggers.push(fn); } }; return { timeBased: () => chain }; } },
+    MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: (d, tz, f) => f === 'yyyy-MM-dd' ? new Date(d).toISOString().slice(0, 10) : f === 'H' ? '12' : '202611', sleep: (ms) => { sleeps.push(ms); }, base64Encode: (s) => Buffer.from(String(s), 'utf8').toString('base64'), Charset: { UTF_8: 'utf8' }, newBlob: (c, type, name) => ({ c, type, name }) }, Session: { getScriptTimeZone: () => 'America/Chicago' },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (txt) => ({ _t: txt, setMimeType(){ return this; } }) },
   };
-  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups, install, INSTALL, sgBillingSync, sgSyncOnce, sgStatus, sgAllUntil_, tidySheet, payRemind_, paymentReminders, monthlyReport, eveningNudge, weeklyHousekeeping, publicDays_, cardFailedEmails, winbackEmails, leadRevival, referralThanks, campaignsDue, yearlyReport, yearlyReportText_, refCode_, doGet, pin_ };')(...Object.values(G));
+  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups, install, INSTALL, sgBillingSync, sgSyncOnce, sgStatus, sgAllUntil_, tidySheet, payRemind_, paymentReminders, monthlyReport, eveningNudge, weeklyHousekeeping, publicDays_, cardFailedEmails, winbackEmails, leadRevival, referralThanks, campaignsDue, yearlyReport, yearlyReportText_, refCode_, doGet, pin_, sgRoutesBackfill, mileage_, hourlyNudge, anniversaryEmails, refreshReviews, monthlyReportText_, list_, ROUTES_BACK_TO };')(...Object.values(G));
   return { F, sheets, props };
 }
 
@@ -558,10 +561,10 @@ function build(leadRows){
   msCalls.length = 0; mails.length = 0;
   const mr = F.monthlyReport();
   const sent = msCalls.filter(c => c.body && c.body.message).pop();
-  ok('on the 1st the month in review goes to the office from the office, with the two files attached', mr.ok && mr.how === 'microsoft' && sent && sent.body.message.toRecipients.map(x => x.emailAddress.address).join() === 'info@clpropetservices.com,clpropetservices@gmail.com' && /in review$/.test(sent.body.message.subject) && sent.body.message.attachments.length === 2 && sent.body.message.attachments[0].name === 'clpps-billing-by-month.csv' && Buffer.from(sent.body.message.attachments[1].contentBytes, 'base64').toString('utf8').indexOf('kind,number,date') === 0, JSON.stringify(sent && sent.body.message.subject));
+  ok('on the 1st the month in review goes to the office from the office, with the three files attached', mr.ok && mr.how === 'microsoft' && sent && sent.body.message.toRecipients.map(x => x.emailAddress.address).join() === 'info@clpropetservices.com,clpropetservices@gmail.com' && /in review$/.test(sent.body.message.subject) && sent.body.message.attachments.length === 3 && sent.body.message.attachments[0].name === 'clpps-billing-by-month.csv' && Buffer.from(sent.body.message.attachments[1].contentBytes, 'base64').toString('utf8').indexOf('kind,number,date') === 0, JSON.stringify(sent && sent.body.message.subject));
   ok('and it reads like a note, not a dump: money, customers with the two to check, work, leads', /Money: \$/.test(sent.body.message.body.content) && /Customers: \d+ active \(plus 2 Sweep&Go still calls active/.test(sent.body.message.body.content) && /Work: \d+ visits done/.test(sent.body.message.body.content) && /Leads: \d+ came in/.test(sent.body.message.body.content), sent.body.message.body.content);
   delete props.MS_TENANT;
-  ok('without the office mailbox the report still reaches the office, from Google, since it is not a customer email', F.monthlyReport().how === 'google' && mails.length === 1 && mails[0].attachments.length === 2);
+  ok('without the office mailbox the report still reaches the office, from Google, since it is not a customer email', F.monthlyReport().how === 'google' && mails.length === 1 && mails[0].attachments.length === 3);
   // the evening nudge
   pushes.length = 0;
   const nudge = F.eveningNudge();
@@ -630,9 +633,71 @@ function build(leadRows){
   // the year in review
   msCalls.length = 0;
   const yr = F.yearlyReport(), ySent = msCalls.filter(c => c.body && c.body.message).pop();
-  ok('the year in review goes to the office with the two files, and reads: money, customers and how long they stay, leads', yr.ok && yr.how === 'microsoft' && ySent.body.message.attachments.length === 2 && /in review$/.test(ySent.body.message.subject) && /Money: \$/.test(ySent.body.message.body.content) && /Customers: \d+ active at year end/.test(ySent.body.message.body.content) && /Leads: \d+ came in/.test(ySent.body.message.body.content), ySent && ySent.body.message.body.content);
+  ok('the year in review goes to the office with the three files, and reads: money, customers and how long they stay, leads', yr.ok && yr.how === 'microsoft' && ySent.body.message.attachments.length === 3 && /in review$/.test(ySent.body.message.subject) && /Money: \$/.test(ySent.body.message.body.content) && /Customers: \d+ active at year end/.test(ySent.body.message.body.content) && /Leads: \d+ came in/.test(ySent.body.message.body.content), ySent && ySent.body.message.body.content);
   // the daily job runs them all and reports each
   const daily = F.dailyEmails();
-  ok('the 9am job runs every round and reports each by name', ['followups', 'welcome', 'cards', 'winback', 'revival', 'referral', 'campaigns'].every(k => daily[k] && daily[k].ok), JSON.stringify(Object.keys(daily)));
+  ok('the 9am job runs every round and reports each by name', ['followups', 'welcome', 'cards', 'winback', 'revival', 'referral', 'anniversary', 'campaigns'].every(k => daily[k] && daily[k].ok), JSON.stringify(Object.keys(daily)));
+  // the anniversary: Dana started this day last year
+  const mdToday = new Date().toISOString().slice(5, 10), lastYear = new Date().getFullYear() - 1;
+  sheets.leads.rows.forEach(r => { if (r[0] === 'p6363750001') r[HEADERS.indexOf('crmnotes')] = r[HEADERS.indexOf('crmnotes')].replace(/\[CD:[^\]]*\]/, '[CD:' + lastYear + '-' + mdToday + ']'); });
+  on('anniversary_emails');
+  msCalls.length = 0;
+  const an = F.anniversaryEmails(), anMail = sentMs().pop();
+  ok('on the anniversary of her start Dana is thanked from the office, with the free deodorize, and the year is stamped so it is once a year', an.sent === 1 && anMail.to === 'dana@gmail.com' && /A year with us, Dana/.test(anMail.subject) && /free deodorizing and sanitizing treatment/.test(anMail.body) && new RegExp('\\[AN:' + new Date().getFullYear() + '@').test(notes('p6363750001')) && F.anniversaryEmails().sent === 0, JSON.stringify(an));
+}
+
+/* ---- the mileage log, the delta list, the pings ---- */
+{
+  const { F, sheets, props } = build(seed());
+  Object.assign(props, MS);
+  F.sgSync(false);
+  ok('the sync keeps every day\'s route report in the routes sheet: date, who, miles, minutes, driving, stops, price', sheets.routes && sheets.routes.rows.length >= 2 && sheets.routes.rows[1][1] === 'Jesse Duncan' && Number(sheets.routes.rows[1][2]) === 61.5, JSON.stringify(sheets.routes && sheets.routes.rows.slice(0, 3)));
+  const n1 = sheets.routes.rows.filter(r => r[0]).length;
+  F.sgSync(false);
+  ok('a second sync replaces the same days rather than doubling them', sheets.routes.rows.filter(r => r[0]).length === n1);
+  triggers.length = 0;
+  const bs = F.sgBillingSync();
+  ok('the first billing pull lines up the mileage backfill', bs.backfill === 'scheduled' && triggers.includes('sgRoutesBackfill'));
+  triggers.length = 0; calls.length = 0;
+  const bf = F.sgRoutesBackfill();
+  ok('the backfill reads a hundred days back in one run, keeps them, and books itself again for the rest', bf.ok && bf.rows >= 100 && !bf.done && triggers.includes('sgRoutesBackfill') && calls.filter(u => /route_planning_report/.test(u)).length === 100, JSON.stringify(bf));
+  const mi = F.mileage_();
+  ok('miles by month come out of it, with the days driven', Object.keys(mi).length >= 3 && Object.values(mi).every(m => m.miles > 0 && m.days > 0), JSON.stringify(mi).slice(0, 200));
+  const files = F.billingCsv_();
+  ok('and the accountant\'s files carry a third one, miles by month', /^month,miles,days_driven\n/.test(files.miles) && files.miles.split('\n').length >= 4, files.miles.slice(0, 120));
+  const mk = new Date().toISOString().slice(0, 7);
+  const mtext = F.monthlyReportText_(mk);
+  ok('the month review says what moved the number, and the miles', /On the books: \$[\d,]+ a month at the start, \+\$[\d,]+ from \d+ new, -\$[\d,]+ from \d+ who left/.test(mtext) && /Miles: [\d,]+ driven over \d+ days/.test(mtext) && /Three files attached/.test(mtext), mtext);
+  msCalls.length = 0;
+  F.monthlyReport();
+  ok('and sends three files', msCalls.filter(c => c.body && c.body.message).pop().body.message.attachments.map(a => a.name).join() === 'clpps-billing-by-month.csv,clpps-invoices-and-payments.csv,clpps-miles-by-month.csv');
+  // the list, only what changed
+  props.TRACKER_KEY = 'NxcT-test';
+  const full = JSON.parse(F.list_({ key: 'NxcT-test', days: 1 })._t);
+  const sinceAll = JSON.parse(F.list_({ key: 'NxcT-test', days: 1, since: new Date(Date.now() + 60000).toISOString() })._t);
+  const sinceOld = JSON.parse(F.list_({ key: 'NxcT-test', days: 1, since: '2020-01-01T00:00:00.000Z' })._t);
+  ok('asked for changes since a minute from now, the list is empty and marked as a delta; since 2020, it is the whole list', sinceAll.ok && sinceAll.delta === true && sinceAll.leads.length === 0 && sinceOld.delta === true && sinceOld.leads.length === full.leads.length && full.delta === false, JSON.stringify([sinceAll.leads.length, sinceOld.leads.length, full.leads.length]));
+  // the pings
+  pushes.length = 0;
+  F.sgHook_('word', { postData: { contents: JSON.stringify({ event: 'client:onboarding_recurring', first_name: 'Sue', last_name: 'Signup' }) } });
+  ok('somebody signing up straight in Sweep&Go reaches the phones within minutes', pushes.some(p => p.title === 'New sign-up in Sweep&Go' && /Sue Signup just signed up/.test(p.body)), JSON.stringify(pushes));
+  pushes.length = 0;
+  const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  sheets.leads.rows.forEach(r => { if (r[0] === 'p6363750004') r[HEADERS.indexOf('crmnotes')] = r[HEADERS.indexOf('crmnotes')].replace(/\[PZ:[^\]]*\]/, '[PZ:2026-11-01~' + tomorrow + ']'); });
+  const ev = F.eveningNudge();
+  ok('the evening round also says who is back from a pause tomorrow', ev.back.join() === 'Paused Pat' && pushes.some(p => p.title === 'Back tomorrow' && /Paused Pat is back on the route tomorrow/.test(p.body)), JSON.stringify({ ev, pushes }));
+  pushes.length = 0;
+  sheets.leads.rows.push(HEADERS.map(h => ({ id:'q_hour', created: new Date(Date.now() - 70 * 60000).toISOString(), type:'ENQUIRY', name:'Hour Hal', phone:'6363750070', email:'hal@gmail.com', zip:'63376', service:'weekly', dogs:'1', price:'$85/mo', status:'new', crmnotes:'[QA:w] ' })[h] || ''));
+  const hn = F.hourlyNudge();
+  ok('a lead not called an hour on gets one more push, by name, and is marked so it is once', hn.waiting === 1 && pushes.some(p => p.title === 'Lead waiting an hour' && /Hour Hal \(70 min\)/.test(p.body)) && /\[NG:1\]/.test(sheets.leads.rows.filter(r => r[0] === 'q_hour').pop()[HEADERS.indexOf('crmnotes')]) && F.hourlyNudge().waiting === 0, JSON.stringify({ hn, pushes }));
+  // a new Google review
+  Object.assign(props, { PLACES_KEY: 'k', PLACE_ID: 'p' });
+  sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_rc', created: new Date(Date.now() - 864e5).toISOString(), type:'CONFIG', name:'review_count', notes:'39', status:'config' })[h] || ''));
+  pushes.length = 0;
+  F.refreshReviews();
+  ok('when Google shows one more review than last time, the phones are told to go and reply', pushes.some(p => p.title === 'New Google review' && /1 new Google review: 40 now at 4.9 stars/.test(p.body)), JSON.stringify(pushes));
+  pushes.length = 0;
+  F.refreshReviews();
+  ok('and not when the count is unchanged', pushes.length === 0);
 }
 done();

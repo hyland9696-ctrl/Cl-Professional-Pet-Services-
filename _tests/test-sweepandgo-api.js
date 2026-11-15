@@ -85,7 +85,8 @@ const { ok, done } = reporter();
   const p = await ctx.newPage();
   await p.clock.install({ time: new Date('2026-11-12T15:00:00Z') });   // a Thursday
   const errs = []; p.on('pageerror', e => errs.push(e.message));
-  const posts = [], sgcreates = [], pricemoves = [], reminders = [];
+  const posts = [], sgcreates = [], pricemoves = [], reminders = [], spoken = [], listDeltas = []; let deltaRows = [];
+  await p.addInitScript(() => { window.__spoken = []; Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { cancel(){}, speak(u){ window.__spoken.push(u.text); setTimeout(() => u.onend && u.onend(), 50); } } }); Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, value: function(t){ this.text = t; } }); });
   p.on('dialog', d => d.accept());
   const rows = [
     // pinned by the sync: an exact spot, not the ZIP centre
@@ -128,9 +129,10 @@ const { ok, done } = reporter();
     if (body.action === 'jobs') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, days: 30, visits: 310, minutes: 2790, timed: 300, skipped: 4, skipReasons: { 'Gate locked': 3, 'Client request': 1 }, skippedBy: { 'Eddie Eow': 2, 'Someone Else': 1 }, rate: { byPlan: { weekly: { n: 250, price: 5000, min: 2250, perHour: 133 }, 'every other week': { n: 50, price: 2200, min: 540, perHour: 244 } }, byDogs: { '1': { n: 120, price: 2400, min: 840, perHour: 171 }, '2': { n: 140, price: 3500, min: 1540, perHour: 136 } }, byWeekday: { thu: { n: 60, price: 1500, min: 600, perHour: 150 } } }, byClient: { 'Dana Deo': { n: 4, med: 20, price: 35 }, 'Eddie Eow': { n: 2, med: 8, price: 44 }, 'Near Ned': { n: 4, med: 7, price: 20 } }, recent: { 'Dana Deo': [ { d:'2026-11-11', min: 12, who:'Jesse', skip:'' }, { d:'2026-11-04', min: 0, who:'', skip:'Gate locked' } ], 'Eddie Eow': [ { d:'2026-11-10', min: 0, who:'', skip:'Gate locked' }, { d:'2026-11-03', min: 0, who:'', skip:'Gate locked' } ] }, byDogs: { '1': { n: 120, median: 7 }, '2': { n: 140, median: 11 }, '3': { n: 40, median: 15 } }, byDate: { '2026-11-11': { visits: 18, skipped: 1, minutes: 170, price: 500 }, '2026-11-10': { visits: 20, skipped: 0, minutes: 190, price: 560 } }, techs: { 'Jesse Duncan': 310 } }) });
     if (body.action === 'sgcreate'){ sgcreates.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, created:true, priceOk:false, sgPrice: 95, quoted: 85 }) }); }
     if (body.action === 'quota') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, office:true, from:'info@clpropetservices.com', remaining: 10000 }) });
+    if (body.action === 'list' && body.since){ listDeltas.push(body.since); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, delta:true, since: body.since, leads: deltaRows }) }); }
     if (body.action === 'payremind'){ reminders.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, date:'2026-11-12' }) }); }
     if (body.action === 'pricemove'){ pricemoves.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, sent: body.items.map(i => i.id), failed: [], date: body.date }) }); }
-    if (body.action === 'billingcsv') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, rows: 2, csv: 'kind,number,date,client\ninvoice,1,2026-11-02,Dana Deo\npayment,,2026-11-02,Dana Deo\n', months: 'month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced\n2026-11,8078,0,6796,2154,40,16,86\n' }) });
+    if (body.action === 'billingcsv') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, rows: 2, csv: 'kind,number,date,client\ninvoice,1,2026-11-02,Dana Deo\npayment,,2026-11-02,Dana Deo\n', months: 'month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced\n2026-11,8078,0,6796,2154,40,16,86\n', miles: 'month,miles,days_driven\n2026-11,612,9\n' }) });
     if (body.action === 'sgsync') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, clients: 94, added: 0, updated: 3, errors: [] }) });
     return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, leads: rows }) });
   });
@@ -154,6 +156,16 @@ const { ok, done } = reporter();
   ok('a paused customer is off the day list but listed as paused, with the return date', /Thu\s*3 stops/.test(sched) && /Paused in Sweep&Go\s*1.*Paused Pat.*back 2026-12-15/.test(sched), sched.slice(sched.indexOf('Paused'), sched.indexOf('Paused') + 120));
   ok('and their card says so', /Paused in Sweep&Go until 2026-12-15 — off the route, still a customer/.test((await p.textContent('#card-P1')).replace(/\s+/g, ' ')));
   ok('the Day plan uses Sweep&Go\'s own minutes for a stop that has them', /2\. ~Eddie Eow[^]*?14 min/.test(sched) || /Eddie Eow[^]*?14 min · \$44/.test(sched), sched.slice(sched.indexOf('Eddie Eow'), sched.indexOf('Eddie Eow') + 120));
+  /* ---- the brief, read aloud ---- */
+  const sayBtn = await p.evaluate(() => { toggleBrief(); sayBrief(); return document.getElementById('brief-say').textContent; }); await p.waitForTimeout(200);
+  ok('"Read it to me" hands the daily brief to the phone\'s voice, with the dollar signs said as words, and the button becomes Stop while it talks', (await p.evaluate(() => window.__spoken.length)) === 1 && /dollars/.test(await p.evaluate(() => window.__spoken[0])) && /Stop/.test(sayBtn), await p.evaluate(() => window.__spoken[0].slice(0, 160)));
+  await p.waitForTimeout(200);
+  ok('and goes back to "Read it to me" when it finishes', /Read it to me/.test(await p.textContent('#brief-say')));
+  await p.evaluate(() => toggleBrief());
+  /* ---- the quiet refresh asks only for what changed ---- */
+  deltaRows = [ { id:'D1', type:'SAVED', name:'Dana Deo', phone:'6363750001', email:'dana@gmail.com', zip:'63376', address:'1 Oak St, St. Peters, MO 63376', dogs:'2', service:'weekly', deodorize:'every visit ($15/treatment)', price:'$151/mo (includes $60 deodorize)', status:'closed', crmnotes:'[CD:2026-06-01] [DAY:thu] [LL:38.79123,-90.60111] [SGID:rcl_ABC] [QA:a] gate code 4321', created:'2026-06-01T12:00:00Z', updated:'2026-11-12T15:05:00Z' } ];
+  await p.evaluate(() => loadLeads(false, null, true)); await p.waitForTimeout(800);
+  ok('the minute refresh asks for rows since just before the last answer, and the one changed row replaces its copy while everything else stays', listDeltas.length === 1 && /^2026-11-12T1[45]:/.test(listDeltas[0]) && (await p.evaluate(() => deltaLoads)) === 1 && (await p.evaluate(() => leads.filter(l => l.id === 'D1')[0].crmnotes)).indexOf('gate code 4321') > 0 && (await p.evaluate(() => leads.length)) === (await p.evaluate(() => lastRows.filter(l => /^(SAVED|ACTIVATE|ENQUIRY|DECLINED)$/.test(l.type)).length)), JSON.stringify(listDeltas));
   /* ---- the next thirty days ---- */
   const cash = (await p.textContent('#cash')).replace(/\s+/g, ' ');
   ok('what the subscriptions will bill, what is likely to arrive at the recent collection rate, what is owed and how much of it is old', /\$\d[\d,]*\s*the subscriptions will bill/.test(cash) && /likely to arrive, at the last 3 months’ \d+% collection rate/.test(cash) && /\$255\s*owed right now/.test(cash) && /\$190\s*of it older than 30 days/.test(cash), cash.slice(0, 400));
@@ -224,7 +236,8 @@ const { ok, done } = reporter();
   await p.click('#pr-auto-box'); await p.waitForTimeout(400);
   ok('ticking it writes the setting the Monday job reads', posts.some(x => x.action === 'lead' && x.lead && x.lead.type === 'CONFIG' && x.lead.name === 'pay_reminders' && x.lead.notes === 'on' && x.key));
   ok('the week line counts what the automatic emails sent, from the stamps on the cards', /This week: 1 follow-up · 0 welcomes · 0 payment reminders · 0 other/.test((await p.textContent('#email-week')).replace(/\s+/g, ' ')), await p.textContent('#email-week'));
-  ok('the four other rounds each have a switch, off, that explains itself', (await p.$$('#auto-switches input[type=checkbox]')).length === 4 && !(await p.isChecked('#sw-revival_emails')) && /Revival: quotes that never went ahead\./.test(await p.textContent('#auto-switches')) && /Card failed, same night\./.test(await p.textContent('#auto-switches')));
+  ok('the five other rounds each have a switch, off, that explains itself', (await p.$$('#auto-switches input[type=checkbox]')).length === 5 && !(await p.isChecked('#sw-revival_emails')) && /Revival: quotes that never went ahead\./.test(await p.textContent('#auto-switches')) && /Card failed, same night\./.test(await p.textContent('#auto-switches')) && /A year with us\./.test(await p.textContent('#auto-switches')));
+  ok('what price closes waits for eight quotes with prices before it says anything', !/What price closes/.test(await p.textContent('#insights')));
   await p.click('#sw-revival_emails'); await p.waitForTimeout(400);
   ok('ticking one writes its setting, signed', posts.some(x => x.action === 'lead' && x.lead && x.lead.type === 'CONFIG' && x.lead.name === 'revival_emails' && x.lead.notes === 'on' && x.key));
   ok('the campaign calendar lists the four seasonal emails with their dates and who they go to, none ticked', (await p.$$('#campaign-cal .camp-box')).length === 4 && /Spring cleanup to quotes that never went ahead\s*Mar 15/.test((await p.textContent('#campaign-cal')).replace(/\s+/g, ' ')) && /Deodorize season to customers without deodorize\s*May 1/.test((await p.textContent('#campaign-cal')).replace(/\s+/g, ' ')) && (await p.$$('#campaign-cal .camp-box:checked')).length === 0, (await p.textContent('#campaign-cal')).replace(/\s+/g, ' ').slice(0, 300));
@@ -282,9 +295,9 @@ const { ok, done } = reporter();
   /* ---- for the accountant ---- */
   const dl1p = p.waitForEvent('download');
   await p.click('#billing button:has-text("For the accountant")');
-  const dl1 = await dl1p, dl2 = await p.waitForEvent('download');
+  const dl1 = await dl1p, dl2 = await p.waitForEvent('download'), dl3 = await p.waitForEvent('download');
   const readDl = async (d) => { const fs2 = require('fs'); return fs2.readFileSync(await d.path(), 'utf8'); };
-  ok('one tap asks the script, signed, and saves two files: the months, and every invoice and payment', posts.some(x => x.action === 'billingcsv' && x.key) && dl1.suggestedFilename() === 'clpps-billing-2026-by-month.csv' && dl2.suggestedFilename() === 'clpps-billing-2026-every-invoice-and-payment.csv', dl1.suggestedFilename() + ' ' + dl2.suggestedFilename());
+  ok('one tap asks the script, signed, and saves three files: the months, every invoice and payment, and the miles', posts.some(x => x.action === 'billingcsv' && x.key) && dl1.suggestedFilename() === 'clpps-billing-2026-by-month.csv' && dl2.suggestedFilename() === 'clpps-billing-2026-every-invoice-and-payment.csv' && dl3.suggestedFilename() === 'clpps-miles-2026-by-month.csv' && /^month,miles,days_driven\n2026-11,612,9\n$/.test(await readDl(dl3)), dl1.suggestedFilename() + ' ' + dl2.suggestedFilename() + ' ' + dl3.suggestedFilename());
   ok('with the script\'s rows in them, untouched', /^month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced\n2026-11,8078,0,6796,2154,40,16,86\n$/.test(await readDl(dl1)) && /^kind,number,date,client\ninvoice,1,2026-11-02,Dana Deo\npayment,,2026-11-02,Dana Deo\n$/.test(await readDl(dl2)));
   await p.click('#importBtn'); await p.waitForTimeout(300);
   ok('the import panel says the uploads are a one-off now', /Connected to Sweep&Go\. Customers, service days, prices and billing sync every night/.test(await p.textContent('#sg-auto')));
