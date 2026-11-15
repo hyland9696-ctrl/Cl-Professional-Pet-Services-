@@ -6809,7 +6809,7 @@ function render(){
   document.getElementById('stats').innerHTML =
     '<div class="stat" onclick="filter=\'interested\';render()" style="cursor:pointer;"><div class="n" style="color:#188663">' + counts.interested + '</div><div class="l">Interested</div></div>' +
     '<div class="stat" onclick="filter=\'new\';render()" style="cursor:pointer;"><div class="n" style="color:#2980ef">' + newToCall + '</div><div class="l">New to call</div></div>' +
-    '<div class="stat" onclick="filter=\'closed\';render()" style="cursor:pointer;"><div class="n" style="color:#188663">' + counts.closed + '</div><div class="l">Active</div></div>' +
+    (function(){ var tc = 0; try { tc = dormantList().length; } catch (e) {} return '<div class="stat" onclick="filter=\'closed\';render()" style="cursor:pointer;"><div class="n" style="color:#188663">' + (counts.closed - tc) + '</div><div class="l">Active' + (tc ? ' <span style="color:#b45309;text-transform:none;letter-spacing:0;">&middot; ' + tc + ' to check</span>' : '') + '</div></div>'; })() +
     '<div class="stat" onclick="filter=\'saidno\';render()" style="cursor:pointer;"><div class="n" style="color:#b45309">' + counts.saidno + '</div><div class="l">Said no</div></div>';
   document.getElementById('chips').innerHTML = FILTERS.map(function(f){
     return '<button class="chip' + (filter === f.k ? ' on' : '') + '" onclick="filter=\'' + f.k + '\';render()">' + f.label +
