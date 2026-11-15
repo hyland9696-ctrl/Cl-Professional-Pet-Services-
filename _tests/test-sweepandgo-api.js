@@ -148,6 +148,12 @@ const { ok, done } = reporter();
   /* ---- the pins and the route ---- */
   ok('a customer with a Sweep&Go pin is placed exactly, not at the ZIP centre', await p.evaluate(() => { const r = routePt(leads.filter(l => l.id === 'D1')[0]); return !r.approx && Math.abs(r.pt[0] - 38.79123) < 1e-6; }));
   ok('one without still sits at the ZIP centre', await p.evaluate(() => routePt(leads.filter(l => l.id === 'E1')[0]).approx === true));
+  // the panel remembered open from last time fetches its own data on load, as a tap would
+  await p.evaluate(() => { try { localStorage.setItem('clpps_numbers', 'open'); } catch (e) {} });
+  await p.reload(); await p.waitForTimeout(1500);
+  ok('a phone that left Numbers open gets the billing and the jobs on load, without a tap', (await p.evaluate(() => numbersOpen())) && posts.some(x => x.action === 'billing') && posts.some(x => x.action === 'jobs') && (await p.evaluate(() => !!(billing && billing.months && jobsData && jobsData.byDate))));
+  await p.evaluate(() => { try { localStorage.setItem('clpps_numbers', 'shut'); localStorage.removeItem('clpps_billing'); localStorage.removeItem('clpps_jobs'); } catch (e) {} });
+  await p.reload(); await p.waitForTimeout(1200);
   await p.evaluate(() => { try { localStorage.setItem('clpps_numbers', 'open'); } catch (e) {} });
   await p.click('#numbersBtn'); await p.waitForTimeout(1200);
   await p.evaluate(() => foldAll(true)); await p.waitForTimeout(200);

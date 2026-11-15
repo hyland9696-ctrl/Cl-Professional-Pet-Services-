@@ -7440,6 +7440,8 @@ if (KEY) loadLeads(false); else { loadLocal(); render(); needKey(''); }
 // Keep the page live: quietly re-check the database every 60 seconds, and again
 // the moment the tab comes back into view, so an acceptance shows up on its own.
 setInterval(function(){ loadLeads(false, null, true); }, 60000);
+// the panel remembered open from last time: fetch what it shows, as a tap would
+if (numbersOpen() && KEY){ loadBilling(false); loadJobs(false); try { loadWeather(); } catch (e) {} if (trafficDaysLoaded < TRAFFIC_DAYS_FULL) loadLeads(false, null, true, TRAFFIC_DAYS_FULL); }
 ownerTipWire();
 if (location.hash === '#owner' || ownerHome()) setTimeout(function(){ if (KEY) toggleOwner(true); }, 700);
 /* A phone does not run timers for a page sitting in the background, so
