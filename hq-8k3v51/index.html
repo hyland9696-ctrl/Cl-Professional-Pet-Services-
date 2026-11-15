@@ -59,6 +59,17 @@
   .fsum{font-size:11px;font-weight:600;color:#707070;margin-left:8px;white-space:nowrap;}
   .nsec{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#9aa5a0;font-weight:700;margin:6px 2px 8px;}
   #glance .stat .n{font-size:17px;} #glance .stat .l{text-transform:none;letter-spacing:0;font-size:11px;line-height:1.3;}
+  #glance .spark{display:block;margin:4px auto 0;}
+  .trend{font-size:10.5px;font-weight:700;margin-left:4px;} .trend.up{color:#188663;} .trend.down{color:#b45309;} .trend.flat{color:#9aa5a0;font-weight:600;}
+  #owner{background:#F3F8F5;border-radius:16px;padding:12px 12px 4px;margin-bottom:12px;}
+  #owner .oc{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);}
+  #owner .oc h3{font-size:14px;font-weight:800;margin:0 0 2px;color:#2B3A34;}
+  #owner .oc .cap{font-size:12.5px;color:#555;line-height:1.45;margin-bottom:8px;}
+  #owner .oc svg{width:100%;height:auto;display:block;}
+  #owner .oc svg [data-tip]{cursor:pointer;}
+  #owner .leg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:#555;margin-top:6px;}
+  #owner .leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;}
+  #otip{display:none;position:fixed;z-index:60;background:#2B3A34;color:#fff;font-size:12px;padding:6px 9px;border-radius:8px;pointer-events:none;max-width:260px;box-shadow:0 4px 14px rgba(0,0,0,0.18);}
   #toolmore{display:none;flex-wrap:wrap;gap:8px;width:100%;} #toolmore.open{display:flex;}
   .ins .fold > h4{cursor:pointer;margin-top:10px;}
   .fold > :first-child .fsum{display:none;}
@@ -202,6 +213,14 @@
         }
       } catch (e) {} })();
     </script>
+    <div id="owner" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:2px 2px 10px;flex-wrap:wrap;">
+        <div><div style="font-weight:800;font-size:16px;">&#128200; Owner view</div><div style="font-size:12px;color:#555;">The business in six pictures. Tap any bar or dot for the number.</div></div>
+        <div style="display:flex;gap:6px;align-items:center;"><button id="owner-home" onclick="toggleOwnerHome()" style="padding:6px 10px;min-height:36px;font-size:12px;">Make this my home screen</button><button onclick="toggleOwner(false)" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:36px;">Close</button></div>
+      </div>
+      <div id="owner-body"></div>
+    </div>
+    <div id="otip" role="tooltip"></div>
     <div id="reviews" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div class="toolbar">
       <input id="search" placeholder="Search name, phone, ZIP&hellip;" oninput="render()">
@@ -215,6 +234,7 @@
       <button class="copybtn" onclick="toggleBrief()">&#128203; Daily brief</button>
       <button class="copybtn" onclick="toggleToolMore()" id="toolMoreBtn" aria-expanded="false" aria-controls="toolmore">More &#9662;</button>
       <div id="toolmore">
+      <button class="copybtn" onclick="toggleOwner()" id="ownerBtn" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">&#128200; Owner view</button>
       <button class="copybtn" onclick="toggleNo()" id="noBtn">&#128078; Said no</button>
       <button class="copybtn" onclick="toggleWait()" id="waitBtn">&#128205; Out of area</button>
       <button class="copybtn" onclick="toggleQR()" id="qrBtn">&#128241; Sign scans</button>
@@ -4958,7 +4978,7 @@ function loadJobs(force){
   if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_jobs') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ jobsData = c.data; renderJobs(); return; } } catch (e) {} }
   fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'jobs', key: KEY }) })
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (d && d.ok && (d.byDate || d.empty)){ jobsData = d; try { localStorage.setItem('clpps_jobs', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderJobs(); renderRisk(); renderDormant(); renderGlance(); renderSchedule(); renderFoldSums(); } })
+    .then(function(d){ if (d && d.ok && (d.byDate || d.empty)){ jobsData = d; try { localStorage.setItem('clpps_jobs', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderJobs(); renderRisk(); renderDormant(); renderGlance(); renderSchedule(); renderFoldSums(); if (ownerOpen) renderOwner(); } })
     .catch(function(){});
 }
 function sgRoutesByDate(){ var c = config.sg_routes; if (!c) return {}; try { return JSON.parse(c.value) || {}; } catch (e) { return {}; } }
@@ -5057,10 +5077,12 @@ function monthReviewHtml(){
   if (!notes.length) notes.push('A steady month: billing, collections and the customer count all moved together.');
   var tile = function(n, l){ return '<div class="t"><div class="n">' + n + '</div><div class="l">' + l + '</div></div>'; };
   return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + esc(monthName(nowK)) + ' in review</title>' +
-    '<style>body{margin:0;background:#fff;color:#1f2a26;font:15px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}.w{max-width:680px;margin:0 auto;padding:22px 16px 40px}h1{font-size:22px;margin:0 0 2px}.sub{color:#55635d;font-size:13.5px;margin:0 0 16px}.c{border:1px solid #e4ebe7;border-radius:14px;padding:14px 16px;margin-bottom:12px;break-inside:avoid}h2{font-size:15px;margin:0 0 8px}.g{display:grid;grid-template-columns:1fr 1fr;gap:8px}.t{background:#f7f9f8;border-radius:10px;padding:9px 11px}.t .n{font-size:22px;font-weight:800;line-height:1.1}.t .l{font-size:12px;color:#55635d;margin-top:2px}.pt{background:#FFF3E0;border-radius:10px;padding:10px 12px;margin:8px 0;font-size:14px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:5px 4px;border-bottom:1px solid #e4ebe7;text-align:left}td.n,th.n{text-align:right}.note{font-size:12px;color:#8a968f}@media print{.c{break-inside:avoid}}</style></head><body><div class="w">' +
+    '<style>svg{width:100%;height:auto;display:block;margin:6px 0 2px}body{margin:0;background:#fff;color:#1f2a26;font:15px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}.w{max-width:680px;margin:0 auto;padding:22px 16px 40px}h1{font-size:22px;margin:0 0 2px}.sub{color:#55635d;font-size:13.5px;margin:0 0 16px}.c{border:1px solid #e4ebe7;border-radius:14px;padding:14px 16px;margin-bottom:12px;break-inside:avoid}h2{font-size:15px;margin:0 0 8px}.g{display:grid;grid-template-columns:1fr 1fr;gap:8px}.t{background:#f7f9f8;border-radius:10px;padding:9px 11px}.t .n{font-size:22px;font-weight:800;line-height:1.1}.t .l{font-size:12px;color:#55635d;margin-top:2px}.pt{background:#FFF3E0;border-radius:10px;padding:10px 12px;margin:8px 0;font-size:14px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:5px 4px;border-bottom:1px solid #e4ebe7;text-align:left}td.n,th.n{text-align:right}.note{font-size:12px;color:#8a968f}@media print{.c{break-inside:avoid}}</style></head><body><div class="w">' +
     '<h1>' + esc(monthName(nowK)) + ' in review</h1><p class="sub">CL Professional Pet Services &middot; made ' + esc(new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })) + ' from Sweep&amp;Go and the tracker</p>' +
     '<div class="c"><h2>Money</h2><div class="g">' + tile(money(cur.billed) + pct(cur.billed, prev.billed), 'billed') + tile(money(cur.collected) + pct(cur.collected, prev.collected), 'collected') + tile(money(cur.unpaid), 'invoiced this month, unpaid') + tile(money(owedTotal), 'owed in total, all months') + '</div>' +
       (cur.onetime ? '<div class="note" style="margin-top:6px;">' + money(cur.onetime) + ' of the billing was one-time jobs' + (cur.tips ? '; ' + money(cur.tips) + ' in tips' : '') + '.</div>' : '') + '</div>' +
+    (function(){ try { var m12 = monthsBack(12), b = m12.map(function(k){ return M[k] ? M[k].billed : 0; }), c = m12.map(function(k){ return M[k] ? M[k].collected : 0; }), cm = customersByMonth(m12);
+      return '<div class="c"><h2>Twelve months in pictures</h2><div class="note">Billed (green) and collected (orange), month by month.</div>' + svgGrouped(m12, b, c, ['Billed', 'Collected'], money) + '<div class="note" style="margin-top:10px;">Active customers (the line), with who started and who left each month under it.</div>' + svgLineBars(m12, cm.active, cm.up, cm.down, ['Active', 'Started', 'Left']) + '</div>'; } catch (e) { return ''; } })() +
     '<div class="c"><h2>Customers</h2><div class="g">' + tile(active, 'active recurring customers') + tile('+' + newC + ' / \u2212' + leftC.length, 'started / left this month' + (newP || prev.customers ? ' (' + monthShort(prevK) + ': +' + newP + ')' : '')) + tile(quotes + pct(quotes, quotesP), 'quotes asked for') + tile(cur.customers || active, 'customers invoiced') + '</div>' +
       (leftC.length ? '<div class="note" style="margin-top:6px;">Why they left: ' + esc(Object.keys(leftWhy).map(function(k){ return leftWhy[k] + ' ' + k.toLowerCase(); }).join(', ')) + '.</div>' : '') + '</div>' +
     (J ? '<div class="c"><h2>Work done, last 30 days</h2><div class="g">' + tile(J.visits, 'visits') + tile(hoursText(J.minutes), 'on site') + tile(J.skipped, 'skipped') + tile(J.timed ? Math.round(J.minutes / J.timed) + ' min' : '\u2014', 'an average stop') + '</div></div>' : '') +
@@ -5230,6 +5252,229 @@ function renderDormant(){
   box.innerHTML = h;
 }
 
+/* ============================================================
+   THE OWNER VIEW. Corey's screen: six charts drawn in the page, no
+   outside libraries, readable on a phone. Every chart is an SVG string
+   from a pure function, so the Month in review page uses the same ones.
+   Colour does one job per chart (identity, magnitude, polarity), the
+   marks are thin, the grid is faint, every series has a legend and a
+   direct label, and text never wears the data colour.
+   ============================================================ */
+var VIZ = { s1: '#188663', s2: '#eb6834', s3: '#2a78d6', s4: '#eda100', gray: '#9aa5a0', ink: '#2B3A34', muted: '#707070', grid: '#ECEFED', surface: '#ffffff' };
+var VIZ_SEQ = ['#E3F3EC', '#BFE3D2', '#8FCDB1', '#5DB48F', '#2F9A70', '#188663', '#0F6E56'];
+var ownerOpen = false;
+function ownerTip(el){ return el ? el.getAttribute('data-tip') : ''; }
+function vizEsc(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+/* a column: 4px rounded top, square at the baseline, never wider than 24px */
+function vizCol(x, y, w, h, fill, tip){
+  w = Math.min(w, 24); if (h < 0.5) h = 0.5; var r = Math.min(4, w / 2, h);
+  var d = 'M' + x + ',' + (y + h) + ' v' + (-(h - r)) + ' a' + r + ',' + r + ' 0 0 1 ' + r + ',' + (-r) + ' h' + (w - 2 * r) + ' a' + r + ',' + r + ' 0 0 1 ' + r + ',' + r + ' v' + (h - r) + ' z';
+  return '<path d="' + d + '" fill="' + fill + '"' + (tip ? ' data-tip="' + vizEsc(tip) + '"' : '') + '/>';
+}
+function vizFrame(W, H, pad, maxV, ticks){
+  var h = '', inner = H - pad.t - pad.b;
+  for (var i = 0; i <= ticks; i++){ var v = maxV * i / ticks, y = pad.t + inner - inner * i / ticks; h += '<line x1="' + pad.l + '" y1="' + y.toFixed(1) + '" x2="' + (W - pad.r) + '" y2="' + y.toFixed(1) + '" stroke="' + VIZ.grid + '" stroke-width="1"/>' + (i ? '<text x="' + (pad.l - 4) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end" font-size="9" fill="' + VIZ.muted + '">' + vizEsc(vizShort(v)) + '</text>' : ''); }
+  return h;
+}
+function vizShort(v){ v = Math.round(v); return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k' : String(v); }
+function vizMon(k){ return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(k.slice(5, 7), 10) - 1]; }
+function vizNice(v){ if (v <= 0) return 1; var p = Math.pow(10, Math.floor(Math.log(v) / Math.LN10)), n = v / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p; }
+function vizXLabels(keys, pad, bw, W){
+  var h = '', step = keys.length > 14 ? 3 : keys.length > 8 ? 2 : 1;
+  keys.forEach(function(k, i){ if (i % step && i !== keys.length - 1) return; var x = pad.l + bw * i + bw / 2; h += '<text x="' + x.toFixed(1) + '" y="' + (W.H - 4) + '" text-anchor="middle" font-size="9" fill="' + VIZ.muted + '">' + vizEsc(/^\d{4}-\d{2}$/.test(k) ? vizMon(k) + (k.slice(5) === '01' || i === 0 ? ' ' + k.slice(2, 4) : '') : k) + '</text>'; });
+  return h;
+}
+/* two series side by side per month (billed and collected) */
+function svgGrouped(keys, a, b, names, fmt){
+  var W = { w: 360, H: 170 }, pad = { t: 10, r: 8, b: 18, l: 30 }, inner = W.H - pad.t - pad.b, bw = (W.w - pad.l - pad.r) / Math.max(1, keys.length);
+  var maxV = vizNice(Math.max.apply(null, a.concat(b).concat([1])) * 1.05), h = '<svg viewBox="0 0 ' + W.w + ' ' + W.H + '" role="img" aria-label="' + vizEsc(names.join(' and ')) + '">' + vizFrame(W.w, W.H, pad, maxV, 4);
+  var cw = Math.min(10, (bw - 4) / 2);
+  keys.forEach(function(k, i){
+    var x0 = pad.l + bw * i + (bw - (cw * 2 + 2)) / 2;
+    var ha = inner * a[i] / maxV, hb = inner * b[i] / maxV;
+    h += vizCol(x0, pad.t + inner - ha, cw, ha, VIZ.s1, vizMon(k) + ' ' + k.slice(0, 4) + ': ' + fmt(a[i]) + ' ' + names[0].toLowerCase());
+    h += vizCol(x0 + cw + 2, pad.t + inner - hb, cw, hb, VIZ.s2, vizMon(k) + ' ' + k.slice(0, 4) + ': ' + fmt(b[i]) + ' ' + names[1].toLowerCase());
+  });
+  var li = keys.length - 1; if (li >= 0){ var xl = Math.min(W.w - pad.r, pad.l + bw * li + bw / 2 + 14); h += '<text x="' + xl.toFixed(1) + '" y="' + Math.max(9, pad.t + inner - inner * Math.max(a[li], b[li]) / maxV - 4).toFixed(1) + '" text-anchor="end" font-size="9.5" font-weight="700" fill="' + VIZ.ink + '">' + vizEsc(fmt(a[li])) + '</text>'; }
+  return h + vizXLabels(keys, pad, bw, W) + '</svg>';
+}
+/* a line with a dot at the end, and small bars under it (active; new and left) */
+function svgLineBars(keys, line, up, down, names){
+  var W = { w: 360, H: 190 }, pad = { t: 10, r: 10, b: 18, l: 30 }, lineH = 100, gap = 10, barH = W.H - pad.t - pad.b - lineH - gap, bw = (W.w - pad.l - pad.r) / Math.max(1, keys.length);
+  var maxL = vizNice(Math.max.apply(null, line.concat([1])) * 1.1), maxB = Math.max.apply(null, up.concat(down).concat([1]));
+  var h = '<svg viewBox="0 0 ' + W.w + ' ' + W.H + '" role="img" aria-label="' + vizEsc(names.join(', ')) + '">';
+  for (var i = 0; i <= 2; i++){ var y = pad.t + lineH - lineH * i / 2; h += '<line x1="' + pad.l + '" y1="' + y.toFixed(1) + '" x2="' + (W.w - pad.r) + '" y2="' + y.toFixed(1) + '" stroke="' + VIZ.grid + '"/>' + (i ? '<text x="' + (pad.l - 4) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end" font-size="9" fill="' + VIZ.muted + '">' + vizShort(maxL * i / 2) + '</text>' : ''); }
+  var pts = line.map(function(v, i){ return [pad.l + bw * i + bw / 2, pad.t + lineH - lineH * v / maxL]; });
+  h += '<path d="' + pts.map(function(p, i){ return (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ') + '" fill="none" stroke="' + VIZ.s1 + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  pts.forEach(function(p, i){ h += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="' + (i === pts.length - 1 ? 4 : 6) + '" fill="' + (i === pts.length - 1 ? VIZ.s1 : 'transparent') + '" stroke="' + (i === pts.length - 1 ? VIZ.surface : 'none') + '" stroke-width="2" data-tip="' + vizEsc(vizMon(keys[i]) + ' ' + keys[i].slice(0, 4) + ': ' + line[i] + ' ' + names[0].toLowerCase() + ', +' + up[i] + ' ' + names[1].toLowerCase() + ', -' + down[i] + ' ' + names[2].toLowerCase()) + '"/>'; });
+  var last = pts[pts.length - 1]; if (last) h += '<text x="' + Math.min(W.w - pad.r - 2, last[0] + 6).toFixed(1) + '" y="' + (last[1] - 7).toFixed(1) + '" text-anchor="end" font-size="10" font-weight="700" fill="' + VIZ.ink + '">' + line[line.length - 1] + '</text>';
+  var base = pad.t + lineH + gap + barH / 2, cw = Math.min(10, (bw - 4) / 2);
+  h += '<line x1="' + pad.l + '" y1="' + base.toFixed(1) + '" x2="' + (W.w - pad.r) + '" y2="' + base.toFixed(1) + '" stroke="' + VIZ.grid + '"/>';
+  keys.forEach(function(k, i){
+    var x0 = pad.l + bw * i + (bw - (cw * 2 + 2)) / 2, hu = (barH / 2) * up[i] / maxB, hd = (barH / 2) * down[i] / maxB;
+    if (up[i]) h += vizCol(x0, base - hu, cw, hu, VIZ.s1, vizMon(k) + ': +' + up[i] + ' ' + names[1].toLowerCase());
+    if (down[i]) h += '<rect x="' + (x0 + cw + 2).toFixed(1) + '" y="' + base.toFixed(1) + '" width="' + cw + '" height="' + hd.toFixed(1) + '" rx="2" fill="' + VIZ.gray + '" data-tip="' + vizEsc(vizMon(k) + ': -' + down[i] + ' ' + names[2].toLowerCase()) + '"/>';
+  });
+  return h + vizXLabels(keys, pad, bw, W) + '</svg>';
+}
+/* start, the ups and downs, end */
+function svgWaterfall(steps, fmt){
+  var W = { w: 360, H: 170 }, pad = { t: 12, r: 8, b: 28, l: 34 }, inner = W.H - pad.t - pad.b, n = steps.length, bw = (W.w - pad.l - pad.r) / n;
+  var run = 0, tops = [], maxV = 0; steps.forEach(function(s){ if (s.kind === 'total') { run = s.v; tops.push([0, s.v]); } else { tops.push([run, run + s.v]); run += s.v; } maxV = Math.max(maxV, tops[tops.length - 1][0], tops[tops.length - 1][1]); });
+  maxV = vizNice(maxV * 1.08); var y = function(v){ return pad.t + inner - inner * v / maxV; };
+  var h = '<svg viewBox="0 0 ' + W.w + ' ' + W.H + '" role="img" aria-label="What moved the monthly number">' + vizFrame(W.w, W.H, pad, maxV, 4);
+  steps.forEach(function(s, i){
+    var lo = Math.min(tops[i][0], tops[i][1]), hi = Math.max(tops[i][0], tops[i][1]), x = pad.l + bw * i + (bw - 24) / 2;
+    var fill = s.kind === 'total' ? VIZ.ink : s.v >= 0 ? VIZ.s1 : VIZ.s2;
+    h += vizCol(x, y(hi), 24, Math.max(1, y(lo) - y(hi)), fill, s.label + ': ' + (s.kind === 'total' ? '' : (s.v >= 0 ? '+' : '-')) + fmt(Math.abs(s.v)));
+    if (i < n - 1) h += '<line x1="' + (x + 24).toFixed(1) + '" y1="' + y(tops[i][1]).toFixed(1) + '" x2="' + (pad.l + bw * (i + 1) + (bw - 24) / 2).toFixed(1) + '" y2="' + y(tops[i][1]).toFixed(1) + '" stroke="' + VIZ.gray + '" stroke-width="1"/>';
+    h += '<text x="' + (x + 12).toFixed(1) + '" y="' + (y(hi) - 4).toFixed(1) + '" text-anchor="middle" font-size="9.5" font-weight="700" fill="' + VIZ.ink + '">' + vizEsc((s.kind === 'total' ? '' : (s.v >= 0 ? '+' : '-')) + fmt(Math.abs(s.v))) + '</text>';
+    h += '<text x="' + (x + 12).toFixed(1) + '" y="' + (W.H - 16) + '" text-anchor="middle" font-size="9" fill="' + VIZ.muted + '">' + vizEsc(s.label) + '</text>' + (s.sub ? '<text x="' + (x + 12).toFixed(1) + '" y="' + (W.H - 5) + '" text-anchor="middle" font-size="8.5" fill="' + VIZ.muted + '">' + vizEsc(s.sub) + '</text>' : '');
+  });
+  return h + '</svg>';
+}
+/* stacked columns by source, a figure on top for how many became customers */
+function svgStacked(keys, series, names, colors, tops){
+  var W = { w: 360, H: 180 }, pad = { t: 14, r: 8, b: 18, l: 26 }, inner = W.H - pad.t - pad.b, bw = (W.w - pad.l - pad.r) / Math.max(1, keys.length);
+  var totals = keys.map(function(k, i){ return series.reduce(function(a, s){ return a + s[i]; }, 0); }), maxV = vizNice(Math.max.apply(null, totals.concat([1])) * 1.1);
+  var h = '<svg viewBox="0 0 ' + W.w + ' ' + W.H + '" role="img" aria-label="Leads by source">' + vizFrame(W.w, W.H, pad, maxV, 4), cw = Math.min(22, bw - 6);
+  keys.forEach(function(k, i){
+    var x = pad.l + bw * i + (bw - cw) / 2, yTop = pad.t + inner;
+    series.forEach(function(s, si){ if (!s[i]) return; var hh = inner * s[i] / maxV; yTop -= hh; var last = si === series.length - 1 || series.slice(si + 1).every(function(t){ return !t[i]; });
+      h += last ? vizCol(x, yTop, cw, Math.max(1, hh - 2), colors[si], vizMon(k) + ': ' + s[i] + ' from ' + names[si]) : '<rect x="' + x.toFixed(1) + '" y="' + yTop.toFixed(1) + '" width="' + cw + '" height="' + Math.max(1, hh - 2).toFixed(1) + '" fill="' + colors[si] + '" data-tip="' + vizEsc(vizMon(k) + ': ' + s[i] + ' from ' + names[si]) + '"/>'; });
+    if (totals[i]) h += '<text x="' + (x + cw / 2).toFixed(1) + '" y="' + (yTop - 4).toFixed(1) + '" text-anchor="middle" font-size="9" font-weight="700" fill="' + VIZ.ink + '">' + (tops ? tops[i] + '/' + totals[i] : totals[i]) + '</text>';
+  });
+  return h + vizXLabels(keys, pad, bw, W) + '</svg>';
+}
+/* a line against a limit */
+function svgLimit(keys, vals, cap, fmt, name){
+  var W = { w: 360, H: 160 }, pad = { t: 12, r: 44, b: 18, l: 30 }, inner = W.H - pad.t - pad.b, bw = (W.w - pad.l - pad.r) / Math.max(1, keys.length);
+  var maxV = vizNice(Math.max.apply(null, vals.concat([cap, 1])) * 1.1), y = function(v){ return pad.t + inner - inner * v / maxV; };
+  var h = '<svg viewBox="0 0 ' + W.w + ' ' + W.H + '" role="img" aria-label="' + vizEsc(name) + '">' + vizFrame(W.w, W.H, pad, maxV, 4);
+  h += '<line x1="' + pad.l + '" y1="' + y(cap).toFixed(1) + '" x2="' + (W.w - pad.r) + '" y2="' + y(cap).toFixed(1) + '" stroke="' + VIZ.s2 + '" stroke-width="1.5"/><text x="' + (W.w - pad.r + 4) + '" y="' + (y(cap) + 3.5).toFixed(1) + '" font-size="9.5" font-weight="700" fill="' + VIZ.ink + '">' + vizEsc(fmt(cap)) + ' limit</text>';
+  var pts = vals.map(function(v, i){ return [pad.l + bw * i + bw / 2, y(v)]; });
+  h += '<path d="' + pts.map(function(p, i){ return (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ') + '" fill="none" stroke="' + VIZ.s1 + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  pts.forEach(function(p, i){ h += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="' + (i === 0 || i === pts.length - 1 ? 4 : 6) + '" fill="' + (i === 0 || i === pts.length - 1 ? VIZ.s1 : 'transparent') + '" stroke="' + (i === 0 || i === pts.length - 1 ? VIZ.surface : 'none') + '" stroke-width="2" data-tip="' + vizEsc(keys[i] + ': ' + fmt(vals[i])) + '"/>'; });
+  var l = pts[pts.length - 1]; if (l) h += '<text x="' + (l[0] + 6).toFixed(1) + '" y="' + (l[1] - 7).toFixed(1) + '" text-anchor="end" font-size="10" font-weight="700" fill="' + VIZ.ink + '">' + vizEsc(fmt(vals[vals.length - 1])) + '</text>';
+  return h + vizXLabels(keys, pad, bw, W) + '</svg>';
+}
+/* two years of months, one hue light to dark */
+function svgHeat(years, months, grid, fmt){
+  var W = { w: 360 }, pad = { l: 34, t: 14 }, cw = (W.w - pad.l - 6) / 12, ch = 26, H = pad.t + ch * years.length + 6;
+  var maxV = Math.max.apply(null, [].concat.apply([1], grid)), h = '<svg viewBox="0 0 ' + W.w + ' ' + H + '" role="img" aria-label="Billing by month, two years">';
+  months.forEach(function(m, i){ h += '<text x="' + (pad.l + cw * i + cw / 2).toFixed(1) + '" y="10" text-anchor="middle" font-size="9" fill="' + VIZ.muted + '">' + m + '</text>'; });
+  years.forEach(function(yr, r){
+    h += '<text x="' + (pad.l - 6) + '" y="' + (pad.t + ch * r + ch / 2 + 3.5).toFixed(1) + '" text-anchor="end" font-size="9.5" fill="' + VIZ.muted + '">' + yr + '</text>';
+    months.forEach(function(m, c){ var v = grid[r][c]; if (v == null) return; var step = v <= 0 ? 0 : Math.min(VIZ_SEQ.length - 1, 1 + Math.floor((VIZ_SEQ.length - 2) * v / maxV)); h += '<rect x="' + (pad.l + cw * c + 1).toFixed(1) + '" y="' + (pad.t + ch * r + 1) + '" width="' + (cw - 2).toFixed(1) + '" height="' + (ch - 2) + '" rx="3" fill="' + VIZ_SEQ[step] + '" data-tip="' + vizEsc(m + ' ' + yr + ': ' + fmt(v)) + '"/>' + (v >= maxV * 0.999 ? '<text x="' + (pad.l + cw * c + cw / 2).toFixed(1) + '" y="' + (pad.t + ch * r + ch / 2 + 3.5).toFixed(1) + '" text-anchor="middle" font-size="8.5" font-weight="700" fill="#fff">' + vizEsc(vizShort(v)) + '</text>' : ''); });
+  });
+  return h + '</svg>';
+}
+/* a tiny line for a stat tile */
+function spark(vals, color){
+  vals = (vals || []).filter(function(v){ return v != null; }); if (vals.length < 2) return '';
+  var w = 84, h = 20, max = Math.max.apply(null, vals.concat([1])), min = Math.min.apply(null, vals.concat([0])), span = max - min || 1;
+  var pts = vals.map(function(v, i){ return [(w - 4) * i / (vals.length - 1) + 2, h - 2 - (h - 4) * (v - min) / span]; });
+  return '<svg class="spark" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" aria-hidden="true"><path d="' + pts.map(function(p, i){ return (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ') + '" fill="none" stroke="' + (color || VIZ.s1) + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' + pts[pts.length - 1][0].toFixed(1) + '" cy="' + pts[pts.length - 1][1].toFixed(1) + '" r="2.5" fill="' + (color || VIZ.s1) + '"/></svg>';
+}
+function trendMark(now, before){
+  if (!(before > 0) || now == null) return '';
+  var d = Math.round(100 * (now - before) / before); if (!d) return '<span class="trend flat">no change</span>';
+  return '<span class="trend ' + (d > 0 ? 'up' : 'down') + '">' + (d > 0 ? '&#9650; ' : '&#9660; ') + Math.abs(d) + '%</span>';
+}
+/* ---- the data behind the charts ---- */
+function monthsBack(n){ var out = [], k = monthKeyOf(new Date()); for (var i = n - 1; i >= 0; i--) out.push(monthAdd(k, -i)); return out; }
+function customersByMonth(keys){
+  var act = [], up = [], down = [];
+  var people = leads.filter(function(l){ if (!isLead(l) || !isRecurring(l)) return false; var st = l.status || 'new'; var fu = fuParse(l.crmnotes); return (st === 'closed' || st === 'cancelled') && !(fu.os === '1' || fu.ss === 'none'); })
+    .map(function(l){ var fu = fuParse(l.crmnotes); return { cd: (fu.cd || String(l.created || '').slice(0, 10)).slice(0, 7), cx: ((l.status || 'new') === 'cancelled' ? (fu.cx || '').slice(0, 7) : '') , gone: (l.status || 'new') === 'cancelled' }; });
+  keys.forEach(function(k){
+    var a = 0, u = 0, d = 0;
+    people.forEach(function(p){ if (p.cd && p.cd <= k && (!p.gone || !p.cx || p.cx > k)) a++; if (p.cd === k) u++; if (p.gone && p.cx === k) d++; });
+    act.push(a); up.push(u); down.push(d);
+  });
+  return { active: act, up: up, down: down };
+}
+function mrrMovesJs(mk){
+  var first = mk + '-01', nextK = monthAdd(mk, 1), o = { start: 0, added: 0, n: 0, lost: 0, left: 0, end: 0 };
+  leads.forEach(function(l){
+    if (!isLead(l)) return; var st = l.status || 'new', fu = fuParse(l.crmnotes); if ((st !== 'closed' && st !== 'cancelled') || fu.os === '1' || fu.ss === 'none') return;
+    var pp = parsePrice(l), a = pp && pp.isMo ? pp.amt : 0, cd = fu.cd || String(l.created || '').slice(0, 10), cx = fu.cx || '';
+    if (cd < first && (!cx || cx >= first)) o.start += a;
+    if (cd >= first && cd < nextK + '-01') { o.added += a; o.n++; }
+    if (st === 'cancelled' && cx >= first && cx < nextK + '-01') { o.lost += a; o.left++; }
+    if (st === 'closed') o.end += a;
+  });
+  o.changes = Math.round(o.end - (o.start + o.added - o.lost));
+  return o;
+}
+function sourcesByMonth(keys){
+  var count = {}, won = keys.map(function(){ return 0; });
+  var qs = leads.filter(function(l){ return isLead(l) && /^(ENQUIRY|ACTIVATE|DECLINED|SAVED)$/.test(String(l.type || '')); });
+  qs.forEach(function(l){ var k = String(l.created || '').slice(0, 7), i = keys.indexOf(k); if (i < 0) return; var s = fuParse(l.crmnotes).src || 'Not tagged'; count[s] = count[s] || keys.map(function(){ return 0; }); count[s][i]++; if (wonLead(l)) won[i]++; });
+  var names = Object.keys(count).sort(function(a, b){ return count[b].reduce(function(x, y){ return x + y; }, 0) - count[a].reduce(function(x, y){ return x + y; }, 0); });
+  var top = names.slice(0, 3), series = top.map(function(n){ return count[n]; });
+  if (names.length > 3){ var other = keys.map(function(){ return 0; }); names.slice(3).forEach(function(n){ count[n].forEach(function(v, i){ other[i] += v; }); }); top.push('Other'); series.push(other); }
+  return { names: top, series: series, won: won };
+}
+/* ---- the view ---- */
+function ownerCard(title, caption, svg, legend){
+  return '<div class="oc"><h3>' + title + '</h3><div class="cap">' + caption + '</div>' + svg + (legend ? '<div class="leg">' + legend.map(function(l){ return '<span><i style="background:' + l[1] + (l[2] === 'line' ? ';height:3px;border-radius:2px;width:14px' : '') + '"></i>' + vizEsc(l[0]) + '</span>'; }).join('') + '</div>' : '') + '</div>';
+}
+function renderOwner(){
+  var box = document.getElementById('owner-body'); if (!box || !ownerOpen) return;
+  var m24 = monthsBack(24), m12 = monthsBack(12), M = billing && billing.months || {}, haveBilling = Object.keys(M).length > 0, h = '';
+  var fmtMoney = function(v){ return money(v); };
+  // 1. billed and collected
+  if (haveBilling){
+    var b24 = m24.map(function(k){ return M[k] ? M[k].billed : 0; }), c24 = m24.map(function(k){ return M[k] ? M[k].collected : 0; });
+    var unpaidTot = m24.reduce(function(a, k){ return a + (M[k] ? M[k].unpaid : 0); }, 0);
+    h += ownerCard('Billed and collected, month by month', 'Two years. The gap between the bars is what was invoiced and never came in: ' + money(unpaidTot) + ' across the period.', svgGrouped(m24, b24, c24, ['Billed', 'Collected'], fmtMoney), [['Billed', VIZ.s1], ['Collected', VIZ.s2]]);
+  } else h += ownerCard('Billed and collected, month by month', 'Fills in once the billing has loaded.', '');
+  // 2. customers
+  var cm = customersByMonth(m24), lastA = cm.active[cm.active.length - 1], prevA = cm.active[cm.active.length - 2];
+  h += ownerCard('Customers over time', lastA + ' active now' + (prevA != null ? ', ' + (lastA >= prevA ? '+' : '') + (lastA - prevA) + ' on last month' : '') + '. Under the line: who started each month, and who left.', svgLineBars(m24, cm.active, cm.up, cm.down, ['Active', 'Started', 'Left']), [['Active', VIZ.s1, 'line'], ['Started', VIZ.s1], ['Left', VIZ.gray]]);
+  // 3. what moved the number, last full month
+  var lastK = monthAdd(monthKeyOf(new Date()), -1), mv = mrrMovesJs(lastK);
+  var steps = [{ label: 'Start', sub: vizMon(lastK) + ' 1', v: mv.start, kind: 'total' }, { label: 'New', sub: mv.n + ' started', v: mv.added }, { label: 'Changes', sub: 'price and plan', v: mv.changes }, { label: 'Left', sub: mv.left + ' went', v: -mv.lost }, { label: 'Now', sub: 'on the books', v: mv.end, kind: 'total' }];
+  var parts = []; if (mv.n) parts.push('+' + money(mv.added) + ' from ' + mv.n + ' new'); if (Math.abs(mv.changes) >= 1) parts.push((mv.changes >= 0 ? '+' : '-') + money(Math.abs(mv.changes)) + ' from price and plan changes'); if (mv.left) parts.push('-' + money(mv.lost) + ' from ' + mv.left + ' who left');
+  h += ownerCard('Where the monthly number moved', 'A month on the books: ' + money(mv.start) + ' at the start of ' + vizMon(lastK) + (parts.length ? ', ' + parts.join(', ') : ', nothing came or went') + ', ' + money(mv.end) + ' now.', svgWaterfall(steps, fmtMoney), [['Up', VIZ.s1], ['Down', VIZ.s2], ['Totals', VIZ.ink]]);
+  // 4. leads by source
+  var sb = sourcesByMonth(m12), srcColors = [VIZ.s1, VIZ.s2, VIZ.s3, VIZ.s4];
+  var totalQ = sb.series.reduce(function(a, s){ return a + s.reduce(function(x, y){ return x + y; }, 0); }, 0), totalW = sb.won.reduce(function(a, b){ return a + b; }, 0);
+  h += ownerCard('Leads in, by where they came from', totalQ ? totalQ + ' leads in twelve months, ' + totalW + ' became customers (' + Math.round(100 * totalW / totalQ) + '%). The figure on each bar is customers over leads that month.' : 'No leads yet in the window.', sb.series.length ? svgStacked(m12, sb.series, sb.names, srcColors, sb.won) : '', sb.names.map(function(n, i){ return [n, srcColors[i]]; }));
+  // 5. route hours against the limit
+  var hf = null; try { hf = hireForecast(); } catch (e) {}
+  if (hf && hf.months && hf.months.length){
+    var keys = hf.months.map(function(x){ return x.mk; }), hrs = hf.months.map(function(x){ return Math.round(x.hours * 10) / 10; });
+    h += ownerCard('Route hours against the limit', (hf.measured ? 'Measured from Sweep&Go: ' : 'Estimated: ') + Math.round(hf.hours) + ' hours a week now, ' + (hf.net >= 0 ? '+' : '') + Math.round(hf.net * 10) / 10 + ' customers a month net. ' + (hf.hit ? 'At this pace the route reaches ' + hf.a.cap + ' hours in ' + vizMon(hf.hit.mk) + ' ' + hf.hit.mk.slice(0, 4) + ': that is the hire date.' : 'At this pace it stays under ' + hf.a.cap + ' hours a week for the next twelve months.'), svgLimit(keys, hrs, hf.a.cap, function(v){ return Math.round(v) + 'h'; }, 'Route hours a week, twelve months out'), [['Hours a week', VIZ.s1, 'line'], ['Limit', VIZ.s2, 'line']]);
+  }
+  // 6. the heat strip
+  if (haveBilling){
+    var yrs = [], grid = [], y0 = parseInt(m24[0].slice(0, 4), 10), y1 = parseInt(m24[m24.length - 1].slice(0, 4), 10);
+    for (var yy = y0; yy <= y1; yy++){ yrs.push(String(yy)); grid.push([]); for (var mm = 1; mm <= 12; mm++){ var k = yy + '-' + ('0' + mm).slice(-2); grid[grid.length - 1].push(m24.indexOf(k) >= 0 && M[k] ? M[k].billed : (m24.indexOf(k) >= 0 ? 0 : null)); } }
+    var best = m24.slice().sort(function(a, b){ return (M[b] ? M[b].billed : 0) - (M[a] ? M[a].billed : 0); })[0];
+    h += ownerCard('Two years of billing, at a glance', 'Darker is more. The best month was ' + vizMon(best) + ' ' + best.slice(0, 4) + ' at ' + money(M[best] ? M[best].billed : 0) + '. The quiet months show where the season dips.', svgHeat(yrs, ['J','F','M','A','M','J','J','A','S','O','N','D'], grid, fmtMoney));
+  }
+  box.innerHTML = h;
+}
+function toggleOwner(open){
+  var p = document.getElementById('owner'); if (!p) return;
+  ownerOpen = open == null ? p.style.display === 'none' : !!open;
+  p.style.display = ownerOpen ? 'block' : 'none';
+  var tm = document.getElementById('toolmore');
+  if (ownerOpen){ renderOwner(); if (!billing) loadBilling(); if (!jobsData) loadJobs(); try { if (location.hash !== '#owner') history.replaceState(null, '', '#owner'); } catch (e) {} p.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  else { try { if (location.hash === '#owner') history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+  var hb = document.getElementById('owner-home'); if (hb) hb.textContent = ownerHome() ? 'This is my home screen ✓' : 'Make this my home screen';
+}
+function ownerHome(){ try { return localStorage.getItem('clpps_owner_home') === '1'; } catch (e) { return false; } }
+function toggleOwnerHome(){ try { localStorage.setItem('clpps_owner_home', ownerHome() ? '0' : '1'); } catch (e) {} var hb = document.getElementById('owner-home'); if (hb) hb.textContent = ownerHome() ? 'This is my home screen ✓' : 'Make this my home screen'; toast(ownerHome() ? 'The Owner view opens first on this phone' : 'Back to the list first'); }
+/* the tooltip: one for every mark, on hover or a tap */
+function ownerTipWire(){
+  var root = document.getElementById('owner'), tip = document.getElementById('otip'); if (!root || !tip || root.tipWired) return; root.tipWired = true;
+  var show = function(ev){ var t = ev.target && ev.target.closest ? ev.target.closest('[data-tip]') : null; if (!t){ tip.style.display = 'none'; return; } tip.textContent = t.getAttribute('data-tip'); tip.style.display = 'block'; var x = (ev.touches ? ev.touches[0].clientX : ev.clientX), y = (ev.touches ? ev.touches[0].clientY : ev.clientY); tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - 8, Math.max(8, x - tip.offsetWidth / 2)) + 'px'; tip.style.top = Math.max(8, y - tip.offsetHeight - 14) + 'px'; };
+  root.addEventListener('mousemove', show); root.addEventListener('touchstart', show, { passive: true }); root.addEventListener('mouseleave', function(){ tip.style.display = 'none'; });
+}
+
 /* ---- the next thirty days, in money ----
    What the subscriptions will bill, what is owed and how old, and what
    usually arrives, from the last three months' collection rate. */
@@ -5282,7 +5527,7 @@ function loadBilling(force){
   if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_billing') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ billing = c.data; renderBilling(); return; } } catch (e) {} }
   fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'billing', key: KEY }) })
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (d && d.ok && (d.months || d.empty)){ billing = d; try { localStorage.setItem('clpps_billing', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderBilling(); renderRisk(); renderDormant(); renderCash(); renderSchedule(); renderUnderTable(); renderRevenue(); renderDeo(); renderTerritory(); renderFoldSums(); renderGlance(); } })
+    .then(function(d){ if (d && d.ok && (d.months || d.empty)){ billing = d; try { localStorage.setItem('clpps_billing', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderBilling(); renderRisk(); renderDormant(); renderCash(); renderSchedule(); renderUnderTable(); renderRevenue(); renderDeo(); renderTerritory(); renderFoldSums(); renderGlance(); if (ownerOpen) renderOwner(); } })
     .catch(function(){});
 }
 function billingKind(name){
@@ -5602,12 +5847,21 @@ function renderGlance(){
   var bm = billing && billing.months ? (billing.months[nowK] || null) : null;
   var owed = billing && billing.unpaid ? billing.unpaid.reduce(function(a, u){ return a + u.owed; }, 0) : 0;
   var mrr = 0; leads.forEach(function(l){ if (isLead(l) && (l.status || 'new') === 'closed' && !isDormant(l)){ var pp = parsePrice(l); if (pp && pp.isMo) mrr += pp.amt; } });
-  var tile = function(n, l, col){ return '<div class="stat"><div class="n"' + (col ? ' style="color:' + col + ';"' : '') + '>' + n + '</div><div class="l">' + l + '</div></div>'; };
+  var tile = function(n, l, col, sp){ return '<div class="stat"><div class="n"' + (col ? ' style="color:' + col + ';"' : '') + '>' + n + '</div><div class="l">' + l + '</div>' + (sp || '') + '</div>'; };
+  // the small lines under the numbers: the last two weeks of visits, twelve weeks of leads, twelve months of billing and of customers
+  var sparks = { stops: '', leads: '', billed: '', active: '' }, trends = { leads: '', billed: '', active: '' };
+  try {
+    if (jobsData && jobsData.byDate){ var dv = []; for (var i = 13; i >= 0; i--){ var dk = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10); dv.push(jobsData.byDate[dk] ? jobsData.byDate[dk].visits : 0); } sparks.stops = spark(dv); }
+    var wk = [], wkNow = 0, wkPrev = 0; for (var w = 11; w >= 0; w--){ var from = Date.now() - (w + 1) * 7 * 86400000, to = Date.now() - w * 7 * 86400000; var c = leads.filter(function(l){ var tms = new Date(l.created).getTime(); return isLead(l) && tms >= from && tms < to; }).length; wk.push(c); if (w === 0) wkNow = c; if (w === 1) wkPrev = c; }
+    sparks.leads = spark(wk, waiting ? '#c0392b' : VIZ.s1); trends.leads = trendMark(wkNow, wkPrev);
+    if (billing && billing.months){ var mk12 = monthsBack(12); sparks.billed = spark(mk12.map(function(k){ return billing.months[k] ? billing.months[k].billed : 0; })); var pm = billing.months[monthAdd(nowK, -1)]; if (bm && pm) trends.billed = trendMark(bm.billed, pm.billed); }
+    var cm12 = customersByMonth(monthsBack(12)); sparks.active = spark(cm12.active); trends.active = trendMark(cm12.active[11], cm12.active[10]);
+  } catch (e) {}
   box.innerHTML =
-    tile(tp && tp.stops.length ? tp.stops.length : '0', tp && tp.stops.length ? 'stops today &middot; ' + hoursText(tp.total) + ' &middot; ' + money(tp.money) : 'stops today') +
-    tile(waiting, (waiting === 1 ? 'lead' : 'leads') + ' not called yet' + (due ? ' &middot; ' + due + ' follow-up' + (due === 1 ? '' : 's') + ' due' : ''), waiting ? '#c0392b' : null) +
-    tile(bm ? money(bm.billed) : money(mrr), bm ? 'billed ' + monthShort(nowK) + ' &middot; ' + money(bm.collected) + ' collected' : 'a month on the books') +
-    tile(active, 'active' + (dorm ? ' &middot; <span style="color:#b45309;">' + dorm + ' to check</span>' : '') + ' &middot; +' + newM + ' this month' + (leftM ? ' &middot; &minus;' + leftM + ' left' : '') + (owed ? ' &middot; ' + money(owed) + ' owed' : ''), null);
+    tile(tp && tp.stops.length ? tp.stops.length : '0', tp && tp.stops.length ? 'stops today &middot; ' + hoursText(tp.total) + ' &middot; ' + money(tp.money) : 'stops today', null, sparks.stops) +
+    tile(waiting, (waiting === 1 ? 'lead' : 'leads') + ' not called yet' + (due ? ' &middot; ' + due + ' follow-up' + (due === 1 ? '' : 's') + ' due' : '') + trends.leads, waiting ? '#c0392b' : null, sparks.leads) +
+    tile(bm ? money(bm.billed) : money(mrr), (bm ? 'billed ' + monthShort(nowK) + ' &middot; ' + money(bm.collected) + ' collected' : 'a month on the books') + trends.billed, null, sparks.billed) +
+    tile(active, 'active' + trends.active + (dorm ? ' &middot; <span style="color:#b45309;">' + dorm + ' to check</span>' : '') + ' &middot; +' + newM + ' this month' + (leftM ? ' &middot; &minus;' + leftM + ' left' : '') + (owed ? ' &middot; ' + money(owed) + ' owed' : ''), null, sparks.active);
 }
 function foldAll(open){
   FOLD_CARDS.forEach(function(id){
@@ -6524,6 +6778,7 @@ function render(){
   renderCash();
   renderExpand();
   renderHire();
+  if (ownerOpen) renderOwner();
   renderReviews();
   renderReviewTrend();
   renderFoldSums();   // last: it writes onto headings the renderers above just rebuilt
@@ -7178,6 +7433,8 @@ if (KEY) loadLeads(false); else { loadLocal(); render(); needKey(''); }
 // Keep the page live: quietly re-check the database every 60 seconds, and again
 // the moment the tab comes back into view, so an acceptance shows up on its own.
 setInterval(function(){ loadLeads(false, null, true); }, 60000);
+ownerTipWire();
+if (location.hash === '#owner' || ownerHome()) setTimeout(function(){ if (KEY) toggleOwner(true); }, 700);
 /* A phone does not run timers for a page sitting in the background, so
    coming back to an already-open tab used to show whatever was on screen
    when you left it - sometimes hours old - until the next minute ticked.

@@ -156,6 +156,24 @@ const { ok, done } = reporter();
   ok('a paused customer is off the day list but listed as paused, with the return date', /Thu\s*3 stops/.test(sched) && /Paused in Sweep&Go\s*1.*Paused Pat.*back 2026-12-15/.test(sched), sched.slice(sched.indexOf('Paused'), sched.indexOf('Paused') + 120));
   ok('and their card says so', /Paused in Sweep&Go until 2026-12-15 — off the route, still a customer/.test((await p.textContent('#card-P1')).replace(/\s+/g, ' ')));
   ok('the Day plan uses Sweep&Go\'s own minutes for a stop that has them', /2\. ~Eddie Eow[^]*?14 min/.test(sched) || /Eddie Eow[^]*?14 min · \$44/.test(sched), sched.slice(sched.indexOf('Eddie Eow'), sched.indexOf('Eddie Eow') + 120));
+  /* ---- the Owner view: six pictures ---- */
+  await p.evaluate(() => toggleOwner(true)); await p.waitForTimeout(600);
+  const cards = await p.$$eval('#owner .oc', cs => cs.map(c => ({ title: c.querySelector('h3').textContent, svg: !!c.querySelector('svg'), legend: c.querySelectorAll('.leg span').length, cap: c.querySelector('.cap').textContent })));
+  ok('six charts, each with a title, a caption in words and a picture', cards.length === 6 && cards.every(c => c.svg) && cards.map(c => c.title).join('|') === 'Billed and collected, month by month|Customers over time|Where the monthly number moved|Leads in, by where they came from|Route hours against the limit|Two years of billing, at a glance', JSON.stringify(cards.map(c => c.title)));
+  ok('every chart with more than one series carries a legend (this fixture has one lead source, so that chart has one)', [0, 1, 2, 4].every(i => cards[i].legend >= 2) && cards[3].legend === 1 && cards[5].legend === 0, JSON.stringify(cards.map(c => c.legend)));
+  ok('the captions say what the pictures show: the unpaid gap, the active count, the month\'s moves, the close rate, the hire date, the best month', /invoiced and never came in: \$3,866/.test(cards[0].cap) && /active now/.test(cards[1].cap) && /on the books: \$[\d,]+ at the start of Oct/.test(cards[2].cap) && /became customers \(\d+%\)/.test(cards[3].cap) && /hours a week now/.test(cards[4].cap) && /The best month was Oct 2026 at \$8,144/.test(cards[5].cap), JSON.stringify(cards.map(c => c.cap)));
+  ok('the marks are thin, rounded at the data end and never fatter than 24px', await p.$$eval('#owner svg path[data-tip]', ps => ps.length > 20 && ps.every(e => { const b = e.getBBox(); return b.width <= 24.5; })));
+  ok('the address carries the view, so a link opens it straight away', await p.evaluate(() => location.hash) === '#owner');
+  await p.evaluate(() => { const el = document.querySelector('#owner .oc svg path[data-tip]'); const r = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 })); }); await p.waitForTimeout(150);
+  ok('hovering or tapping a mark shows its number in words', await p.isVisible('#otip') && /\$[\d,]+ (billed|collected)/.test(await p.textContent('#otip')), await p.textContent('#otip'));
+  await p.click('#owner-home'); await p.waitForTimeout(200);
+  ok('"Make this my home screen" is remembered on the phone, and the button says so', (await p.evaluate(() => localStorage.getItem('clpps_owner_home'))) === '1' && /This is my home screen/.test(await p.textContent('#owner-home')));
+  await p.click('#owner-home'); await p.evaluate(() => toggleOwner(false)); await p.waitForTimeout(100);
+  ok('closing it clears the address again', (await p.evaluate(() => location.hash)) === '' && !(await p.isVisible('#owner')));
+  /* ---- sparklines and trend marks on the top strip ---- */
+  const glanceHtml = await p.$eval('#glance', e => e.innerHTML);
+  ok('each of the four tiles carries a small line of its recent history', (await p.$$('#glance .spark')).length === 4);
+  ok('and the billed and active tiles say which way they moved against last month', /trend down">▼ 1%/.test(glanceHtml) && /active<span class="trend/.test(glanceHtml), glanceHtml.replace(/<svg[^]*?<\/svg>/g, '').slice(0, 400));
   /* ---- the brief, read aloud ---- */
   const sayBtn = await p.evaluate(() => { toggleBrief(); sayBrief(); return document.getElementById('brief-say').textContent; }); await p.waitForTimeout(200);
   ok('"Read it to me" hands the daily brief to the phone\'s voice, with the dollar signs said as words, and the button becomes Stop while it talks', (await p.evaluate(() => window.__spoken.length)) === 1 && /dollars/.test(await p.evaluate(() => window.__spoken[0])) && /Stop/.test(sayBtn), await p.evaluate(() => window.__spoken[0].slice(0, 160)));
@@ -270,6 +288,7 @@ const { ok, done } = reporter();
   const [review] = await Promise.all([ctx.waitForEvent('page'), p.click('#billing button:has-text("Month in review")')]);
   await review.waitForLoadState(); await review.waitForTimeout(300);
   const rv = (await review.textContent('body')).replace(/\s+/g, ' ');
+  ok('the review page carries the same two pictures: billed and collected, and the customer line', (await review.$$('svg')).length === 2 && /Twelve months in pictures/.test(rv));
   ok('the review opens as its own page with the month, money, customers, work and what moved', /November 2026 in review/.test(rv) && /\$8,078\s*-1% vs Oct\s*billed/.test(rv) && /\$6,796\s*\+7% vs Oct\s*collected/.test(rv) && /active recurring customers/.test(rv) && /Work done, last 30 days\s*310\s*visits/.test(rv) && /What moved/.test(rv) && /Eddie Eow\s*\$190/.test(rv), rv.slice(0, 500));
   ok('and says in words that collections lag billing', /Collections are behind billing this month: \$1,282 invoiced and not yet in\. 16 card payments failed/.test(rv), rv.slice(rv.indexOf('What moved'), rv.indexOf('What moved') + 200));
   await review.close();
