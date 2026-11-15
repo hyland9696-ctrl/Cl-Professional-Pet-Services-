@@ -492,10 +492,10 @@ function publicDays_() {
   var rows = sheet_().getDataRange().getValues(), H = {}; HEADERS.forEach(function(h, i) { H[h] = i; });
   var latest = {}, NOT = { VIEW:1, QVIEW:1, OUTAREA:1, WAITLIST:1, AUTH:1, SPEND:1, CONFIG:1 };
   for (var i = 1; i < rows.length; i++) { var t = String(rows[i][H.type] || ''); if (NOT[t]) continue; var id = String(rows[i][H.id]), key = String(rows[i][H.created] || ''); if (!latest[id] || key >= latest[id].key) latest[id] = { key: key, r: rows[i] }; }
-  var byZip = {};
+  var byZip = {}, payingD = {}; try { payingD = sgLastInvoices_(); } catch (e0) {}
   Object.keys(latest).forEach(function(id) {
     var r = latest[id].r, notes = String(r[H.crmnotes] || '');
-    if (String(r[H.status] || '') !== 'closed' || !/\[SGID:/.test(notes) || /\[(OS:1|SS:none|CM:1|TM:1)\]/.test(notes)) return;
+    if (String(r[H.status] || '') !== 'closed' || !/\[SGID:/.test(notes) || /\[(CM:1|TM:1)\]/.test(notes) || sgOutOfCount_(notes, r[H.name], payingD)) return;
     var zip = String(r[H.zip] || '').slice(0, 5), days = ((notes.match(/\[DAY:([^\]]*)\]/) || [])[1] || '').split(',').filter(Boolean);
     if (!/^\d{5}$/.test(zip) || !days.length) return;
     var z = byZip[zip] || (byZip[zip] = { n: 0, days: {} }); z.n++;
@@ -1156,6 +1156,14 @@ function mileage_() {
   return out;
 }
 function mileageCsv_() { var m = mileage_(); return 'month,miles,days_driven\n' + Object.keys(m).map(function(k) { return [k, m[k].miles, m[k].days].join(','); }).join('\n') + '\n'; }
+/* Off schedule or without a subscription by Sweep&Go's flags, AND no
+   recurring invoice inside 45 days: out of the count. A flagged customer
+   who was invoiced this month is real and stays in. */
+function sgOutOfCount_(notes, name, paying) {
+  if (!/\[(OS:1|SS:none)\]/.test(String(notes || ''))) return false;
+  var k = sgNorm_(name), aka = (String(notes || '').match(/\[AKA:([^\]]*)\]/) || [])[1];
+  return !(paying[k] || (aka && paying[sgNorm_(aka)]));
+}
 /* The last recurring monthly invoice per customer, from the billing sheet
    (yesterday's pull is fine): what Sweep&Go actually charges them. Only
    invoices inside 45 days count, and not initial or prorated ones. */
@@ -1203,6 +1211,7 @@ function sgCommercial_(dry, sh, latest, byName) {
       var status = active ? 'closed' : 'cancelled';
       if (latest[id] && latest[id].row >= 0) {
         var row = data[latest[id].row], notes = sgSetMarkers_(String(row[HEADERS.indexOf('crmnotes')] || ''), set), newRow = row.slice(), touched = false;
+        if (sgNorm_(row[HEADERS.indexOf('name')]) !== sgNorm_(c.name) && sgNorm_(row[HEADERS.indexOf('name')]) !== sgNorm_(name)) notes = sgSetMarkers_(notes, { AKA: String(c.name || '').trim() });
         var ch = { status: status, crmnotes: notes, service: 'commercial' }; if (price) ch.price = price; if (!row[HEADERS.indexOf('name')]) ch.name = name;
         if (L.billing_address && !row[HEADERS.indexOf('address')]) ch.address = [L.billing_address, L.billing_city, L.billing_zip].filter(Boolean).join(', ');
         if (L.billing_zip && !row[HEADERS.indexOf('zip')]) ch.zip = String(L.billing_zip);
@@ -1730,12 +1739,12 @@ function monthlyReportText_(mk) {
   var sh = sheet_(), rows = sh.getDataRange().getValues(), H = {}; HEADERS.forEach(function(h, i) { H[h] = i; });
   var latest = {}, NOT = { VIEW:1, QVIEW:1, OUTAREA:1, WAITLIST:1, AUTH:1, SPEND:1, CONFIG:1 };
   for (var i = 1; i < rows.length; i++) { var t = String(rows[i][H.type] || ''); if (NOT[t]) continue; var id = String(rows[i][H.id]), key = String(rows[i][H.created] || ''); if (!latest[id] || key >= latest[id].key) latest[id] = { key: key, r: rows[i] }; }
-  var active = 0, toCheck = 0, started = 0, left = 0, why = {}, leadsIn = 0, won = 0;
+  var active = 0, toCheck = 0, started = 0, left = 0, why = {}, leadsIn = 0, won = 0, payingM = {}; try { payingM = sgLastInvoices_(); } catch (e0) {}
   Object.keys(latest).forEach(function(id) {
     var r = latest[id].r, st = String(r[H.status] || 'new'), notes = String(r[H.crmnotes] || '');
     if (st === 'deleted' || /\[TM:1\]/.test(notes)) return;
     var cd = (notes.match(/\[CD:(\d{4}-\d{2})/) || [])[1] || '', cx = (notes.match(/\[CX:(\d{4}-\d{2})/) || [])[1] || '';
-    if (st === 'closed') { if (/\[(OS:1|SS:none)\]/.test(notes)) toCheck++; else active++; if (cd === mk) started++; }
+    if (st === 'closed') { if (sgOutOfCount_(notes, r[H.name], payingM)) toCheck++; else active++; if (cd === mk) started++; }
     if (st === 'cancelled' && cx === mk) { left++; var w = (notes.match(/\[CXR:([^\]]*)\]/) || [])[1] || 'no reason'; why[w] = (why[w] || 0) + 1; }
     if (String(r[H.created] || '').slice(0, 7) === mk) { leadsIn++; if (st === 'closed') won++; }
   });
@@ -1762,11 +1771,12 @@ function monthlyReportText_(mk) {
    the new ones added, what the leavers took, and the rest is price and plan
    changes. From the cards' prices and their start and leaving dates. */
 function mrrMoves_(rows, H, mk) {
+  var payingMv = {}; try { payingMv = sgLastInvoices_(); } catch (e0) {}
   var first = mk + '-01', next = (mk.slice(5) === '12' ? (parseInt(mk.slice(0, 4), 10) + 1) + '-01' : mk.slice(0, 4) + '-' + ('0' + (parseInt(mk.slice(5), 10) + 1)).slice(-2)) + '-01';
   var amt = function(r) { var p = String(r[H.price] || ''); if (!/\/mo|month/.test(p)) return 0; var m = p.match(/\$?(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : 0; };
   var o = { start: 0, added: 0, n: 0, lost: 0, left: 0, end: 0, changes: 0 };
   rows.forEach(function(r) {
-    var st = String(r[H.status] || ''), notes = String(r[H.crmnotes] || ''); if (/\[(TM:1|OS:1|SS:none)\]/.test(notes) || (st !== 'closed' && st !== 'cancelled')) return;
+    var st = String(r[H.status] || ''), notes = String(r[H.crmnotes] || ''); if (/\[TM:1\]/.test(notes) || (st !== 'closed' && st !== 'cancelled') || (st === 'closed' && sgOutOfCount_(notes, r[H.name], payingMv))) return;
     var cd = (notes.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || String(r[H.created] || '').slice(0, 10), cx = (notes.match(/\[CX:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '', a = amt(r);
     var activeAtStart = cd < first && (!cx || cx >= first), activeNow = st === 'closed';
     if (activeAtStart) o.start += a;
@@ -1806,7 +1816,8 @@ function yearlyReportText_(year) {
     if (st === 'cancelled' && cx && cx.indexOf(year) === 0) { left++; var q = 'Q' + (Math.floor(parseInt(cx.slice(5, 7), 10) / 3.01) + 1), why = (n.match(/\[CXR:([^\]]*)\]/) || [])[1] || 'no reason'; churn[q] = churn[q] || {}; churn[q][why] = (churn[q][why] || 0) + 1; if (cd) lifetimes.push(Math.round((new Date(cx) - new Date(cd)) / DAY_MS / 30.4)); }
     if (String(p.created || '').indexOf(year) === 0 && /^(ENQUIRY|ACTIVATE|DECLINED)$/.test(String(p.type || ''))) { leadsIn++; if (st === 'closed' || st === 'cancelled') won++; }
   });
-  var active = E.people.filter(function(p) { return String(p.status) === 'closed' && !/\[(OS:1|SS:none|TM:1)\]/.test(String(p.crmnotes || '')); }).length;
+  var payingY = {}; try { payingY = sgLastInvoices_(); } catch (e0) {}
+  var active = E.people.filter(function(p) { return String(p.status) === 'closed' && !/\[TM:1\]/.test(String(p.crmnotes || '')) && !sgOutOfCount_(p.crmnotes, p.name, payingY); }).length;
   L.push('CL Professional Pet Services, ' + year + ' in review');
   L.push('');
   L.push('Money: ' + money(billed) + ' billed, ' + money(collected) + ' collected' + (best ? '. Best month ' + best + ' (' + money(f.months[best].billed) + '), quietest ' + worst + ' (' + money(f.months[worst].billed) + ')' : '') + '.');
@@ -1895,7 +1906,8 @@ function emailRows_() {
   var latest = {}, NOT = { VIEW:1, QVIEW:1, OUTAREA:1, WAITLIST:1, AUTH:1, SPEND:1, CONFIG:1 };
   for (var i = 1; i < rows.length; i++) { var t = String(rows[i][H.type] || ''); if (NOT[t]) continue; var id = String(rows[i][H.id]), key = String(rows[i][H.created] || ''); if (!latest[id] || key >= latest[id].key) latest[id] = { key: key, row: i }; }
   var people = Object.keys(latest).map(function(id) { var o = {}; HEADERS.forEach(function(h, j) { o[h] = rows[latest[id].row][j]; }); o._row = latest[id].row; return o; });
-  return { sh: sh, rows: rows, H: H, people: people,
+  var paying = {}; try { paying = sgLastInvoices_(); } catch (e0) {}
+  return { sh: sh, rows: rows, H: H, people: people, paying: paying,
     stamp: function(p, marker) { var cur = String(rows[p._row][H.crmnotes] || ''), next = marker.EM ? '[EM:' + marker.EM + '] ' + cur : sgSetMarkers_(cur, marker); rows[p._row][H.crmnotes] = next; sh.getRange(p._row + 1, H.crmnotes + 1).setValue(safeCell_(next)); },
     mailable: function(p) { var n = String(p.crmnotes || ''); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(p.email || '').trim()) && !/\[(NOEM|TM):/.test(n); },
     first: function(p) { return String(p.name || '').trim().split(/\s+/)[0] || 'there'; } };
@@ -1986,7 +1998,7 @@ function anniversaryEmails() {
   return round_('Anniversary emails', 'anniversary_emails', function(E, today, send) {
     var md = today.slice(5), yr = parseInt(today.slice(0, 4), 10);
     E.people.forEach(function(p) {
-      var n = String(p.crmnotes || ''); if (String(p.status) !== 'closed' || !E.mailable(p) || /\[(OS:1|SS:none|CM:1)\]/.test(n)) return;
+      var n = String(p.crmnotes || ''); if (String(p.status) !== 'closed' || !E.mailable(p) || /\[CM:1\]/.test(n) || sgOutOfCount_(n, p.name, E.paying)) return;
       var cd = (n.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1]; if (!cd || cd.slice(5) !== md) return;
       var years = yr - parseInt(cd.slice(0, 4), 10); if (years < 1 || n.indexOf('[AN:' + yr) >= 0) return;
       send(p, (years === 1 ? 'A year with us, ' : years + ' years with us, ') + E.first(p) + ' \u2014 thank you', 'Hi ' + E.first(p) + ',\n\n' + (years === 1 ? 'It has been a year today since we first came out to your yard.' : 'It has been ' + years + ' years today since we first came out to your yard.') + ' Thank you for having us every week; a small business runs on customers like you.\n\nAs a small thank-you, your next visit includes a free deodorizing and sanitizing treatment, on the house. Nothing to do on your end.\n\nIf there is anything we could be doing better, reply here and tell me straight. \u2014 Corey', { AN: yr + '@' + today });
@@ -2018,7 +2030,7 @@ function campaignsDue() {
         var st = String(p.status || 'new'), n = String(p.crmnotes || '');
         if (!E.mailable(p) || n.indexOf('[EM:' + tag + '@') >= 0) return;
         var ok = C.who === 'quotes' ? /^(new|called|lost)$/.test(st) && ageDays_(p.created) >= 7 && ageDays_(p.created) <= 400 && !/\[SGID:/.test(n)
-               : C.who === 'customers-no-deo' ? st === 'closed' && !/every visit|\$15/.test(String(p.deodorize || '')) && !/\[(OS:1|SS:none|CM:1)\]/.test(n)
+               : C.who === 'customers-no-deo' ? st === 'closed' && !/every visit|\$15/.test(String(p.deodorize || '')) && !/\[CM:1\]/.test(n) && !sgOutOfCount_(n, p.name, E.paying)
                : /^(new|called|lost|cancelled)$/.test(st) && ageDays_(p.created) >= 7 && ageDays_(p.created) <= 730 && !/\[SGID:/.test(n) || (st === 'cancelled' && ageDays_((n.match(/\[CX:(\d{4}-\d{2}-\d{2})\]/) || [])[1]) <= 365);
         if (!ok) return;
         var r = { first: E.first(p), price: String(p.price || '').trim() || 'your quoted price', plan: String(p.service || '').trim() || 'your plan' };
@@ -2053,11 +2065,12 @@ function weeklyNumbers_() {
     var key = String(rows[i][H.created] || ''); if (!latest[id] || key >= latest[id].key) latest[id] = { key: key, r: rows[i] };
   }
   var n = { active: 0, newCust: 0, left: 0, leftWhy: {}, leadsIn: 0, waiting: 0, reviews: '', toCheck: 0, owed30: 0 };
+  var paying = {}; try { paying = sgLastInvoices_(); } catch (e0) {}
   Object.keys(latest).forEach(function(id) {
     var r = latest[id].r, st = String(r[H.status] || 'new'), notes = String(r[H.crmnotes] || '');
     if (st === 'deleted' || /\[TM:1\]/.test(notes)) return;
     var cd = (notes.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '', cx = (notes.match(/\[CX:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '';
-    if (st === 'closed' && /\[(OS:1|SS:none)\]/.test(notes)) { n.toCheck++; return; }   // Sweep&Go calls them active, but off schedule or without a subscription
+    if (st === 'closed' && sgOutOfCount_(notes, r[H.name], paying)) { n.toCheck++; return; }   // Sweep&Go calls them active, but off schedule or without a subscription, and no money in 45 days
     if (st === 'closed') { n.active++; if (cd >= cutD && cd <= nowD) n.newCust++; }
     if (st === 'cancelled' && cx >= cutD && cx <= nowD) { n.left++; var why = (notes.match(/\[CXR:([^\]]*)\]/) || [])[1] || 'no reason'; n.leftWhy[why] = (n.leftWhy[why] || 0) + 1; }
     if (String(r[H.created] || '') >= cut.toISOString()) n.leadsIn++;

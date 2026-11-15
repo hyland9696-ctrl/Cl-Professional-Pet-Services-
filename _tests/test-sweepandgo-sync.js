@@ -89,6 +89,7 @@ const API = {
     { created_at: d(9) + ' 00:03:23', invoice_number:'768-2-1', client_name:'Kelly .', status:'overdue', total:'87.00', paid:'0.00', remaining:'87.00', type:'subscription', billing_interval:'monthly' },
     { created_at: d(8) + ' 00:03:23', invoice_number:'768-4-1', client_name:'Per Visit Pete', status:'paid', total:'65.00', paid:'65.00', remaining:'0.00', type:'subscription', billing_interval:'monthly' },
     { created_at: d(20) + ' 00:03:23', invoice_number:'768-5-1', client_name:'New Nancy', status:'overdue', total:'75.00', paid:'0.00', remaining:'75.00', type:'subscription', billing_interval:'monthly' },
+    { created_at: d(12) + ' 00:03:23', invoice_number:'768-6-1', client_name:'Off Olly', status:'paid', total:'85.00', paid:'85.00', remaining:'0.00', type:'subscription', billing_interval:'monthly' },
   ], last_page: 1 } },
   '/api/v2/invoices?type=one_time': { invoices: { data: [ { created_at: d(5) + ' 10:00:00', invoice_number:'768-3-3', client_name:'Once Olga', status:'paid', total:'75.00', paid:'75.00', remaining:'0.00', type:'one_time' } ], last_page: 1 } },
   '/api/v2/payments': { payments: { data: [
@@ -228,12 +229,12 @@ function build(leadRows){
   ok('before the first billing pull Pete\'s price is whatever the subscription record says', pete && pete.price === '$15/mo', pete && pete.price);
   /* ---- the commercial side ---- */
   const greens = by('greens');
-  ok('the hand-typed commercial row is recognised by name: Sweep&Go\'s id, the commercial mark, the day, the price from the commercial subscription; the name as the office wrote it', greens && /\[SGID:cl_G1\]/.test(greens.crmnotes) && /\[CM:1\]/.test(greens.crmnotes) && /\[DAY:wed\]/.test(greens.crmnotes) && greens.price === '$60/mo' && greens.status === 'closed' && greens.name === 'Greens of Broadmoor - 14995 Green Cir Dr.' && s.commercial === 1, greens && JSON.stringify([greens.price, greens.crmnotes]));
+  ok('the hand-typed commercial row is recognised by name: Sweep&Go\'s id, the commercial mark, the day, the price from the commercial subscription, the company name as an alias; the name as the office wrote it', greens && /\[SGID:cl_G1\]/.test(greens.crmnotes) && /\[CM:1\]/.test(greens.crmnotes) && /\[DAY:wed\]/.test(greens.crmnotes) && /\[AKA:Greens of Broadmoor\]/.test(greens.crmnotes) && greens.price === '$60/mo' && greens.status === 'closed' && greens.name === 'Greens of Broadmoor - 14995 Green Cir Dr.' && s.commercial === 1, greens && JSON.stringify([greens.price, greens.crmnotes]));
   // the other sheets
   ok('the sync itself leaves the invoice history to a run of its own a minute later, so it stays well inside the six-minute limit', s.billing === 'scheduled' && !sheets.billing && triggers.includes('sgBillingSync') && !calls.some(u => /invoices|payments/.test(u)), JSON.stringify({ billing: s.billing, triggers }));
   triggers.length = 0;
   const bs = F.sgBillingSync();
-  ok('that run pulls recurring and one-time invoices and the payments into the billing sheet, whole the first time, and records itself', bs.ok && bs.full === true && sheets.billing && sheets.billing.rows.length === 1 + 5 + 2 && calls.some(u => /type=one_time/.test(u)) && !calls.some(u => /type=onetime/.test(u)) && /sg_last_billing/.test(JSON.stringify(sheets.leads.rows.slice(-3))), JSON.stringify(bs) + ' ' + (sheets.billing && sheets.billing.rows.length));
+  ok('that run pulls recurring and one-time invoices and the payments into the billing sheet, whole the first time, and records itself', bs.ok && bs.full === true && sheets.billing && sheets.billing.rows.length === 1 + 6 + 2 && calls.some(u => /type=one_time/.test(u)) && !calls.some(u => /type=onetime/.test(u)) && /sg_last_billing/.test(JSON.stringify(sheets.leads.rows.slice(-3))), JSON.stringify(bs) + ' ' + (sheets.billing && sheets.billing.rows.length));
   const bill = F.sgBilling_();
   ok('the billing fold reads it back: Kelly owes $87 and her card is declining, Nancy owes $75, Dana tipped $5', bill.unpaid.length === 2 && bill.unpaid[0].name === 'Kelly .' && bill.unpaid[0].owed === 87 && bill.unpaid[1].name === 'New Nancy' && bill.declining.length === 1 && bill.declining[0].name === 'Kelly .' && Object.values(bill.months).reduce((a, m) => a + m.tips, 0) === 5, JSON.stringify(bill));
   /* ---- the invoice is the truth for the price ---- */
@@ -248,9 +249,9 @@ function build(leadRows){
   ok('who was skipped, and dollars an hour by plan, dogs and weekday', jobs.skippedBy['Kelly .'] === 1 && jobs.rate.byPlan.weekly.n === 1 && jobs.rate.byPlan.weekly.perHour === 175 && jobs.rate.byDogs['2'].perHour === 175 && Object.keys(jobs.rate.byWeekday).length === 1, JSON.stringify(jobs.rate));
   /* ---- the Monday push ---- */
   const n = F.weeklyNumbers_();
-  ok('last week in numbers, from the sheets: customers, comings and goings, leads, money, work, and the two Sweep&Go still calls active without a schedule or a subscription', n.active === 7 && n.toCheck === 2 && n.newCust === 1 && n.left === 0 && n.leadsIn >= 1 && n.billed === 75 && n.collected === 0 && n.owed === 162 && n.owed30 === 0 && n.visits === 1 && n.skipped === 1, JSON.stringify(n));
+  ok('last week in numbers, from the sheets: customers, comings and goings, leads, money, work; Olly, off the schedule but invoiced this month, counts, Sally with no subscription and no money does not', n.active === 8 && n.toCheck === 1 && n.newCust === 1 && n.left === 0 && n.leadsIn >= 1 && n.billed === 75 && n.collected === 0 && n.owed === 162 && n.owed30 === 0 && n.visits === 1 && n.skipped === 1, JSON.stringify(n));
   const text = F.weeklyPush();
-  ok('the push went to the topic with the week on four or five lines', pushes.length === 1 && pushes[0].title === 'CLPPS last week' && /\$75 billed, \$0 collected, \$162 still owed/.test(text) && /; 2 to check in Sweep&Go/.test(text) && /7 active, \+1 new/.test(text) && /1 visits done, 1 skipped/.test(text), JSON.stringify(pushes) + ' ' + text);
+  ok('the push went to the topic with the week on four or five lines', pushes.length === 1 && pushes[0].title === 'CLPPS last week' && /\$75 billed, \$0 collected, \$162 still owed/.test(text) && /; 1 to check in Sweep&Go/.test(text) && /8 active, \+1 new/.test(text) && /1 visits done, 1 skipped/.test(text), JSON.stringify(pushes) + ' ' + text);
   const cfg = (n) => rows.filter(r => r.type === 'CONFIG' && r.name === n).slice(-1)[0];
   ok('the sync wrote its own status and the route report as settings', cfg('sg_last_sync') && JSON.parse(cfg('sg_last_sync').notes).clients === 11 && cfg('sg_routes') && JSON.parse(cfg('sg_routes').notes)[today][0].mi === 61.5);
   ok('writes are batched: well under one per row touched', firstWrites <= 12, String(firstWrites));
@@ -562,7 +563,7 @@ function build(leadRows){
   const mr = F.monthlyReport();
   const sent = msCalls.filter(c => c.body && c.body.message).pop();
   ok('on the 1st the month in review goes to the office from the office, with the three files attached', mr.ok && mr.how === 'microsoft' && sent && sent.body.message.toRecipients.map(x => x.emailAddress.address).join() === 'info@clpropetservices.com,clpropetservices@gmail.com' && /in review$/.test(sent.body.message.subject) && sent.body.message.attachments.length === 3 && sent.body.message.attachments[0].name === 'clpps-billing-by-month.csv' && Buffer.from(sent.body.message.attachments[1].contentBytes, 'base64').toString('utf8').indexOf('kind,number,date') === 0, JSON.stringify(sent && sent.body.message.subject));
-  ok('and it reads like a note, not a dump: money, customers with the two to check, work, leads', /Money: \$/.test(sent.body.message.body.content) && /Customers: \d+ active \(plus 2 Sweep&Go still calls active/.test(sent.body.message.body.content) && /Work: \d+ visits done/.test(sent.body.message.body.content) && /Leads: \d+ came in/.test(sent.body.message.body.content), sent.body.message.body.content);
+  ok('and it reads like a note, not a dump: money, customers with the one to check, work, leads', /Money: \$/.test(sent.body.message.body.content) && /Customers: \d+ active \(plus 1 Sweep&Go still calls active/.test(sent.body.message.body.content) && /Work: \d+ visits done/.test(sent.body.message.body.content) && /Leads: \d+ came in/.test(sent.body.message.body.content), sent.body.message.body.content);
   delete props.MS_TENANT;
   ok('without the office mailbox the report still reaches the office, from Google, since it is not a customer email', F.monthlyReport().how === 'google' && mails.length === 1 && mails[0].attachments.length === 3);
   // the evening nudge

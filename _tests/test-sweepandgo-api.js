@@ -100,6 +100,8 @@ const { ok, done } = reporter();
     // two visitors from a ZIP we do not serve
     { id:'oa1', type:'OUTAREA', name:'ZIP 63301', zip:'63301', yard:'sid-a', service:'Direct', created:'2026-11-01T12:00:00Z' },
     { id:'oa2', type:'OUTAREA', name:'ZIP 63301', zip:'63301', yard:'sid-b', service:'Direct', created:'2026-11-05T12:00:00Z' },
+    // off the schedule by Sweep&Go's flag, but invoiced this month: a real customer who needs a day, not disabling
+    { id:'O2', type:'SAVED', name:'Paying Polly', phone:'6363750033', email:'polly@gmail.com', zip:'63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-04-01] [DAY:thu] [SGID:rcl_POLLY] [OS:1] [QA:a] ', created:'2026-04-01T12:00:00Z' },
     // Sweep&Go's own flag says off schedule: to check at once, no waiting for the billing
     { id:'O1', type:'SAVED', name:'Off Olly', phone:'6363750031', email:'olly@gmail.com', zip:'63376', dogs:'1', service:'weekly', deodorize:'no', price:'$85/mo', status:'closed', crmnotes:'[CD:2026-09-01] [DAY:thu] [SGID:rcl_OLLY] [OS:1] [QA:a] ', created:'2026-09-01T12:00:00Z' },
     // Sweep&Go still calls him active, but nothing has been billed since he started in March and he is not in the jobs report
@@ -119,7 +121,7 @@ const { ok, done } = reporter();
     '2026-11': { billed: 8078, onetime: 0, collected: 6796, unpaid: 2154, failed: 16, invoices: 92, customers: 86 } },
     unpaid: [ { name:'Eddie Eow', owed: 190, n: 2, oldest:'2026-10-05', statuses: { overdue: 1, draft: 1 } }, { name:'Nobody Known', owed: 65, n: 1, oldest:'2026-11-01', statuses: { failed: 1 } } ],
     declining: [ { name:'Eddie Eow', when:'2026-11-08', amount: 95 } ],
-    last: { 'dana deo': '2026-11-02', 'eddie eow': '2026-11-08', 'paused pat': '2026-10-28', 'edward near': '2026-11-01', 'old oscar': '2026-11-03' } };   // Ned pays under Sweep&Go's spelling of his name   // Ned has not paid in a while either, but he is being visited
+    last: { 'dana deo': '2026-11-02', 'eddie eow': '2026-11-08', 'paused pat': '2026-10-28', 'edward near': '2026-11-01', 'old oscar': '2026-11-03', 'paying polly': '2026-11-02' } };   // Ned pays under Sweep&Go's spelling of his name   // Ned has not paid in a while either, but he is being visited
   stubNetwork(p, {});
   await p.route('**/api.open-meteo.com/**', r => r.fulfill({ contentType:'application/json', body: JSON.stringify({ daily: { time: ['2026-11-12','2026-11-13','2026-11-14','2026-11-15','2026-11-16','2026-11-17','2026-11-18'], precipitation_probability_max: [60, 10, 0, 0, 20, 70, 5], temperature_2m_min: [41, 38, 36, 40, 44, 47, 45], temperature_2m_max: [55, 52, 50, 58, 61, 59, 57] } }) }));
   await p.route('**/script.google.com/**', r => {
@@ -158,8 +160,8 @@ const { ok, done } = reporter();
   await p.click('#numbersBtn'); await p.waitForTimeout(1200);
   await p.evaluate(() => foldAll(true)); await p.waitForTimeout(200);
   const sched = (await p.textContent('#schedule')).replace(/\s+/g, ' ');
-  ok('the routes block counts the pinned home', /2 homes pinned to the street, 2 placed at the ZIP centre/.test(sched), sched.slice(sched.indexOf('home'), sched.indexOf('home') + 80));
-  ok('a paused customer is off the day list but listed as paused, with the return date', /Thu\s*3 stops/.test(sched) && /Paused in Sweep&Go\s*1.*Paused Pat.*back 2026-12-15/.test(sched), sched.slice(sched.indexOf('Paused'), sched.indexOf('Paused') + 120));
+  ok('the routes block counts the pinned home', /2 homes pinned to the street, 3 placed at the ZIP centre/.test(sched), sched.slice(sched.indexOf('home'), sched.indexOf('home') + 80));
+  ok('a paused customer is off the day list but listed as paused, with the return date', /Thu\s*4 stops/.test(sched) && /Paused in Sweep&Go\s*1.*Paused Pat.*back 2026-12-15/.test(sched), sched.slice(sched.indexOf('Paused'), sched.indexOf('Paused') + 120));
   ok('and their card says so', /Paused in Sweep&Go until 2026-12-15 — off the route, still a customer/.test((await p.textContent('#card-P1')).replace(/\s+/g, ' ')));
   ok('the Day plan uses Sweep&Go\'s own minutes for a stop that has them', /2\. ~Eddie Eow[^]*?14 min/.test(sched) || /Eddie Eow[^]*?14 min · \$44/.test(sched), sched.slice(sched.indexOf('Eddie Eow'), sched.indexOf('Eddie Eow') + 120));
   /* ---- the Owner view: six pictures ---- */
@@ -201,10 +203,12 @@ const { ok, done } = reporter();
   ok('a customer Sweep&Go calls active with nothing billed in 60 days and no visit is listed to check, with the instruction to disable him in Sweep&Go', /Zombie Zed \$85\/mo · since 2026-03-01\s*never billed/.test(dorm) && /deactivate them in Sweep&Go/.test(dorm), dorm.slice(0, 300));
   ok('Olly is listed at once on Sweep&Go\'s own flag, off schedule, before any billing rule', /Off Olly \$85\/mo · since 2026-09-01\s*off schedule in Sweep&Go/.test(dorm), dorm.slice(0, 400));
   ok('Ned, unpaid for a while but visited four times, is not; neither is anyone new or anyone the office entered by hand', !/Near Ned/.test(dorm) && !/Ann Accept/.test(dorm) && (await p.evaluate(() => dormantList().length)) === 2);
-  ok('the list is grouped by what to do: off the schedule to disable, no subscription to look into, nothing billed to check', /Off the schedule in Sweep&Go · disable these \(1\)/.test(dorm) && /Nothing billed or visited in 60 days · check these \(1\)/.test(dorm) && /To disable in Sweep&Go/.test(dorm), dorm.slice(0, 300));
-  ok('a To check chip shows the same people as cards', /To check \(2\)/.test(await p.textContent('#chips')) && (await p.evaluate(() => { filter = 'tocheck'; render(); const ids = Array.from(document.querySelectorAll('#list [id^=card-]')).map(c => c.id).sort().join(); filter = 'all'; render(); return ids; })) === 'card-O1,card-Z1');
+  ok('the list is grouped by what to do: flagged with no money to disable, nothing billed to check, and paying-but-off-the-schedule to put back on a day', /and no money in 45 days · disable these \(1\)/.test(dorm) && /Nothing billed or visited in 60 days · check these \(1\)/.test(dorm) && /Paying, but off the schedule in Sweep&Go · put them back on a day \(1\)\s*Paying Polly/.test(dorm) && /To disable in Sweep&Go/.test(dorm), dorm.slice(0, 400));
+  ok('Polly, invoiced this month, stays in the money and the active count; only Olly and Zed are out', (await p.evaluate(() => dormantList().map(r => r.l.id).sort().join())) === 'O1,Z1' && (await p.evaluate(() => checkList().length)) === 3);
+  ok('her card says so in the right words', /In Sweep&Go: paying, but off the schedule in Sweep&Go, last money 2026-11-02\. Still counted here; give them a service day in Sweep&Go\./.test((await p.textContent('#card-O2')).replace(/\s+/g, ' ')), (await p.textContent('#card-O2')).replace(/\s+/g, ' ').slice(0, 300));
+  ok('a To check chip shows everyone on the card', /To check \(3\)/.test(await p.textContent('#chips')) && (await p.evaluate(() => { filter = 'tocheck'; render(); const ids = Array.from(document.querySelectorAll('#list [id^=card-]')).map(c => c.id).sort().join(); filter = 'all'; render(); return ids; })) === 'card-O1,card-O2,card-Z1');
   ok('money under Sweep&Go\'s spelling of a name still lands on the card', (await p.evaluate(() => lastMoney(leads.filter(l => l.id === 'N1')[0]))) === '2026-11-01' && (await p.evaluate(() => leadByName('Edward Near') && leadByName('Edward Near').id)) === 'N1');
-  ok('they are kept out of the active count, which says so, and off the route', /2 to check/.test((await p.textContent('#glance')).replace(/\s+/g, ' ')) && /Thu\s*3 stops/.test(sched) && /2 to check/.test(await p.$eval('#dormant .fsum', e => e.textContent)), (await p.textContent('#glance')).replace(/\s+/g, ' '));
+  ok('the two with no money are kept out of the active count and off the route; the glance counts all three to check', /3 to check/.test((await p.textContent('#glance')).replace(/\s+/g, ' ')) && /Thu\s*4 stops/.test(sched) && /3 to check/.test(await p.$eval('#dormant .fsum', e => e.textContent)), (await p.textContent('#glance')).replace(/\s+/g, ' ') + ' | ' + sched.slice(sched.indexOf('Thu'), sched.indexOf('Thu') + 40));
   ok('and each card says why, in its own words', /Sweep&Go says active, but never billed and no visit in the jobs report/.test((await p.textContent('#card-Z1')).replace(/\s+/g, ' ')) && /Sweep&Go says active, but off schedule in Sweep&Go\./.test((await p.textContent('#card-O1')).replace(/\s+/g, ' ')), (await p.textContent('#card-O1')).replace(/\s+/g, ' ').slice(0, 300));
   ok('a commercial account says so on its card', /Commercial account, from Sweep&Go/.test(await p.textContent('#card-Z1')));
   ok('the last visits at the house sit on the card: date, minutes, who, and a skip with its reason', /Last visits: Nov 11 \(12 min, Jesse\) · Nov 4 skipped: Gate locked/.test((await p.textContent('#card-D1')).replace(/\s+/g, ' ')), (await p.textContent('#card-D1')).replace(/\s+/g, ' ').slice(0, 400));
