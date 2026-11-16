@@ -1156,11 +1156,12 @@ function mileage_() {
   return out;
 }
 function mileageCsv_() { var m = mileage_(); return 'month,miles,days_driven\n' + Object.keys(m).map(function(k) { return [k, m[k].miles, m[k].days].join(','); }).join('\n') + '\n'; }
-/* Off schedule or without a subscription by Sweep&Go's flags, AND no
-   recurring invoice inside 45 days: out of the count. A flagged customer
-   who was invoiced this month is real and stays in. */
+/* No subscription by Sweep&Go's own flag AND no recurring invoice inside
+   45 days: out of the count. One invoiced this month is real and stays in.
+   (Sweep&Go's off_schedule field, kept as [OS:1], is the customer's "off
+   schedule" text-notification opt-in, not a schedule status: ignored.) */
 function sgOutOfCount_(notes, name, paying) {
-  if (!/\[(OS:1|SS:none)\]/.test(String(notes || ''))) return false;
+  if (!/\[SS:none\]/.test(String(notes || ''))) return false;
   var k = sgNorm_(name), aka = (String(notes || '').match(/\[AKA:([^\]]*)\]/) || [])[1];
   return !(paying[k] || (aka && paying[sgNorm_(aka)]));
 }

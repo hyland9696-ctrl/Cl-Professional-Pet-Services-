@@ -1683,7 +1683,7 @@ function fuParse(crmnotes){
     else if (hit[1] === 'FE') m.fe = m.fe ? m.fe + ',' + hit[2] : hit[2];   // follow-up emails sent: step@date
     else if (hit[1] === 'WE') m.we = m.we ? m.we + ',' + hit[2] : hit[2];   // welcome emails sent: step@date
     else if (hit[1] === 'PM') m.pm = hit[2];
-    else if (hit[1] === 'OS') m.os = hit[2];                                 // Sweep&Go: off schedule
+    else if (hit[1] === 'OS') m.os = hit[2];                                 // Sweep&Go: the "off schedule" text-notification opt-in (not a status; unused)
     else if (hit[1] === 'SS') m.ss = hit[2];                                 // Sweep&Go: subscription state (none)
     else if (hit[1] === 'AKA') m.aka = hit[2];                               // Sweep&Go's spelling of the name
     else if (hit[1] === 'CM') m.cm = hit[2];                                 // commercial account
@@ -4611,16 +4611,16 @@ function sgNormJs(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/
 function lastMoney(l){ if (!billing || !billing.last) return undefined; var v = ''; namesOf(l).forEach(function(k){ var d = billing.last[k]; if (d && d > v) v = d; }); return v; }
 function recentVisits(l){ if (!jobsData || !jobsData.byClient) return null; var ks = namesOf(l), hit = Object.keys(jobsData.byClient).filter(function(n){ return ks.indexOf(sgNormJs(n)) >= 0; })[0]; return hit ? jobsData.byClient[hit].n : 0; }
 function recentJobs(l){ if (!jobsData || !jobsData.recent) return null; var ks = namesOf(l), hit = Object.keys(jobsData.recent).filter(function(n){ return ks.indexOf(sgNormJs(n)) >= 0; })[0]; return hit ? jobsData.recent[hit] : []; }
-/* Money inside 45 days is the tie-breaker for Sweep&Go's flags: an
-   off-schedule customer who was invoiced this month is real and needs a
-   day, not disabling. The flags alone decide only when no money has moved. */
+/* Sweep&Go's off_schedule field is the customer's "off schedule" text
+   notification opt-in (it sits beside on_the_way and completed in the API),
+   not a schedule status, so it says nothing here. "No subscription" is a
+   real flag; money inside 45 days is its tie-breaker. */
 var PAYING_DAYS = 45;
 function paidRecently(l){ var last = lastMoney(l); return !!last && (Date.now() - new Date(last + 'T12:00:00').getTime()) < PAYING_DAYS * 86400000; }
 function checkInfo(l){
   if (!isLead(l) || (l.status || 'new') !== 'closed' || !isRecurring(l)) return null;
   var fu = fuParse(l.crmnotes); if (!fu.sgid) return null;   // only what Sweep&Go itself calls active
   var paying = paidRecently(l), last = lastMoney(l) || '';
-  if (fu.os === '1') return paying ? null : { why: 'off schedule in Sweep&Go', last: last, flag: true, group: 'disable' };   // paying and flagged off schedule: the flag is noise, they are on the route
   if (fu.ss === 'none') return paying ? { why: 'paying, but no subscription in Sweep&Go', last: last, flag: true, group: 'investigate', counts: true } : { why: 'no subscription in Sweep&Go', last: last, flag: true, group: 'disable' };
   if (!billing || !billing.last) return null;
   var since = fu.cd || String(l.created || '').slice(0, 10), now = Date.now();
@@ -5253,8 +5253,8 @@ function renderDormant(){
   var h = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128269; To disable in Sweep&amp;Go <span style="font-size:11px;font-weight:600;color:#707070;">Sweep&amp;Go says active, but&hellip;</span></div>';
   if (!list.length && !(billing && billing.last)){ box.innerHTML = h + '<div style="font-size:12.5px;color:#9aa5a0;">Fills in once the billing has loaded.</div>'; return; }
   if (!list.length){ box.innerHTML = h + '<div style="font-size:12.5px;color:#9aa5a0;">Everyone Sweep&amp;Go calls active has been billed or visited recently.</div>'; return; }
-  h += '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">The first two groups are not active in any way that counts and are left out of the route, the money, the charts and the active count. The last group is paying customers Sweep&amp;Go shows without a subscription: they stay in the money, and want a look there. The To check chip above the cards shows all of them as cards. If they are gone, <strong>deactivate them in Sweep&amp;Go</strong>; the next sync moves them to Account closed here with the right date. If they are real, a visit or an invoice clears them by itself.</div>' +
-    [['disable', 'Off the schedule or without a subscription, and no money in ' + PAYING_DAYS + ' days', 'disable these'], ['check', 'Nothing billed or visited in ' + DORMANT_DAYS + ' days', 'check these'], ['investigate', 'Paying, but no subscription in Sweep&amp;Go', 'look into these']].map(function(g){
+  h += '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">The first two groups are not active in any way that counts and are left out of the route, the money, the charts and the active count. (The Sweep&amp;Go "off schedule" field is a text-message setting, not a schedule, so it is ignored.) The last group is paying customers Sweep&amp;Go shows without a subscription: they stay in the money, and want a look there. The To check chip above the cards shows all of them as cards. If they are gone, <strong>deactivate them in Sweep&amp;Go</strong>; the next sync moves them to Account closed here with the right date. If they are real, a visit or an invoice clears them by itself.</div>' +
+    [['disable', 'No subscription in Sweep&amp;Go and no money in ' + PAYING_DAYS + ' days', 'disable these'], ['check', 'Nothing billed or visited in ' + DORMANT_DAYS + ' days', 'check these'], ['investigate', 'Paying, but no subscription in Sweep&amp;Go', 'look into these']].map(function(g){
       var items = list.filter(function(r){ return r.d.group === g[0]; }); if (!items.length) return '';
       return '<div style="font-size:12px;font-weight:700;color:#2B3A34;margin-top:10px;">' + g[1] + ' <span style="color:#b45309;">&middot; ' + g[2] + ' (' + items.length + ')</span></div>' +
         items.map(function(r){
@@ -5399,7 +5399,7 @@ function trendMark(now, before){
 function monthsBack(n){ var out = [], k = monthKeyOf(new Date()); for (var i = n - 1; i >= 0; i--) out.push(monthAdd(k, -i)); return out; }
 function customersByMonth(keys){
   var act = [], up = [], down = [];
-  var people = leads.filter(function(l){ if (!isLead(l) || !isRecurring(l)) return false; var st = l.status || 'new'; var fu = fuParse(l.crmnotes); return (st === 'closed' || st === 'cancelled') && !(fu.os === '1' || fu.ss === 'none'); })
+  var people = leads.filter(function(l){ if (!isLead(l) || !isRecurring(l)) return false; var st = l.status || 'new'; var fu = fuParse(l.crmnotes); return (st === 'closed' || st === 'cancelled') && !(st === 'closed' && isDormant(l)); })
     .map(function(l){ var fu = fuParse(l.crmnotes); return { cd: (fu.cd || String(l.created || '').slice(0, 10)).slice(0, 7), cx: ((l.status || 'new') === 'cancelled' ? (fu.cx || '').slice(0, 7) : '') , gone: (l.status || 'new') === 'cancelled' }; });
   keys.forEach(function(k){
     var a = 0, u = 0, d = 0;
@@ -5411,7 +5411,7 @@ function customersByMonth(keys){
 function mrrMovesJs(mk){
   var first = mk + '-01', nextK = monthAdd(mk, 1), o = { start: 0, added: 0, n: 0, lost: 0, left: 0, end: 0 };
   leads.forEach(function(l){
-    if (!isLead(l)) return; var st = l.status || 'new', fu = fuParse(l.crmnotes); if ((st !== 'closed' && st !== 'cancelled') || fu.os === '1' || fu.ss === 'none') return;
+    if (!isLead(l)) return; var st = l.status || 'new', fu = fuParse(l.crmnotes); if ((st !== 'closed' && st !== 'cancelled') || (st === 'closed' && isDormant(l))) return;
     var pp = parsePrice(l), a = pp && pp.isMo ? pp.amt : 0, cd = fu.cd || String(l.created || '').slice(0, 10), cx = fu.cx || '';
     if (cd < first && (!cx || cx >= first)) o.start += a;
     if (cd >= first && cd < nextK + '-01') { o.added += a; o.n++; }
