@@ -69,6 +69,7 @@
   #owner .oc svg [data-tip]{cursor:pointer;}
   #owner .leg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:#555;margin-top:6px;}
   #owner .leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;}
+  #stmt .stmt-card{background:#fff;border-radius:16px;padding:14px;width:100%;max-width:560px;max-height:90vh;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,0.25);}
   #otip{display:none;position:fixed;z-index:60;background:#2B3A34;color:#fff;font-size:12px;padding:6px 9px;border-radius:8px;pointer-events:none;max-width:260px;box-shadow:0 4px 14px rgba(0,0,0,0.18);}
   #toolmore{display:none;flex-wrap:wrap;gap:8px;width:100%;} #toolmore.open{display:flex;}
   .ins .fold > h4{cursor:pointer;margin-top:10px;}
@@ -221,6 +222,7 @@
       <div id="owner-body"></div>
     </div>
     <div id="otip" role="tooltip"></div>
+    <div id="stmt" style="display:none;position:fixed;inset:0;z-index:70;background:rgba(20,30,26,0.45);align-items:flex-end;justify-content:center;padding:12px;" onclick="if (event.target === this) closeStatement()"></div>
     <div id="reviews" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div class="toolbar">
       <input id="search" placeholder="Search name, phone, ZIP&hellip;" oninput="render()">
@@ -5553,21 +5555,64 @@ function namesOf(l){ var a = [sgNormName(l.name)], k = fuParse(l.crmnotes).aka; 
 function leadByName(name){ var n = sgNormName(name); return leads.filter(function(x){ return isLead(x) && namesOf(x).indexOf(n) >= 0; })[0] || null; }
 /* A payment reminder from the office: the amount, how long, no scolding. */
 var prBusy = false;
+/* The statement: one tap asks the script for the email as it would go
+   (every open invoice from the billing sheet, the total, the Pay now link),
+   shows it, and sends only on the second tap. */
 function payRemind(id, amt, since){
   if (prBusy || !CRM_ENDPOINT) return;
   if (officeMail !== true){ toast(NO_OFFICE_TEXT); return; }
   var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
-  if (!confirm('Email ' + (l.name || 'them') + ' a reminder about the $' + Math.round(amt) + ' open on their account? It goes from the office address.')) return;
-  prBusy = true;
+  prBusy = true; toast('Drawing up the statement\u2026');
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'payremind', key: KEY, id: id, amount: amt, since: since || '', preview: true }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      prBusy = false;
+      if (!d || !d.ok){ toast(d && d.error ? 'No statement: ' + d.error : 'No statement'); return; }
+      showStatement(l, d, amt, since);
+    })
+    .catch(function(){ prBusy = false; toast('No connection'); });
+}
+function showStatement(l, d, amt, since){
+  var box = document.getElementById('stmt'); if (!box) return;
+  var n = (d.items || []).length;
+  box.innerHTML = '<div class="stmt-card">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;"><div style="font-weight:800;font-size:15px;">&#9993;&#65039; Statement for ' + esc(l.name || 'them') + '</div><button onclick="closeStatement()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:36px;">Close</button></div>' +
+    '<div style="font-size:12px;color:#555;margin-bottom:8px;">To ' + esc(d.to || l.email || '') + ' from the office address. ' + (n ? n + ' open invoice' + (n === 1 ? '' : 's') + ', ' + money(d.total) + ' in all, from the billing sheet.' : 'The billing sheet has no invoice under this name, so the short note goes instead.') + '</div>' +
+    (d.link ? '' : '<div style="background:#FFF4E5;color:#7a4a00;border-radius:9px;padding:8px 11px;font-size:12px;margin-bottom:8px;">No Pay now link yet. Paste the Sweep&amp;Go client portal address under Owed and it goes in every statement.</div>') +
+    '<div style="font-size:11px;color:#707070;margin-bottom:3px;">Subject: ' + esc(d.subject || '') + '</div>' +
+    '<div id="stmt-body" style="background:#F7F9F8;border:1px solid #E4EBE7;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.55;white-space:pre-wrap;color:#2B3A34;max-height:50vh;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;">' + esc(d.body || '') + '</div>' +
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;"><button class="copybtn" id="stmt-send" onclick="sendStatement(\'' + esc(l.id) + '\',' + (+amt || 0) + ',\'' + esc(since || '') + '\')" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">Send it</button><button class="copybtn" onclick="closeStatement()">Not now</button></div>' +
+    '</div>';
+  box.style.display = 'flex';
+}
+function closeStatement(){ var box = document.getElementById('stmt'); if (box){ box.style.display = 'none'; box.innerHTML = ''; } }
+function sendStatement(id, amt, since){
+  if (prBusy || !CRM_ENDPOINT) return;
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  prBusy = true; var btn = document.getElementById('stmt-send'); if (btn){ btn.disabled = true; btn.textContent = 'Sending\u2026'; }
   fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'payremind', key: KEY, id: id, amount: amt, since: since || '' }) })
     .then(function(r){ return r.json(); })
     .then(function(d){
       prBusy = false;
-      if (!d || !d.ok){ toast(d && d.error ? 'Not sent: ' + d.error : 'Not sent'); return; }
+      if (!d || !d.ok){ toast(d && d.error ? 'Not sent: ' + d.error : 'Not sent'); var b2 = document.getElementById('stmt-send'); if (b2){ b2.disabled = false; b2.textContent = 'Send it'; } return; }
+      closeStatement();
       var m = fuParse(l.crmnotes); m.pr = Math.round(amt) + '@' + d.date; l.crmnotes = fuCompose(m);
-      saveLocal(); render(); toast('Reminder sent to ' + (l.name || 'them'));
+      saveLocal(); render(); toast('Statement sent to ' + (l.name || 'them'));
     })
-    .catch(function(){ prBusy = false; toast('No connection'); });
+    .catch(function(){ prBusy = false; toast('No connection'); var b3 = document.getElementById('stmt-send'); if (b3){ b3.disabled = false; b3.textContent = 'Send it'; } });
+}
+/* the Pay now link: CONFIG pay_link, the Sweep&Go client portal address */
+function payLink(){ var c = config.pay_link; var v = c ? String(c.value || '') : ''; return /^https:\/\/[^\s"'<>]+$/.test(v) ? v : ''; }
+function savePayLink(){
+  var v = String((document.getElementById('pay-link') || {}).value || '').trim();
+  if (v && !/^https:\/\//i.test(v)){ toast('Paste the full link, starting with https://'); return; }
+  config.pay_link = { value: v, created: new Date().toISOString() };
+  saveStatsCache(); render();
+  post({ action: 'lead', lead: {
+    id: 'cfg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    created: new Date().toISOString(), type: 'CONFIG',
+    name: 'pay_link', notes: v, status: 'config', crmnotes: ''
+  } }, v ? 'Pay now link saved; it goes in every statement' : 'Pay now link cleared');
 }
 function markOwed(id, amt, since){
   var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
@@ -5616,11 +5661,13 @@ function renderBilling(){
   // who owes what
   var un = billing.unpaid || [], owedTotal = un.reduce(function(a, u){ return a + u.owed; }, 0);
   h += '<div class="fold" data-fold="bill-owed" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong style="color:#b45309;">Owed</strong><span style="color:#555;">' + un.length + ' customer' + (un.length === 1 ? '' : 's') + ' &middot; ' + money(owedTotal) + '</span></div><div class="fold-body">' +
-    (un.length ? '<div class="sub" style="font-size:11px;color:#9aa5a0;margin:2px 0 4px;">Unpaid invoices by customer, biggest first. Draft means Sweep&amp;Go generated it and never sent it; Overdue and Failed were sent. One tap puts the amount on their card.</div>' +
+    (un.length ? '<div class="sub" style="font-size:11px;color:#9aa5a0;margin:2px 0 4px;">Unpaid invoices by customer, biggest first. Draft means Sweep&amp;Go generated it and never sent it; Overdue and Failed were sent. One tap puts the amount on their card; Statement shows the email (every open invoice, the total, the Pay now link) and sends it on the second tap.</div>' +
+      '<div style="display:flex;gap:6px;align-items:center;margin:4px 0 6px;"><input id="pay-link" type="url" inputmode="url" placeholder="Pay now link: your Sweep&amp;Go client portal address, https://..." value="' + esc(payLink()) + '" style="flex:1;padding:7px 9px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;min-width:0;"><button onclick="savePayLink()" style="padding:6px 10px;min-height:32px;font-size:11.5px;">Save</button></div>' +
+      (payLink() ? '' : '<div class="sub" style="font-size:11px;color:#b45309;margin:0 0 6px;">No Pay now link yet: statements still list the invoices and point to the Sweep&amp;Go invoice emails.</div>') +
       un.slice(0, 25).map(function(u){ var l = leadByName(u.name), st = Object.keys(u.statuses || {}).map(function(k){ return u.statuses[k] + ' ' + k; }).join(', '), fu = l ? fuParse(l.crmnotes) : null;
         return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
           '<span>' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') + ' <span style="color:#707070;">' + esc(st) + (u.oldest ? ' &middot; since ' + esc(u.oldest) : '') + '</span></span>' +
-          '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (l ? (fu.ow ? ' <span style="color:#9aa5a0;font-size:11px;">on card</span>' : ' <button onclick="markOwed(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">On their card</button>') + (l.email ? (fu.pr && fu.pr.split('@')[1] >= new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10) ? ' <span style="color:#9aa5a0;font-size:11px;">reminded ' + esc(fu.pr.split('@')[1]) + '</span>' : ' <button class="pr-btn" onclick="payRemind(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">&#9993;&#65039; Remind</button>') : '') : '') + '</span></div>'; }).join('')
+          '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (l ? (fu.ow ? ' <span style="color:#9aa5a0;font-size:11px;">on card</span>' : ' <button onclick="markOwed(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">On their card</button>') + (l.email ? (fu.pr && fu.pr.split('@')[1] >= new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10) ? ' <span style="color:#9aa5a0;font-size:11px;">reminded ' + esc(fu.pr.split('@')[1]) + '</span>' : ' <button class="pr-btn" onclick="payRemind(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">&#9993;&#65039; Statement</button>') : '') : '') + '</span></div>'; }).join('')
       : '<div class="sub" style="padding-left:10px;">Nothing owed. Every invoice is paid.</div>') + '</div></div>';
   box.innerHTML = h;
   box.querySelectorAll('.fold[data-fold]').forEach(function(c){ foldApply(c, c.getAttribute('data-fold') === 'bill-owed'); });

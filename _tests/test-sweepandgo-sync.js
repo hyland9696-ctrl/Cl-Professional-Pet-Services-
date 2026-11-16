@@ -550,9 +550,12 @@ function build(leadRows){
   Object.assign(props, MS);
   const noMail = F.payRemind_({ id:'sgkelly', amount: 87, since: d(9) });
   ok('Kelly has no email: said so, nothing sent', noMail.ok === false && noMail.error === 'no email' && sentMs().length === 0);
+  const pv = F.payRemind_({ id:'p6363750009', amount: 75, since: d(20), preview: true });
+  ok('a preview draws up the statement without sending: every open invoice from the billing sheet, the total, no link yet', pv.ok && pv.preview && pv.to === 'nancy@gmail.com' && pv.items.length === 1 && pv.total === 75 && pv.link === false && /One invoice is open, \$75\.00 in all/.test(pv.body) && / · monthly service\n    \$75\.00 · overdue · invoice 768-5-1/.test(pv.body) && /Total open: \$75\.00/.test(pv.body) && !/Pay now:/.test(pv.body) && /Pay button too/.test(pv.body) && sentMs().length === 0, JSON.stringify(pv).slice(0, 600));
+  sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_pl', created: new Date().toISOString(), type:'CONFIG', name:'pay_link', notes:'https://clpps.sweepandgo.com/portal', status:'config' })[h] || ''));
   const r = F.payRemind_({ id:'p6363750009', amount: 75, since: d(20) });
   const got = sentMs();
-  ok('Nancy gets a plain note from the office with the amount and how long it has been open, and her row is stamped', r.ok && got.length === 1 && got[0].to === 'nancy@gmail.com' && /A quick note about your account/.test(got[0].subject) && /\$75 open on your account, from 20 days ago/.test(got[0].body) && /— Corey/.test(got[0].body) && /\[PR:75@\d{4}-\d{2}-\d{2}\]/.test(sheets.leads.rows.filter(x => x[0] === 'p6363750009').pop()[HEADERS.indexOf('crmnotes')]), JSON.stringify(got));
+  ok('Nancy gets the statement from the office with the invoice, the total and the Pay now link once it is set, and her row is stamped', r.ok && got.length === 1 && got[0].to === 'nancy@gmail.com' && /Your account with CL Professional Pet Services/.test(got[0].subject) && /Pay now: https:\/\/clpps\.sweepandgo\.com\/portal/.test(got[0].body) && /· invoice 768-5-1/.test(got[0].body) && /— Corey/.test(got[0].body) && /\[PR:75@\d{4}-\d{2}-\d{2}\]/.test(sheets.leads.rows.filter(x => x[0] === 'p6363750009').pop()[HEADERS.indexOf('crmnotes')]), JSON.stringify(got));
   msCalls.length = 0;
   ok('the Monday round is off by default', F.paymentReminders().off === true && sentMs().length === 0);
   sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_pr', created: new Date().toISOString(), type:'CONFIG', name:'pay_reminders', notes:'on', status:'config' })[h] || ''));

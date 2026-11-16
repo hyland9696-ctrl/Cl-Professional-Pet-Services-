@@ -1693,18 +1693,63 @@ function billingCsv_() {
   return { ok:true, csv: csv, months: months, miles: miles, rows: rows.length };
 }
 /* ---- payment reminders ----
-   Corey's collections question. A plain note from the office with the
-   amount and how long it has been open; one tap from the Owed list, or on
-   Mondays for everyone 14+ days behind while the switch (CONFIG
-   pay_reminders) is on. Never twice inside 14 days. Stamped [PR:amount@date]. */
+   Corey's collections question. A statement from the office: every open
+   invoice from the billing sheet (date, what it was for, amount, whether
+   the card failed or it is just overdue), the total, and a Pay now link
+   (CONFIG pay_link: the Sweep&Go client portal, set once in the tracker).
+   One tap from the Owed list, previewed first; or on Mondays for everyone
+   14+ days behind while the switch (CONFIG pay_reminders) is on. Never
+   twice inside 14 days. Stamped [PR:amount@date]. */
+function payLink_() { var v = String(cfg_('pay_link') || '').trim(); return /^https:\/\/[^\s"'<>]+$/.test(v) ? v : ''; }
+function openInvoices_(lead) {
+  var sh = billingSheet_(); if (sh.getLastRow() < 2) return [];
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, BILLING_HEADERS.length).getValues(), H = {}; BILLING_HEADERS.forEach(function(h, i) { H[h] = i; });
+  var names = {}; names[sgNorm_(lead.name)] = 1; var aka = (String(lead.crmnotes || '').match(/\[AKA:([^\]]*)\]/) || [])[1]; if (aka) names[sgNorm_(aka)] = 1;
+  var out = [];
+  rows.forEach(function(r) {
+    if (r[H.kind] !== 'invoice' || !names[sgNorm_(r[H.client])]) return;
+    var st = String(r[H.status] || '').toLowerCase(); if (st === 'paid' || st === 'voided' || st === 'void') return;
+    var total = parseFloat(r[H.total]) || 0, rem = r[H.remaining] !== '' && r[H.remaining] != null ? parseFloat(r[H.remaining]) : total;
+    if (!(rem > 0)) rem = total; if (!(rem > 0)) return;
+    out.push({ date: String(r[H.date] || '').slice(0, 10), number: String(r[H.number] || ''), amount: Math.round(rem * 100) / 100, status: st, oneTime: r[H.type] === 'one-time', period: String(r[H.period_start] || '').slice(0, 7), desc: String(r[H.description] || '') });
+  });
+  return out.sort(function(a, b) { return a.date < b.date ? -1 : 1; });
+}
+var MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function longDate_(iso) { var d = new Date(iso + 'T12:00:00'); return isNaN(d.getTime()) ? iso : MONTHS_LONG[d.getMonth()].slice(0, 3) + ' ' + d.getDate() + ', ' + d.getFullYear(); }
+function invoiceLine_(i) {
+  var what = i.oneTime ? (i.desc || 'one-time service') : (/^\d{4}-\d{2}$/.test(i.period) ? MONTHS_LONG[parseInt(i.period.slice(5), 10) - 1] + ' service' : 'monthly service');
+  var how = i.status === 'failed' ? 'card did not go through' : i.status === 'overdue' ? 'overdue' : 'open';
+  // two short lines each, so it reads on a phone in any mail app
+  return '  ' + longDate_(i.date) + ' \u00b7 ' + what + '\n    $' + i.amount.toFixed(2) + ' \u00b7 ' + how + (i.number ? ' \u00b7 invoice ' + i.number : '');
+}
+function statementText_(first, items, link) {
+  var total = items.reduce(function(a, i) { return a + i.amount; }, 0), n = items.length;
+  var anyFailed = items.some(function(i) { return i.status === 'failed'; });
+  return 'Hi ' + first + ',\n\nHere is where your account stands as of ' + longDate_(new Date().toISOString().slice(0, 10)) + '. ' + (n === 1 ? 'One invoice is open' : n + ' invoices are open') + ', $' + total.toFixed(2) + ' in all:\n\n' +
+    items.map(invoiceLine_).join('\n') + '\n\n  Total open: $' + total.toFixed(2) + '\n\n' +
+    (link ? 'Pay now: ' + link + '\n\n' : '') +
+    'Each invoice email from Sweep&Go has a Pay button too, and a card updated in the client portal clears these on its own.' +
+    (anyFailed ? ' When a card does not go through it is almost always an expired card or a new one that was never added.' : '') +
+    '\n\nIf you have already taken care of it, thank you, and please ignore this. Otherwise reply here or call (636) 375-4342 and we will sort it out together. Service carries on as normal either way.\n\nThanks for having us.';
+}
 function payReminderText_(first, amount, since) {
   var days = since ? Math.round((Date.now() - new Date(since + 'T12:00:00').getTime()) / 86400000) : 0;
   return 'Hi ' + first + ',\n\nA quick note from the office: there is $' + Math.round(amount) + ' open on your account' + (days > 0 ? ', from ' + days + ' days ago' : '') + '. Most of the time this is just a card that expired or a payment that did not go through, nothing more.\n\nIf you have already taken care of it, thank you, and please ignore this. If not, you can update your card in the client portal, or reply here and we will sort it out together.\n\nThanks for having us.';
 }
+/* The email itself: the statement when the billing sheet has the invoices,
+   the short note when it has not (a name the sheet spells differently). */
+function payReminderMail_(lead, amount, since) {
+  var first = String(lead.name || '').trim().split(/\s+/)[0] || 'there', items = [];
+  try { items = openInvoices_(lead); } catch (e) {}
+  if (items.length) return { subject: 'Your account with CL Professional Pet Services', body: statementText_(first, items, payLink_()) + WE_FOOTER, items: items, total: Math.round(items.reduce(function(a, i) { return a + i.amount; }, 0) * 100) / 100, link: !!payLink_() };
+  return { subject: 'A quick note about your account', body: payReminderText_(first, amount, since) + WE_FOOTER, items: [], total: Math.round(amount), link: false };
+}
 function sendPayReminder_(sh, rows, lead, amount, since) {
-  var email = String(lead.email || '').trim(), first = String(lead.name || '').trim().split(/\s+/)[0] || 'there';
+  var email = String(lead.email || '').trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('no email');
-  sendCustomerMail_({ to: email, subject: 'A quick note about your account', body: payReminderText_(first, amount, since) + WE_FOOTER });
+  var m = payReminderMail_(lead, amount, since); if (m.items.length) amount = m.total;
+  sendCustomerMail_({ to: email, subject: m.subject, body: m.body });
   var today = new Date().toISOString().slice(0, 10), idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes');
   for (var i = 1; i < rows.length; i++) if (String(rows[i][idCol]) === String(lead.id)) sh.getRange(i + 1, nCol + 1).setValue(safeCell_(sgSetMarkers_(String(rows[i][nCol] || ''), { PR: Math.round(amount) + '@' + today })));
   return today;
@@ -1713,6 +1758,10 @@ function payRemind_(body) {
   if (!officeMailReady_()) return { ok:false, error: NO_OFFICE_MAIL };
   var sh = sheet_(), l = latestRow_(sh, String(body.id || '')); if (!l) return { ok:false, error:'not found' };
   var amount = parseFloat(body.amount) || 0; if (!(amount > 0)) return { ok:false, error:'no amount' };
+  if (body.preview) {   // the tracker shows this before anything goes
+    var email = String(l.email || '').trim(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok:false, error:'no email' };
+    var m = payReminderMail_(l, amount, String(body.since || '')); m.ok = true; m.preview = true; m.to = email; return m;
+  }
   try { var d = sendPayReminder_(sh, sh.getDataRange().getValues(), l, amount, String(body.since || '')); return { ok:true, date: d }; }
   catch (e) { return { ok:false, error: String(e && e.message || e).slice(0, 120) }; }
 }
