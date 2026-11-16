@@ -17,7 +17,7 @@ const d = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
 function fakeSheet(rows){
   const live = () => { let n = rows.length; while (n > 0 && rows[n - 1].every(v => v === '' || v == null)) n--; return n; };
   const sh = { rows, writes: 0,
-    getLastRow: () => live(), getMaxRows: () => rows.length + 50,
+    getLastRow: () => live(), getLastColumn: () => (rows[0] || []).length, getMaxRows: () => rows.length + 50,
     appendRow: (r) => { rows.length = live(); rows.push(r.slice()); sh.writes++; },
     getDataRange: () => ({ getValues: () => rows.slice(0, live()).map(r => r.slice()) }),
     getRange: (r, c, nr, nc) => ({
@@ -88,7 +88,7 @@ const API = {
     { created_at: d(10) + ' 00:03:23', invoice_number:'768-1-1', client_name:'Dana Deo', status:'paid', total:'151.00', paid:'151.00', remaining:'0.00', type:'subscription', billing_interval:'monthly', pay_method:'credit_card' },
     { created_at: d(9) + ' 00:03:23', invoice_number:'768-2-1', client_name:'Kelly .', status:'overdue', total:'87.00', paid:'0.00', remaining:'87.00', type:'subscription', billing_interval:'monthly' },
     { created_at: d(8) + ' 00:03:23', invoice_number:'768-4-1', client_name:'Per Visit Pete', status:'paid', total:'65.00', paid:'65.00', remaining:'0.00', type:'subscription', billing_interval:'monthly' },
-    { created_at: d(20) + ' 00:03:23', invoice_number:'768-5-1', client_name:'New Nancy', status:'overdue', total:'75.00', paid:'0.00', remaining:'75.00', type:'subscription', billing_interval:'monthly' },
+    { created_at: d(20) + ' 00:03:23', invoice_number:'768-5-1', client_name:'New Nancy', status:'overdue', total:'75.00', paid:'0.00', remaining:'75.00', type:'subscription', billing_interval:'monthly', pay_method:'credit_card', period_start: d(20) + ' 00:03:23', period_end: d(-10) + ' 00:03:23', next_try_charging: d(-3) + ' 00:00:00' },
     { created_at: d(12) + ' 00:03:23', invoice_number:'768-6-1', client_name:'Off Olly', status:'paid', total:'85.00', paid:'85.00', remaining:'0.00', type:'subscription', billing_interval:'monthly' },
   ], last_page: 1 } },
   '/api/v2/invoices?type=one_time': { invoices: { data: [ { created_at: d(5) + ' 10:00:00', invoice_number:'768-3-3', client_name:'Once Olga', status:'paid', total:'75.00', paid:'75.00', remaining:'0.00', type:'one_time' } ], last_page: 1 } },
@@ -109,7 +109,7 @@ const API = {
 };
 const calls = [];
 const pushes = [], onboardings = [], mails = [];
-const msCalls = [], logs = [], triggers = [], sleeps = [];
+const msCalls = [], logs = [], triggers = [], sleeps = [], photoFetches = [];
 const MS = { MS_TENANT:'ten-1', MS_CLIENT:'cli-1', MS_SECRET:'sec-1', MAIL_FROM:'info@clpropetservices.com' };
 /* what went out through Microsoft, as the customer sees it */
 const sentMs = () => msCalls.filter(c => c.body && c.body.message).map(c => ({ to: c.body.message.toRecipients[0].emailAddress.address, subject: c.body.message.subject, body: c.body.message.body.content, replyTo: c.body.message.replyTo[0].emailAddress.address }));
@@ -134,6 +134,13 @@ function fakeFetch(url, opts){
   if (/login\.microsoftonline\.com\//.test(url)){ msCalls.push({ url, payload: opts.payload }); return { getResponseCode: () => opts.payload && opts.payload.client_secret === 'sec-1' ? 200 : 401, getContentText: () => JSON.stringify(opts.payload && opts.payload.client_secret === 'sec-1' ? { access_token: 'ms-tok' } : { error: 'invalid_client' }) }; }
   if (/graph\.microsoft\.com\//.test(url)){ const b = JSON.parse(opts.payload || '{}'); msCalls.push({ url, auth: opts.headers && opts.headers.Authorization, body: b }); const to = b.message && b.message.toRecipients[0].emailAddress.address; return to === 'bounce@gmail.com' ? { getResponseCode: () => 500, getContentText: () => '{"error":{"code":"ErrorInternalServerError"}}' } : { getResponseCode: () => 202, getContentText: () => '' }; }
   if (/ntfy\.sh\//.test(url)){ pushes.push({ url, title: opts.headers && opts.headers.Title, body: opts.payload }); return { getResponseCode: () => 200, getContentText: () => '{}' }; }
+  // the statement's look-ups: Nancy's visits in her service period, the dispatch board for the photo, the photo itself
+  if (url.indexOf('completed_jobs_report?date_from=' + d(20)) > 0) return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ job_list: [
+    { first_name:'New', last_name:'Nancy', date: d(15), status_name:'completed', start_time: d(15) + ' 09:03:00', end_time: d(15) + ' 09:12:00', assigned_to_name:'Jesse Duncan', duration:'9:00' },
+    { first_name:'New', last_name:'Nancy', date: d(8), status_name:'skipped', skip_reason_title:'Gate locked', duration:'-' },
+    { first_name:'Dana', last_name:'Deo', date: d(15), status_name:'completed', start_time: d(15) + ' 10:00:00', end_time: d(15) + ' 10:10:00', assigned_to_name:'Jesse Duncan', duration:'10:00' } ] }) };
+  if (url.indexOf('jobs_for_date?date=' + d(15)) > 0) return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ data: [ { full_name:'New Nancy', image_for_client:'https://img.sweepandgo.test/nancy-1.jpg' }, { full_name:'Dana Deo', image_for_client:'https://img.sweepandgo.test/dana.jpg' } ] }) };
+  if (/img\.sweepandgo\.test\//.test(url)) { photoFetches.push(url); return { getResponseCode: () => 200, getBlob: () => ({ getBytes: () => [255, 216, 255, 224], getContentType: () => 'image/jpeg' }) }; }
   if (throttle > 0 && /openapi\.sweepandgo\.com/.test(url)) { throttle--; return { getResponseCode: () => 429, getAllHeaders: () => ({ 'Retry-After': '7' }), getContentText: () => '{"message":"Too Many Attempts."}' }; }
   const p = url.replace('https://openapi.sweepandgo.com', '').replace(/([?&])(page|length)=\d+/g, '$1').replace(/[?&]+$/, '').replace(/\?&/, '?').replace(/&&/g, '&');
   const key = Object.keys(API).find(k => p === k || p.startsWith(k + '?') || p.startsWith(k + '&') || (k.indexOf('?') > 0 && p.startsWith(k)));
@@ -453,7 +460,7 @@ function build(leadRows){
   F.sgSync(false); F.sgBillingSync();
   const x = F.billingCsv_();
   const lines = x.csv.trim().split('\n');
-  ok('every invoice and payment, one a line, under the sheet\'s own headers', x.ok && lines[0] === 'kind,number,date,client,type,status,total,paid,remaining,interval,period_start,pay_type,description' && lines.length === x.rows + 1 && x.rows === sheets.billing.rows.length - 1 && x.rows > 3, lines[0] + ' | ' + lines.length + ' vs ' + x.rows);
+  ok('every invoice and payment, one a line, under the sheet\'s own headers', x.ok && lines[0] === 'kind,number,date,client,type,status,total,paid,remaining,interval,period_start,pay_type,description,period_end,next_try' && lines.length === x.rows + 1 && x.rows === sheets.billing.rows.length - 1 && x.rows > 3, lines[0] + ' | ' + lines.length + ' vs ' + x.rows);
   const ml = x.months.trim().split('\n');
   ok('and the months beside it: billed, one-time, collected, unpaid, tips, failed payments, customers', ml[0] === 'month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced' && ml.length >= 2 && /^\d{4}-\d{2},\d+,\d+,\d+,\d+,\d+,\d+,\d+$/.test(ml[1]), x.months);
 }
@@ -551,11 +558,14 @@ function build(leadRows){
   const noMail = F.payRemind_({ id:'sgkelly', amount: 87, since: d(9) });
   ok('Kelly has no email: said so, nothing sent', noMail.ok === false && noMail.error === 'no email' && sentMs().length === 0);
   const pv = F.payRemind_({ id:'p6363750009', amount: 75, since: d(20), preview: true });
-  ok('a preview draws up the statement without sending: every open invoice from the billing sheet, the total, no link yet', pv.ok && pv.preview && pv.to === 'nancy@gmail.com' && pv.items.length === 1 && pv.total === 75 && pv.link === false && /One invoice is open, \$75\.00 in all/.test(pv.body) && / · monthly service\n    \$75\.00 · overdue · invoice 768-5-1/.test(pv.body) && /Total open: \$75\.00/.test(pv.body) && !/Pay now:/.test(pv.body) && /Pay button too/.test(pv.body) && sentMs().length === 0, JSON.stringify(pv).slice(0, 600));
+  ok('a preview draws up the statement without sending: the invoice number and date, the service period, billed / paid / open, why it is open and the next card try, the total, no link yet', pv.ok && pv.preview && pv.to === 'nancy@gmail.com' && pv.items.length === 1 && pv.total === 75 && pv.link === false && /One invoice is open, \$75\.00 in all/.test(pv.body) && /Invoice 768-5-1 · issued /.test(pv.body) && /Service \w{3} \d+ – \w{3} \d+, 20\d\d \(monthly service\)/.test(pv.body) && /\$75\.00 billed · \$0\.00 paid · \$75\.00 open/.test(pv.body) && /Overdue · the card on file has not gone through · next card try /.test(pv.body) && /Total open: \$75\.00/.test(pv.body) && !/Pay now:/.test(pv.body) && /Pay button too/.test(pv.body) && sentMs().length === 0, pv.body);
+  ok('the visits the invoice covers come from Sweep&Go for that period, with the tech, the minutes and the skip; the photo is found on the dispatch board and counted, not yet downloaded', pv.visits === 2 && pv.photos === 1 && /Visits: \w{3} \d+ 09:03 \(Jesse, 9 min, photo attached\) · \w{3} \d+ skipped, gate locked/.test(pv.body) && /One photo from the visits is attached, named by date/.test(pv.body) && photoFetches.length === 0 && !pv.attachments, pv.body);
   sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_pl', created: new Date().toISOString(), type:'CONFIG', name:'pay_link', notes:'https://clpps.sweepandgo.com/portal', status:'config' })[h] || ''));
   const r = F.payRemind_({ id:'p6363750009', amount: 75, since: d(20) });
   const got = sentMs();
-  ok('Nancy gets the statement from the office with the invoice, the total and the Pay now link once it is set, and her row is stamped', r.ok && got.length === 1 && got[0].to === 'nancy@gmail.com' && /Your account with CL Professional Pet Services/.test(got[0].subject) && /Pay now: https:\/\/clpps\.sweepandgo\.com\/portal/.test(got[0].body) && /· invoice 768-5-1/.test(got[0].body) && /— Corey/.test(got[0].body) && /\[PR:75@\d{4}-\d{2}-\d{2}\]/.test(sheets.leads.rows.filter(x => x[0] === 'p6363750009').pop()[HEADERS.indexOf('crmnotes')]), JSON.stringify(got));
+  const att = msCalls.filter(c => c.body && c.body.message).slice(-1)[0].body.message.attachments || [];
+  ok('the send downloads the photo and attaches it, named by the visit date', photoFetches.length === 1 && att.length === 1 && att[0].name === 'visit-' + d(15) + '.jpg' && att[0].contentType === 'image/jpeg' && att[0].contentBytes.length > 0, JSON.stringify(att.map(a => [a.name, a.contentType])));
+  ok('Nancy gets the statement from the office with the invoice, the total and the Pay now link once it is set, and her row is stamped', r.ok && got.length === 1 && got[0].to === 'nancy@gmail.com' && /Your account with CL Professional Pet Services/.test(got[0].subject) && /Pay now: https:\/\/clpps\.sweepandgo\.com\/portal/.test(got[0].body) && /Invoice 768-5-1/.test(got[0].body) && /— Corey/.test(got[0].body) && /\[PR:75@\d{4}-\d{2}-\d{2}\]/.test(sheets.leads.rows.filter(x => x[0] === 'p6363750009').pop()[HEADERS.indexOf('crmnotes')]), JSON.stringify(got));
   msCalls.length = 0;
   ok('the Monday round is off by default', F.paymentReminders().off === true && sentMs().length === 0);
   sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_pr', created: new Date().toISOString(), type:'CONFIG', name:'pay_reminders', notes:'on', status:'config' })[h] || ''));

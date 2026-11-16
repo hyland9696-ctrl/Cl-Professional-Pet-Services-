@@ -160,7 +160,7 @@ function msSend_(c, o) {
     },
     saveToSentItems: true
   };
-  if (o.attachments && o.attachments.length) msg.message.attachments = o.attachments.map(function(a) { return { '@odata.type': '#microsoft.graph.fileAttachment', name: a.name, contentType: a.type || 'text/plain', contentBytes: Utilities.base64Encode(a.content, Utilities.Charset.UTF_8) }; });
+  if (o.attachments && o.attachments.length) msg.message.attachments = o.attachments.map(function(a) { return { '@odata.type': '#microsoft.graph.fileAttachment', name: a.name, contentType: a.type || 'text/plain', contentBytes: a.bytes ? Utilities.base64Encode(a.bytes) : Utilities.base64Encode(a.content, Utilities.Charset.UTF_8) }; });
   var r = UrlFetchApp.fetch(MS_GRAPH + 'users/' + encodeURIComponent(c.from) + '/sendMail', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true,
     headers: { Authorization: 'Bearer ' + msToken_(c) }, payload: JSON.stringify(msg)
@@ -1273,10 +1273,11 @@ function sgConfig_(name, value) {
 }
 /* The billing sheet: one row per invoice, one per payment. Rewritten whole
    on every sync - it is a copy of Sweep&Go, not a record of our own. */
-var BILLING_HEADERS = ['kind','number','date','client','type','status','total','paid','remaining','interval','period_start','pay_type','description'];
+var BILLING_HEADERS = ['kind','number','date','client','type','status','total','paid','remaining','interval','period_start','pay_type','description','period_end','next_try'];
 function billingSheet_() {
   var ss = sheet_().getParent(), sh = ss.getSheetByName('billing');
   if (!sh) { sh = ss.insertSheet('billing'); sh.appendRow(BILLING_HEADERS); try { sh.getRange(1, 1, sh.getMaxRows(), BILLING_HEADERS.length).setNumberFormat('@'); } catch (e) {} }
+  else if (sh.getLastColumn() < BILLING_HEADERS.length) { try { sh.getRange(1, 1, 1, BILLING_HEADERS.length).setValues([BILLING_HEADERS]); } catch (e) {} }   // older sheet: the new columns get their names; the next full pull fills them
   return sh;
 }
 function sgPullBilling_(dry, wantFull) {
@@ -1291,14 +1292,14 @@ function sgPullBilling_(dry, wantFull) {
   var add = function(v, kind) {
     if (!v.invoice_number || seen[v.invoice_number]) return; seen[v.invoice_number] = 1;
     var isOne = kind === 'one-time' || /one[_ -]?time/i.test(String(v.type || ''));
-    rows.push(['invoice', v.invoice_number, String(v.created_at || '').slice(0, 10), v.client_name || v.commercial_client || '', isOne ? 'one-time' : (v.type || 'subscription'), String(v.status || '').toLowerCase(), v.total, v.paid, v.remaining, v.billing_interval || '', String(v.period_start || '').slice(0, 10), v.pay_method || '', '']);
+    rows.push(['invoice', v.invoice_number, String(v.created_at || '').slice(0, 10), v.client_name || v.commercial_client || '', isOne ? 'one-time' : (v.type || 'subscription'), String(v.status || '').toLowerCase(), v.total, v.paid, v.remaining, v.billing_interval || '', String(v.period_start || '').slice(0, 10), v.pay_method || '', '', String(v.period_end || '').slice(0, 10), String(v.next_try_charging || '').slice(0, 10)]);
   };
   // the docs list two types: recurring and one_time
   sgAllUntil_('/api/v2/invoices?type=recurring', 'invoices', stop).forEach(function(v) { add(v, 'recurring'); });
   try { sgAllUntil_('/api/v2/invoices?type=one_time', 'invoices', stop).forEach(function(v) { add(v, 'one-time'); }); }
   catch (e) { try { sgAllUntil_('/api/v2/invoices', 'invoices', stop).forEach(function(v) { add(v, ''); }); } catch (e2) {} }
   sgAllUntil_('/api/v2/payments', 'payments', stop).forEach(function(p) {
-    rows.push(['payment', '', String(p.date || '').slice(0, 10), p.client_name || p.commercial_client || '', p.type || '', String(p.status || '').toLowerCase(), p.amount, p.amount, p.tip_amount || '', '', '', p.type || '', String(p.description || '').slice(0, 80)]);
+    rows.push(['payment', '', String(p.date || '').slice(0, 10), p.client_name || p.commercial_client || '', p.type || '', String(p.status || '').toLowerCase(), p.amount, p.amount, p.tip_amount || '', '', '', p.type || '', String(p.description || '').slice(0, 80), '', '']);
   });
   if (dry) return { rows: rows.length, full: full, fetched: rows.length };
   // a partial pull replaces only the window it covers; everything older stays as it was
@@ -1711,23 +1712,97 @@ function openInvoices_(lead) {
     var st = String(r[H.status] || '').toLowerCase(); if (st === 'paid' || st === 'voided' || st === 'void') return;
     var total = parseFloat(r[H.total]) || 0, rem = r[H.remaining] !== '' && r[H.remaining] != null ? parseFloat(r[H.remaining]) : total;
     if (!(rem > 0)) rem = total; if (!(rem > 0)) return;
-    out.push({ date: String(r[H.date] || '').slice(0, 10), number: String(r[H.number] || ''), amount: Math.round(rem * 100) / 100, status: st, oneTime: r[H.type] === 'one-time', period: String(r[H.period_start] || '').slice(0, 7), desc: String(r[H.description] || '') });
+    out.push({ date: String(r[H.date] || '').slice(0, 10), number: String(r[H.number] || ''), amount: Math.round(rem * 100) / 100, total: Math.round(total * 100) / 100, paid: Math.round((parseFloat(r[H.paid]) || 0) * 100) / 100,
+               status: st, oneTime: r[H.type] === 'one-time', period: String(r[H.period_start] || '').slice(0, 10), periodEnd: String(r[H.period_end] || '').slice(0, 10), pay: String(r[H.pay_type] || ''), nextTry: String(r[H.next_try] || '').slice(0, 10), desc: String(r[H.description] || '') });
   });
   return out.sort(function(a, b) { return a.date < b.date ? -1 : 1; });
 }
+/* The last payment that went through, from the billing sheet. */
+function lastPayment_(lead) {
+  var sh = billingSheet_(); if (sh.getLastRow() < 2) return null;
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, BILLING_HEADERS.length).getValues(), H = {}; BILLING_HEADERS.forEach(function(h, i) { H[h] = i; });
+  var names = {}; names[sgNorm_(lead.name)] = 1; var aka = (String(lead.crmnotes || '').match(/\[AKA:([^\]]*)\]/) || [])[1]; if (aka) names[sgNorm_(aka)] = 1;
+  var best = null;
+  rows.forEach(function(r) {
+    if (r[H.kind] !== 'payment' || !names[sgNorm_(r[H.client])]) return;
+    var st = String(r[H.status] || '').toLowerCase(); if (st !== 'succeeded' && st !== 'paid') return;
+    var when = String(r[H.date] || '').slice(0, 10); if (!best || when > best.date) best = { date: when, amount: Math.round((parseFloat(r[H.total]) || 0) * 100) / 100, how: String(r[H.pay_type] || '') };
+  });
+  return best;
+}
+/* The visits an invoice covers, from Sweep&Go's completed-jobs report for
+   the service period (the jobs sheet only keeps 45 days). One call per
+   invoice, cached an hour. */
+function dayShift_(iso, n) { return new Date(new Date(iso + 'T12:00:00').getTime() + n * 86400000).toISOString().slice(0, 10); }
+function invoiceVisits_(names, item) {
+  var from = item.period, to = item.periodEnd, today = new Date().toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) { from = item.oneTime ? dayShift_(item.date, -7) : dayShift_(item.date, -31); to = item.oneTime ? dayShift_(item.date, 7) : item.date; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from) to = dayShift_(from, 31);
+  if (to > today) to = today; if (dayShift_(from, 62) < to) to = dayShift_(from, 62);
+  if (from > to) return [];
+  var cache = null, k = 'cjr_' + from + '_' + to, list = null;
+  try { cache = CacheService.getScriptCache(); var hit = cache.get(k); if (hit) list = JSON.parse(hit); } catch (e) {}
+  if (!list) { try { list = sgFetch_('/api/v2/report/completed_jobs_report?date_from=' + from + '&date_to=' + to).job_list || []; } catch (e) { list = []; } try { if (cache) cache.put(k, JSON.stringify(list).slice(0, 90000), 3600); } catch (e2) {} }
+  return list.filter(function(j) { return names[sgNorm_(j.commercial_name || ((j.first_name || '') + ' ' + (j.last_name || '')).trim())]; })
+    .map(function(j) { return { date: String(j.date || '').slice(0, 10), start: String(j.start_time || '').slice(11, 16), tech: String(j.assigned_to_name || '').split(/\s+/)[0] || '', minutes: Math.round(sgMinutes_(j)), status: String(j.status_name || '').toLowerCase(), skip: String(j.skip_reason_title || '') }; })
+    .sort(function(a, b) { return a.date < b.date ? -1 : 1; });
+}
+/* The photo the tech took, per visit date, from the dispatch board (the
+   completed-jobs report carries none). Cached six hours per day. */
+function visitPhotos_(names, dates) {
+  var out = {}, cache = null; try { cache = CacheService.getScriptCache(); } catch (e) {}
+  dates.slice(0, 10).forEach(function(dt) {
+    var k = 'sgdb_' + dt, data = null;
+    try { var hit = cache && cache.get(k); if (hit) data = JSON.parse(hit); } catch (e) {}
+    if (!data) { try { data = (sgFetch_('/api/v1/dispatch_board/jobs_for_date?date=' + dt).data || []).map(function(j) { return { n: j.full_name || j.commercial_name || '', u: j.image_for_client || j.job_image || '' }; }); } catch (e) { data = []; } try { if (cache) cache.put(k, JSON.stringify(data).slice(0, 90000), 21600); } catch (e2) {} }
+    data.forEach(function(j) { if (j.u && names[sgNorm_(j.n)] && !out[dt]) out[dt] = String(j.u); });
+  });
+  return out;
+}
+function fetchPhotos_(byDate) {
+  var atts = [], total = 0;
+  Object.keys(byDate).sort().forEach(function(dt) {
+    if (atts.length >= 8 || total > 3500000) return;
+    try {
+      var r = UrlFetchApp.fetch(byDate[dt], { muteHttpExceptions: true }); if (r.getResponseCode() !== 200) return;
+      var blob = r.getBlob(), bytes = blob.getBytes(); if (!bytes || !bytes.length || bytes.length > 1500000) return;
+      total += bytes.length; var type = String(blob.getContentType() || 'image/jpeg');
+      atts.push({ name: 'visit-' + dt + '.' + (/png/.test(type) ? 'png' : 'jpg'), type: type, bytes: bytes });
+    } catch (e) {}
+  });
+  return atts;
+}
+function visitLine_(v, photo) {
+  var bits = [];
+  if (v.status === 'skipped' || v.status === 'missed') return longDate_(v.date).replace(/, \d{4}$/, '') + ' ' + (v.status === 'missed' ? 'missed' : 'skipped') + (v.skip ? ', ' + v.skip.toLowerCase() : '');
+  if (v.tech) bits.push(v.tech); if (v.minutes) bits.push(v.minutes + ' min'); if (photo) bits.push('photo attached');
+  return longDate_(v.date).replace(/, \d{4}$/, '') + (v.start ? ' ' + v.start : '') + (bits.length ? ' (' + bits.join(', ') + ')' : '');
+}
 var MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 function longDate_(iso) { var d = new Date(iso + 'T12:00:00'); return isNaN(d.getTime()) ? iso : MONTHS_LONG[d.getMonth()].slice(0, 3) + ' ' + d.getDate() + ', ' + d.getFullYear(); }
-function invoiceLine_(i) {
-  var what = i.oneTime ? (i.desc || 'one-time service') : (/^\d{4}-\d{2}$/.test(i.period) ? MONTHS_LONG[parseInt(i.period.slice(5), 10) - 1] + ' service' : 'monthly service');
-  var how = i.status === 'failed' ? 'card did not go through' : i.status === 'overdue' ? 'overdue' : 'open';
-  // two short lines each, so it reads on a phone in any mail app
-  return '  ' + longDate_(i.date) + ' \u00b7 ' + what + '\n    $' + i.amount.toFixed(2) + ' \u00b7 ' + how + (i.number ? ' \u00b7 invoice ' + i.number : '');
+/* One invoice, everything about it, short lines so it reads on a phone:
+     Invoice 768-5-1 · issued Oct 1, 2026
+       Service Oct 1 – Oct 31, 2026 (monthly)
+       $85.00 billed · $0.00 paid · $85.00 open
+       Card on file did not go through · next try Nov 20, 2026
+       Visits: Oct 3 09:12 (Jesse, 9 min, photo attached) · Oct 17 skipped, gate locked */
+function invoiceBlock_(i, visits, photos) {
+  var what = i.oneTime ? (i.desc || 'one-time service') : 'monthly service';
+  var period = /^\d{4}-\d{2}-\d{2}$/.test(i.period) ? 'Service ' + longDate_(i.period).replace(/, \d{4}$/, '') + (/^\d{4}-\d{2}-\d{2}$/.test(i.periodEnd) ? ' \u2013 ' + longDate_(i.periodEnd) : '') + ' (' + what + ')' : (i.oneTime ? what.charAt(0).toUpperCase() + what.slice(1) : 'Monthly service');
+  var how = i.status === 'failed' ? 'Card on file did not go through' : i.status === 'overdue' ? (i.pay === 'check' ? 'Overdue \u00b7 pay by check or card' : i.pay === 'credit_card' ? 'Overdue \u00b7 the card on file has not gone through' : 'Overdue') : 'Open, not yet paid';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(i.nextTry) && i.nextTry >= new Date().toISOString().slice(0, 10)) how += ' \u00b7 next card try ' + longDate_(i.nextTry);
+  var lines = ['  Invoice ' + (i.number || '\u2014') + ' \u00b7 issued ' + longDate_(i.date), '    ' + period, '    $' + i.total.toFixed(2) + ' billed \u00b7 $' + i.paid.toFixed(2) + ' paid \u00b7 $' + i.amount.toFixed(2) + ' open', '    ' + how];
+  if (visits && visits.length) lines.push('    Visits: ' + visits.map(function(v) { return visitLine_(v, !!(photos && photos[v.date])); }).join(' \u00b7 '));
+  return lines.join('\n');
 }
-function statementText_(first, items, link) {
+function statementText_(first, items, link, extra) {
+  extra = extra || {};
   var total = items.reduce(function(a, i) { return a + i.amount; }, 0), n = items.length;
-  var anyFailed = items.some(function(i) { return i.status === 'failed'; });
-  return 'Hi ' + first + ',\n\nHere is where your account stands as of ' + longDate_(new Date().toISOString().slice(0, 10)) + '. ' + (n === 1 ? 'One invoice is open' : n + ' invoices are open') + ', $' + total.toFixed(2) + ' in all:\n\n' +
-    items.map(invoiceLine_).join('\n') + '\n\n  Total open: $' + total.toFixed(2) + '\n\n' +
+  var anyFailed = items.some(function(i) { return i.status === 'failed'; }), nPhotos = Object.keys(extra.photos || {}).length;
+  return 'Hi ' + first + ',\n\nHere is where your account stands as of ' + longDate_(new Date().toISOString().slice(0, 10)) + '. ' + (n === 1 ? 'One invoice is open' : n + ' invoices are open') + ', $' + total.toFixed(2) + ' in all. Everything we have on each one is below.\n\n' +
+    items.map(function(i) { return invoiceBlock_(i, extra.visits && extra.visits[i.number], extra.photos); }).join('\n\n') + '\n\n  Total open: $' + total.toFixed(2) +
+    (extra.lastPay ? '\n  Last payment received: ' + longDate_(extra.lastPay.date) + ', $' + extra.lastPay.amount.toFixed(2) + (extra.lastPay.how === 'check' ? ' by check' : extra.lastPay.how === 'credit_card' ? ' by card' : '') : '') +
+    (nPhotos ? '\n  ' + (nPhotos === 1 ? 'One photo from the visits is attached' : nPhotos + ' photos from the visits are attached') + ', named by date.' : '') + '\n\n' +
     (link ? 'Pay now: ' + link + '\n\n' : '') +
     'Each invoice email from Sweep&Go has a Pay button too, and a card updated in the client portal clears these on its own.' +
     (anyFailed ? ' When a card does not go through it is almost always an expired card or a new one that was never added.' : '') +
@@ -1739,17 +1814,28 @@ function payReminderText_(first, amount, since) {
 }
 /* The email itself: the statement when the billing sheet has the invoices,
    the short note when it has not (a name the sheet spells differently). */
-function payReminderMail_(lead, amount, since) {
+/* opts.visits: look the visits up in Sweep&Go (one call per invoice);
+   opts.photos: find the techs' photos too; opts.attach: download and attach
+   them (the send; the preview only counts them). */
+function payReminderMail_(lead, amount, since, opts) {
+  opts = opts || {};
   var first = String(lead.name || '').trim().split(/\s+/)[0] || 'there', items = [];
   try { items = openInvoices_(lead); } catch (e) {}
-  if (items.length) return { subject: 'Your account with CL Professional Pet Services', body: statementText_(first, items, payLink_()) + WE_FOOTER, items: items, total: Math.round(items.reduce(function(a, i) { return a + i.amount; }, 0) * 100) / 100, link: !!payLink_() };
-  return { subject: 'A quick note about your account', body: payReminderText_(first, amount, since) + WE_FOOTER, items: [], total: Math.round(amount), link: false };
+  if (!items.length) return { subject: 'A quick note about your account', body: payReminderText_(first, amount, since) + WE_FOOTER, items: [], total: Math.round(amount), link: false, visits: 0, photos: 0, attachments: [] };
+  var names = {}; names[sgNorm_(lead.name)] = 1; var aka = (String(lead.crmnotes || '').match(/\[AKA:([^\]]*)\]/) || [])[1]; if (aka) names[sgNorm_(aka)] = 1;
+  var extra = { visits: {}, photos: {}, lastPay: null }, nVisits = 0;
+  try { extra.lastPay = lastPayment_(lead); } catch (e) {}
+  if (opts.visits !== false) items.slice(0, 6).forEach(function(i) { try { var v = invoiceVisits_(names, i); extra.visits[i.number] = v; nVisits += v.length; } catch (e) {} });
+  if (opts.photos) { var dates = []; Object.keys(extra.visits).forEach(function(k) { extra.visits[k].forEach(function(v) { if (v.status === 'completed' && dates.indexOf(v.date) < 0) dates.push(v.date); }); }); try { extra.photos = visitPhotos_(names, dates.sort().reverse()); } catch (e) {} }
+  var atts = opts.attach ? fetchPhotos_(extra.photos) : [];
+  if (opts.attach) { var kept = {}; atts.forEach(function(a) { kept[a.name.slice(6, 16)] = 1; }); Object.keys(extra.photos).forEach(function(dt) { if (!kept[dt]) delete extra.photos[dt]; }); }   // say "attached" only for what really is
+  return { subject: 'Your account with CL Professional Pet Services', body: statementText_(first, items, payLink_(), extra) + WE_FOOTER, items: items, total: Math.round(items.reduce(function(a, i) { return a + i.amount; }, 0) * 100) / 100, link: !!payLink_(), visits: nVisits, photos: Object.keys(extra.photos).length, attachments: atts };
 }
-function sendPayReminder_(sh, rows, lead, amount, since) {
+function sendPayReminder_(sh, rows, lead, amount, since, opts) {
   var email = String(lead.email || '').trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('no email');
-  var m = payReminderMail_(lead, amount, since); if (m.items.length) amount = m.total;
-  sendCustomerMail_({ to: email, subject: m.subject, body: m.body });
+  var m = payReminderMail_(lead, amount, since, opts || { visits: true, photos: true, attach: true }); if (m.items.length) amount = m.total;
+  sendCustomerMail_({ to: email, subject: m.subject, body: m.body, attachments: m.attachments });
   var today = new Date().toISOString().slice(0, 10), idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes');
   for (var i = 1; i < rows.length; i++) if (String(rows[i][idCol]) === String(lead.id)) sh.getRange(i + 1, nCol + 1).setValue(safeCell_(sgSetMarkers_(String(rows[i][nCol] || ''), { PR: Math.round(amount) + '@' + today })));
   return today;
@@ -1760,7 +1846,7 @@ function payRemind_(body) {
   var amount = parseFloat(body.amount) || 0; if (!(amount > 0)) return { ok:false, error:'no amount' };
   if (body.preview) {   // the tracker shows this before anything goes
     var email = String(l.email || '').trim(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok:false, error:'no email' };
-    var m = payReminderMail_(l, amount, String(body.since || '')); m.ok = true; m.preview = true; m.to = email; return m;
+    var m = payReminderMail_(l, amount, String(body.since || ''), { visits: true, photos: true, attach: false }); delete m.attachments; m.ok = true; m.preview = true; m.to = email; return m;
   }
   try { var d = sendPayReminder_(sh, sh.getDataRange().getValues(), l, amount, String(body.since || '')); return { ok:true, date: d }; }
   catch (e) { return { ok:false, error: String(e && e.message || e).slice(0, 120) }; }
@@ -1776,7 +1862,7 @@ function paymentReminders() {
     var l = byName[sgNorm_(u.name)]; if (!l || String(l.status || '') !== 'closed') return;
     var notes = String(l.crmnotes || ''), last = (notes.match(/\[PR:\d+@(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '';
     if (/\[(NOEM|TM):/.test(notes) || (last && last > cut14)) { skipped++; return; }
-    try { sendPayReminder_(sh, rows, l, u.owed, u.oldest); sent++; } catch (e) { skipped++; }
+    try { sendPayReminder_(sh, rows, l, u.owed, u.oldest, { visits: true, photos: false, attach: false }); sent++; } catch (e) { skipped++; }
   });
   return { ok:true, sent: sent, skipped: skipped };
 }
