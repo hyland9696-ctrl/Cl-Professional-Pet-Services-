@@ -182,10 +182,10 @@ function build(leadRows){
     Logger: { log: (m) => { logs.push(String(m)); } },
     ScriptApp: { WeekDay: { MONDAY:'mon', SUNDAY:'sun' }, getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/XYZ/exec' }), getProjectTriggers: () => [], deleteTrigger: () => {},
       newTrigger: (fn) => { const chain = { everyDays: () => chain, everyHours: () => chain, onWeekDay: () => chain, onMonthDay: () => chain, after: () => chain, atHour: () => chain, create: () => { triggers.push(fn); } }; return { timeBased: () => chain }; } },
-    MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: (d, tz, f) => f === 'yyyy-MM-dd' ? new Date(d).toISOString().slice(0, 10) : f === 'H' ? '12' : '202611', sleep: (ms) => { sleeps.push(ms); }, base64Encode: (s) => Buffer.from(String(s), 'utf8').toString('base64'), Charset: { UTF_8: 'utf8' }, newBlob: (c, type, name) => ({ c, type, name }) }, Session: { getScriptTimeZone: () => 'America/Chicago' },
+    MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: (d, tz, f) => f === 'yyyy-MM-dd' ? new Date(d).toISOString().slice(0, 10) : f === 'H' ? '12' : '202611', sleep: (ms) => { sleeps.push(ms); }, base64Encode: (s) => Buffer.from(String(s), 'utf8').toString('base64'), Charset: { UTF_8: 'utf8' }, newBlob: (c, type, name) => ({ c, type, name }), computeHmacSha256Signature: (v, k) => Array.from(require('crypto').createHmac('sha256', k).update(String(v)).digest()).map(b => b > 127 ? b - 256 : b) }, Session: { getScriptTimeZone: () => 'America/Chicago' },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (txt) => ({ _t: txt, setMimeType(){ return this; } }) },
   };
-  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups, install, INSTALL, sgBillingSync, sgSyncOnce, sgStatus, sgAllUntil_, tidySheet, payRemind_, paymentReminders, monthlyReport, eveningNudge, weeklyHousekeeping, publicDays_, cardFailedEmails, winbackEmails, leadRevival, referralThanks, campaignsDue, yearlyReport, yearlyReportText_, refCode_, doGet, pin_, sgRoutesBackfill, mileage_, hourlyNudge, anniversaryEmails, refreshReviews, monthlyReportText_, list_, ROUTES_BACK_TO };')(...Object.values(G));
+  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups, install, INSTALL, sgBillingSync, sgSyncOnce, sgStatus, sgAllUntil_, tidySheet, payRemind_, paymentReminders, monthlyReport, eveningNudge, weeklyHousekeeping, publicDays_, cardFailedEmails, winbackEmails, leadRevival, referralThanks, campaignsDue, yearlyReport, yearlyReportText_, refCode_, doGet, pin_, sgRoutesBackfill, mileage_, hourlyNudge, anniversaryEmails, refreshReviews, monthlyReportText_, list_, ROUTES_BACK_TO, outreach_, springRestart, account_, acctToken_, refInvite_, ladderStep_ };')(...Object.values(G));
   return { F, sheets, props };
 }
 
@@ -713,5 +713,62 @@ function build(leadRows){
   pushes.length = 0;
   F.refreshReviews();
   ok('and not when the count is unchanged', pushes.length === 0);
+}
+/* ---- win back and grow: the notes by reason, the ladder, the customer page, the referral links ---- */
+{
+  const R = (o) => HEADERS.map(h => o[h] == null ? '' : o[h]);
+  const rows = seed();
+  rows.push(R({ id:'dogless', created:'2025-01-01T12:00:00Z', type:'SAVED', name:'Dogless Dan', phone:'6363750051', email:'dan@gmail.com', zip:'63376', price:'$85/mo', status:'cancelled', crmnotes:'[CX:' + d(50) + '] [CXR:nodog] ' }));
+  rows.push(R({ id:'grumpy', created:'2025-01-01T12:00:00Z', type:'SAVED', name:'Grumpy Gail', phone:'6363750052', email:'gail@gmail.com', zip:'63376', price:'$85/mo', status:'cancelled', crmnotes:'[CX:' + d(50) + '] [CXR:service] ' }));
+  rows.push(R({ id:'snowbird', created:'2025-01-01T12:00:00Z', type:'SAVED', name:'Snowbird Sue', phone:'6363750053', email:'sue@gmail.com', zip:'63376', price:'$70/mo', status:'cancelled', crmnotes:'[CX:' + d(120) + '] [CXR:season] [DAY:tue] ' }));
+  rows.push(R({ id:'latelou', created:'2025-01-01T12:00:00Z', type:'SAVED', name:'Late Lou', phone:'6363750054', email:'lou@gmail.com', zip:'63376', price:'$80/mo', status:'closed', crmnotes:'[CD:2025-01-01] ' }));
+  rows.push(R({ id:'midmo', created:'2025-01-01T12:00:00Z', type:'SAVED', name:'Mid Mo', phone:'6363750055', email:'mo@gmail.com', zip:'63376', price:'$80/mo', status:'closed', crmnotes:'[CD:2025-01-01] ' }));
+  const { F, sheets, props } = build(rows);
+  F.sgSync(false); F.sgBillingSync();
+  const B = (o) => ['kind','number','date','client','type','status','total','paid','remaining','interval','period_start','pay_type','description','period_end','next_try'].map(h => o[h] == null ? '' : o[h]);
+  sheets.billing.rows.push(B({ kind:'invoice', number:'L-1', date: d(40), client:'Late Lou', type:'subscription', status:'overdue', total:'80.00', paid:'0.00', remaining:'80.00', interval:'monthly', pay_type:'credit_card' }));
+  sheets.billing.rows.push(B({ kind:'invoice', number:'M-1', date: d(25), client:'Mid Mo', type:'subscription', status:'overdue', total:'80.00', paid:'0.00', remaining:'80.00', interval:'monthly', pay_type:'check' }));
+  Object.assign(props, MS); msCalls.length = 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const pam = F.outreach_({ id:'p6363750040', kind:'winback', preview:true });
+  ok('win back: Pam left over price, so her note offers her old price locked a year and no restart fee; a preview sends nothing', pam.ok && pam.sub === 'price' && /your old price is still here/.test(pam.subject) && /\$85\/mo is locked for a full year, and there is no restart fee/.test(pam.body) && /— Corey/.test(pam.body) && sentMs().length === 0, JSON.stringify(pam).slice(0, 400));
+  ok('an unhappy customer gets a call, not an email; nobody who lost the dog is written to', F.outreach_({ id:'grumpy', kind:'winback', preview:true }).error === 'call' && F.outreach_({ id:'dogless', kind:'winback', preview:true }).error === 'leave alone');
+  const sb = F.outreach_({ id:'snowbird', kind:'winback', preview:true });
+  ok('the one who left for the winter gets the spring note with her day', sb.ok && /back on your street for spring/.test(sb.subject) && /back on your street on Tuesdays/.test(sb.body), sb.body);
+  const larry = F.outreach_({ id:'p6363750006', kind:'winback', sub:'elsewhere', preview:true });
+  ok('a quote that went elsewhere: the note the tracker picked, the quote still stands', larry.ok && /how is the yard going/.test(larry.subject) && /\$85\/mo for weekly still stands/.test(larry.body), larry.body);
+  ok('an unknown reason is refused', F.outreach_({ id:'p6363750006', kind:'winback', sub:'nonsense', preview:true }).ok === false);
+  const sent = F.outreach_({ id:'p6363750040', kind:'winback', sub:'price', subject:'Pam, come back', text:'Hi Pam,\n\nMy own words.' });
+  const got = sentMs().slice(-1)[0];
+  ok('the send uses the office\'s edited words, adds the signature, and stamps her row', sent.ok && got.subject === 'Pam, come back' && /^Hi Pam,\n\nMy own words\.\n\n— Corey/.test(got.body) && sheets.leads.rows.some(r => r[HEADERS.indexOf('id')] === 'p6363750040' && r[HEADERS.indexOf('crmnotes')].indexOf('[OU:winback-price@' + today + ']') >= 0), JSON.stringify(got).slice(0, 300));
+  ok('the spring round is off until switched on', F.springRestart().off === true);
+  // the collections ladder
+  ok('the ladder: a week overdue is notice 1, three weeks notice 2, five weeks notice 3', F.ladderStep_(d(10)) === 1 && F.ladderStep_(d(25)) === 2 && F.ladderStep_(d(40)) === 3);
+  const lou = F.payRemind_({ id:'latelou', amount: 80, since: d(40), preview: true });
+  ok('Lou, five weeks behind, gets notice 3: service pauses a week from today unless the account is brought up to date', lou.ok && lou.step === 3 && /Your service pauses .* unless the account is brought up to date/.test(lou.subject) && /This is our third note about the balance on your account, \$80\.00\. .*service will pause on/.test(lou.body), lou.subject + ' | ' + lou.body.slice(0, 300));
+  const mo = F.payRemind_({ id:'midmo', amount: 80, since: d(25), preview: true });
+  ok('Mo, three weeks behind, gets notice 2, the firmer one; every statement carries the account page link', mo.step === 2 && /Second notice/.test(mo.subject) && /This is our second note/.test(mo.body) && /Your account page, with every visit, photo and invoice: https:\/\/clpropetservices\.com\/account\/\?t=midmo\./.test(mo.body), mo.body.slice(0, 500));
+  sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_pr2', created: new Date().toISOString(), type:'CONFIG', name:'pay_reminders', notes:'on', status:'config' })[h] || ''));
+  msCalls.length = 0;
+  const r1 = F.paymentReminders();
+  const louRow = () => sheets.leads.rows.filter(r => r[HEADERS.indexOf('id')] === 'latelou').slice(-1)[0][HEADERS.indexOf('crmnotes')];
+  ok('the Monday round climbs the ladder and stamps the notice sent', r1.sent >= 2 && /\[PL:3@/.test(louRow()) && sentMs().some(m => m.to === 'lou@gmail.com' && /service pauses/i.test(m.subject)), JSON.stringify(r1) + ' ' + louRow());
+  msCalls.length = 0;
+  const r2 = F.paymentReminders();
+  ok('and never sends the same notice twice', !sentMs().some(m => m.to === 'lou@gmail.com' || m.to === 'mo@gmail.com'), JSON.stringify(r2));
+  // the customer page
+  const tok = F.acctToken_('latelou');
+  const acct = F.account_(tok);
+  ok('the customer page answers only to the signed link: name, status, balance, invoices, the referral link', acct.ok && acct.first === 'Late' && acct.status === 'active' && acct.openTotal === 80 && acct.open[0].number === 'L-1' && /\?ref=late-/.test(acct.refLink) && !!props.ACCOUNT_SECRET, JSON.stringify(acct).slice(0, 400));
+  ok('a link with the signature changed, or another customer\'s id on it, finds nothing', F.account_(tok.slice(0, -1) + (tok.slice(-1) === 'a' ? 'b' : 'a')).ok === false && F.account_('midmo.' + tok.split('.')[1]).ok === false && F.account_('').ok === false);
+  ok('a quote that never became a customer has no page', F.account_(F.acctToken_('q_old')).ok === false);
+  const viaGet = JSON.parse(F.doGet({ parameter: { action:'account', t: tok } })._t);
+  ok('the page reaches it through the public address', viaGet.ok && viaGet.first === 'Late');
+  // referral links
+  const pv = F.refInvite_({ preview: true });
+  ok('the referral links: a preview counts who gets one and shows the email with their own link and their account page', pv.ok && pv.count >= 2 && /your own referral link/.test(pv.subject) && /https:\/\/clpropetservices\.com\/\?ref=/.test(pv.body) && /account\/\?t=/.test(pv.body), JSON.stringify(pv).slice(0, 300));
+  msCalls.length = 0;
+  const rs = F.refInvite_({});
+  ok('sending stamps each one, so the next tap skips them', rs.ok && rs.sent === pv.count && sentMs().length === pv.count && F.refInvite_({ preview: true }).count === 0, JSON.stringify(rs));
 }
 done();

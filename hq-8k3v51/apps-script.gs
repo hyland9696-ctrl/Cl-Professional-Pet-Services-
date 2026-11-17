@@ -589,6 +589,8 @@ function doGet(e) {
   // Public on purpose: it is the number already printed on the website.
   if (p.action === 'public') return json_(publicStats_());
   if (p.action === 'days') return json_(publicDays_());
+  // the customer page: public on purpose, but only to whoever holds the signed link
+  if (p.action === 'account') { try { return json_(account_(p.t)); } catch (e) { return json_({ ok:false, error:'not found' }); } }
   if (p.action === 'list') return list_(p);
   return json_({ok:true, service:'CLPPS lead tracker'});
 }
@@ -654,6 +656,19 @@ function doPost(e) {
   if (body.action === 'payremind') {
     if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
     return json_(payRemind_(body));
+  }
+  if (body.action === 'outreach') {
+    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    return json_(outreach_(body));
+  }
+  if (body.action === 'acctlink') {
+    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var lk = latestRow_(sheet_(), String(body.id || '')); if (!lk) return json_({ok:false, error:'not found'});
+    return json_({ ok:true, url: acctLink_(lk.id), ref: refLink_(lk) });
+  }
+  if (body.action === 'refinvite') {
+    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    return json_(refInvite_(body));
   }
   if (body.action === 'sgcreate') {
     if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
@@ -1795,15 +1810,26 @@ function invoiceBlock_(i, visits, photos) {
   if (visits && visits.length) lines.push('    Visits: ' + visits.map(function(v) { return visitLine_(v, !!(photos && photos[v.date])); }).join(' \u00b7 '));
   return lines.join('\n');
 }
+/* The collections ladder. Step 1 at a week overdue: the plain statement.
+   Step 2 at three weeks: the same, firmer. Step 3 at five weeks: service
+   pauses a week from today unless the account is brought up to date. */
+function ladderStep_(oldest) { var a = ageDays_(oldest); return a >= 35 ? 3 : a >= 21 ? 2 : 1; }
+function ladderOpening_(step, total, pauseOn) {
+  if (step === 3) return 'This is our third note about the balance on your account, $' + total.toFixed(2) + '. We would much rather keep coming, but unless the account is brought up to date, service will pause on ' + longDate_(pauseOn) + '. Paying, or simply replying to set up a plan, keeps you on the route.';
+  if (step === 2) return 'This is our second note about the balance on your account, $' + total.toFixed(2) + '. Please take care of it this week, or reply and tell us what would help.';
+  return '';
+}
 function statementText_(first, items, link, extra) {
   extra = extra || {};
   var total = items.reduce(function(a, i) { return a + i.amount; }, 0), n = items.length;
   var anyFailed = items.some(function(i) { return i.status === 'failed'; }), nPhotos = Object.keys(extra.photos || {}).length;
-  return 'Hi ' + first + ',\n\nHere is where your account stands as of ' + longDate_(new Date().toISOString().slice(0, 10)) + '. ' + (n === 1 ? 'One invoice is open' : n + ' invoices are open') + ', $' + total.toFixed(2) + ' in all. Everything we have on each one is below.\n\n' +
+  var opening = ladderOpening_(extra.step || 1, total, extra.pauseOn || '');
+  return 'Hi ' + first + ',\n\n' + (opening ? opening + '\n\n' : '') + 'Here is where your account stands as of ' + longDate_(new Date().toISOString().slice(0, 10)) + '. ' + (n === 1 ? 'One invoice is open' : n + ' invoices are open') + ', $' + total.toFixed(2) + ' in all. Everything we have on each one is below.\n\n' +
     items.map(function(i) { return invoiceBlock_(i, extra.visits && extra.visits[i.number], extra.photos); }).join('\n\n') + '\n\n  Total open: $' + total.toFixed(2) +
     (extra.lastPay ? '\n  Last payment received: ' + longDate_(extra.lastPay.date) + ', $' + extra.lastPay.amount.toFixed(2) + (extra.lastPay.how === 'check' ? ' by check' : extra.lastPay.how === 'credit_card' ? ' by card' : '') : '') +
     (nPhotos ? '\n  ' + (nPhotos === 1 ? 'One photo from the visits is attached' : nPhotos + ' photos from the visits are attached') + ', named by date.' : '') + '\n\n' +
     (link ? 'Pay now: ' + link + '\n\n' : '') +
+    (extra.acct ? 'Your account page, with every visit, photo and invoice: ' + extra.acct + '\n\n' : '') +
     'Each invoice email from Sweep&Go has a Pay button too, and a card updated in the client portal clears these on its own.' +
     (anyFailed ? ' When a card does not go through it is almost always an expired card or a new one that was never added.' : '') +
     '\n\nIf you have already taken care of it, thank you, and please ignore this. Otherwise reply here or call (636) 375-4342 and we will sort it out together. Service carries on as normal either way.\n\nThanks for having us.';
@@ -1827,17 +1853,21 @@ function payReminderMail_(lead, amount, since, opts) {
   try { extra.lastPay = lastPayment_(lead); } catch (e) {}
   if (opts.visits !== false) items.slice(0, 6).forEach(function(i) { try { var v = invoiceVisits_(names, i); extra.visits[i.number] = v; nVisits += v.length; } catch (e) {} });
   if (opts.photos) { var dates = []; Object.keys(extra.visits).forEach(function(k) { extra.visits[k].forEach(function(v) { if (v.status === 'completed' && dates.indexOf(v.date) < 0) dates.push(v.date); }); }); try { extra.photos = visitPhotos_(names, dates.sort().reverse()); } catch (e) {} }
+  extra.step = ladderStep_(items[0].date); extra.pauseOn = new Date(Date.now() + 7 * DAY_MS).toISOString().slice(0, 10);
+  try { extra.acct = acctLink_(lead.id); } catch (e) {}
   var atts = opts.attach ? fetchPhotos_(extra.photos) : [];
   if (opts.attach) { var kept = {}; atts.forEach(function(a) { kept[a.name.slice(6, 16)] = 1; }); Object.keys(extra.photos).forEach(function(dt) { if (!kept[dt]) delete extra.photos[dt]; }); }   // say "attached" only for what really is
-  return { subject: 'Your account with CL Professional Pet Services', body: statementText_(first, items, payLink_(), extra) + WE_FOOTER, items: items, total: Math.round(items.reduce(function(a, i) { return a + i.amount; }, 0) * 100) / 100, link: !!payLink_(), visits: nVisits, photos: Object.keys(extra.photos).length, attachments: atts };
+  return { subject: 'Your account with CL Professional Pet Services', body: statementText_(first, items, payLink_(), extra) + WE_FOOTER, items: items, total: Math.round(items.reduce(function(a, i) { return a + i.amount; }, 0) * 100) / 100, link: !!payLink_(), visits: nVisits, photos: Object.keys(extra.photos).length, attachments: atts, step: extra.step, pauseOn: extra.step === 3 ? extra.pauseOn : '' };
 }
 function sendPayReminder_(sh, rows, lead, amount, since, opts) {
   var email = String(lead.email || '').trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('no email');
   var m = payReminderMail_(lead, amount, since, opts || { visits: true, photos: true, attach: true }); if (m.items.length) amount = m.total;
+  if (m.step === 3) m.subject = 'Your service pauses ' + longDate_(m.pauseOn) + ' unless the account is brought up to date'; else if (m.step === 2) m.subject = 'Second notice: your account with CL Professional Pet Services';
   sendCustomerMail_({ to: email, subject: m.subject, body: m.body, attachments: m.attachments });
+  var stepNow = m.step || 1;
   var today = new Date().toISOString().slice(0, 10), idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes');
-  for (var i = 1; i < rows.length; i++) if (String(rows[i][idCol]) === String(lead.id)) sh.getRange(i + 1, nCol + 1).setValue(safeCell_(sgSetMarkers_(String(rows[i][nCol] || ''), { PR: Math.round(amount) + '@' + today })));
+  for (var i = 1; i < rows.length; i++) if (String(rows[i][idCol]) === String(lead.id)) sh.getRange(i + 1, nCol + 1).setValue(safeCell_(sgSetMarkers_(String(rows[i][nCol] || ''), { PR: Math.round(amount) + '@' + today, PL: stepNow + '@' + today })));
   return today;
 }
 function payRemind_(body) {
@@ -1846,7 +1876,9 @@ function payRemind_(body) {
   var amount = parseFloat(body.amount) || 0; if (!(amount > 0)) return { ok:false, error:'no amount' };
   if (body.preview) {   // the tracker shows this before anything goes
     var email = String(l.email || '').trim(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok:false, error:'no email' };
-    var m = payReminderMail_(l, amount, String(body.since || ''), { visits: true, photos: true, attach: false }); delete m.attachments; m.ok = true; m.preview = true; m.to = email; return m;
+    var m = payReminderMail_(l, amount, String(body.since || ''), { visits: true, photos: true, attach: false }); delete m.attachments; m.ok = true; m.preview = true; m.to = email;
+    if (m.step === 3) m.subject = 'Your service pauses ' + longDate_(m.pauseOn) + ' unless the account is brought up to date'; else if (m.step === 2) m.subject = 'Second notice: your account with CL Professional Pet Services';
+    return m;
   }
   try { var d = sendPayReminder_(sh, sh.getDataRange().getValues(), l, amount, String(body.since || '')); return { ok:true, date: d }; }
   catch (e) { return { ok:false, error: String(e && e.message || e).slice(0, 120) }; }
@@ -1855,13 +1887,14 @@ function paymentReminders() {
   if (cfg_('pay_reminders') !== 'on') return { ok:true, off:true, sent:0 };
   if (!officeMailReady_()) return { ok:true, off:true, reason: NO_OFFICE_MAIL, sent:0 };
   var f = sgBilling_(), sh = sheet_(), rows = sh.getDataRange().getValues(), H = {}; HEADERS.forEach(function(h, i) { H[h] = i; });
-  var cut14 = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10), sent = 0, skipped = 0;
+  var cut7 = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10), sent = 0, skipped = 0;
   var byName = {}; for (var i = rows.length - 1; i >= 1; i--) { var nm = sgNorm_(rows[i][H.name]); if (nm && !byName[nm]) { var o = {}; HEADERS.forEach(function(h, j) { o[h] = rows[i][j]; }); byName[nm] = o; var aka = (String(rows[i][H.crmnotes] || '').match(/\[AKA:([^\]]*)\]/) || [])[1]; if (aka && !byName[sgNorm_(aka)]) byName[sgNorm_(aka)] = o; } }
   (f.unpaid || []).forEach(function(u) {
-    if (sent >= 20 || !u.oldest || u.oldest > cut14) return;
+    if (sent >= 20 || !u.oldest || u.oldest > cut7) return;
     var l = byName[sgNorm_(u.name)]; if (!l || String(l.status || '') !== 'closed') return;
     var notes = String(l.crmnotes || ''), last = (notes.match(/\[PR:\d+@(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '';
-    if (/\[(NOEM|TM):/.test(notes) || (last && last > cut14)) { skipped++; return; }
+    var lastStep = parseInt((notes.match(/\[PL:(\d)@/) || [])[1] || '0', 10), step = ladderStep_(u.oldest);
+    if (/\[(NOEM|TM):/.test(notes) || (last && last > cut7) || step <= lastStep) { skipped++; return; }
     try { sendPayReminder_(sh, rows, l, u.owed, u.oldest, { visits: true, photos: false, attach: false }); sent++; } catch (e) { skipped++; }
   });
   return { ok:true, sent: sent, skipped: skipped };
@@ -2176,9 +2209,183 @@ function campaignsDue() {
   });
   return { ok:true, due: due, results: out };
 }
+/* ======================================================================
+   WIN BACK AND GROW. One action, 'outreach', builds the one-off notes the
+   tracker's Win back and Upsell cards offer: shown first (and editable),
+   sent from the office mailbox on the second tap, stamped [OU:kind-sub@date]
+   so the tracker can tell who came back after which note. Jesse: "a button
+   to get people who passed and people who stopped service back with us".
+   ====================================================================== */
+var ACCOUNT_URL = 'https://clpropetservices.com/account/?t=';
+var SITE_URL = 'https://clpropetservices.com/';
+var DAY_NAMES_ = { mon:'Monday', tue:'Tuesday', wed:'Wednesday', thu:'Thursday', fri:'Friday', sat:'Saturday', sun:'Sunday' };
+function daysText_(keys) { var a = keys.map(function(k) { return DAY_NAMES_[k] || k; }); return a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+/* Their own day if they had one, else the days we are already in their ZIP. */
+function streetDays_(p) {
+  var own = ((String(p.crmnotes || '').match(/\[DAY:([^\]]*)\]/) || [])[1] || '').split(',').filter(Boolean);
+  if (own.length) return daysText_(own);
+  try { var z = publicDays_().zips[String(p.zip || '').slice(0, 5)]; if (z && z.length) return daysText_(z); } catch (e) {}
+  return '';
+}
+var LEAVE_ALONE = { nodog: 1, nonpay: 1, byus: 1 };   // nobody writes to these
+var OUTREACH_REASONS = { price:1, moved:1, nodog:1, service:1, competitor:1, nonpay:1, byus:1, season:1, diy:1, other:1, comparing:1, elsewhere:1, timing:1 };
+function leaveReason_(p) {
+  var n = String(p.crmnotes || '');
+  if (String(p.status) === 'cancelled') return (n.match(/\[CXR:([^\]]*)\]/) || [])[1] || '';
+  return (n.match(/\[DR:([^\]]*)\]/) || [])[1] || '';
+}
+/* The note itself, by kind and reason. Returns { subject, body } or { stop }
+   when we should not write at all (a call instead, or leave them be). */
+function outreachText_(kind, sub, p) {
+  var first = String(p.name || '').trim().split(/\s+/)[0] || 'there', price = String(p.price || '').split(',')[0].trim();
+  var priceLine = /\d/.test(price) ? 'your old price of ' + price : 'your old price', days = streetDays_(p);
+  var onStreet = days ? ' We are already on your street on ' + days + 's, so it is no trouble to fit you back in.' : '';
+  var corey = 'It’s Corey with CL Professional Pet Services.';
+  if (kind === 'winback') {
+    var left = String(p.status) === 'cancelled';
+    if (LEAVE_ALONE[sub]) return { stop: 'leave alone' };
+    if (sub === 'service' && left) return { stop: 'call' };   // an unhappy customer gets a phone call from Corey, not an email
+    if (left) {
+      if (sub === 'price') return { subject: first + ', your old price is still here', body: 'Hi ' + first + ',\n\n' + corey + ' When you stopped, cost was the reason, so I wanted to make coming back easy: ' + priceLine + ' is locked for a full year, and there is no restart fee.' + onStreet + '\n\nJust reply here or text (636) 375-4342 and we’ll put you back on the route.' };
+      if (sub === 'season') return spring_(p, first, priceLine, days);
+      if (sub === 'competitor') return { subject: first + ', we’d be glad to have you back', body: 'Hi ' + first + ',\n\n' + corey + ' If the company you switched to is not showing up the way you’d like, we’d be glad to have you back: no restart fee, ' + priceLine + ' holds, and every visit comes with a photo so you know it was done.' + onStreet + '\n\nReply here or text (636) 375-4342 and we’ll pick it back up.' };
+      if (sub === 'moved') return { subject: first + ', did you stay in the area?', body: 'Hi ' + first + ',\n\n' + corey + ' I know you moved. If the new place is anywhere in St. Charles County or west St. Louis County, we would love to pick up there, same price, no setup fee. Reply with the new address and I’ll tell you the day.\n\nAnd if you moved further away, thank you for the time we had your yard.' };
+      if (sub === 'diy') return { subject: first + ', want your Saturdays back?', body: 'Hi ' + first + ',\n\n' + corey + ' If doing the yard yourself has turned into one more chore, we can take it back off your plate: ' + priceLine + ' holds and there is no restart fee.' + onStreet + '\n\nReply here or text (636) 375-4342.' };
+      return { subject: first + ', we’d love to have you back', body: 'Hi ' + first + ',\n\n' + corey + ' We miss your yard! If you’d like us to pick it back up, there is no restart fee and ' + priceLine + ' holds.' + onStreet + '\n\nJust reply here or text (636) 375-4342 and we’ll put you back on the route.' };
+    }
+    // a quote that never went ahead
+    var plan = String(p.service || '').trim() || 'your plan', qp = /\d/.test(price) ? 'Your price of ' + price + ' for ' + plan + ' still stands' : 'The price we gave you still stands';
+    if (sub === 'price') return { subject: first + ', I can make the yard price work', body: 'Hi ' + first + ',\n\n' + corey + ' When you looked at us, the price was the sticking point. Here is what I can do: ' + qp.charAt(0).toLowerCase() + qp.slice(1) + ', the $40 initial clean is off, and the price is locked for a year.' + onStreet + '\n\nNo contract, month to month. Reply here or text (636) 375-4342 and I’ll get you on the schedule.' };
+    if (sub === 'comparing' || sub === 'elsewhere' || sub === 'competitor') return { subject: first + ', how is the yard going?', body: 'Hi ' + first + ',\n\n' + corey + ' You were comparing a few companies when we spoke. If the one you picked is not working out, ' + qp.charAt(0).toLowerCase() + qp.slice(1) + ', the $40 initial clean is waived, and every visit comes with a photo.' + onStreet + '\n\nReply here or text (636) 375-4342.' };
+    if (sub === 'timing') return { subject: first + ', is now a better time?', body: 'Hi ' + first + ',\n\n' + corey + ' The timing was not right when you got your price, so I wanted to check back in. ' + qp + ', the $40 initial clean is waived if you start this month, and there is no contract.' + onStreet + '\n\nReply here or text (636) 375-4342 and we’ll start whenever suits you.' };
+    if (sub === 'diy') return { subject: first + ', want your Saturdays back?', body: 'Hi ' + first + ',\n\n' + corey + ' You were planning to keep doing the yard yourself. If that has turned into one more chore, ' + qp.charAt(0).toLowerCase() + qp.slice(1) + ' and the $40 initial clean is waived.' + onStreet + '\n\nReply here or text (636) 375-4342.' };
+    return { subject: first + ', is the yard still on the list?', body: 'Hi ' + first + ',\n\n' + corey + ' You asked us for a price a while back and I wanted to check in, in case the yard is still on the to-do list. ' + qp + ', the $40 initial clean is waived if you start this month, and there is no contract.' + onStreet + '\n\nReply here or text (636) 375-4342 and I’ll get you on the schedule.' };
+  }
+  if (kind === 'spring') return spring_(p, first, priceLine, days);
+  if (kind === 'upsell') {
+    if (sub === 'twice') return { subject: first + ', twice a week for your crew?', body: 'Hi ' + first + ',\n\n' + corey + ' With ' + (String(p.dogs || '').replace(/\D/g, '') || 'several') + ' dogs, a week is a long time between visits. A second visit each week keeps the yard clean all the time instead of most of the time.\n\nReply “yes” and I’ll send the exact price for twice a week. Nothing changes until you say so.' };
+    if (sub === 'deo') return { subject: first + ', keep the yard smelling fresh this season', body: 'Hi ' + first + ',\n\n' + corey + ' In the warm months a clean yard can still smell like a dog yard. Our deodorizing and sanitizing treatment fixes that: $15 a visit, added to your regular service, and you can stop it any time.\n\nReply “yes” and we’ll add it from your next visit.' };
+    if (sub === 'day') return { subject: first + ', would a different day work better?', body: 'Hi ' + first + ',\n\n' + corey + ' We have had to skip your yard a couple of times lately. If another day of the week works better for you, reply with the day and we’ll move you, no charge.\n\nWe want every visit to count.' };
+  }
+  return { stop: 'unknown' };
+}
+function spring_(p, first, priceLine, days) {
+  return { subject: first + ', we’re back on your street for spring', body: 'Hi ' + first + ',\n\nIt’s Corey with CL Professional Pet Services. Spring is here, and everything the dog left all winter is out there now.' + (days ? ' We are back on your street on ' + days + 's.' : '') + ' Your yard can go straight back on the route: ' + priceLine + ' holds and there is no restart fee.\n\nReply here or text (636) 375-4342 and we’ll pick it back up this week.' };
+}
+function outreach_(body) {
+  var kind = String(body.kind || ''), sub = String(body.sub || '');
+  if (!/^(winback|upsell|spring)$/.test(kind)) return { ok:false, error:'unknown kind' };
+  if (sub && !OUTREACH_REASONS[sub] && !/^(twice|deo|day)$/.test(sub)) return { ok:false, error:'unknown reason' };
+  var sh = sheet_(), p = latestRow_(sh, String(body.id || '')); if (!p) return { ok:false, error:'not found' };
+  if (kind === 'winback' && !sub) sub = leaveReason_(p) || 'other';
+  var email = String(p.email || '').trim(), n = String(p.crmnotes || '');
+  var o = outreachText_(kind, sub, p);
+  if (o.stop) return { ok:false, error: o.stop };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok:false, error:'no email' };
+  if (/\[(NOEM|TM):/.test(n)) return { ok:false, error:'they asked for no emails' };
+  if (body.preview) return { ok:true, preview:true, to: email, subject: o.subject, body: o.body + WE_FOOTER, sub: sub };
+  if (!officeMailReady_()) return { ok:false, error: NO_OFFICE_MAIL };
+  // the office may have edited the wording in the tracker; the footer always goes on
+  var subject = typeof body.subject === 'string' && body.subject.trim() ? body.subject.trim().slice(0, 200) : o.subject;
+  var text = typeof body.text === 'string' && body.text.trim() ? body.text.replace(/\n*— Corey\nCL Professional Pet Services LLC[\s\S]*$/, '').trim().slice(0, 6000) : o.body;
+  try { sendCustomerMail_({ to: email, subject: subject, body: text + WE_FOOTER }); } catch (e) { return { ok:false, error: String(e && e.message || e).slice(0, 120) }; }
+  var today = new Date().toISOString().slice(0, 10), rows = sh.getDataRange().getValues(), idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes'), marker = kind + '-' + sub + '@' + today;
+  for (var i = 1; i < rows.length; i++) if (String(rows[i][idCol]) === String(p.id)) sh.getRange(i + 1, nCol + 1).setValue(safeCell_(sgSetMarkers_(String(rows[i][nCol] || ''), { OU: marker })));
+  return { ok:true, date: today, marker: marker };
+}
+/* Every March, one note to the people who left for the winter or are on a
+   pause with no return date: we are back on your street. Switch: spring_emails. */
+function springFor_(p) {
+  var st = String(p.status || ''), n = String(p.crmnotes || '');
+  if (/\[(CM:1|TM:1)\]/.test(n)) return false;
+  if (st === 'cancelled') { var cx = (n.match(/\[CX:(\d{4}-\d{2}-\d{2})\]/) || [])[1]; return /\[CXR:season\]/.test(n) && !!cx && ageDays_(cx) <= 400; }
+  if (st === 'closed') { var pz = (n.match(/\[PZ:([^\]]*)\]/) || [])[1]; if (!pz) return false; var to = pz.split('~')[1] || ''; return !to; }
+  return false;
+}
+function springRestart() {
+  return round_('Spring restart', 'spring_emails', function(E, today, send) {
+    if (today.slice(5, 7) !== '03') return;
+    var tag = 'spring' + today.slice(0, 4);
+    E.people.forEach(function(p) {
+      if (!E.mailable(p) || !springFor_(p) || String(p.crmnotes || '').indexOf('[EM:' + tag + '@') >= 0) return;
+      var o = outreachText_('spring', '', p); send(p, o.subject, o.body, { EM: tag + '@' + today });
+    });
+  });
+}
+/* ---- the customer page: a private link per customer ----
+   clpropetservices.com/account/?t=<id>.<signature>. The signature is an
+   HMAC of the record id with a secret only the script holds (made on first
+   use, Script Property ACCOUNT_SECRET), so a link cannot be guessed from
+   another one. Changing that property retires every link at once. */
+function acctSecret_() {
+  var pr = PropertiesService.getScriptProperties(), s = pr.getProperty('ACCOUNT_SECRET');
+  if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); pr.setProperty('ACCOUNT_SECRET', s); }
+  return s;
+}
+function hex_(bytes) { return bytes.map(function(b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join(''); }
+function acctToken_(id) { return String(id) + '.' + hex_(Utilities.computeHmacSha256Signature(String(id), acctSecret_())).slice(0, 24); }
+function acctLink_(id) { return ACCOUNT_URL + encodeURIComponent(acctToken_(id)); }
+function refLink_(p) { return SITE_URL + '?ref=' + refCode_(p.id, p.name); }
+function namesOf_(p) { var o = {}; o[sgNorm_(p.name)] = 1; var aka = (String(p.crmnotes || '').match(/\[AKA:([^\]]*)\]/) || [])[1]; if (aka) o[sgNorm_(aka)] = 1; return o; }
+function account_(t) {
+  t = String(t || ''); var dot = t.lastIndexOf('.'); if (dot < 1 || t.length > 120) return { ok:false, error:'not found' };
+  var id = t.slice(0, dot); if (acctToken_(id) !== t) return { ok:false, error:'not found' };
+  var cache = null, ck = 'acct_' + t.slice(-24); try { cache = CacheService.getScriptCache(); var hit = cache.get(ck); if (hit) return JSON.parse(hit); } catch (e) {}
+  var p = latestRow_(sheet_(), id); if (!p) return { ok:false, error:'not found' };
+  var st = String(p.status || ''); if (st !== 'closed' && st !== 'cancelled') return { ok:false, error:'not found' };
+  var n = String(p.crmnotes || ''), names = namesOf_(p), today = new Date().toISOString().slice(0, 10);
+  var pz = (n.match(/\[PZ:([^\]]*)\]/) || [])[1] || '', paused = !!pz && (!pz.split('~')[0] || pz.split('~')[0] <= today) && (!pz.split('~')[1] || pz.split('~')[1] >= today);
+  var out = { ok:true, first: String(p.name || '').trim().split(/\s+/)[0] || '', status: st === 'cancelled' ? 'closed' : paused ? 'paused' : 'active', back: paused ? (pz.split('~')[1] || '') : '',
+    plan: String(p.service || ''), dogs: String(p.dogs || ''), price: String(p.price || '').split(',')[0], days: streetDays_(p), since: (n.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '',
+    visits: [], photos: {}, open: [], openTotal: 0, paid: [], payLink: payLink_(), refLink: refLink_(p), refUsed: 0, phone: '(636) 375-4342', email: 'info@clpropetservices.com' };
+  try {
+    var js = jobsSheet_();
+    if (js.getLastRow() > 1) {
+      var jr = js.getRange(2, 1, js.getLastRow() - 1, JOBS_HEADERS.length).getValues(), JH = {}; JOBS_HEADERS.forEach(function(h, i) { JH[h] = i; });
+      out.visits = jr.filter(function(r) { return names[sgNorm_(r[JH.client])]; }).map(function(r) { return { date: String(r[JH.date] || '').slice(0, 10), status: String(r[JH.status] || ''), skip: String(r[JH.skip_reason] || ''), start: String(r[JH.start] || ''), minutes: Math.round(parseFloat(r[JH.minutes]) || 0), tech: String(r[JH.tech] || '').split(/\s+/)[0] }; })
+        .sort(function(a, b) { return a.date < b.date ? 1 : -1; }).slice(0, 12);
+    }
+  } catch (e) {}
+  try { out.photos = visitPhotos_(names, out.visits.filter(function(v) { return v.status === 'completed'; }).map(function(v) { return v.date; }).slice(0, 4)); } catch (e) {}
+  try { out.open = openInvoices_(p).map(function(i) { return { number: i.number, date: i.date, amount: i.amount, total: i.total, status: i.status, period: i.period, periodEnd: i.periodEnd }; }); out.openTotal = Math.round(out.open.reduce(function(a, i) { return a + i.amount; }, 0) * 100) / 100; } catch (e) {}
+  try {
+    var bs = billingSheet_();
+    if (bs.getLastRow() > 1) {
+      var br = bs.getRange(2, 1, bs.getLastRow() - 1, BILLING_HEADERS.length).getValues(), BH = {}; BILLING_HEADERS.forEach(function(h, i) { BH[h] = i; });
+      out.paid = br.filter(function(r) { var s = String(r[BH.status] || '').toLowerCase(); return r[BH.kind] === 'payment' && (s === 'succeeded' || s === 'paid') && names[sgNorm_(r[BH.client])]; })
+        .map(function(r) { return { date: String(r[BH.date] || '').slice(0, 10), amount: Math.round((parseFloat(r[BH.total]) || 0) * 100) / 100, how: String(r[BH.pay_type] || '') }; })
+        .sort(function(a, b) { return a.date < b.date ? 1 : -1; }).slice(0, 6);
+    }
+  } catch (e) {}
+  try { var code = refCode_(p.id, p.name), all = sheet_().getDataRange().getValues(), nc = HEADERS.indexOf('crmnotes'); for (var i = 1; i < all.length; i++) if (String(all[i][nc] || '').indexOf('[RF:' + code + ']') >= 0) out.refUsed++; } catch (e) {}
+  try { if (cache) cache.put(ck, JSON.stringify(out), 600); } catch (e) {}
+  return out;
+}
+/* ---- referral links into customers' hands ----
+   Every active customer already has a link; this sends it to them, once in
+   six months, 30 a tap (tap again for the next 30). Stamped [RI:date]. */
+function refInviteList_(E) {
+  var cut = new Date(Date.now() - 180 * DAY_MS).toISOString().slice(0, 10);
+  return E.people.filter(function(p) {
+    var n = String(p.crmnotes || ''), ri = (n.match(/\[RI:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '';
+    return String(p.status) === 'closed' && E.mailable(p) && !/\[CM:1\]/.test(n) && !sgOutOfCount_(n, p.name, E.paying) && (!ri || ri < cut);
+  });
+}
+function refInviteText_(p) {
+  var first = String(p.name || '').trim().split(/\s+/)[0] || 'there';
+  return { subject: first + ', your own referral link', body: 'Hi ' + first + ',\n\nIt’s Corey with CL Professional Pet Services. Thank you for having us. Most of our new customers come from neighbors, so here is a link that is yours alone:\n\n' + refLink_(p) + '\n\nWhen a friend or neighbor signs up through it, your next visit includes a free deodorizing and sanitizing treatment. There is no limit.\n\nYour account page, with every visit, photo and invoice, is here any time:\n' + acctLink_(p.id) };
+}
+function refInvite_(body) {
+  var E = emailRows_(), list = refInviteList_(E);
+  if (body.preview) { var s = list[0] ? refInviteText_(list[0]) : null; return { ok:true, preview:true, count: list.length, subject: s ? s.subject : '', body: s ? s.body + WE_FOOTER : '', first: list[0] ? String(list[0].name || '') : '' }; }
+  if (!officeMailReady_()) return { ok:false, error: NO_OFFICE_MAIL };
+  var today = new Date().toISOString().slice(0, 10), sent = 0, failed = 0;
+  list.slice(0, 30).forEach(function(p) { var t = refInviteText_(p); try { sendCustomerMail_({ to: String(p.email).trim(), subject: t.subject, body: t.body + WE_FOOTER }); E.stamp(p, { RI: today }); sent++; } catch (e) { failed++; } });
+  return { ok:true, sent: sent, failed: failed, left: Math.max(0, list.length - sent - failed) };
+}
 function dailyEmails() {
   var out = {};
-  [['followups', quoteFollowups], ['welcome', welcomeEmails], ['cards', cardFailedEmails], ['winback', winbackEmails], ['revival', leadRevival], ['referral', referralThanks], ['anniversary', anniversaryEmails], ['campaigns', campaignsDue]].forEach(function(j) {
+  [['followups', quoteFollowups], ['welcome', welcomeEmails], ['cards', cardFailedEmails], ['winback', winbackEmails], ['revival', leadRevival], ['referral', referralThanks], ['anniversary', anniversaryEmails], ['campaigns', campaignsDue], ['spring', springRestart]].forEach(function(j) {
     try { out[j[0]] = j[1](); } catch (e) { out[j[0]] = { ok:false, error: String(e && e.message || e).slice(0, 160) }; }
   });
   if (new Date().getDay() === 1) { try { out.reminders = paymentReminders(); } catch (e) { out.reminders = { ok:false, error: String(e && e.message || e) }; } }

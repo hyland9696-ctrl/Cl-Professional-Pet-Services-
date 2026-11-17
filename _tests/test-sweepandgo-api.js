@@ -85,6 +85,7 @@ const { ok, done } = reporter();
   const p = await ctx.newPage();
   await p.clock.install({ time: new Date('2026-11-12T15:00:00Z') });   // a Thursday
   const errs = []; p.on('pageerror', e => errs.push(e.message));
+  const outreaches = [], refinvites = [];
   const posts = [], sgcreates = [], pricemoves = [], reminders = [], spoken = [], listDeltas = []; let deltaRows = [];
   await p.addInitScript(() => { window.__spoken = []; Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { cancel(){}, speak(u){ window.__spoken.push(u.text); setTimeout(() => u.onend && u.onend(), 50); } } }); Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, value: function(t){ this.text = t; } }); });
   p.on('dialog', d => d.accept());
@@ -133,6 +134,9 @@ const { ok, done } = reporter();
     if (body.action === 'quota') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, office:true, from:'info@clpropetservices.com', remaining: 10000 }) });
     if (body.action === 'list' && body.since){ listDeltas.push(body.since); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, delta:true, since: body.since, leads: deltaRows }) }); }
     if (body.action === 'payremind'){ reminders.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify(body.preview ? { ok:true, preview:true, to:'eddie@gmail.com', subject:'Your account with CL Professional Pet Services', body:'Hi Eddie,\n\n  Invoice 2 · issued Jul 5, 2026\n    Service Jul 1 – Jul 31, 2026 (monthly service)\n    $95.00 billed · $0.00 paid · $95.00 open\n    Overdue\n    Visits: Jul 3 (Jesse, 9 min, photo attached)\n\n  Invoice 5 · issued Aug 2, 2026\n    $95.00 billed · $0.00 paid · $95.00 open\n    Open, not yet paid\n\n  Total open: $190.00\n\nPay now: https://pay.example', items:[{}, {}], total:190, link:true, visits:1, photos:1 } : { ok:true, date:'2026-11-12' }) }); }
+    if (body.action === 'outreach'){ outreaches.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify(body.preview ? { ok:true, preview:true, to:'pam@gmail.com', subject:'Pam, your old price is still here', body:'Hi Pam,\n\nYour old price of $85/mo is locked for a full year.\n\n\u2014 Corey\nCL Professional Pet Services LLC \u00b7 St. Peters', sub: body.sub } : { ok:true, date:'2026-11-12', marker: body.kind + '-' + body.sub + '@2026-11-12' }) }); }
+    if (body.action === 'acctlink') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, url:'https://clpropetservices.com/account/?t=E1.abc123', ref:'https://clpropetservices.com/?ref=eddie-x1y' }) });
+    if (body.action === 'refinvite'){ refinvites.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify(body.preview ? { ok:true, preview:true, count: 41, first:'Dana Deo', subject:'Dana, your own referral link', body:'Hi Dana,\n\nhttps://clpropetservices.com/?ref=dana-abc' } : { ok:true, sent: 30, failed: 0, left: 11 }) }); }
     if (body.action === 'pricemove'){ pricemoves.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, sent: body.items.map(i => i.id), failed: [], date: body.date }) }); }
     if (body.action === 'billingcsv') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, rows: 2, csv: 'kind,number,date,client\ninvoice,1,2026-11-02,Dana Deo\npayment,,2026-11-02,Dana Deo\n', months: 'month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced\n2026-11,8078,0,6796,2154,40,16,86\n', miles: 'month,miles,days_driven\n2026-11,612,9\n' }) });
     if (body.action === 'sgsync') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, clients: 94, added: 0, updated: 3, errors: [] }) });
@@ -266,7 +270,7 @@ const { ok, done } = reporter();
   await p.click('#pr-auto-box'); await p.waitForTimeout(400);
   ok('ticking it writes the setting the Monday job reads', posts.some(x => x.action === 'lead' && x.lead && x.lead.type === 'CONFIG' && x.lead.name === 'pay_reminders' && x.lead.notes === 'on' && x.key));
   ok('the week line counts what the automatic emails sent, from the stamps on the cards', /This week: 1 follow-up · 0 welcomes · 0 payment reminders · 0 other/.test((await p.textContent('#email-week')).replace(/\s+/g, ' ')), await p.textContent('#email-week'));
-  ok('the five other rounds each have a switch, off, that explains itself', (await p.$$('#auto-switches input[type=checkbox]')).length === 5 && !(await p.isChecked('#sw-revival_emails')) && /Revival: quotes that never went ahead\./.test(await p.textContent('#auto-switches')) && /Card failed, same night\./.test(await p.textContent('#auto-switches')) && /A year with us\./.test(await p.textContent('#auto-switches')));
+  ok('the six other rounds each have a switch, off, that explains itself', (await p.$$('#auto-switches input[type=checkbox]')).length === 6 && /Spring restart, every March\./.test(await p.textContent('#auto-switches')) && !(await p.isChecked('#sw-revival_emails')) && /Revival: quotes that never went ahead\./.test(await p.textContent('#auto-switches')) && /Card failed, same night\./.test(await p.textContent('#auto-switches')) && /A year with us\./.test(await p.textContent('#auto-switches')));
   ok('what price closes waits for eight quotes with prices before it says anything', !/What price closes/.test(await p.textContent('#insights')));
   await p.click('#sw-revival_emails'); await p.waitForTimeout(400);
   ok('ticking one writes its setting, signed', posts.some(x => x.action === 'lead' && x.lead && x.lead.type === 'CONFIG' && x.lead.name === 'revival_emails' && x.lead.notes === 'on' && x.key));
@@ -311,7 +315,7 @@ const { ok, done } = reporter();
   const bill = (await p.textContent('#billing')).replace(/\s+/g, ' ');
   ok('this month billed and collected, with last month beside each', /\$8,078\s*billed Nov · \$8,144 last month/.test(bill) && /\$6,796\s*collected Nov · \$6,332 last month/.test(bill), bill.slice(0, 400));
   ok('the year so far, and what is still unpaid', /\$16,222\s*billed 2026 · \$13,128 collected/.test(bill) && /\$3,866\s*invoiced this year, still unpaid/.test(bill), bill.slice(0, 500));
-  ok('who owes what, with Draft explained', /Owed\s*2 customers · \$255/.test(bill) && /Eddie Eow 1 overdue, 1 draft · since 2026-10-05\s*\$190/.test(bill) && /Draft means Sweep&Go generated it and never sent it/.test(bill), bill.slice(bill.indexOf('Owed'), bill.indexOf('Owed') + 300));
+  ok('who owes what, with Draft explained', /Owed\s*2 customers · \$255/.test(bill) && /Eddie Eow 1 overdue, 1 draft · since 2026-10-05[^$]*\$190/.test(bill) && /Draft means Sweep&Go generated it and never sent it/.test(bill), bill.slice(bill.indexOf('Owed'), bill.indexOf('Owed') + 300));
   ok('cards declining are listed with the date and the amount', /Cards declining\s*1.*Eddie Eow failed 2026-11-08\s*\$95/.test(bill), bill.slice(bill.indexOf('Cards declining'), bill.indexOf('Cards declining') + 160));
   ok('somebody not in the tracker is listed without a link', /Nobody Known 1 failed/.test(bill) && (await p.$$('#billing a:has-text("Nobody Known")')).length === 0);
   await p.click('#billing button:has-text("On their card")'); await p.waitForTimeout(400);
@@ -365,6 +369,52 @@ const { ok, done } = reporter();
   ok('a tap on its heading opens it, like every other card', !(await p.$eval('#reviews', e => e.classList.contains('folded'))) && /Text the ask|Already asked|No Google review link|nobody/.test((await p.textContent('#reviews')).replace(/\s+/g, ' ')), (await p.textContent('#reviews')).replace(/\s+/g, ' ').slice(0, 200));
   await p.click('#reviews > :first-child > div:first-child'); await p.waitForTimeout(200);
   ok('and again closes it, remembered on the phone', await p.$eval('#reviews', e => e.classList.contains('folded')) && (await p.evaluate(() => localStorage.getItem('clpps_fold_reviews'))) === 'shut');
+  /* ---- win back and grow ---- */
+  await p.evaluate(() => {
+    leads.push({ id:'WP', type:'SAVED', name:'Pricey Pam', phone:'6363750060', email:'pam@gmail.com', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'cancelled', crmnotes:'[CD:2025-03-01] [CX:2026-09-01] [CXR:price] ', created:'2025-03-01T12:00:00Z' });
+    leads.push({ id:'WG', type:'SAVED', name:'Grumpy Gus', phone:'6363750061', email:'gus@gmail.com', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'cancelled', crmnotes:'[CD:2025-03-01] [CX:2026-09-02] [CXR:service] ', created:'2025-03-01T12:00:00Z' });
+    leads.push({ id:'WD', type:'SAVED', name:'Dogless Dot', phone:'6363750062', email:'dot@gmail.com', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'cancelled', crmnotes:'[CD:2025-03-01] [CX:2026-09-02] [CXR:nodog] ', created:'2025-03-01T12:00:00Z' });
+    leads.push({ id:'WS', type:'SAVED', name:'Snowy Sue', phone:'6363750063', email:'sue@gmail.com', zip:'63376', dogs:'1', service:'weekly', price:'$70/mo', status:'cancelled', crmnotes:'[CD:2025-03-01] [CX:2026-03-10] [CXR:season] ', created:'2025-03-01T12:00:00Z' });
+    leads.push({ id:'WL', type:'ENQUIRY', name:'Lapsed Lena', phone:'6363750064', email:'lena@gmail.com', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'lost', crmnotes:'[DR:price] ', created:'2026-08-01T12:00:00Z' });
+    leads.push({ id:'WR', type:'SAVED', name:'Returned Rita', phone:'6363750065', email:'rita@gmail.com', zip:'63376', dogs:'3', service:'weekly', deodorize:'no', price:'$80/mo', status:'closed', crmnotes:'[CD:2026-10-20] [OU:winback-price@2026-10-01] ', created:'2025-03-01T12:00:00Z' });
+    foldAll(true); render();
+  });
+  await p.waitForTimeout(300);
+  const wb = (await p.textContent('#winback')).replace(/\s+/g, ' ');
+  ok('Win back: everyone who left or passed, grouped by why, each group with its offer', /Left over cost · 1 · old price locked a year, no restart fee\s*Pricey Pam \$85\/mo · left 2026-09-01/.test(wb) && /Unhappy with the service · 1 · a call from Corey/.test(wb) && /Passed on price · 2 · \$40 off and the price locked a year\s*Quote Quinn[^·]*· quoted 2026-10-01\s*✉️ Note\s*Lapsed Lena/.test(wb), wb.slice(600, 1600));
+  ok('the one who left for the winter is in Spring restart; the one who lost the dog is left alone, counted not named', /Ready for spring · 1 · we are back on your street\s*Snowy Sue/.test(wb) && !/Dogless Dot/.test(wb) && /1 left alone on purpose/.test(wb), wb);
+  ok('came back: Rita restarted three weeks after her win-back note, with the dollars it brought back', /Came back: 1 · \$80\/mo/.test(wb) && /Returned Rita · win-back left over cost 2026-10-01, back 2026-10-20 · \$80\/mo/.test(wb), wb.slice(0, 400));
+  ok('the unhappy one gets a Call button, not a note', /Grumpy Gus[^·]*· left 2026-09-02\s*📞 Call/.test(wb));
+  ok('the folded heading says how many and how many came back', /to win back · 1 came back, \$80\/mo/.test(await p.$eval('#winback .fsum', e => e.textContent)));
+  await p.click('#winback div:has(> span > a:text("Pricey Pam")) .ou-btn'); await p.waitForTimeout(400);
+  ok('Note asks the script for the email written for her reason, nothing sent yet', outreaches.length === 1 && outreaches[0].preview === true && outreaches[0].id === 'WP' && outreaches[0].kind === 'winback' && outreaches[0].sub === 'price', JSON.stringify(outreaches));
+  ok('the email is shown editable, without the signature, which goes on by itself', await p.isVisible('#ou-body') && (await p.inputValue('#ou-subject')) === 'Pam, your old price is still here' && /locked for a full year\.$/.test(await p.inputValue('#ou-body')));
+  await p.fill('#ou-body', 'Hi Pam,\n\nWe would love you back.'); await p.click('#ou-send'); await p.waitForTimeout(400);
+  ok('Send it sends the edited words and the card remembers, so she waits 60 days', outreaches.length === 2 && !outreaches[1].preview && outreaches[1].text === 'Hi Pam,\n\nWe would love you back.' && !(await p.isVisible('#stmt')) && /Pricey Pam[^·]*· left 2026-09-01\s*noted 2026-11-12/.test((await p.textContent('#winback')).replace(/\s+/g, ' ')), JSON.stringify(outreaches[1]));
+  const up = (await p.textContent('#upsell')).replace(/\s+/g, ' ');
+  ok('Upsell: three dogs once a week gets the second-visit offer; deodorize waits for April in November', /Three or more dogs, once a week · 1 · offer a second weekly visit\s*Returned Rita/.test(up) && /The deodorize offers come back in April/.test(up), up);
+  /* the save call on the At risk list */
+  const riskT = (await p.textContent('#risk')).replace(/\s+/g, ' ');
+  ok('each at-risk customer has a save call: a script with their warning signs and four outcomes', /Save call/.test(riskT) && /What we are seeing: card declining since 2026-11-08/.test(riskT) && /Staying\s*Offer made\s*Leaving anyway\s*No answer/.test(riskT), riskT.slice(0, 600));
+  await p.evaluate(() => { document.querySelector('#risk details').open = true; });
+  await p.click('#risk details button:has-text("Staying")'); await p.waitForTimeout(300);
+  ok('logging the call stamps the card and the list shows it', posts.some(x => x.action === 'update' && x.id === 'E1' && /\[SC:kept@2026-11-12\]/.test(x.notes)) && /last: staying 2026-11-12/.test(await p.textContent('#risk')));
+  /* the collections ladder and the route flag */
+  const owedTxt = (await p.textContent('#billing')).replace(/\s+/g, ' ');
+  ok('the Owed list says which notice is due: Eddie is five weeks behind, notice 3', /Eddie Eow[^$]*no notice yet · notice 3 due/.test(owedTxt), owedTxt.slice(owedTxt.indexOf('Eddie Eow'), owedTxt.indexOf('Eddie Eow') + 160));
+  await p.evaluate(() => { billing.unpaid.push({ name:'Dana Deo', owed: 302, n: 2, oldest:'2026-08-01', statuses: { overdue: 2 } }); render(); });
+  const sched2 = (await p.textContent('#schedule')).replace(/\s+/g, ' ');
+  ok('a stop unpaid 60 days or more is flagged on the route', /Dana Deo[^⛔]*⛔ unpaid since 2026-08-01, check before cleaning/.test(sched2), sched2.slice(sched2.indexOf('Dana Deo'), sched2.indexOf('Dana Deo') + 200));
+  await p.evaluate(() => { billing.unpaid.pop(); render(); });
+  /* the account page link on a card */
+  await p.evaluate(() => accountLink('E1')); await p.waitForTimeout(300);
+  ok('a customer card fetches their private account link, ready to copy or text', /account\/\?t=E1\.abc123/.test(await p.textContent('#acct-E1')) && (await p.$$('#acct-E1 a[href^="sms:"]')).length === 1);
+  /* referral links to everyone */
+  await p.evaluate(() => refInvite(false)); await p.waitForTimeout(300);
+  ok('Send referral links shows who gets one and the email first', refinvites.length === 1 && refinvites[0].preview === true && /41 active customers/.test(await p.textContent('#stmt')) && /Send 30 now/.test(await p.textContent('#stmt')));
+  await p.click('#stmt button:has-text("Send 30 now")'); await p.waitForTimeout(300);
+  ok('and sends 30 a tap', refinvites.length === 2 && !refinvites[1].preview && !(await p.isVisible('#stmt')));
+  await p.evaluate(() => { leads = leads.filter(l => !/^W[PGDSLR]$/.test(l.id)); foldAll(false); render(); });
   ok('no page errors', errs.length === 0, errs.join('; '));
   await ctx.close(); await b.close();
   done();

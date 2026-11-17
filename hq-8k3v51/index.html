@@ -197,6 +197,8 @@
     <div id="dormant" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="cash" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="expand" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
+    <div id="winback" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
+    <div id="upsell" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="billing" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="revenue" style="display:none;background:#0F6E56;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;font-weight:600;"></div>
     <div id="roi" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
@@ -389,6 +391,7 @@
       <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="we-auto-box" onchange="toggleWelcomeEmails(this.checked)" style="margin-top:3px;"><span><strong>Welcome sequence for new customers.</strong> <span class="office-note" style="color:#b45309;"></span> The day after someone starts, a what-to-expect email with their day and how to reach us. A month in, a how-are-we-doing with the Google review link (counts as the review ask, so the card does not ask again). Nothing for paused customers or opt-outs. <span id="we-stat" style="color:#0F6E56;"></span></span></label>
       <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="pr-auto-box" onchange="togglePayReminders(this.checked)" style="margin-top:3px;"><span><strong>Payment reminders every Monday.</strong> <span class="office-note" style="color:#b45309;"></span> Anyone 14 or more days behind gets one plain note from the office with the amount; never twice inside 14 days, never to opt-outs. The Remind button on the Owed list does the same for one person. <span id="pr-stat" style="color:#0F6E56;"></span></span></label>
       <div id="auto-switches"></div>
+      <div style="display:flex;align-items:center;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;flex-wrap:wrap;"><span style="flex:1 1 200px;"><strong>Referral links to every customer.</strong> Each active customer gets their own link and their account page, once in six months. You see the email first.</span><button class="copybtn" onclick="refInvite(false)">&#128279; Send referral links</button></div>
       <div style="font-weight:700;font-size:13px;margin:4px 0;">Campaign calendar</div>
       <div style="font-size:11.5px;color:#707070;margin-bottom:6px;">Four seasonal emails, each on its date, once a year, to the people it is for. Tick the ones you want; change a date if you like. Each needs the office mailbox, like everything else here.</div>
       <div id="campaign-cal" style="margin-bottom:10px;"></div>
@@ -1637,13 +1640,13 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', cf: '', wk: '', lr: '', rt: '', an: '', ng: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', cf: '', wk: '', lr: '', rt: '', an: '', ng: '', ou: '', pl: '', ri: '', sc: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
   // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
   // ll = lat,lng from Sweep&Go's dispatch board; sgid = their client id. Both written by the nightly sync.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR|CF|WK|LR|RT|AN|NG):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR|CF|WK|LR|RT|AN|NG|OU|PL|RI|SC):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1695,6 +1698,10 @@ function fuParse(crmnotes){
     else if (hit[1] === 'LR') m.lr = hit[2];                                 // revival email to a quote that never went ahead, date
     else if (hit[1] === 'RT') m.rt = hit[2];                                 // referral thank-you sent, date
     else if (hit[1] === 'AN') m.an = hit[2];                                 // anniversary email: year@date
+    else if (hit[1] === 'OU') m.ou = hit[2];                                 // a one-off note from the Win back or Upsell card: kind-sub@date
+    else if (hit[1] === 'PL') m.pl = hit[2];                                 // collections ladder: the notice sent, step@date
+    else if (hit[1] === 'RI') m.ri = hit[2];                                 // referral link emailed, date
+    else if (hit[1] === 'SC') m.sc = hit[2];                                 // save call: outcome@date
     else if (hit[1] === 'NG') m.ng = hit[2];                                 // the hour-later nudge went to the phones                                 // price move: new@effective date
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
@@ -1743,7 +1750,7 @@ function fuCompose(m){
          (m.fe ? m.fe.split(',').map(function(x){ return '[FE:' + x + '] '; }).join('') : '') +
          (m.we ? m.we.split(',').map(function(x){ return '[WE:' + x + '] '; }).join('') : '') +
          (m.pm ? '[PM:' + m.pm + '] ' : '') +
-         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.cf ? '[CF:' + m.cf + '] ' : '') + (m.wk ? '[WK:' + m.wk + '] ' : '') + (m.lr ? '[LR:' + m.lr + '] ' : '') + (m.rt ? '[RT:' + m.rt + '] ' : '') + (m.an ? '[AN:' + m.an + '] ' : '') + (m.ng ? '[NG:' + m.ng + '] ' : '') + (m.text || '');
+         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.cf ? '[CF:' + m.cf + '] ' : '') + (m.wk ? '[WK:' + m.wk + '] ' : '') + (m.lr ? '[LR:' + m.lr + '] ' : '') + (m.rt ? '[RT:' + m.rt + '] ' : '') + (m.an ? '[AN:' + m.an + '] ' : '') + (m.ng ? '[NG:' + m.ng + '] ' : '') + (m.ou ? '[OU:' + m.ou + '] ' : '') + (m.pl ? '[PL:' + m.pl + '] ' : '') + (m.ri ? '[RI:' + m.ri + '] ' : '') + (m.sc ? '[SC:' + m.sc + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -3760,6 +3767,7 @@ var AUTO_SWITCHES = [
   { key: 'winback_emails', title: 'Win-back, a month after leaving.', text: 'Thirty days after an account closes, one come-back note: no initial clean fee to restart, old price holds. Not to anyone who moved or lost the dog.' },
   { key: 'revival_emails', title: 'Revival: quotes that never went ahead.', text: 'Anyone who got a price 30+ days ago and never signed up, or said no, gets one note: the quote still stands, the $40 initial clean is waived this month. Once, ever, per person. The older ones go out over a few days.' },
   { key: 'referral_emails', title: 'Referral thank-you.', text: 'When someone a customer referred starts, the customer gets a thank-you from the office saying the free deodorize is on the next visit, and the phones get a reminder to add it in Sweep&Go.' },
+  { key: 'spring_emails', title: 'Spring restart, every March.', text: 'In March, everyone who left for the winter or is paused with no return date gets one note: we are back on your street, old price, no restart fee. Once a year per person. The Win back card lists who.' },
   { key: 'anniversary_emails', title: 'A year with us.', text: 'On the anniversary of their start, a thank-you from the office with a free deodorize on the next visit. Every year, once.' }
 ];
 function autoOn(key){ var c = config[key]; return !!c && String(c.value) === 'on'; }
@@ -4914,7 +4922,7 @@ function renderSchedule(){
   var s = scheduleStats(), total = activeRecurring().length, placed = total - s.unset.length;
   var rp = routePlan();
   var maxN = 1; DAYS.forEach(function(d){ maxN = Math.max(maxN, s.by[d[0]].n); });
-  var person = function(l){ var pp = parsePrice(l); return '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(l.name || '(no name)') + '</a> <span style="color:#707070;">' + esc(dogsLabel(l.dogs)) + (visitsPerWeek(l) !== 1 ? ' &middot; ' + esc(planLabel(l.service)) : '') + (pp ? ' &middot; $' + pp.amt : '') + (String(l.deodorize || '').match(/every/i) && !wantsDeoLater(l) ? ' &middot; deo' : '') + '</span>'; };
+  var person = function(l){ var pp = parsePrice(l); return '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(l.name || '(no name)') + '</a> <span style="color:#707070;">' + esc(dogsLabel(l.dogs)) + (visitsPerWeek(l) !== 1 ? ' &middot; ' + esc(planLabel(l.service)) : '') + (pp ? ' &middot; $' + pp.amt : '') + (String(l.deodorize || '').match(/every/i) && !wantsDeoLater(l) ? ' &middot; deo' : '') + '</span>' + (function(){ var u = longUnpaid(l); return u ? ' <span style="color:#c0392b;font-weight:700;" title="Unpaid since ' + esc(u.oldest) + '">&#9940; unpaid since ' + esc(String(u.oldest).slice(0, 10)) + ', check before cleaning</span>' : ''; })(); };
   var h = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128197; Schedule</div>' +
     '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">Active recurring customers by service day, grouped by town. ' + placed + ' of ' + total + ' placed on a day' + (total && !placed ? ' &mdash; set the day on each active card and this fills in' : '') + '.</div>';
   if (placed){
@@ -4990,7 +4998,7 @@ function loadJobs(force){
   if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_jobs') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ jobsData = c.data; renderJobs(); return; } } catch (e) {} }
   fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'jobs', key: KEY }) })
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (d && d.ok && (d.byDate || d.empty)){ jobsData = d; try { localStorage.setItem('clpps_jobs', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderJobs(); renderRisk(); renderDormant(); renderGlance(); renderSchedule(); renderFoldSums(); if (ownerOpen) renderOwner(); } })
+    .then(function(d){ if (d && d.ok && (d.byDate || d.empty)){ jobsData = d; try { localStorage.setItem('clpps_jobs', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderJobs(); renderRisk(); renderDormant(); renderUpsell(); renderGlance(); renderSchedule(); renderFoldSums(); if (ownerOpen) renderOwner(); } })
     .catch(function(){});
 }
 function sgRoutesByDate(){ var c = config.sg_routes; if (!c) return {}; try { return JSON.parse(c.value) || {}; } catch (e) { return {}; } }
@@ -5245,7 +5253,7 @@ function renderRisk(){
       return '<div style="padding:7px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
         '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><a href="#card-' + esc(r.l.id) + '" onclick="jumpToLead(\'' + esc(r.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(r.l.name || '(no name)') + '</a>' +
         (d ? '<a href="sms:' + esc(d) + '?&body=' + encodeURIComponent(body).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(r.l.id) + '\')" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:6px 10px;font-size:11.5px;font-weight:700;text-decoration:none;white-space:nowrap;">&#128172; Check in</a>' : '') + '</div>' +
-        '<div style="color:#b45309;margin-top:2px;">' + r.why.map(esc).join(' &middot; ') + '</div></div>'; }).join('');
+        '<div style="color:#b45309;margin-top:2px;">' + r.why.map(esc).join(' &middot; ') + '</div>' + saveCallRow(r.l, r.why) + '</div>'; }).join('');
   box.innerHTML = h;
 }
 
@@ -5266,6 +5274,262 @@ function renderDormant(){
         }).join('');
     }).join('');
   box.innerHTML = h;
+}
+
+/* ============================================================
+   WIN BACK AND GROW. Jesse: "a button to get people who passed and
+   people who stopped service back with us". Two cards: Win back (everyone
+   who left or passed, grouped by why, each with a note written for that
+   reason) and Upsell (customers likely to say yes to more). Every note is
+   drawn up by the script, shown here, editable, and sent on the second
+   tap from the office mailbox. Came back: anyone who restarted after one
+   of our notes, with the dollars it brought back.
+   ============================================================ */
+var LEAVE_ALONE_JS = { nodog: 1, nonpay: 1, byus: 1 };
+var WB_LEFT = [['price', 'Left over cost', 'old price locked a year, no restart fee'], ['season', 'Left for the winter', 'the spring restart note'], ['competitor', 'Went to another company', 'come back, photo every visit'], ['diy', 'Doing it themselves', 'want your Saturdays back'], ['moved', 'Moved', 'did you stay in the area'], ['other', 'No reason given', 'old price holds, no restart fee'], ['service', 'Unhappy with the service', 'a call from Corey, not an email']];
+var WB_PASSED = [['price', 'Passed on price', '$40 off and the price locked a year'], ['elsewhere', 'Went with someone else', 'if it is not working out'], ['comparing', 'Were comparing', 'if it is not working out'], ['timing', 'Bad timing', 'is now a better time'], ['diy', 'Doing it themselves', 'want your Saturdays back'], ['other', 'Never said why', 'the quote still stands']];
+/* the last time we reached out to them, any way: our notes, the old automatic ones, a text */
+function lastOutreach(l){
+  var fu = fuParse(l.crmnotes), best = '';
+  [String(fu.ou || '').split('@')[1], fu.wk, fu.lr, fu.wc !== 'skip' ? fu.wc : '', fu.wb].forEach(function(d){ if (d && /^\d{4}-\d{2}-\d{2}/.test(d) && d > best) best = d.slice(0, 10); });
+  String(fu.em || '').split(',').forEach(function(x){ if (/^spring/.test(x)){ var d = x.split('@')[1] || ''; if (d > best) best = d; } });
+  return best;
+}
+function passedQuote(l){
+  var st = l.status || 'new';
+  if (!isLead(l) || fuParse(l.crmnotes).sgid) return false;
+  if (st === 'lost') return true;
+  if (quoteState(l) === 'declined') return st !== 'closed' && st !== 'cancelled';
+  return (st === 'new' || st === 'called') && daysAgo(l.created) >= 30 && daysAgo(l.created) <= 400 && String(l.price || '').indexOf('$') >= 0;
+}
+function springDue(l){
+  var st = l.status || 'new', fu = fuParse(l.crmnotes);
+  if (fu.cm || fu.tm) return false;
+  if (st === 'cancelled') return fu.cxr === 'season' && !!fu.cx && daysAgo(fu.cx + 'T12:00:00') <= 400;
+  if (st === 'closed'){ var p = pauseOf(l); return !!p && !p.to; }
+  return false;
+}
+function winbackLists(){
+  var left = {}, passed = {}, alone = 0, spring = [];
+  leads.forEach(function(l){
+    if (!isLead(l)) return;
+    var st = l.status || 'new', fu = fuParse(l.crmnotes);
+    if (springDue(l)) spring.push(l);
+    if (st === 'cancelled'){
+      var r = fu.cxr || 'other';
+      if (LEAVE_ALONE_JS[r]){ alone++; return; }
+      if (r === 'season') return;   // the spring group has them
+      if (!WB_LEFT.some(function(g){ return g[0] === r; })) r = 'other';
+      (left[r] = left[r] || []).push(l);
+    } else if (passedQuote(l)){
+      var d = drOf(l) || 'other'; if (!WB_PASSED.some(function(g){ return g[0] === d; })) d = 'other';
+      (passed[d] = passed[d] || []).push(l);
+    }
+  });
+  var newest = function(a, b){ var x = fuParse(a.crmnotes).cx || String(a.created || ''), y = fuParse(b.crmnotes).cx || String(b.created || ''); return x < y ? 1 : -1; };
+  Object.keys(left).forEach(function(k){ left[k].sort(newest); }); Object.keys(passed).forEach(function(k){ passed[k].sort(newest); });
+  return { left: left, passed: passed, alone: alone, spring: spring };
+}
+/* Came back: restarted (or started) on or after one of our notes, inside six months of it. */
+function cameBack(){
+  var out = [], money = 0;
+  leads.forEach(function(l){
+    if (!isLead(l) || (l.status || 'new') !== 'closed') return;
+    var fu = fuParse(l.crmnotes), cd = fu.cd; if (!cd) return;
+    var notes = [];
+    if (fu.ou){ var p = fu.ou.split('@'); notes.push({ d: p[1], what: p[0] }); }
+    if (fu.wk) notes.push({ d: fu.wk, what: 'winback-auto' });
+    if (fu.lr) notes.push({ d: fu.lr, what: 'revival-auto' });
+    if (fu.wc && fu.wc !== 'skip') notes.push({ d: fu.wc, what: 'winback-text' });
+    String(fu.em || '').split(',').forEach(function(x){ if (/^spring/.test(x)) notes.push({ d: x.split('@')[1] || '', what: 'spring' }); });
+    var hit = notes.filter(function(n){ return n.d && n.d <= cd && (new Date(cd + 'T12:00:00') - new Date(n.d + 'T12:00:00')) / 864e5 <= 183; }).sort(function(a, b){ return a.d < b.d ? 1 : -1; })[0];
+    if (!hit) return;
+    var pp = parsePrice(l), amt = pp && pp.isMo ? pp.amt : 0; money += amt;
+    out.push({ l: l, what: hit.what, d: hit.d, cd: cd, amt: amt });
+  });
+  return { list: out.sort(function(a, b){ return a.cd < b.cd ? 1 : -1; }), money: money };
+}
+var OUT_LABEL = { 'winback-auto': 'automatic win-back', 'revival-auto': 'automatic revival', 'winback-text': 'win-back text', 'spring': 'spring restart' };
+function outLabel(w){ if (OUT_LABEL[w]) return OUT_LABEL[w]; var p = String(w).split('-'); var g = WB_LEFT.concat(WB_PASSED).filter(function(x){ return x[0] === p[1]; })[0]; return (p[0] === 'upsell' ? 'upsell ' : p[0] === 'spring' ? 'spring ' : 'win-back ') + (g ? g[1].toLowerCase() : p[1] || ''); }
+function wbRow(l, kind, sub){
+  var fu = fuParse(l.crmnotes), last = lastOutreach(l), pp = parsePrice(l), recent = last && daysAgo(last + 'T12:00:00') < 60;
+  var when = (l.status || 'new') === 'cancelled' ? (fu.cx ? 'left ' + fu.cx : 'left') : 'quoted ' + String(l.created || '').slice(0, 10);
+  var d = String(l.phone || '').replace(/\D/g, ''); if (d.length === 10) d = '1' + d;
+  var btn;
+  if (sub === 'service') btn = d ? '<a href="tel:+' + esc(d) + '" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:5px 9px;font-size:11.5px;font-weight:700;text-decoration:none;">&#128222; Call</a>' : '<span style="color:#9aa5a0;font-size:11px;">no phone</span>';
+  else if (recent) btn = '<span style="color:#9aa5a0;font-size:11px;">noted ' + esc(last) + '</span>';
+  else if (!blastEmailOk(l.email) || fu.noem) btn = d ? '<a href="sms:' + esc(d) + '" onclick="textLead(\'' + esc(l.id) + '\')" style="display:inline-block;border:1.5px solid #0F6E56;color:#0F6E56;border-radius:8px;padding:4px 8px;font-size:11.5px;font-weight:700;text-decoration:none;">Text</a>' : '<span style="color:#9aa5a0;font-size:11px;">no email</span>';
+  else btn = '<button class="ou-btn" onclick="outreach(\'' + esc(l.id) + '\',\'' + kind + '\',\'' + esc(sub) + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:4px 9px;min-height:30px;font-size:11.5px;">&#9993;&#65039; Note</button>';
+  return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;flex-wrap:wrap;">' +
+    '<span style="flex:1 1 160px;min-width:0;"><a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(l.name || '(no name)') + '</a> <span style="color:#707070;">' + (pp ? '$' + pp.amt + (pp.isMo ? '/mo' : '') + ' &middot; ' : '') + esc(when) + '</span></span>' + btn + '</div>';
+}
+function wbGroup(title, offer, items, kind, sub){
+  if (!items || !items.length) return '';
+  var shown = items.slice(0, 15);
+  return '<div style="font-size:12px;font-weight:700;color:#2B3A34;margin-top:10px;">' + title + ' <span style="color:#707070;font-weight:600;">&middot; ' + items.length + ' &middot; ' + offer + '</span></div>' +
+    shown.map(function(l){ return wbRow(l, kind, sub); }).join('') + (items.length > shown.length ? '<div style="font-size:11px;color:#9aa5a0;padding:3px 0;">and ' + (items.length - shown.length) + ' more, oldest last</div>' : '');
+}
+function renderWinback(){
+  var box = document.getElementById('winback'); if (!box) return;
+  if (officeMail === null && KEY) checkOfficeMail(function(){ renderWinback(); });
+  var w = winbackLists(), cb = cameBack();
+  var h = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128140; Win back <span style="font-size:11px;font-weight:600;color:#707070;">everyone who left or passed, by why</span></div>' +
+    '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">Note shows the email written for their reason; change any word, then send. Unhappy customers get a call instead. Nobody who lost the dog, did not pay, or was let go by us is ever written to. Anyone noted in the last 60 days waits.</div>';
+  h += '<div style="background:#E8F5EF;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:6px;"><strong style="color:#0F6E56;">Came back: ' + cb.list.length + (cb.list.length ? ' &middot; ' + money(cb.money) + '/mo' : '') + '</strong> <span style="color:#555;">restarted within six months of one of our notes</span>' +
+    (cb.list.length ? cb.list.slice(0, 8).map(function(r){ return '<div style="font-size:12px;margin-top:3px;">' + esc(r.l.name || '') + ' <span style="color:#707070;">&middot; ' + esc(outLabel(r.what)) + ' ' + esc(r.d) + ', back ' + esc(r.cd) + (r.amt ? ' &middot; $' + r.amt + '/mo' : '') + '</span></div>'; }).join('') : '') + '</div>';
+  var lc = 0, pc = 0; Object.keys(w.left).forEach(function(k){ lc += w.left[k].length; }); Object.keys(w.passed).forEach(function(k){ pc += w.passed[k].length; });
+  h += w.spring.length ? '<div style="font-size:12.5px;font-weight:800;margin-top:10px;">&#127793; Spring restart <span style="font-weight:600;color:#707070;font-size:11.5px;">left for the winter, or paused with no return date. The spring switch under Email sends these in March; Note sends one now.</span></div>' + wbGroup('Ready for spring', 'we are back on your street', w.spring, 'spring', '') : '';
+  h += '<div style="font-size:12.5px;font-weight:800;margin-top:12px;">Stopped service <span style="font-weight:600;color:#707070;font-size:11.5px;">' + lc + '</span></div>' +
+    (lc ? WB_LEFT.map(function(g){ return wbGroup(g[1], g[2], w.left[g[0]], 'winback', g[0]); }).join('') : '<div style="font-size:12px;color:#9aa5a0;padding:4px 0;">Nobody to win back.</div>');
+  h += '<div style="font-size:12.5px;font-weight:800;margin-top:12px;">Passed on a quote <span style="font-weight:600;color:#707070;font-size:11.5px;">' + pc + '</span></div>' +
+    (pc ? WB_PASSED.map(function(g){ return wbGroup(g[1], g[2], w.passed[g[0]], 'winback', g[0]); }).join('') : '<div style="font-size:12px;color:#9aa5a0;padding:4px 0;">Nobody waiting.</div>');
+  if (w.alone) h += '<div style="font-size:11px;color:#9aa5a0;margin-top:8px;">' + w.alone + ' left alone on purpose: no dog any more, did not pay, or we ended it.</div>';
+  box.innerHTML = h;
+}
+/* ---- upsell: more for the customers likely to want it ---- */
+function upsellLists(){
+  var twice = [], deo = [], day = [], m = new Date().getMonth() + 1;
+  activeRecurring().forEach(function(l){
+    var fu = fuParse(l.crmnotes), last = String(fu.ou || ''), lastUp = /^upsell-/.test(last) && daysAgo(last.split('@')[1] + 'T12:00:00') < 120;
+    if (fu.cm || isPaused(l)) return;
+    var dogs = parseInt(String(l.dogs || '').replace(/\D/g, ''), 10) || 0;
+    if (dogs >= 3 && visitsPerWeek(l) === 1 && !lastUp) twice.push(l);
+    if (!/every|\$15/i.test(String(l.deodorize || '')) && m >= 4 && m <= 9 && !lastUp) deo.push(l);
+    var rj = recentJobs(l), sk = rj ? rj.filter(function(j){ return j.skip; }).length : 0;
+    if (sk >= 2 && !lastUp) day.push({ l: l, n: sk, why: (rj.filter(function(j){ return j.skip; })[0] || {}).skip || '' });
+  });
+  return { twice: twice, deo: deo, day: day, deoSeason: m >= 4 && m <= 9 };
+}
+function renderUpsell(){
+  var box = document.getElementById('upsell'); if (!box) return;
+  var u = upsellLists();
+  var h = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#11014;&#65039; Upsell <span style="font-size:11px;font-weight:600;color:#707070;">customers likely to say yes to more</span></div>' +
+    '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">One offer each, shown first and editable. Anyone offered something in the last four months waits.</div>';
+  h += wbGroup('Three or more dogs, once a week', 'offer a second weekly visit', u.twice, 'upsell', 'twice');
+  h += u.deoSeason ? wbGroup('No deodorize in the warm months', '$15 a visit, stop any time', u.deo, 'upsell', 'deo') : '<div style="font-size:11.5px;color:#9aa5a0;margin-top:8px;">The deodorize offers come back in April.</div>';
+  h += wbGroup('Skipped two or more times lately', 'offer a day that works better', u.day.map(function(x){ return x.l; }), 'upsell', 'day');
+  if (!u.twice.length && !u.day.length && !(u.deoSeason && u.deo.length)) h += '<div style="font-size:12px;color:#9aa5a0;padding:4px 0;">Nobody to offer anything to right now.</div>';
+  box.innerHTML = h;
+}
+/* ---- the note: drawn up by the script, editable, sent on the second tap ---- */
+var ouBusy = false;
+function outreach(id, kind, sub){
+  if (ouBusy || !CRM_ENDPOINT) return;
+  if (officeMail !== true){ toast(NO_OFFICE_TEXT); return; }
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  ouBusy = true; toast('Drawing up the note…');
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'outreach', key: KEY, id: id, kind: kind, sub: sub, preview: true }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ ouBusy = false; if (!d || !d.ok){ toast(d && d.error ? 'No note: ' + d.error : 'No note'); return; } showOutreach(l, d, kind, sub); })
+    .catch(function(){ ouBusy = false; toast('No connection'); });
+}
+function showOutreach(l, d, kind, sub){
+  var box = document.getElementById('stmt'); if (!box) return;
+  var body = String(d.body || '').replace(/\n*— Corey\nCL Professional Pet Services LLC[\s\S]*$/, '');
+  box.innerHTML = '<div class="stmt-card">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;"><div style="font-weight:800;font-size:15px;">&#9993;&#65039; Note to ' + esc(l.name || 'them') + '</div><button onclick="closeStatement()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:36px;">Close</button></div>' +
+    '<div style="font-size:12px;color:#555;margin-bottom:8px;">To ' + esc(d.to || '') + ' from the office address. Change anything you like; Corey’s signature and the unsubscribe line go on underneath.</div>' +
+    '<input id="ou-subject" value="' + esc(d.subject || '') + '" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;margin-bottom:6px;box-sizing:border-box;">' +
+    '<textarea id="ou-body" rows="12" style="width:100%;padding:10px 12px;border:1px solid #E4EBE7;border-radius:10px;font-size:13px;line-height:1.5;font-family:inherit;box-sizing:border-box;background:#F7F9F8;">' + esc(body) + '</textarea>' +
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;"><button class="copybtn" id="ou-send" onclick="sendOutreach(\'' + esc(l.id) + '\',\'' + kind + '\',\'' + esc(sub) + '\')" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">Send it</button><button class="copybtn" onclick="closeStatement()">Not now</button></div></div>';
+  box.style.display = 'flex';
+}
+function sendOutreach(id, kind, sub){
+  if (ouBusy) return;
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  var subject = (document.getElementById('ou-subject') || {}).value || '', text = (document.getElementById('ou-body') || {}).value || '';
+  ouBusy = true; var btn = document.getElementById('ou-send'); if (btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'outreach', key: KEY, id: id, kind: kind, sub: sub, subject: subject, text: text }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      ouBusy = false;
+      if (!d || !d.ok){ toast(d && d.error ? 'Not sent: ' + d.error : 'Not sent'); var b2 = document.getElementById('ou-send'); if (b2){ b2.disabled = false; b2.textContent = 'Send it'; } return; }
+      closeStatement();
+      var m = fuParse(l.crmnotes); m.ou = d.marker || (kind + '-' + sub + '@' + d.date); l.crmnotes = fuCompose(m);
+      saveLocal(); render(); toast('Sent to ' + (l.name || 'them'));
+    })
+    .catch(function(){ ouBusy = false; toast('No connection'); var b3 = document.getElementById('ou-send'); if (b3){ b3.disabled = false; b3.textContent = 'Send it'; } });
+}
+/* ---- the save call: a script for the At risk list, and what happened ---- */
+var SAVE_OUTCOMES = [['kept', 'Staying'], ['offer', 'Offer made'], ['leaving', 'Leaving anyway'], ['noanswer', 'No answer']];
+function saveScript(l, why){
+  var first = String(l.name || '').trim().split(/\s+/)[0] || 'there', pp = parsePrice(l);
+  return [
+    '1. "Hi ' + first + ', it’s Corey from CL Professional Pet Services. Got a minute? I just wanted to check in on the yard."',
+    '2. Ask, then listen: "Is everything still working for you? Anything we could be doing better?"',
+    '3. What we are seeing: ' + why.join('; ') + '.',
+    '4. Fix what you can on the call: a different day, a new card in the client portal, a pause instead of a cancel.',
+    '5. If cost comes up: ' + (pp && pp.isMo ? 'every other week would be about $' + Math.round(pp.amt * 0.65) + '/mo, or ' : '') + 'a month at half price keeps them on.',
+    '6. Close: "Thanks, ' + first + '. If anything ever comes up, text me at (636) 375-4342."'
+  ].join('\n');
+}
+function saveCall(id, outcome){
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  var m = fuParse(l.crmnotes); m.sc = outcome + '@' + new Date().toISOString().slice(0, 10); stampBy(m);
+  l.crmnotes = fuCompose(m); l.updated = new Date().toISOString(); saveLocal(); render();
+  post({ action: 'update', key: KEY, id: id, notes: l.crmnotes }, 'Call logged: ' + (SAVE_OUTCOMES.filter(function(o){ return o[0] === outcome; })[0] || [0, outcome])[1]);
+}
+function saveCallRow(l, why){
+  var fu = fuParse(l.crmnotes), d = String(l.phone || '').replace(/\D/g, ''); if (d.length === 10) d = '1' + d;
+  var last = fu.sc ? fu.sc.split('@') : null;
+  return '<details style="margin-top:4px;"><summary style="cursor:pointer;font-size:12px;color:#0F6E56;font-weight:700;">&#128222; Save call' + (last ? ' <span style="color:#707070;font-weight:600;">&middot; last: ' + esc((SAVE_OUTCOMES.filter(function(o){ return o[0] === last[0]; })[0] || [0, last[0]])[1].toLowerCase()) + ' ' + esc(last[1] || '') + '</span>' : '') + '</summary>' +
+    '<div style="background:#F3F8F5;border-radius:10px;padding:9px 11px;margin-top:5px;font-size:12px;line-height:1.55;white-space:pre-wrap;">' + esc(saveScript(l, why)) + '</div>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' + (d ? '<a href="tel:+' + esc(d) + '" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:6px 10px;font-size:11.5px;font-weight:700;text-decoration:none;">Call</a>' : '') +
+    SAVE_OUTCOMES.map(function(o){ return '<button onclick="saveCall(\'' + esc(l.id) + '\',\'' + o[0] + '\')" style="padding:5px 9px;min-height:30px;font-size:11.5px;">' + o[1] + '</button>'; }).join('') + '</div></details>';
+}
+/* ---- the collections ladder, as the Owed list shows it ---- */
+function ladderStepJs(oldest){ var a = daysAgo(String(oldest).slice(0, 10) + 'T12:00:00'); return a >= 35 ? 3 : a >= 21 ? 2 : 1; }
+function ladderNote(l, u){
+  var fu = fuParse(l.crmnotes), sent = parseInt(String(fu.pl || '').split('@')[0], 10) || 0, due = ladderStepJs(u.oldest || '');
+  if (daysAgo(String(u.oldest || '').slice(0, 10) + 'T12:00:00') < 7) return '';
+  if (sent >= 3) return '<span style="color:#b45309;font-size:11px;font-weight:700;">all 3 notices sent: call them</span>';
+  return '<span style="color:#707070;font-size:11px;">' + (sent ? 'notice ' + sent + ' sent' : 'no notice yet') + (due > sent ? ' &middot; notice ' + due + ' due' : '') + '</span>';
+}
+/* unpaid for 60 days or more: the route says so, so nobody cleans a yard that stopped paying */
+function longUnpaid(l){
+  if (!billing || !billing.unpaid) return null;
+  var ks = namesOf(l), u = billing.unpaid.filter(function(x){ return ks.indexOf(sgNormName(x.name)) >= 0; })[0];
+  return u && u.oldest && daysAgo(String(u.oldest).slice(0, 10) + 'T12:00:00') >= 60 ? u : null;
+}
+/* ---- the customer's own page ---- */
+function accountLink(id){
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l || !CRM_ENDPOINT) return;
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'acctlink', key: KEY, id: id }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || !d.ok || !d.url){ toast(d && d.error ? 'No link: ' + d.error : 'No link yet: the script needs updating'); return; }
+      var box = document.getElementById('acct-' + id); if (!box) return;
+      var ph = String(l.phone || '').replace(/\D/g, ''); if (ph.length === 10) ph = '1' + ph;
+      var first = String(l.name || '').trim().split(/\s+/)[0] || 'there';
+      var text = 'Hi ' + first + ", it's Corey with CL Professional Pet Services. Here's your own account page, with every visit, photo and invoice: " + d.url;
+      box.innerHTML = '<code style="background:#f3f5f4;border-radius:5px;padding:2px 5px;font-size:11px;word-break:break-all;">' + esc(d.url) + '</code> <button onclick="copyText(\'' + esc(d.url) + '\')" style="padding:5px 9px;min-height:32px;font-size:11.5px;">Copy</button>' +
+        (ph ? ' <a href="sms:' + esc(ph) + '?&body=' + encodeURIComponent(text).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(id) + '\')" style="display:inline-block;background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:8px;padding:5px 9px;font-size:11.5px;font-weight:700;text-decoration:none;">Text it</a>' : '') +
+        ' <a href="' + esc(d.url) + '" target="_blank" rel="noopener" style="font-size:11.5px;color:#0F6E56;font-weight:700;">Open</a>';
+    })
+    .catch(function(){ toast('No connection'); });
+}
+function accountRow(l){
+  return '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#127968; Their account page: <span id="acct-' + esc(l.id) + '"><button onclick="accountLink(\'' + esc(l.id) + '\')" style="padding:5px 9px;min-height:32px;font-size:11.5px;">Get link</button></span></div>';
+}
+/* ---- referral links, sent to every customer at once ---- */
+var riBusy = false;
+function refInvite(send){
+  if (riBusy || !CRM_ENDPOINT) return;
+  if (officeMail !== true){ toast(NO_OFFICE_TEXT); return; }
+  riBusy = true;
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'refinvite', key: KEY, preview: !send }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      riBusy = false;
+      if (!d || !d.ok){ toast(d && d.error ? 'Not sent: ' + d.error : 'Not sent'); return; }
+      if (send){ toast('Referral links sent to ' + d.sent + (d.left ? '; ' + d.left + ' left, tap again for the next 30' : '')); closeStatement(); return; }
+      var box = document.getElementById('stmt'); if (!box) return;
+      box.innerHTML = '<div class="stmt-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;"><div style="font-weight:800;font-size:15px;">&#128279; Send referral links</div><button onclick="closeStatement()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:36px;">Close</button></div>' +
+        '<div style="font-size:12px;color:#555;margin-bottom:8px;">' + (d.count ? d.count + ' active customer' + (d.count === 1 ? '' : 's') + ' with an email who have not had their link in six months. Each gets their own link and their account page, 30 a tap. This is what ' + esc(String(d.first || '').split(' ')[0]) + ' gets:' : 'Everyone has had their link in the last six months.') + '</div>' +
+        (d.count ? '<div style="background:#F7F9F8;border:1px solid #E4EBE7;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.55;white-space:pre-wrap;max-height:45vh;overflow:auto;">' + esc('Subject: ' + d.subject + '\n\n' + d.body) + '</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"><button class="copybtn" onclick="refInvite(true)" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">Send ' + Math.min(30, d.count) + ' now</button><button class="copybtn" onclick="closeStatement()">Not now</button></div>' : '') + '</div>';
+      box.style.display = 'flex';
+    })
+    .catch(function(){ riBusy = false; toast('No connection'); });
 }
 
 /* ============================================================
@@ -5577,6 +5841,7 @@ function showStatement(l, d, amt, since){
   var n = (d.items || []).length;
   box.innerHTML = '<div class="stmt-card">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;"><div style="font-weight:800;font-size:15px;">&#9993;&#65039; Statement for ' + esc(l.name || 'them') + '</div><button onclick="closeStatement()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:36px;">Close</button></div>' +
+    (d.step ? '<div style="font-size:12px;font-weight:800;color:' + (d.step === 3 ? '#c0392b' : d.step === 2 ? '#b45309' : '#0F6E56') + ';margin-bottom:4px;">Notice ' + d.step + ' of 3' + (d.step === 3 ? ': service pauses ' + esc(d.pauseOn || '') + ' unless they pay' : d.step === 2 ? ': the firmer one' : ': the plain statement') + '</div>' : '') +
     '<div style="font-size:12px;color:#555;margin-bottom:8px;">To ' + esc(d.to || l.email || '') + ' from the office address. ' + (n ? n + ' open invoice' + (n === 1 ? '' : 's') + ', ' + money(d.total) + ' in all, from the billing sheet' + (d.visits ? '; ' + d.visits + ' visit' + (d.visits === 1 ? '' : 's') + ' listed' : '') + (d.photos ? '; ' + d.photos + ' photo' + (d.photos === 1 ? '' : 's') + ' attached when it goes' : '') + '.' : 'The billing sheet has no invoice under this name, so the short note goes instead.') + '</div>' +
     (d.link ? '' : '<div style="background:#FFF4E5;color:#7a4a00;border-radius:9px;padding:8px 11px;font-size:12px;margin-bottom:8px;">No Pay now link yet. Paste the Sweep&amp;Go client portal address under Owed and it goes in every statement.</div>') +
     '<div style="font-size:11px;color:#707070;margin-bottom:3px;">Subject: ' + esc(d.subject || '') + '</div>' +
@@ -5666,7 +5931,7 @@ function renderBilling(){
       (payLink() ? '' : '<div class="sub" style="font-size:11px;color:#b45309;margin:0 0 6px;">No Pay now link yet: statements still list the invoices and point to the Sweep&amp;Go invoice emails.</div>') +
       un.slice(0, 25).map(function(u){ var l = leadByName(u.name), st = Object.keys(u.statuses || {}).map(function(k){ return u.statuses[k] + ' ' + k; }).join(', '), fu = l ? fuParse(l.crmnotes) : null;
         return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
-          '<span>' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') + ' <span style="color:#707070;">' + esc(st) + (u.oldest ? ' &middot; since ' + esc(u.oldest) : '') + '</span></span>' +
+          '<span>' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') + ' <span style="color:#707070;">' + esc(st) + (u.oldest ? ' &middot; since ' + esc(u.oldest) : '') + '</span>' + (l ? ' ' + ladderNote(l, u) : '') + '</span>' +
           '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (l ? (fu.ow ? ' <span style="color:#9aa5a0;font-size:11px;">on card</span>' : ' <button onclick="markOwed(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">On their card</button>') + (l.email ? (fu.pr && fu.pr.split('@')[1] >= new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10) ? ' <span style="color:#9aa5a0;font-size:11px;">reminded ' + esc(fu.pr.split('@')[1]) + '</span>' : ' <button class="pr-btn" onclick="payRemind(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">&#9993;&#65039; Statement</button>') : '') : '') + '</span></div>'; }).join('')
       : '<div class="sub" style="padding-left:10px;">Nothing owed. Every invoice is paid.</div>') + '</div></div>';
   box.innerHTML = h;
@@ -5847,7 +6112,7 @@ function renderReviewTrend(){
 }
 
 /* ---- fold-up cards in the numbers panel ---- */
-var FOLD_CARDS = ['territory', 'undertable', 'season', 'pricelog', 'schedule', 'deo', 'traffic', 'jobs', 'billing', 'cash', 'risk', 'dormant', 'expand', 'hire', 'revenue', 'roi', 'insights', 'reviews'];
+var FOLD_CARDS = ['winback', 'upsell', 'territory', 'undertable', 'season', 'pricelog', 'schedule', 'deo', 'traffic', 'jobs', 'billing', 'cash', 'risk', 'dormant', 'expand', 'hire', 'revenue', 'roi', 'insights', 'reviews'];
 function foldKey(card){ return card.id || card.getAttribute('data-fold') || ''; }
 function foldState(key){ try { return localStorage.getItem('clpps_fold_' + key); } catch (e) { return null; } }
 function foldApply(card, openByDefault){
@@ -5884,6 +6149,7 @@ var NUMBERS_ORDER = [
   ['Today and the route', ['schedule', 'jobs']],
   ['Money', ['billing', 'cash', 'risk', 'revenue', 'undertable', 'roi', 'hire']],
   ['Customers and area', ['dormant', 'territory', 'expand', 'season', 'deo', 'pricelog']],
+  ['Win back and grow', ['winback', 'upsell']],
   ['Marketing', ['traffic', 'insights']]   // Ask for a review stays on the main page: it is a to-do, not a number
 ];
 function arrangeNumbers(){
@@ -5940,6 +6206,7 @@ function foldSum(id, html){
   if (!sp){ sp = document.createElement('span'); sp.className = 'fsum'; h.appendChild(sp); }
   sp.innerHTML = html || '';
 }
+function w0(w){ var n = w.spring.length; Object.keys(w.left).forEach(function(k){ n += w.left[k].length; }); Object.keys(w.passed).forEach(function(k){ n += w.passed[k].length; }); return n; }
 function renderFoldSums(){
   try {
     var ts = territoryStats(), cust = 0, zips = 0;
@@ -5963,6 +6230,8 @@ function renderFoldSums(){
   try { var on = activeRecurring().filter(hasDeo); foldSum('deo', on.length + ' have it &middot; ' + money(on.reduce(function(a, l){ return a + deoMonthly(l); }, 0)) + '/mo'); } catch (e) {}
   try { var tk = gDayKey(new Date()); foldSum('traffic', views.filter(function(v){ return gDayKey(new Date(v.created)) === tk; }).length + ' visits today'); } catch (e) {}
   try { var due = leads.filter(reviewDue).length; foldSum('reviews', due ? due + ' to ask' : 'nobody due'); } catch (e) {}
+  try { var wl = winbackLists(), wn = w0(wl), cb = cameBack(); foldSum('winback', wn + ' to win back' + (cb.list.length ? ' &middot; ' + cb.list.length + ' came back, ' + money(cb.money) + '/mo' : '')); } catch (e) {}
+  try { var ul = upsellLists(), un = ul.twice.length + ul.day.length + (ul.deoSeason ? ul.deo.length : 0); foldSum('upsell', un ? un + ' to offer' : 'nobody right now'); } catch (e) {}
   try { var dz = checkList().length; foldSum('dormant', dz ? dz + ' to check' : (billing && billing.last ? 'nobody' : '')); } catch (e) {}
   try { var cv = cashView(); if (cv.expect) foldSum('cash', money(cv.expect) + ' to bill' + (cv.owed ? ' &middot; ' + money(cv.owed) + ' owed' : '')); } catch (e) {}
   try { var ex = expandList(); foldSum('expand', ex.length ? ex.length + ' ZIP' + (ex.length === 1 ? '' : 's') + ' asking' : 'nobody asking'); } catch (e) {}
@@ -6838,6 +7107,8 @@ function render(){
   renderDormant();
   renderCash();
   renderExpand();
+  renderWinback();
+  renderUpsell();
   renderHire();
   if (ownerOpen) renderOwner();
   renderReviews();
@@ -6985,7 +7256,8 @@ function render(){
         (/twice/i.test(String(l.service || '')) ? '<span style="color:#9aa5a0;">(twice a week: type both, e.g. Tue, Fri, under Edit if they change)</span>' : '') +
         (fu.day ? '' : '<span style="color:#9aa5a0;">(set it once and the Schedule card fills in)</span>') + '</div>';
     }
-    if (st === 'closed') custMore = dayRow + refShareRow(l);
+    if (st === 'closed') custMore = dayRow + refShareRow(l) + accountRow(l);
+    else if (st === 'cancelled' && fu.sgid) custMore = accountRow(l);
     if (blastEmailOk(l.email)){
       custMore += '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
         '<label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="noem-box" ' + (fu.noem ? 'checked' : '') + ' onchange="setNoEmail(\'' + esc(l.id) + '\', this.checked)"> &#9993;&#65039; No marketing emails</label>' +

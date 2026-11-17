@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Your Account | CL Professional Pet Services</title>
+<link rel="icon" type="image/png" href="/images/logo.png">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;background:#f4f6f5;line-height:1.6;}
+.top{background:#fff;border-bottom:1px solid #e8e8e8;padding:14px 20px;display:flex;align-items:center;gap:10px;}
+.top img{width:42px;height:42px;object-fit:contain;}
+.top b{font-size:14px;display:block;}
+.top small{font-size:11px;color:#707070;}
+.wrap{max-width:560px;margin:0 auto;padding:22px 16px 60px;}
+.card{background:#fff;border-radius:18px;box-shadow:0 6px 28px rgba(0,0,0,0.08);overflow:hidden;margin-bottom:16px;}
+.head{background:linear-gradient(135deg,#188663,#0F6E56);color:#fff;padding:24px 22px;}
+.head .eyebrow{font-size:11.5px;letter-spacing:2px;text-transform:uppercase;opacity:0.85;font-weight:700;}
+.head h1{font-size:24px;margin:4px 0 6px;}
+.pill{display:inline-block;background:rgba(255,255,255,0.18);border-radius:999px;padding:3px 11px;font-size:12.5px;font-weight:700;}
+.sec{padding:16px 22px;}
+.sec h2{font-size:15px;margin-bottom:8px;color:#0F6E56;}
+.dline{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #f1f1f1;font-size:14.5px;}
+.dline:last-child{border-bottom:none;}
+.dline span:first-child{color:#707070;}
+.dline span:last-child{font-weight:700;text-align:right;}
+.owe{background:#FFF4E5;border-radius:14px;padding:14px 16px;margin:4px 0 6px;}
+.owe .amt{font-size:30px;font-weight:800;color:#9a4d00;line-height:1.1;}
+.btn{display:block;text-align:center;background:#0F6E56;color:#fff;text-decoration:none;font-weight:800;font-size:16px;border-radius:12px;padding:14px;margin-top:10px;border:none;width:100%;cursor:pointer;font-family:inherit;}
+.btn.ghost{background:#fff;color:#0F6E56;border:2px solid #0F6E56;}
+.visit{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #f1f1f1;font-size:14px;}
+.visit:last-child{border-bottom:none;}
+.visit .d{min-width:74px;font-weight:700;}
+.visit .s{color:#555;flex:1;}
+.visit img{width:64px;height:64px;object-fit:cover;border-radius:10px;cursor:zoom-in;flex:none;}
+.skip{color:#9a4d00;}
+.muted{color:#707070;font-size:13px;}
+.ref{background:#F3F8F5;border-radius:12px;padding:12px 14px;font-size:13.5px;word-break:break-all;margin:8px 0;}
+.foot{text-align:center;font-size:12.5px;color:#707070;margin-top:18px;}
+.foot a{color:#0F6E56;font-weight:700;text-decoration:none;}
+#big{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10;align-items:center;justify-content:center;padding:16px;}
+#big img{max-width:100%;max-height:100%;border-radius:12px;}
+.load{text-align:center;padding:60px 20px;color:#707070;}
+</style>
+</head>
+<body>
+<div class="top"><img src="/images/logo.png" alt=""><div><b>CL Professional Pet Services</b><small>St. Peters, MO &middot; (636) 375-4342</small></div></div>
+<div class="wrap" id="app"><div class="load">Loading your account&hellip;</div></div>
+<div id="big" onclick="this.style.display='none'"><img alt="Visit photo"></div>
+<script>
+var ENDPOINT = "https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec";
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
+function money(n){ return '$' + (Math.round((+n || 0) * 100) / 100).toFixed(2); }
+var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function nice(iso, year){ var p = String(iso || '').split('-'); if (p.length < 3) return esc(iso); return MON[parseInt(p[1], 10) - 1] + ' ' + parseInt(p[2], 10) + (year ? ', ' + p[0] : ''); }
+function safeUrl(u){ return /^https:\/\/[^\s"'<>]+$/.test(String(u || '')) ? String(u) : ''; }
+function fail(msg){ document.getElementById('app').innerHTML = '<div class="card"><div class="sec" style="text-align:center;padding:36px 22px;"><h2 style="color:#1a1a1a;">' + esc(msg) + '</h2><p class="muted" style="margin-top:8px;">Call or text <a href="tel:+16363754342" style="color:#0F6E56;font-weight:700;">(636) 375-4342</a> or email <a href="mailto:info@clpropetservices.com" style="color:#0F6E56;font-weight:700;">info@clpropetservices.com</a> and we will send you a fresh link.</p></div></div>'; }
+function share(url){
+  var text = 'This is who does our yard. Sign up through my link: ' + url;
+  if (navigator.share){ navigator.share({ title: 'CL Professional Pet Services', text: text, url: url }).catch(function(){}); return; }
+  try { navigator.clipboard.writeText(url).then(function(){ alert('Link copied'); }, function(){ prompt('Copy your link:', url); }); } catch (e) { prompt('Copy your link:', url); }
+}
+function bigPhoto(u){ var b = document.getElementById('big'); b.querySelector('img').src = u; b.style.display = 'flex'; }
+function render(d){
+  var h = '', st = d.status === 'active' ? 'Active' : d.status === 'paused' ? 'Paused' + (d.back ? ' until ' + nice(d.back, true) : '') : 'Closed';
+  h += '<div class="card"><div class="head"><div class="eyebrow">Your account</div><h1>Hi ' + esc(d.first || 'there') + '</h1><span class="pill">' + esc(st) + '</span></div>';
+  h += '<div class="sec">' +
+    (d.plan ? '<div class="dline"><span>Plan</span><span>' + esc(d.plan) + (d.dogs ? ' &middot; ' + esc(d.dogs) + ' dog' + (String(d.dogs) === '1' ? '' : 's') : '') + '</span></div>' : '') +
+    (d.price ? '<div class="dline"><span>Price</span><span>' + esc(d.price) + '</span></div>' : '') +
+    (d.days ? '<div class="dline"><span>Service day</span><span>' + esc(d.days) + '</span></div>' : '') +
+    (d.since ? '<div class="dline"><span>With us since</span><span>' + nice(d.since, true) + '</span></div>' : '') +
+    '</div></div>';
+  // what is owed, and the way to pay it
+  var pay = safeUrl(d.payLink);
+  if (d.open && d.open.length){
+    h += '<div class="card"><div class="sec"><h2>Balance</h2><div class="owe"><div class="muted" style="color:#9a4d00;">Open on your account</div><div class="amt">' + money(d.openTotal) + '</div></div>' +
+      d.open.map(function(i){ return '<div class="dline"><span>Invoice ' + esc(i.number || '') + '<br><small class="muted">issued ' + nice(i.date, true) + (i.period ? ' &middot; service ' + nice(i.period) + (i.periodEnd ? ' to ' + nice(i.periodEnd) : '') : '') + '</small></span><span>' + money(i.amount) + '<br><small class="' + (i.status === 'failed' ? 'skip' : 'muted') + '">' + (i.status === 'failed' ? 'card declined' : i.status === 'overdue' ? 'overdue' : 'open') + '</small></span></div>'; }).join('') +
+      (pay ? '<a class="btn" href="' + esc(pay) + '" target="_blank" rel="noopener">Pay now</a>' : '') +
+      '<p class="muted" style="margin-top:8px;">Updating your card in the client portal clears a declined payment. Questions? Reply to any of our emails or call us.</p></div></div>';
+  } else {
+    h += '<div class="card"><div class="sec"><h2>Balance</h2><div class="dline"><span>Open on your account</span><span style="color:#0F6E56;">$0.00, all paid up</span></div>' + (pay ? '<a class="btn ghost" href="' + esc(pay) + '" target="_blank" rel="noopener">Update card or billing</a>' : '') + '</div></div>';
+  }
+  // visits, newest first, with the tech's photo
+  var ph = d.photos || {};
+  h += '<div class="card"><div class="sec"><h2>Recent visits</h2>' + (d.visits && d.visits.length ? d.visits.map(function(v){
+      var u = safeUrl(ph[v.date]);
+      var s = v.status === 'completed' ? 'Cleaned' + (v.start ? ' at ' + esc(v.start) : '') + (v.tech ? ' by ' + esc(v.tech) : '') + (v.minutes ? ', ' + v.minutes + ' min' : '') : '<span class="skip">' + (v.status === 'missed' ? 'Missed' : 'Skipped') + (v.skip ? ': ' + esc(v.skip) : '') + '</span>';
+      return '<div class="visit"><div class="d">' + nice(v.date) + '</div><div class="s">' + s + '</div>' + (u ? '<img src="' + esc(u) + '" alt="Photo from ' + nice(v.date) + '" loading="lazy" onclick="bigPhoto(this.src)">' : '') + '</div>';
+    }).join('') : '<p class="muted">Your visits will show here after the first one.</p>') + '</div></div>';
+  if (d.paid && d.paid.length){
+    h += '<div class="card"><div class="sec"><h2>Payments received</h2>' + d.paid.map(function(p){ return '<div class="dline"><span>' + nice(p.date, true) + '</span><span>' + money(p.amount) + (p.how === 'check' ? ' <small class="muted">check</small>' : p.how === 'credit_card' ? ' <small class="muted">card</small>' : '') + '</span></div>'; }).join('') + '</div></div>';
+  }
+  var ref = safeUrl(d.refLink);
+  if (ref && d.status !== 'closed'){
+    h += '<div class="card"><div class="sec"><h2>Share us, get a free deodorize</h2><p style="font-size:14px;">When a friend or neighbor signs up through your link, your next visit includes a free deodorizing and sanitizing treatment. No limit.</p><div class="ref">' + esc(ref) + '</div>' +
+      '<button class="btn" onclick="share(\'' + esc(ref) + '\')">Share my link</button>' + (d.refUsed ? '<p class="muted" style="margin-top:8px;text-align:center;">Used ' + d.refUsed + ' time' + (d.refUsed === 1 ? '' : 's') + ' so far. Thank you!</p>' : '') + '</div></div>';
+  }
+  if (d.status === 'closed'){
+    h += '<div class="card"><div class="sec" style="text-align:center;"><h2>Want us back?</h2><p style="font-size:14px;">No restart fee, and your old price holds.</p><a class="btn" href="sms:+16363754342?&body=' + encodeURIComponent('Hi, it\'s ' + (d.first || '') + '. I\'d like to restart service.') + '">Text us to restart</a></div></div>';
+  }
+  h += '<div class="foot">Questions? <a href="tel:+16363754342">(636) 375-4342</a> &middot; <a href="mailto:info@clpropetservices.com">info@clpropetservices.com</a><br>This page is private to you. Please do not share its address.</div>';
+  document.getElementById('app').innerHTML = h;
+}
+(function(){
+  var t = new URLSearchParams(location.search).get('t') || '';
+  if (!t){ fail('This link is missing its code.'); return; }
+  fetch(ENDPOINT + '?action=account&t=' + encodeURIComponent(t), { cache: 'no-store' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if (!d || !d.ok){ fail('We could not find that account.'); return; } render(d); })
+    .catch(function(){ fail('We could not load your account just now.'); });
+})();
+</script>
+</body>
+</html>
