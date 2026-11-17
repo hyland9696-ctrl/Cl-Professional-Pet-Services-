@@ -5968,6 +5968,38 @@ function cashView(){
   if (billing && billing.months){ var ks = Object.keys(billing.months).sort(), nowK = monthKeyOf(new Date()), b = 0, c = 0; ks.filter(function(k){ return k < nowK; }).slice(-3).forEach(function(k){ b += billing.months[k].billed || 0; c += billing.months[k].collected || 0; }); if (b) rate = Math.min(1, c / b); }
   return { expect: expect, owed: owed, over30: over30, rate: rate, likely: rate != null ? expect * rate : null };
 }
+/* The two owed tiles open a list of who owes: one tap texts them the pay
+   link, one tap emails the full statement. Jesse: "a drop down for these
+   people and an option to a pay link to let them know it's outstanding". */
+var cashOwed = '';
+function cashOwedToggle(which){ cashOwed = cashOwed === which ? '' : which; renderCash(); }
+function payText(l, u){
+  var first = String(l.name || '').trim().split(/\s+/)[0] || 'there', link = payLink(), fee = lateFeeOf(l, u);
+  return 'Hi ' + first + ", it's CL Professional Pet Services. Just a heads-up that your balance of $" + Math.round(u.owed) + (fee > 0 ? ' (plus $' + Math.round(fee) + ' in late fees)' : '') + (u.oldest ? ', open since ' + new Date(String(u.oldest).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '') + ', is still outstanding. ' + (link ? 'You can pay here: ' + link + ' ' : 'Reply here and we can take care of it. ') + 'Thank you!';
+}
+function cashOwedList(which){
+  var un = (billing && billing.unpaid) || [], cut = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  var rows = un.filter(function(u){ return which === 'all' || (u.oldest && String(u.oldest).slice(0, 10) < cut); });
+  if (!rows.length) return '<div style="font-size:12px;color:#9aa5a0;padding:6px 0;">Nobody in this list. ' + (billing ? '' : 'It fills once the billing has loaded.') + '</div>';
+  var link = payLink();
+  var h = '<div style="background:#FFF8EE;border-radius:12px;padding:8px 10px;margin:4px 0 8px;">' +
+    '<div style="font-size:11.5px;color:#7a4a00;margin-bottom:4px;">' + (which === 'old' ? 'Open more than 30 days' : 'Everyone with a balance') + ', biggest first. <strong>Text pay link</strong> opens a text on this phone with the amount and ' + (link ? 'your pay link' : 'a reply-to-pay line (paste the Pay now link under Billing &rarr; Owed to include it)') + '. <strong>Email</strong> shows the full statement first.</div>';
+  h += rows.slice(0, 40).map(function(u){
+    var l = leadByName(u.name), fee = l ? lateFeeOf(l, u) : 0, fu = l ? fuParse(l.crmnotes) : {}, ph = l ? String(l.phone || '').replace(/\D/g, '') : '';
+    if (ph.length === 10) ph = '1' + ph;
+    var pre = l && prepaidNow(l);
+    var lastTx = fu.txDate && fu.txDate >= new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10) ? ' <span style="color:#9aa5a0;font-size:11px;">texted ' + esc(fu.txDate) + '</span>' : '';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:6px 0;border-top:1px solid #f3e6d3;font-size:12.5px;flex-wrap:wrap;">' +
+      '<span style="flex:1 1 150px;min-width:0;">' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') +
+        ' <span style="color:#707070;">' + (u.oldest ? 'since ' + esc(String(u.oldest).slice(0, 10)) : '') + '</span>' + lastTx + '</span>' +
+      '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (fee > 0 ? ' <span style="color:#c0392b;font-size:11px;font-weight:700;">+ $' + fee.toFixed(2) + ' fee</span>' : '') + '</span>' +
+      '<span style="display:flex;gap:4px;">' + (pre ? '<span style="color:#0F6E56;font-size:11px;font-weight:700;">prepaid</span>' :
+        (ph && l ? '<a href="sms:' + esc(ph) + '?&body=' + encodeURIComponent(payText(l, u)).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(l.id) + '\')" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:6px 9px;font-size:11.5px;font-weight:700;text-decoration:none;">&#128172; Text pay link</a>' : '<span style="color:#9aa5a0;font-size:11px;">' + (l ? 'no phone' : 'not in the tracker') + '</span>') +
+        (l && l.email ? '<button class="pr-btn2" onclick="payRemind(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:5px 8px;min-height:30px;font-size:11.5px;">&#9993;&#65039; Email</button>' : '')) + '</span></div>';
+  }).join('');
+  if (rows.length > 40) h += '<div style="font-size:11px;color:#9aa5a0;padding-top:4px;">and ' + (rows.length - 40) + ' more on the Owed list under Billing</div>';
+  return h + '</div>';
+}
 function renderCash(){
   var box = document.getElementById('cash'); if (!box) return;
   var c = cashView(), h = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128197; The next 30 days <span style="font-size:11px;font-weight:600;color:#707070;">what should come in</span></div>';
@@ -5975,8 +6007,9 @@ function renderCash(){
   h += '<div class="g" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0;">' +
     '<div class="stat"><div class="n">' + money(c.expect) + '</div><div class="l">the subscriptions will bill</div></div>' +
     '<div class="stat"><div class="n">' + (c.likely != null ? money(c.likely) : '&mdash;') + '</div><div class="l">' + (c.rate != null ? 'likely to arrive, at the last 3 months\u2019 ' + Math.round(c.rate * 100) + '% collection rate' : 'likely to arrive (needs the billing)') + '</div></div>' +
-    '<div class="stat"><div class="n" style="color:' + (c.owed ? '#b45309' : '#188663') + ';">' + money(c.owed) + '</div><div class="l">owed right now</div></div>' +
-    '<div class="stat"><div class="n" style="color:' + (c.over30 ? '#c0392b' : '#188663') + ';">' + money(c.over30) + '</div><div class="l">of it older than 30 days</div></div></div>' +
+    '<div class="stat owed-tile" onclick="cashOwedToggle(\'all\')" style="cursor:pointer;' + (cashOwed === 'all' ? 'outline:2px solid #b45309;' : '') + '"><div class="n" style="color:' + (c.owed ? '#b45309' : '#188663') + ';">' + money(c.owed) + '</div><div class="l">owed right now ' + (c.owed ? (cashOwed === 'all' ? '&#9652;' : '&#9662; who') : '') + '</div></div>' +
+    '<div class="stat owed-tile" onclick="cashOwedToggle(\'old\')" style="cursor:pointer;' + (cashOwed === 'old' ? 'outline:2px solid #c0392b;' : '') + '"><div class="n" style="color:' + (c.over30 ? '#c0392b' : '#188663') + ';">' + money(c.over30) + '</div><div class="l">of it older than 30 days ' + (c.over30 ? (cashOwed === 'old' ? '&#9652;' : '&#9662; who') : '') + '</div></div></div>' +
+    (cashOwed ? cashOwedList(cashOwed) : '') +
     '<div style="font-size:12px;color:#555;">' + (c.rate != null && c.rate < 0.85 ? 'Collections are running behind billing. The Owed list under Billing has the names and a Remind button.' : c.over30 ? 'Most of it comes in; the old balances are the ones to chase.' : 'Billing and collections are in step.') + '</div>';
   box.innerHTML = h;
 }

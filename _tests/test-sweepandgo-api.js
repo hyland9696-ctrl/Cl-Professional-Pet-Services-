@@ -418,6 +418,19 @@ const { ok, done } = reporter();
   await p.click('#stmt button:has-text("Send 30 now")'); await p.waitForTimeout(300);
   ok('and sends 30 a tap', refinvites.length === 2 && !refinvites[1].preview && !(await p.isVisible('#stmt')));
   await p.evaluate(() => { leads = leads.filter(l => !/^W[PGDSLR]$/.test(l.id)); foldAll(false); render(); });
+  /* ---- the owed tiles open a list with a pay link ---- */
+  await p.evaluate(() => { foldAll(true); cashOwed = ''; render(); });
+  await p.click('#cash .owed-tile >> nth=0'); await p.waitForTimeout(200);
+  const cashAll = (await p.textContent('#cash')).replace(/\s+/g, ' ');
+  ok('tapping "owed right now" opens everyone with a balance, with the amount, the date and the late fee', /Everyone with a balance/.test(cashAll) && /Eddie Eow since 2026-10-05\s*\$190\s*\+ \$10\.00 fee/.test(cashAll) && /Nobody Known since 2026-11-01\s*\$65\s*not in the tracker/.test(cashAll), cashAll.slice(cashAll.indexOf('Everyone'), cashAll.indexOf('Everyone') + 500));
+  const sms = await p.getAttribute('#cash a:has-text("Text pay link")', 'href');
+  ok('Text pay link opens a text to them with the balance, the late fee and the pay link', /^sms:16363750002\?&body=/.test(sms) && /balance%20of%20%24190%20\(plus%20%2410%20in%20late%20fees\)/.test(sms) && /pay%20here%3A%20https%3A%2F%2Fclpps\.sweepandgo\.com%2Fportal/.test(sms), sms);
+  ok('Email opens the full statement, the same as the Owed list', (await p.$$('#cash .pr-btn2')).length === 1);
+  await p.click('#cash .owed-tile >> nth=1'); await p.waitForTimeout(200);
+  const cashOld = (await p.textContent('#cash')).replace(/\s+/g, ' ');
+  ok('"older than 30 days" narrows it to the old balances', /Open more than 30 days/.test(cashOld) && /Eddie Eow/.test(cashOld) && !/Nobody Known/.test(cashOld));
+  await p.click('#cash .owed-tile >> nth=1'); await p.waitForTimeout(150);
+  ok('and a second tap closes it', !/Open more than 30 days/.test(await p.textContent('#cash')));
   /* ---- prepay ---- */
   await p.evaluate(() => { foldAll(true); render(); });
   ok('a customer card offers pay-ahead at their own price', /Pay ahead: 3 mo \$439 · 6 mo \$861 · 12 mo \$1631/.test((await p.textContent('#card-D1')).replace(/\s+/g, ' ')), (await p.textContent('#card-D1')).replace(/\s+/g, ' ').slice(0, 900));
