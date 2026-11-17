@@ -69,6 +69,12 @@
   #owner .oc svg [data-tip]{cursor:pointer;}
   #owner .leg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:#555;margin-top:6px;}
   #owner .leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;}
+  body[data-role=office] .owner-only, body[data-role=tech] .owner-only,
+  body[data-role=office] #auto-switches, body[data-role=office] #campaign-cal, body[data-role=office] #deoBtn, body[data-role=office] #priceplan,
+  body[data-role=office] #pay-link, body[data-role=office] #pay-link + button,
+  body[data-role=office] label:has(#fu-auto-box), body[data-role=office] label:has(#we-auto-box), body[data-role=office] label:has(#pr-auto-box){display:none!important;}
+  body[data-role=tech] .wrap > :not(#techview):not(#stmt){display:none!important;}
+  body:not([data-role=tech]) #techview{display:none;}
   #stmt .stmt-card{background:#fff;border-radius:16px;padding:14px;width:100%;max-width:560px;max-height:90vh;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,0.25);}
   #otip{display:none;position:fixed;z-index:60;background:#2B3A34;color:#fff;font-size:12px;padding:6px 9px;border-radius:8px;pointer-events:none;max-width:260px;box-shadow:0 4px 14px rgba(0,0,0,0.18);}
   #toolmore{display:none;flex-wrap:wrap;gap:8px;width:100%;} #toolmore.open{display:flex;}
@@ -146,6 +152,7 @@
     </div>
   </header>
   <div class="wrap">
+    <div id="techview"></div>
     <div id="offline" style="display:none;background:#FDF3DC;border:1px solid #e6c96a;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#7a5c00;"></div>
     <div id="alerts" style="display:none;margin-bottom:12px;"></div>
     <div class="stats" id="stats"></div>
@@ -196,6 +203,7 @@
     <div id="risk" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="dormant" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="cash" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
+    <div id="prepay" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="expand" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="winback" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
     <div id="upsell" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"></div>
@@ -244,6 +252,7 @@
       <button class="copybtn" onclick="toggleQR()" id="qrBtn">&#128241; Sign scans</button>
       <button class="copybtn" onclick="openTerritory()">&#128506;&#65039; Territory</button>
       <button class="copybtn" onclick="setWho()" id="whoBtn">&#128100; Who am I?</button>
+      <button class="copybtn owner-only" onclick="toggleTeam()" id="teamBtn">&#128101; Team</button>
       <button class="copybtn" onclick="toggleBlast()" id="blastBtn">&#9993;&#65039; Email</button>
       <button class="copybtn" onclick="toggleImport()" id="importBtn">&#11014;&#65039; Import</button>
       <button class="copybtn" onclick="toggleDeoSeason()" id="deoBtn" title="Deodorize &amp; sanitize is a warm-weather service. Flip this when it drops below 50 or warms back up; the website prices by it.">&#129532; Deodorize season</button>
@@ -252,6 +261,10 @@
       <button class="copybtn" onclick="copyEmails()">Copy emails</button>
       <button class="copybtn" onclick="lockTracker()" id="lockBtn" style="color:#c0392b;border-color:#e0b4ad;">&#128274; Lock</button>
       </div>
+    </div>
+    <div id="teamPanel" class="owner-only" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><div style="font-weight:800;font-size:15px;">&#128101; Team</div><button onclick="toggleTeam(false)" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:40px;">Close</button></div>
+      <div id="team-body"></div>
     </div>
     <div id="addPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,0.07);">
       <div style="font-weight:700;font-size:14px;margin-bottom:8px;">Paste the quote email</div>
@@ -391,6 +404,7 @@
       <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="we-auto-box" onchange="toggleWelcomeEmails(this.checked)" style="margin-top:3px;"><span><strong>Welcome sequence for new customers.</strong> <span class="office-note" style="color:#b45309;"></span> The day after someone starts, a what-to-expect email with their day and how to reach us. A month in, a how-are-we-doing with the Google review link (counts as the review ask, so the card does not ask again). Nothing for paused customers or opt-outs. <span id="we-stat" style="color:#0F6E56;"></span></span></label>
       <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="pr-auto-box" onchange="togglePayReminders(this.checked)" style="margin-top:3px;"><span><strong>Payment reminders every Monday.</strong> <span class="office-note" style="color:#b45309;"></span> Anyone 14 or more days behind gets one plain note from the office with the amount; never twice inside 14 days, never to opt-outs. The Remind button on the Owed list does the same for one person. <span id="pr-stat" style="color:#0F6E56;"></span></span></label>
       <div id="auto-switches"></div>
+      <div class="owner-only" style="display:flex;gap:6px;align-items:center;margin:-4px 0 10px;flex-wrap:wrap;font-size:12px;"><span>Monday email to:</span><input id="owner-email" type="email" placeholder="Corey's email (blank = the office mailbox)" style="flex:1 1 200px;padding:7px 9px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;min-width:0;"><button onclick="saveOwnerEmail()" style="padding:6px 10px;min-height:32px;font-size:11.5px;">Save</button></div>
       <div style="display:flex;align-items:center;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;flex-wrap:wrap;"><span style="flex:1 1 200px;"><strong>Referral links to every customer.</strong> Each active customer gets their own link and their account page, once in six months. You see the email first.</span><button class="copybtn" onclick="refInvite(false)">&#128279; Send referral links</button></div>
       <div style="font-weight:700;font-size:13px;margin:4px 0;">Campaign calendar</div>
       <div style="font-size:11.5px;color:#707070;margin-bottom:6px;">Four seasonal emails, each on its date, once a year, to the people it is for. Tick the ones you want; change a date if you like. Each needs the office mailbox, like everything else here.</div>
@@ -707,6 +721,7 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
         d.leads = merged; deltaLoads++;
       } else { lastFullAt = Date.now(); }
       lastRows = d.leads;
+      try { applyRole(d.me); } catch (e) {}
       remoteLoaded = true;
       trafficDaysLoaded = days;
       lastSyncAt = Date.now();
@@ -1093,6 +1108,7 @@ function copyText(t){
    call, text, note and status change carries the name and the day. */
 function whoAmI(){ try { return localStorage.getItem('clpps_who') || ''; } catch (e) { return ''; } }
 function setWho(){
+  if (ME.role !== 'owner'){ toast('Signed in as ' + ME.name + '. Everything you do is signed with that name.'); return; }
   var v = prompt('Who uses this phone? (a first name - it goes on every action you take here)', whoAmI());
   if (v === null) return;
   v = String(v).trim().replace(/[\[\]~]/g, '').slice(0, 20);
@@ -1640,13 +1656,13 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', cf: '', wk: '', lr: '', rt: '', an: '', ng: '', ou: '', pl: '', ri: '', sc: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', cf: '', wk: '', lr: '', rt: '', an: '', ng: '', ou: '', pl: '', ri: '', sc: '', pp: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
   // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
   // ll = lat,lng from Sweep&Go's dispatch board; sgid = their client id. Both written by the nightly sync.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR|CF|WK|LR|RT|AN|NG|OU|PL|RI|SC):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR|CF|WK|LR|RT|AN|NG|OU|PL|RI|SC|PP):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1701,7 +1717,8 @@ function fuParse(crmnotes){
     else if (hit[1] === 'OU') m.ou = hit[2];                                 // a one-off note from the Win back or Upsell card: kind-sub@date
     else if (hit[1] === 'PL') m.pl = hit[2];                                 // collections ladder: the notice sent, step@date
     else if (hit[1] === 'RI') m.ri = hit[2];                                 // referral link emailed, date
-    else if (hit[1] === 'SC') m.sc = hit[2];                                 // save call: outcome@date
+    else if (hit[1] === 'SC') m.sc = hit[2];
+    else if (hit[1] === 'PP') m.pp = hit[2];                                 // prepaid: months@start~end@amount                                 // save call: outcome@date
     else if (hit[1] === 'NG') m.ng = hit[2];                                 // the hour-later nudge went to the phones                                 // price move: new@effective date
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
@@ -1750,7 +1767,7 @@ function fuCompose(m){
          (m.fe ? m.fe.split(',').map(function(x){ return '[FE:' + x + '] '; }).join('') : '') +
          (m.we ? m.we.split(',').map(function(x){ return '[WE:' + x + '] '; }).join('') : '') +
          (m.pm ? '[PM:' + m.pm + '] ' : '') +
-         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.cf ? '[CF:' + m.cf + '] ' : '') + (m.wk ? '[WK:' + m.wk + '] ' : '') + (m.lr ? '[LR:' + m.lr + '] ' : '') + (m.rt ? '[RT:' + m.rt + '] ' : '') + (m.an ? '[AN:' + m.an + '] ' : '') + (m.ng ? '[NG:' + m.ng + '] ' : '') + (m.ou ? '[OU:' + m.ou + '] ' : '') + (m.pl ? '[PL:' + m.pl + '] ' : '') + (m.ri ? '[RI:' + m.ri + '] ' : '') + (m.sc ? '[SC:' + m.sc + '] ' : '') + (m.text || '');
+         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.cf ? '[CF:' + m.cf + '] ' : '') + (m.wk ? '[WK:' + m.wk + '] ' : '') + (m.lr ? '[LR:' + m.lr + '] ' : '') + (m.rt ? '[RT:' + m.rt + '] ' : '') + (m.an ? '[AN:' + m.an + '] ' : '') + (m.ng ? '[NG:' + m.ng + '] ' : '') + (m.ou ? '[OU:' + m.ou + '] ' : '') + (m.pl ? '[PL:' + m.pl + '] ' : '') + (m.ri ? '[RI:' + m.ri + '] ' : '') + (m.sc ? '[SC:' + m.sc + '] ' : '') + (m.pp ? '[PP:' + m.pp + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -1877,6 +1894,7 @@ function saveNote(id){
 }
 function post(body, okMsg){
   if (!CRM_ENDPOINT) return;
+  if (ME.role !== 'owner' && body && body.lead && (body.lead.type === 'CONFIG' || body.lead.type === 'SPEND')){ toast('Only the owner login can change settings'); return; }
   if (!body.key) body.key = KEY;   // every write from this page is signed; the backend trusts status and dates only when it is
   fetch(CRM_ENDPOINT, {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(body)})
     .then(function(r){ return r.json(); })
@@ -3768,6 +3786,8 @@ var AUTO_SWITCHES = [
   { key: 'revival_emails', title: 'Revival: quotes that never went ahead.', text: 'Anyone who got a price 30+ days ago and never signed up, or said no, gets one note: the quote still stands, the $40 initial clean is waived this month. Once, ever, per person. The older ones go out over a few days.' },
   { key: 'referral_emails', title: 'Referral thank-you.', text: 'When someone a customer referred starts, the customer gets a thank-you from the office saying the free deodorize is on the next visit, and the phones get a reminder to add it in Sweep&Go.' },
   { key: 'spring_emails', title: 'Spring restart, every March.', text: 'In March, everyone who left for the winter or is paused with no return date gets one note: we are back on your street, old price, no restart fee. Once a year per person. The Win back card lists who.' },
+  { key: 'prepay_renewals', title: 'Prepay renewal, a month before it ends.', text: 'One note to each prepaid customer a month before their stretch ends, offering the same discount again. The Prepaid card lists who.' },
+  { key: 'owner_report', title: 'Monday owner email.', text: 'Every Monday at 7, one page to the address below (or the office mailbox): money, customers, emails sent, who came back, late fees owed, prepaid money, and what to do this week.' },
   { key: 'anniversary_emails', title: 'A year with us.', text: 'On the anniversary of their start, a thank-you from the office with a free deodorize on the next visit. Every year, once.' }
 ];
 function autoOn(key){ var c = config[key]; return !!c && String(c.value) === 'on'; }
@@ -3779,6 +3799,7 @@ function toggleAuto(key, on){
 }
 function renderAutoSwitches(){
   var box = document.getElementById('auto-switches'); if (!box) return;
+  var oe = document.getElementById('owner-email'); if (oe && document.activeElement !== oe) oe.value = config.owner_email ? String(config.owner_email.value || '') : '';
   box.innerHTML = AUTO_SWITCHES.map(function(sw){
     return '<label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="sw-' + sw.key + '" ' + (autoOn(sw.key) ? 'checked' : '') + ' onchange="toggleAuto(\'' + sw.key + '\', this.checked)" style="margin-top:3px;"><span><strong>' + sw.title + '</strong> <span class="office-note" style="color:#b45309;">' + (officeMail === false ? 'Waits for the office mailbox to be connected; the switch can be on, nothing goes until then.' : '') + '</span> ' + sw.text + '</span></label>';
   }).join('');
@@ -5520,25 +5541,197 @@ function accountLink(id){
 function accountRow(l){
   return '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#127968; Their account page: <span id="acct-' + esc(l.id) + '"><button onclick="accountLink(\'' + esc(l.id) + '\')" style="padding:5px 9px;min-height:32px;font-size:11.5px;">Get link</button></span></div>';
 }
-/* ---- referral links, sent to every customer at once ---- */
-var riBusy = false;
-function refInvite(send){
-  if (riBusy || !CRM_ENDPOINT) return;
-  if (officeMail !== true){ toast(NO_OFFICE_TEXT); return; }
-  riBusy = true;
-  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'refinvite', key: KEY, preview: !send }) })
+
+/* ============================================================
+   TEAM LOGINS. The script says who this password belongs to (owner,
+   office or tech) with every list it sends. The owner sees everything;
+   the office sees everything but the settings, the team and the
+   accountant's files; a tech sees only today's route and the yards on
+   it, from a copy of the list the script has already cut down.
+   ============================================================ */
+var ME = { name: 'Owner', role: 'owner' };
+function isOwner(){ return ME.role === 'owner'; }
+function applyRole(me){
+  var was = ME.role;
+  ME = me && me.role ? { name: String(me.name || ''), role: String(me.role) } : { name: 'Owner', role: 'owner' };
+  document.body.setAttribute('data-role', ME.role);
+  if (ME.role !== 'owner'){ try { localStorage.setItem('clpps_who', ME.name); } catch (e) {} try { renderWho(); } catch (e) {} }
+  if (ME.role === 'tech') renderTech();
+  return was !== ME.role;
+}
+/* ---- the tech's day ---- */
+var TECH_START = ['Truck fueled and checked', 'Bags, scoopers and gloves', 'Sanitizer and deodorizer stocked', 'Phone charged'];
+var TECH_END = ['Every yard done or skipped in Sweep&Go', 'Skips have a reason', 'Waste dumped', 'Truck and tools cleaned'];
+var techDay = null;
+function techChecked(kind){ try { var v = JSON.parse(localStorage.getItem('clpps_check_' + kind) || 'null'); return v && v.day === new Date().toISOString().slice(0, 10) ? v : null; } catch (e) { return null; } }
+function techChecklist(kind, items){
+  var done = techChecked(kind);
+  if (done) return '<div style="background:#E8F5EF;border-radius:10px;padding:9px 12px;font-size:13px;color:#0F6E56;font-weight:700;margin-bottom:10px;">&#10003; ' + (kind === 'start' ? 'Day started' : 'Day finished') + ' at ' + esc(done.at) + '</div>';
+  return '<div style="background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"><div style="font-weight:800;font-size:14px;margin-bottom:6px;">' + (kind === 'start' ? '&#9728;&#65039; Start of day' : '&#127769; End of day') + '</div>' +
+    items.map(function(it, i){ return '<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;padding:5px 0;"><input type="checkbox" class="tc-' + kind + '" value="' + esc(it) + '" style="width:20px;height:20px;"> ' + esc(it) + '</label>'; }).join('') +
+    '<input id="tc-note-' + kind + '" placeholder="Anything to tell the office (optional)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;margin-top:6px;box-sizing:border-box;">' +
+    '<button class="copybtn" onclick="techCheck(\'' + kind + '\')" style="margin-top:8px;background:#0F6E56;color:#fff;border-color:#0F6E56;width:100%;">' + (kind === 'start' ? 'Start my day' : 'Finish my day') + '</button></div>';
+}
+function techCheck(kind){
+  var items = Array.prototype.map.call(document.querySelectorAll('.tc-' + kind + ':checked'), function(x){ return x.value; });
+  var note = (document.getElementById('tc-note-' + kind) || {}).value || '';
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'checkin', key: KEY, kind: kind, items: items, note: note }) })
     .then(function(r){ return r.json(); })
     .then(function(d){
-      riBusy = false;
+      if (!d || !d.ok){ toast('Not saved: ' + (d && d.error || 'try again')); return; }
+      var at = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      try { localStorage.setItem('clpps_check_' + kind, JSON.stringify({ day: new Date().toISOString().slice(0, 10), at: at })); } catch (e) {}
+      toast(kind === 'start' ? 'Day started. Have a good one.' : 'Day finished. Thanks!'); renderTech();
+    })
+    .catch(function(){ toast('No connection'); });
+}
+function renderTech(){
+  var box = document.getElementById('techview'); if (!box) return;
+  var k = techDay || todayKey(), tp = null; try { tp = dayPlan(k); } catch (e) {}
+  var label = DAYS.filter(function(d){ return d[0] === k; })[0]; label = label ? label[1] : k;
+  var stops = tp && tp.stops ? tp.stops : [];
+  var h = '<div style="font-weight:800;font-size:18px;margin:2px 2px 8px;">Hi ' + esc(ME.name) + '</div>' + techChecklist('start', TECH_START);
+  h += '<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">' + DAYS.map(function(d){ return '<button onclick="techDay=\'' + d[0] + '\';renderTech();" style="padding:6px 10px;min-height:36px;font-size:12px;' + (d[0] === k ? 'background:#0F6E56;color:#fff;border-color:#0F6E56;' : '') + '">' + d[1] + (d[0] === todayKey() ? ' (today)' : '') + '</button>'; }).join('') + '</div>';
+  h += '<div style="background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 5px rgba(0,0,0,0.07);"><div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128666; ' + esc(label) + ': ' + stops.length + ' stop' + (stops.length === 1 ? '' : 's') + (tp && tp.total ? ' &middot; about ' + hoursText(tp.total) : '') + '</div>' +
+    (stops.length ? stops.map(function(s, i){
+      var l = s.l || s, fu = fuParse(l.crmnotes), addr = String(l.address || '').trim(), q = addr || (fu.ll ? fu.ll : '');
+      var note = String(fu.text || '').trim(), deo = /every/i.test(String(l.deodorize || ''));
+      return '<div style="border-top:1px solid #f1f1f1;padding:9px 0;font-size:13.5px;">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;"><strong>' + (i + 1) + '. ' + esc(l.name || '') + '</strong>' + (s.arrive ? '<span style="color:#707070;font-size:12px;">about ' + (function(m){ var h = Math.floor(m / 60), mm = Math.round(m % 60); if (mm === 60){ h++; mm = 0; } return ((h + 11) % 12 + 1) + ':' + ('0' + mm).slice(-2) + (h >= 12 ? 'pm' : 'am'); })(s.arrive) + '</span>' : '') + '</div>' +
+        (addr ? '<a href="https://maps.google.com/?q=' + encodeURIComponent(q) + '" target="_blank" rel="noopener" style="color:#0F6E56;font-weight:600;text-decoration:none;">&#128205; ' + esc(addr) + '</a>' : '') +
+        '<div style="color:#555;font-size:12.5px;">' + esc(dogsLabel(l.dogs)) + (deo ? ' &middot; <strong>deodorize</strong>' : '') + (fu.cm ? ' &middot; commercial' : '') + '</div>' +
+        (note ? '<div style="background:#FFF8E6;border-radius:8px;padding:6px 9px;margin-top:4px;font-size:12.5px;">&#128221; ' + esc(note) + '</div>' : '') + '</div>';
+    }).join('') : '<div style="font-size:13px;color:#707070;">No stops on this day.</div>') + '</div>';
+  h += techChecklist('end', TECH_END);
+  h += '<div style="font-size:11.5px;color:#9aa5a0;text-align:center;margin:8px 0 20px;">Mark visits done or skipped in the Sweep&amp;Go app as usual. Questions: call the office.</div>';
+  box.innerHTML = h;
+}
+/* ---- the team, for the owner: people, roles, passwords, and the activity log ---- */
+var teamOpen = false, teamUsers = null, teamActs = null, teamPw = null, teamFilter = '';
+function teamCall(body, cb){
+  body.key = KEY;
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) })
+    .then(function(r){ return r.json(); }).then(function(d){ if (!d || !d.ok){ toast(d && d.error ? d.error : 'Not done'); return; } cb(d); })
+    .catch(function(){ toast('No connection'); });
+}
+function toggleTeam(force){
+  teamOpen = force != null ? !!force : !teamOpen;
+  var p = document.getElementById('teamPanel'); if (!p) return;
+  p.style.display = teamOpen ? 'block' : 'none';
+  if (teamOpen){ teamPw = null; renderTeam(); teamCall({ action: 'users', op: 'list' }, function(d){ teamUsers = d.users; renderTeam(); }); teamCall({ action: 'activity' }, function(d){ teamActs = d.rows; renderTeam(); }); }
+}
+function teamAdd(){
+  var name = (document.getElementById('tm-name') || {}).value || '', role = (document.getElementById('tm-role') || {}).value || 'tech';
+  if (!name.trim()){ toast('Type their first name'); return; }
+  teamCall({ action: 'users', op: 'add', name: name.trim(), role: role }, function(d){ teamUsers = d.users; teamPw = { name: name.trim(), pw: d.password }; renderTeam(); });
+}
+function teamOp(id, op, role){
+  var u = (teamUsers || []).filter(function(x){ return x.id === id; })[0]; if (!u) return;
+  if (op === 'reset' && !confirm('Make a new password for ' + u.name + '? Their old one stops working now.')) return;
+  if (op === 'off' && !confirm('Turn off ' + u.name + '’s login? They are signed out on their next refresh.')) return;
+  teamCall({ action: 'users', op: op, id: id, role: role }, function(d){ teamUsers = d.users; if (d.password) teamPw = { name: u.name, pw: d.password }; renderTeam(); });
+}
+var ACT_LABEL = { 'check-start': 'started the day', 'check-end': 'finished the day', update: 'changed a card', lead: 'added or saved a lead', setting: 'changed a setting', payremind: 'sent a statement', outreach: 'sent a note', refinvite: 'sent referral links', prepayinvite: 'sent pay-ahead offers', pricemove: 'sent price notices', blast: 'sent an email blast', sgsync: 'synced Sweep&Go', sgcreate: 'signed someone up in Sweep&Go', 'user-add': 'added a login', 'user-off': 'turned off a login', 'user-on': 'turned on a login', 'user-reset': 'made a new password', 'user-role': 'changed a role' };
+function renderTeam(){
+  var box = document.getElementById('team-body'); if (!box) return;
+  var leadName = function(id){ var l = leads.filter(function(x){ return x.id === id; })[0]; return l ? l.name : ''; };
+  var h = '';
+  if (teamPw) h += '<div style="background:#FFF4E5;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13px;"><strong>Password for ' + esc(teamPw.name) + ':</strong> <code style="font-size:15px;background:#fff;border-radius:6px;padding:2px 6px;">' + esc(teamPw.pw) + '</code> <button onclick="copyText(\'' + esc(teamPw.pw) + '\')" style="padding:4px 8px;min-height:30px;font-size:11.5px;">Copy</button><div style="font-size:11.5px;color:#7a4a00;margin-top:4px;">Give it to them in person or by text. It is not shown again; New password makes another.</div></div>';
+  h += '<div style="font-weight:700;font-size:13px;margin-bottom:4px;">People</div>' +
+    '<div style="font-size:11.5px;color:#707070;margin-bottom:6px;">Your own password stays the owner’s. Office: everything except settings, the team and the accountant’s files. Tech: today’s route and the yards on it, nothing else reaches their phone.</div>';
+  h += teamUsers == null ? '<div style="font-size:12px;color:#9aa5a0;">Loading&hellip;</div>' : (teamUsers.length ? teamUsers.map(function(u){
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #f3f5f4;font-size:12.5px;flex-wrap:wrap;"><span><strong' + (u.on ? '' : ' style="color:#9aa5a0;text-decoration:line-through;"') + '>' + esc(u.name) + '</strong> <span style="color:#707070;">' + (u.last ? 'last seen ' + esc(String(u.last).slice(0, 10)) : 'not used yet') + '</span></span>' +
+      '<span style="display:flex;gap:4px;align-items:center;"><select onchange="teamOp(\'' + esc(u.id) + '\',\'role\',this.value)" style="min-height:30px;font-size:11.5px;"><option value="office"' + (u.role === 'office' ? ' selected' : '') + '>Office</option><option value="tech"' + (u.role === 'tech' ? ' selected' : '') + '>Tech</option></select>' +
+      '<button onclick="teamOp(\'' + esc(u.id) + '\',\'reset\')" style="padding:4px 8px;min-height:30px;font-size:11.5px;">New password</button>' +
+      '<button onclick="teamOp(\'' + esc(u.id) + '\',\'' + (u.on ? 'off' : 'on') + '\')" style="padding:4px 8px;min-height:30px;font-size:11.5px;' + (u.on ? 'color:#c0392b;' : '') + '">' + (u.on ? 'Turn off' : 'Turn on') + '</button></span></div>';
+  }).join('') : '<div style="font-size:12px;color:#9aa5a0;">Nobody yet besides you.</div>');
+  h += '<div style="display:flex;gap:6px;margin:8px 0 12px;flex-wrap:wrap;"><input id="tm-name" placeholder="First name" style="flex:1 1 120px;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;min-width:0;"><select id="tm-role" style="min-height:38px;"><option value="tech">Tech</option><option value="office">Office</option></select><button class="copybtn" onclick="teamAdd()" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">Add</button></div>';
+  var acts = (teamActs || []).filter(function(a){ return !teamFilter || a.who === teamFilter; });
+  var whos = {}; (teamActs || []).forEach(function(a){ whos[a.who] = 1; });
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><div style="font-weight:700;font-size:13px;">Activity</div><select onchange="teamFilter=this.value;renderTeam();" style="min-height:30px;font-size:11.5px;"><option value="">Everyone</option>' + Object.keys(whos).map(function(w){ return '<option' + (teamFilter === w ? ' selected' : '') + '>' + esc(w) + '</option>'; }).join('') + '</select></div>';
+  h += teamActs == null ? '<div style="font-size:12px;color:#9aa5a0;">Loading&hellip;</div>' : (acts.length ? acts.slice(0, 80).map(function(a){
+    var t = new Date(a.when), when = isNaN(t) ? a.when : t.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    var who = leadName(a.id);
+    return '<div style="padding:4px 0;border-top:1px solid #f3f5f4;font-size:12px;"><span style="color:#707070;">' + esc(when) + '</span> <strong>' + esc(a.who) + '</strong> ' + esc(ACT_LABEL[a.action] || a.action) + (who ? ': ' + esc(who) : '') + (a.detail && /^check-/.test(a.action) ? '<div style="color:#555;font-size:11.5px;">' + esc(a.detail) + '</div>' : (a.detail && !who ? ' <span style="color:#707070;">' + esc(a.detail) + '</span>' : '')) + '</div>';
+  }).join('') : '<div style="font-size:12px;color:#9aa5a0;">Nothing logged yet.</div>');
+  box.innerHTML = h;
+}
+/* ============================================================
+   PREPAY. 3, 6 or 12 months ahead for 3, 5 or 10% off, price locked.
+   Taken in Sweep&Go; Mark prepaid on the card records it here as
+   [PP:months@start~end@amount], and the statements, late fees, the
+   Monday round and the price move all leave them be until it ends.
+   ============================================================ */
+var PREPAY_OPTS = [[3, 3], [6, 5], [12, 10]];
+function prepayOf(l){ var m = String(fuParse(l.crmnotes).pp || '').match(/^(\d+)@(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2})@([\d.]+)$/); return m ? { months: +m[1], from: m[2], to: m[3], amount: +m[4] } : null; }
+function prepaidNow(l){ var p = prepayOf(l), t = new Date().toISOString().slice(0, 10); return p && p.from <= t && p.to >= t ? p : null; }
+function prepayOptsFor(l){ var pp = parsePrice(l); if (!pp || !pp.isMo || !(pp.amt > 0)) return null; return PREPAY_OPTS.map(function(o){ var full = pp.amt * o[0], tot = Math.round(full * (100 - o[1])) / 100; return { months: o[0], off: o[1], total: tot, save: Math.round((full - tot) * 100) / 100 }; }); }
+function addMonthsIso(iso, n){ var d = new Date(iso + 'T12:00:00'); d.setMonth(d.getMonth() + n); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
+function markPrepaid(id, months){
+  months = parseInt(months, 10); if (!months) return;
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  var o = (prepayOptsFor(l) || []).filter(function(x){ return x.months === months; })[0]; if (!o) return;
+  var today = new Date().toISOString().slice(0, 10), to = addMonthsIso(today, months);
+  if (!confirm('Record ' + (l.name || 'them') + ' as prepaid: $' + o.total.toFixed(2) + ' for ' + months + ' months, through ' + to + '?\n\nOnly do this once the money is in Sweep&Go, and stop their monthly billing there until ' + to + '.')) return;
+  var m = fuParse(l.crmnotes); m.pp = months + '@' + today + '~' + to + '@' + o.total.toFixed(2); stampBy(m);
+  l.crmnotes = fuCompose(m); l.updated = new Date().toISOString(); saveLocal(); render();
+  post({ action: 'update', key: KEY, id: id, notes: l.crmnotes }, 'Prepaid through ' + to);
+}
+function clearPrepaid(id){
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  if (!confirm('Clear the prepaid record for ' + (l.name || 'them') + '? Statements and late fees apply again.')) return;
+  var m = fuParse(l.crmnotes); m.pp = ''; stampBy(m); l.crmnotes = fuCompose(m); l.updated = new Date().toISOString(); saveLocal(); render();
+  post({ action: 'update', key: KEY, id: id, notes: l.crmnotes }, 'Prepaid record cleared');
+}
+function prepayRow(l){
+  var now = prepaidNow(l), p = prepayOf(l);
+  if (now) return '<div style="margin-top:6px;font-size:12px;color:#0F6E56;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#128181; Prepaid through ' + esc(now.to) + ' &middot; $' + now.amount.toFixed(2) + ' for ' + now.months + ' months <button onclick="clearPrepaid(\'' + esc(l.id) + '\')" style="padding:4px 8px;min-height:30px;font-size:11px;color:#707070;">Clear</button></div>';
+  var opts = prepayOptsFor(l); if (!opts) return '';
+  return '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#128181; Pay ahead: ' + opts.map(function(o){ return o.months + ' mo $' + Math.round(o.total); }).join(' &middot; ') + (p ? ' <span style="color:#9aa5a0;">(last prepaid through ' + esc(p.to) + ')</span>' : '') +
+    (blastEmailOk(l.email) ? ' <button onclick="outreach(\'' + esc(l.id) + '\',\'prepay\',\'offer\')" style="padding:4px 8px;min-height:30px;font-size:11px;">Offer by email</button>' : '') +
+    ' <select onchange="markPrepaid(\'' + esc(l.id) + '\', this.value); this.value=\'\';" style="min-height:30px;font-size:11px;"><option value="">Mark prepaid&hellip;</option>' + opts.map(function(o){ return '<option value="' + o.months + '">' + o.months + ' months, $' + o.total.toFixed(2) + '</option>'; }).join('') + '</select></div>';
+}
+function renderPrepay(){
+  var box = document.getElementById('prepay'); if (!box) return;
+  var now = [], renew = [], ahead = 0, today = new Date().toISOString().slice(0, 10);
+  leads.forEach(function(l){ if (!isLead(l) || (l.status || 'new') !== 'closed') return; var p = prepaidNow(l); if (!p) return; now.push({ l: l, p: p }); ahead += p.amount; if (daysAgo(today + 'T12:00:00') - daysAgo(p.to + 'T12:00:00') <= 30) renew.push({ l: l, p: p }); });
+  now.sort(function(a, b){ return a.p.to < b.p.to ? -1 : 1; });
+  var h = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128181; Prepaid <span style="font-size:11px;font-weight:600;color:#707070;">pay ahead, save, price locked</span></div>' +
+    '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">3 months 3% off, 6 months 5%, 12 months 10%. To take one: send a one-time invoice for the amount in Sweep&amp;Go, stop their monthly billing until the end date, then Mark prepaid on their card. While it runs they get no statements, no late fees and no price move. A month before it ends, the renewal note (switch under Email) offers the same deal again.</div>';
+  h += '<div style="font-size:12.5px;margin-bottom:6px;"><strong>' + now.length + '</strong> prepaid &middot; <strong>' + money(ahead) + '</strong> collected ahead</div>';
+  if (renew.length) h += '<div style="font-size:12px;font-weight:700;color:#b45309;margin-top:6px;">Ending within a month</div>' + renew.map(function(r){ return '<div style="font-size:12.5px;padding:3px 0;border-top:1px solid #f3f5f4;"><a href="#card-' + esc(r.l.id) + '" onclick="jumpToLead(\'' + esc(r.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(r.l.name) + '</a> <span style="color:#707070;">through ' + esc(r.p.to) + '</span></div>'; }).join('');
+  if (now.length) h += '<div style="font-size:12px;font-weight:700;margin-top:8px;">Everyone prepaid</div>' + now.slice(0, 30).map(function(r){ return '<div style="font-size:12.5px;padding:3px 0;border-top:1px solid #f3f5f4;"><a href="#card-' + esc(r.l.id) + '" onclick="jumpToLead(\'' + esc(r.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(r.l.name) + '</a> <span style="color:#707070;">' + r.p.months + ' months, $' + r.p.amount.toFixed(2) + ', through ' + esc(r.p.to) + '</span></div>'; }).join('');
+  h += '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;"><button class="copybtn" onclick="bulkInvite(\'prepayinvite\', false)">&#128181; Send pay-ahead offer</button><span style="font-size:11.5px;color:#707070;">to good payers: with us 90+ days, nothing owed, no notices in six months. ' + (new Date().getMonth() >= 9 || new Date().getMonth() <= 1 ? 'Right now it is pitched as locking in through the winter.' : '') + '</span></div>';
+  box.innerHTML = h;
+}
+/* the bulk sends, shown first: referral links and pay-ahead offers */
+var biBusy = false;
+var BULK_TITLES = { refinvite: ['&#128279; Send referral links', 'Each gets their own link and their account page, 30 a tap.', 'Everyone has had their link in the last six months.'], prepayinvite: ['&#128181; Send pay-ahead offer', 'Good payers, 30 a tap. Each sees their own three amounts.', 'Nobody to offer right now.'] };
+function bulkInvite(action, send){
+  if (biBusy || !CRM_ENDPOINT) return;
+  if (officeMail !== true){ toast(NO_OFFICE_TEXT); return; }
+  biBusy = true; var T = BULK_TITLES[action];
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: action, key: KEY, preview: !send }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      biBusy = false;
       if (!d || !d.ok){ toast(d && d.error ? 'Not sent: ' + d.error : 'Not sent'); return; }
-      if (send){ toast('Referral links sent to ' + d.sent + (d.left ? '; ' + d.left + ' left, tap again for the next 30' : '')); closeStatement(); return; }
+      if (send){ toast('Sent to ' + d.sent + (d.left ? '; ' + d.left + ' left, tap again for the next 30' : '')); closeStatement(); return; }
       var box = document.getElementById('stmt'); if (!box) return;
-      box.innerHTML = '<div class="stmt-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;"><div style="font-weight:800;font-size:15px;">&#128279; Send referral links</div><button onclick="closeStatement()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:36px;">Close</button></div>' +
-        '<div style="font-size:12px;color:#555;margin-bottom:8px;">' + (d.count ? d.count + ' active customer' + (d.count === 1 ? '' : 's') + ' with an email who have not had their link in six months. Each gets their own link and their account page, 30 a tap. This is what ' + esc(String(d.first || '').split(' ')[0]) + ' gets:' : 'Everyone has had their link in the last six months.') + '</div>' +
-        (d.count ? '<div style="background:#F7F9F8;border:1px solid #E4EBE7;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.55;white-space:pre-wrap;max-height:45vh;overflow:auto;">' + esc('Subject: ' + d.subject + '\n\n' + d.body) + '</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"><button class="copybtn" onclick="refInvite(true)" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">Send ' + Math.min(30, d.count) + ' now</button><button class="copybtn" onclick="closeStatement()">Not now</button></div>' : '') + '</div>';
+      box.innerHTML = '<div class="stmt-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;"><div style="font-weight:800;font-size:15px;">' + T[0] + '</div><button onclick="closeStatement()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:36px;">Close</button></div>' +
+        '<div style="font-size:12px;color:#555;margin-bottom:8px;">' + (d.count ? d.count + ' customer' + (d.count === 1 ? '' : 's') + '. ' + T[1] + ' This is what ' + esc(String(d.first || '').split(' ')[0]) + ' gets:' : T[2]) + '</div>' +
+        (d.count ? '<div style="background:#F7F9F8;border:1px solid #E4EBE7;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.55;white-space:pre-wrap;max-height:45vh;overflow:auto;">' + esc('Subject: ' + d.subject + '\n\n' + d.body) + '</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"><button class="copybtn" onclick="bulkInvite(\'' + action + '\', true)" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">Send ' + Math.min(30, d.count) + ' now</button><button class="copybtn" onclick="closeStatement()">Not now</button></div>' : '') + '</div>';
       box.style.display = 'flex';
     })
-    .catch(function(){ riBusy = false; toast('No connection'); });
+    .catch(function(){ biBusy = false; toast('No connection'); });
+}
+function refInvite(send){ bulkInvite('refinvite', send); }
+/* the Monday owner email: where it goes */
+function saveOwnerEmail(){
+  var v = String((document.getElementById('owner-email') || {}).value || '').trim();
+  if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){ toast('That does not look like an email address'); return; }
+  config.owner_email = { value: v, created: new Date().toISOString() }; saveStatsCache();
+  post({ action: 'lead', lead: { id: 'cfg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), created: new Date().toISOString(), type: 'CONFIG', name: 'owner_email', notes: v, status: 'config', crmnotes: '' } }, v ? 'The Monday email goes to ' + v : 'The Monday email goes to the office mailbox');
 }
 
 /* ============================================================
@@ -5898,7 +6091,7 @@ function markOwed(id, amt, since){
 function renderBilling(){
   var box = document.getElementById('billing'); if (!box) return;
   var head = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;"><div style="font-weight:800;font-size:14px;">&#128179; Billed, collected, owed <span style="font-size:11px;font-weight:600;color:#707070;">from Sweep&amp;Go</span></div>' +
-    (billing && billing.months ? '<span style="white-space:nowrap;"><button onclick="monthReview()" style="padding:5px 9px;min-height:32px;font-size:11.5px;">&#128196; Month in review</button> <button onclick="accountantExport()" title="Two CSV files: by month, and every invoice and payment" style="padding:5px 9px;min-height:32px;font-size:11.5px;">&#11015;&#65039; For the accountant</button></span>' : '') + '</div>';
+    (billing && billing.months ? '<span style="white-space:nowrap;"><button onclick="monthReview()" style="padding:5px 9px;min-height:32px;font-size:11.5px;">&#128196; Month in review</button> <button class="owner-only" onclick="accountantExport()" title="Two CSV files: by month, and every invoice and payment" style="padding:5px 9px;min-height:32px;font-size:11.5px;">&#11015;&#65039; For the accountant</button></span>' : '') + '</div>';
   if (!billing){
     box.innerHTML = head + '<div style="font-size:12.5px;color:#9aa5a0;">' + (sgSyncInfo() ? 'Loading\u2026' : 'Not connected yet. Once the Sweep&amp;Go token is in the script and setupSweepAndGo() has run, every invoice and payment lands here on its own.') + '</div>';
     return;
@@ -5940,8 +6133,8 @@ function renderBilling(){
       (payLink() ? '' : '<div class="sub" style="font-size:11px;color:#b45309;margin:0 0 6px;">No Pay now link yet: statements still list the invoices and point to the Sweep&amp;Go invoice emails.</div>') +
       un.slice(0, 25).map(function(u){ var l = leadByName(u.name), st = Object.keys(u.statuses || {}).map(function(k){ return u.statuses[k] + ' ' + k; }).join(', '), fu = l ? fuParse(l.crmnotes) : null;
         return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
-          '<span>' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') + ' <span style="color:#707070;">' + esc(st) + (u.oldest ? ' &middot; since ' + esc(u.oldest) : '') + '</span>' + (function(){ var f = lateFeeOf(l, u); return f > 0 ? ' <span style="color:#c0392b;font-weight:700;font-size:11px;">+ $' + f.toFixed(2) + ' late fee</span>' : ''; })() + (l ? ' ' + ladderNote(l, u) : '') + '</span>' +
-          '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (l ? (fu.ow ? ' <span style="color:#9aa5a0;font-size:11px;">on card</span>' : ' <button onclick="markOwed(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">On their card</button>') + (l.email ? (fu.pr && fu.pr.split('@')[1] >= new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10) ? ' <span style="color:#9aa5a0;font-size:11px;">reminded ' + esc(fu.pr.split('@')[1]) + '</span>' : ' <button class="pr-btn" onclick="payRemind(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">&#9993;&#65039; Statement</button>') : '') : '') + '</span></div>'; }).join('')
+          '<span>' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') + ' <span style="color:#707070;">' + esc(st) + (u.oldest ? ' &middot; since ' + esc(u.oldest) : '') + '</span>' + (function(){ var f = lateFeeOf(l, u); return f > 0 ? ' <span style="color:#c0392b;font-weight:700;font-size:11px;">+ $' + f.toFixed(2) + ' late fee</span>' : ''; })() + (l && !prepaidNow(l) ? ' ' + ladderNote(l, u) : '') + '</span>' +
+          '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (l ? (fu.ow ? ' <span style="color:#9aa5a0;font-size:11px;">on card</span>' : ' <button onclick="markOwed(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">On their card</button>') + (prepaidNow(l) ? ' <span style="color:#0F6E56;font-size:11px;font-weight:700;">prepaid</span>' : '') + (l.email && !prepaidNow(l) ? (fu.pr && fu.pr.split('@')[1] >= new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10) ? ' <span style="color:#9aa5a0;font-size:11px;">reminded ' + esc(fu.pr.split('@')[1]) + '</span>' : ' <button class="pr-btn" onclick="payRemind(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">&#9993;&#65039; Statement</button>') : '') : '') + '</span></div>'; }).join('')
       : '<div class="sub" style="padding-left:10px;">Nothing owed. Every invoice is paid.</div>') + '</div></div>';
   box.innerHTML = h;
   box.querySelectorAll('.fold[data-fold]').forEach(function(c){ foldApply(c, c.getAttribute('data-fold') === 'bill-owed'); });
@@ -6121,7 +6314,7 @@ function renderReviewTrend(){
 }
 
 /* ---- fold-up cards in the numbers panel ---- */
-var FOLD_CARDS = ['winback', 'upsell', 'territory', 'undertable', 'season', 'pricelog', 'schedule', 'deo', 'traffic', 'jobs', 'billing', 'cash', 'risk', 'dormant', 'expand', 'hire', 'revenue', 'roi', 'insights', 'reviews'];
+var FOLD_CARDS = ['prepay', 'winback', 'upsell', 'territory', 'undertable', 'season', 'pricelog', 'schedule', 'deo', 'traffic', 'jobs', 'billing', 'cash', 'risk', 'dormant', 'expand', 'hire', 'revenue', 'roi', 'insights', 'reviews'];
 function foldKey(card){ return card.id || card.getAttribute('data-fold') || ''; }
 function foldState(key){ try { return localStorage.getItem('clpps_fold_' + key); } catch (e) { return null; } }
 function foldApply(card, openByDefault){
@@ -6156,7 +6349,7 @@ function foldInit(){
    short labels. Done once in the page rather than by moving the HTML. */
 var NUMBERS_ORDER = [
   ['Today and the route', ['schedule', 'jobs']],
-  ['Money', ['billing', 'cash', 'risk', 'revenue', 'undertable', 'roi', 'hire']],
+  ['Money', ['billing', 'cash', 'prepay', 'risk', 'revenue', 'undertable', 'roi', 'hire']],
   ['Customers and area', ['dormant', 'territory', 'expand', 'season', 'deo', 'pricelog']],
   ['Win back and grow', ['winback', 'upsell']],
   ['Marketing', ['traffic', 'insights']]   // Ask for a review stays on the main page: it is a to-do, not a number
@@ -6240,6 +6433,7 @@ function renderFoldSums(){
   try { var tk = gDayKey(new Date()); foldSum('traffic', views.filter(function(v){ return gDayKey(new Date(v.created)) === tk; }).length + ' visits today'); } catch (e) {}
   try { var due = leads.filter(reviewDue).length; foldSum('reviews', due ? due + ' to ask' : 'nobody due'); } catch (e) {}
   try { var wl = winbackLists(), wn = w0(wl), cb = cameBack(); foldSum('winback', wn + ' to win back' + (cb.list.length ? ' &middot; ' + cb.list.length + ' came back, ' + money(cb.money) + '/mo' : '')); } catch (e) {}
+  try { var pn = 0, pa = 0; leads.forEach(function(l){ if ((l.status || 'new') === 'closed'){ var p = prepaidNow(l); if (p){ pn++; pa += p.amount; } } }); foldSum('prepay', pn ? pn + ' prepaid &middot; ' + money(pa) + ' ahead' : 'nobody yet'); } catch (e) {}
   try { var ul = upsellLists(), un = ul.twice.length + ul.day.length + (ul.deoSeason ? ul.deo.length : 0); foldSum('upsell', un ? un + ' to offer' : 'nobody right now'); } catch (e) {}
   try { var dz = checkList().length; foldSum('dormant', dz ? dz + ' to check' : (billing && billing.last ? 'nobody' : '')); } catch (e) {}
   try { var cv = cashView(); if (cv.expect) foldSum('cash', money(cv.expect) + ' to bill' + (cv.owed ? ' &middot; ' + money(cv.owed) + ' owed' : '')); } catch (e) {}
@@ -7115,6 +7309,7 @@ function render(){
   renderRisk();
   renderDormant();
   renderCash();
+  renderPrepay();
   renderExpand();
   renderWinback();
   renderUpsell();
@@ -7123,6 +7318,7 @@ function render(){
   renderReviews();
   renderReviewTrend();
   renderFoldSums();   // last: it writes onto headings the renderers above just rebuilt
+  if (ME.role === 'tech') renderTech();
   renderGlance();
   renderAlerts();
   var qp = document.getElementById('qrPanel');
@@ -7265,7 +7461,7 @@ function render(){
         (/twice/i.test(String(l.service || '')) ? '<span style="color:#9aa5a0;">(twice a week: type both, e.g. Tue, Fri, under Edit if they change)</span>' : '') +
         (fu.day ? '' : '<span style="color:#9aa5a0;">(set it once and the Schedule card fills in)</span>') + '</div>';
     }
-    if (st === 'closed') custMore = dayRow + refShareRow(l) + accountRow(l);
+    if (st === 'closed') custMore = dayRow + refShareRow(l) + prepayRow(l) + accountRow(l);
     else if (st === 'cancelled' && fu.sgid) custMore = accountRow(l);
     if (blastEmailOk(l.email)){
       custMore += '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +

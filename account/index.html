@@ -64,13 +64,14 @@ function share(url){
 }
 function bigPhoto(u){ var b = document.getElementById('big'); b.querySelector('img').src = u; b.style.display = 'flex'; }
 function render(d){
-  var h = '', st = d.status === 'active' ? 'Active' : d.status === 'paused' ? 'Paused' + (d.back ? ' until ' + nice(d.back, true) : '') : 'Closed';
+  var h = '', st = d.status === 'active' ? (d.prepaid ? 'Active \u00b7 prepaid' : 'Active') : d.status === 'paused' ? 'Paused' + (d.back ? ' until ' + nice(d.back, true) : '') : 'Closed';
   h += '<div class="card"><div class="head"><div class="eyebrow">Your account</div><h1>Hi ' + esc(d.first || 'there') + '</h1><span class="pill">' + esc(st) + '</span></div>';
   h += '<div class="sec">' +
     (d.plan ? '<div class="dline"><span>Plan</span><span>' + esc(d.plan) + (d.dogs ? ' &middot; ' + esc(d.dogs) + ' dog' + (String(d.dogs) === '1' ? '' : 's') : '') + '</span></div>' : '') +
     (d.price ? '<div class="dline"><span>Price</span><span>' + esc(d.price) + '</span></div>' : '') +
     (d.days ? '<div class="dline"><span>Service day</span><span>' + esc(d.days) + '</span></div>' : '') +
     (d.since ? '<div class="dline"><span>With us since</span><span>' + nice(d.since, true) + '</span></div>' : '') +
+    (d.prepaid ? '<div class="dline"><span>Prepaid through</span><span style="color:#0F6E56;">' + nice(d.prepaid.to, true) + '</span></div>' : '') +
     '</div></div>';
   // what is owed, and the way to pay it
   var pay = safeUrl(d.payLink);
@@ -93,6 +94,11 @@ function render(d){
     }).join('') : '<p class="muted">Your visits will show here after the first one.</p>') + '</div></div>';
   if (d.paid && d.paid.length){
     h += '<div class="card"><div class="sec"><h2>Payments received</h2>' + d.paid.map(function(p){ return '<div class="dline"><span>' + nice(p.date, true) + '</span><span>' + money(p.amount) + (p.how === 'check' ? ' <small class="muted">check</small>' : p.how === 'credit_card' ? ' <small class="muted">card</small>' : '') + '</span></div>'; }).join('') + '</div></div>';
+  }
+  if (d.prepay && d.prepay.length && d.status === 'active'){
+    h += '<div class="card"><div class="sec"><h2>Pay ahead and save</h2><p style="font-size:14px;margin-bottom:6px;">Pay for a few months at once: your price is locked for the whole stretch, and there are no monthly charges while it runs.</p>' +
+      d.prepay.map(function(o){ return '<div class="dline"><span>' + o.months + ' months<br><small class="muted">save ' + money(o.save) + ', ' + o.off + '% off</small></span><span>' + money(o.total) + '<br><a href="sms:+16363754342?&body=' + encodeURIComponent('Hi, it\'s ' + (d.first || '') + '. I\'d like to pay ahead for ' + o.months + ' months.') + '" style="color:#0F6E56;font-size:13px;">Choose</a></span></div>'; }).join('') +
+      '<p class="muted" style="margin-top:6px;">Tap Choose to text us, or reply to any of our emails. We send one invoice and take care of the rest.</p></div></div>';
   }
   var ref = safeUrl(d.refLink);
   if (ref && d.status !== 'closed'){

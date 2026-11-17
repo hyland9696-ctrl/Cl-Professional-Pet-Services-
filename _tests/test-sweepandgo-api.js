@@ -85,7 +85,7 @@ const { ok, done } = reporter();
   const p = await ctx.newPage();
   await p.clock.install({ time: new Date('2026-11-12T15:00:00Z') });   // a Thursday
   const errs = []; p.on('pageerror', e => errs.push(e.message));
-  const outreaches = [], refinvites = [];
+  const outreaches = [], refinvites = [], teamCalls = [];
   const posts = [], sgcreates = [], pricemoves = [], reminders = [], spoken = [], listDeltas = []; let deltaRows = [];
   await p.addInitScript(() => { window.__spoken = []; Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { cancel(){}, speak(u){ window.__spoken.push(u.text); setTimeout(() => u.onend && u.onend(), 50); } } }); Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, value: function(t){ this.text = t; } }); });
   p.on('dialog', d => d.accept());
@@ -137,6 +137,9 @@ const { ok, done } = reporter();
     if (body.action === 'outreach'){ outreaches.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify(body.preview ? { ok:true, preview:true, to:'pam@gmail.com', subject:'Pam, your old price is still here', body:'Hi Pam,\n\nYour old price of $85/mo is locked for a full year.\n\n\u2014 Corey\nCL Professional Pet Services LLC \u00b7 St. Peters', sub: body.sub } : { ok:true, date:'2026-11-12', marker: body.kind + '-' + body.sub + '@2026-11-12' }) }); }
     if (body.action === 'acctlink') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, url:'https://clpropetservices.com/account/?t=E1.abc123', ref:'https://clpropetservices.com/?ref=eddie-x1y' }) });
     if (body.action === 'refinvite'){ refinvites.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify(body.preview ? { ok:true, preview:true, count: 41, first:'Dana Deo', subject:'Dana, your own referral link', body:'Hi Dana,\n\nhttps://clpropetservices.com/?ref=dana-abc' } : { ok:true, sent: 30, failed: 0, left: 11 }) }); }
+    if (body.action === 'users'){ teamCalls.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify(body.op === 'add' ? { ok:true, id:'u1', password:'k7m3x9q2w4z8r5', users:[{ id:'u1', name: body.name, role: body.role, on:true, created:'2026-11-12', last:'' }] } : { ok:true, users:[{ id:'u0', name:'Olivia', role:'office', on:true, created:'2026-11-01', last:'2026-11-11T14:00:00Z' }] }) }); }
+    if (body.action === 'activity') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, rows:[{ when:'2026-11-12T13:02:00Z', who:'Mike', role:'tech', action:'check-start', id:'', detail:'Truck fueled and checked; Phone charged' }, { when:'2026-11-12T12:40:00Z', who:'Olivia', role:'office', action:'update', id:'E1', detail:'notes' }] }) });
+    if (body.action === 'checkin'){ teamCalls.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, at:'2026-11-12T15:00:00Z' }) }); }
     if (body.action === 'pricemove'){ pricemoves.push(body); return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, sent: body.items.map(i => i.id), failed: [], date: body.date }) }); }
     if (body.action === 'billingcsv') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, rows: 2, csv: 'kind,number,date,client\ninvoice,1,2026-11-02,Dana Deo\npayment,,2026-11-02,Dana Deo\n', months: 'month,billed,one_time,collected,unpaid,tips,failed_payments,customers_invoiced\n2026-11,8078,0,6796,2154,40,16,86\n', miles: 'month,miles,days_driven\n2026-11,612,9\n' }) });
     if (body.action === 'sgsync') return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, clients: 94, added: 0, updated: 3, errors: [] }) });
@@ -270,7 +273,7 @@ const { ok, done } = reporter();
   await p.click('#pr-auto-box'); await p.waitForTimeout(400);
   ok('ticking it writes the setting the Monday job reads', posts.some(x => x.action === 'lead' && x.lead && x.lead.type === 'CONFIG' && x.lead.name === 'pay_reminders' && x.lead.notes === 'on' && x.key));
   ok('the week line counts what the automatic emails sent, from the stamps on the cards', /This week: 1 follow-up · 0 welcomes · 0 payment reminders · 0 other/.test((await p.textContent('#email-week')).replace(/\s+/g, ' ')), await p.textContent('#email-week'));
-  ok('the six other rounds each have a switch, off, that explains itself', (await p.$$('#auto-switches input[type=checkbox]')).length === 6 && /Spring restart, every March\./.test(await p.textContent('#auto-switches')) && !(await p.isChecked('#sw-revival_emails')) && /Revival: quotes that never went ahead\./.test(await p.textContent('#auto-switches')) && /Card failed, same night\./.test(await p.textContent('#auto-switches')) && /A year with us\./.test(await p.textContent('#auto-switches')));
+  ok('the eight other rounds each have a switch, off, that explains itself', (await p.$$('#auto-switches input[type=checkbox]')).length === 8 && /Monday owner email\./.test(await p.textContent('#auto-switches')) && /Prepay renewal/.test(await p.textContent('#auto-switches')) && /Spring restart, every March\./.test(await p.textContent('#auto-switches')) && !(await p.isChecked('#sw-revival_emails')) && /Revival: quotes that never went ahead\./.test(await p.textContent('#auto-switches')) && /Card failed, same night\./.test(await p.textContent('#auto-switches')) && /A year with us\./.test(await p.textContent('#auto-switches')));
   ok('what price closes waits for eight quotes with prices before it says anything', !/What price closes/.test(await p.textContent('#insights')));
   await p.click('#sw-revival_emails'); await p.waitForTimeout(400);
   ok('ticking one writes its setting, signed', posts.some(x => x.action === 'lead' && x.lead && x.lead.type === 'CONFIG' && x.lead.name === 'revival_emails' && x.lead.notes === 'on' && x.key));
@@ -411,10 +414,44 @@ const { ok, done } = reporter();
   ok('a customer card fetches their private account link, ready to copy or text', /account\/\?t=E1\.abc123/.test(await p.textContent('#acct-E1')) && (await p.$$('#acct-E1 a[href^="sms:"]')).length === 1);
   /* referral links to everyone */
   await p.evaluate(() => refInvite(false)); await p.waitForTimeout(300);
-  ok('Send referral links shows who gets one and the email first', refinvites.length === 1 && refinvites[0].preview === true && /41 active customers/.test(await p.textContent('#stmt')) && /Send 30 now/.test(await p.textContent('#stmt')));
+  ok('Send referral links shows who gets one and the email first', refinvites.length === 1 && refinvites[0].preview === true && /41 customers\. Each gets their own link and their account page/.test(await p.textContent('#stmt')) && /Send 30 now/.test(await p.textContent('#stmt')));
   await p.click('#stmt button:has-text("Send 30 now")'); await p.waitForTimeout(300);
   ok('and sends 30 a tap', refinvites.length === 2 && !refinvites[1].preview && !(await p.isVisible('#stmt')));
   await p.evaluate(() => { leads = leads.filter(l => !/^W[PGDSLR]$/.test(l.id)); foldAll(false); render(); });
+  /* ---- prepay ---- */
+  await p.evaluate(() => { foldAll(true); render(); });
+  ok('a customer card offers pay-ahead at their own price', /Pay ahead: 3 mo \$439 · 6 mo \$861 · 12 mo \$1631/.test((await p.textContent('#card-D1')).replace(/\s+/g, ' ')), (await p.textContent('#card-D1')).replace(/\s+/g, ' ').slice(0, 900));
+  await p.evaluate(() => markPrepaid('D1', 6)); await p.waitForTimeout(300);
+  ok('Mark prepaid records months, start, end and amount, after the office confirms the money is in', posts.some(x => x.action === 'update' && x.id === 'D1' && /\[PP:6@2026-11-12~2027-05-11@860\.70\]/.test(x.notes)), JSON.stringify(posts.filter(x => x.id === 'D1').slice(-1)));
+  ok('the card says prepaid through, and the Prepaid card counts the money ahead', /Prepaid through 2027-05-11 · \$860\.70 for 6 months/.test((await p.textContent('#card-D1')).replace(/\s+/g, ' ')) && /1 prepaid · \$861 collected ahead/.test((await p.textContent('#prepay')).replace(/\s+/g, ' ')) && /Dana Deo 6 months, \$860\.70, through 2027-05-11/.test((await p.textContent('#prepay')).replace(/\s+/g, ' ')));
+  await p.evaluate(() => markPrepaid('E1', 3)); await p.waitForTimeout(300);
+  ok('a prepaid customer on the Owed list gets no Statement button and no notice due', /Eddie Eow 1 overdue, 1 draft · since 2026-10-05\s*\+ \$10\.00 late fee\s*\$190\s*on card\s*prepaid/.test((await p.textContent('#billing')).replace(/\s+/g, ' ')) && (await p.$$('#billing .pr-btn')).length === 0, (await p.textContent('#billing')).replace(/\s+/g, ' ').slice((await p.textContent('#billing')).replace(/\s+/g, ' ').indexOf('Eddie Eow 1'), (await p.textContent('#billing')).replace(/\s+/g, ' ').indexOf('Eddie Eow 1') + 250));
+  await p.evaluate(() => { clearPrepaid('E1'); clearPrepaid('D1'); }); await p.waitForTimeout(300);
+  ok('Clear puts them back', !/Prepaid through/.test(await p.textContent('#card-D1')) && /reminded 2026-11-12/.test(await p.textContent('#billing')) && /notice 3 due/.test(await p.textContent('#billing')));
+  /* ---- the team, for the owner ---- */
+  await p.evaluate(() => toggleTeam(true)); await p.waitForTimeout(400);
+  const team = (await p.textContent('#teamPanel')).replace(/\s+/g, ' ');
+  ok('Team lists the people and the activity log, newest first, in words', /Olivia last seen 2026-11-11/.test(team) && /Mike started the day/.test(team) && /Truck fueled and checked; Phone charged/.test(team) && /Olivia changed a card: Eddie Eow/.test(team), team.slice(0, 600));
+  await p.fill('#tm-name', 'Mike'); await p.selectOption('#tm-role', 'tech'); await p.click('#teamPanel button:has-text("Add")'); await p.waitForTimeout(300);
+  ok('adding someone shows their password once, to hand over', teamCalls.some(c => c.op === 'add' && c.name === 'Mike' && c.role === 'tech') && /Password for Mike: k7m3x9q2w4z8r5/.test((await p.textContent('#teamPanel')).replace(/\s+/g, ' ')));
+  await p.evaluate(() => toggleTeam(false));
+  /* ---- an office login ---- */
+  await p.evaluate(() => { applyRole({ name: 'Olivia', role: 'office' }); toggleBlast(); });
+  await p.waitForTimeout(200);
+  ok('an office login hides the team, the switches, the accountant\'s file and the price planner', !(await p.isVisible('#teamBtn')) && !(await p.isVisible('#auto-switches')) && !(await p.isVisible('#owner-email')) && (await p.$$eval('button.owner-only', bs => bs.every(b => b.offsetParent === null))) && (await p.evaluate(() => localStorage.getItem('clpps_who'))) === 'Olivia');
+  const before = posts.length; await p.evaluate(() => toggleAuto('fu_emails', true)); await p.waitForTimeout(150);
+  ok('and the page refuses to send a settings change from it', posts.length === before);
+  await p.evaluate(() => toggleBlast());
+  /* ---- a tech login ---- */
+  await p.evaluate(() => { applyRole({ name: 'Mike', role: 'tech' }); techDay = 'thu'; renderTech(); });
+  await p.waitForTimeout(200);
+  const tech = (await p.textContent('#techview')).replace(/\s+/g, ' ');
+  ok('a tech sees only their screen: the start-of-day list, the day\'s stops in order with address, dogs and notes, and the end-of-day list', await p.isVisible('#techview') && !(await p.isVisible('#stats')) && !(await p.isVisible('#numbersBtn')) && !(await p.isVisible('#list')) && /Hi Mike/.test(tech) && /Start of day/.test(tech) && /Thu: \d+ stops/.test(tech) && /1\. \S+/.test(tech) && /End of day/.test(tech), tech.slice(0, 500));
+  ok('each stop links to the map', (await p.$$('#techview a[href^="https://maps.google.com/?q="]')).length >= 1);
+  await p.click('#techview .tc-start >> nth=0'); await p.click('#techview button:has-text("Start my day")'); await p.waitForTimeout(300);
+  ok('Start my day sends what was ticked and the page remembers it', teamCalls.some(c => c.action === 'checkin' && c.kind === 'start' && c.items[0] === 'Truck fueled and checked') && /Day started at/.test(await p.textContent('#techview')));
+  await p.evaluate(() => { applyRole({ name: 'Owner', role: 'owner' }); localStorage.removeItem('clpps_who'); localStorage.removeItem('clpps_check_start'); render(); });
+  ok('back on the owner login everything shows again', await p.isVisible('#numbersBtn') && !(await p.isVisible('#techview')));
   ok('no page errors', errs.length === 0, errs.join('; '));
   await ctx.close(); await b.close();
   done();

@@ -599,7 +599,7 @@ function doGet(e) {
    the address bar and the logs) and by GET for older pages. */
 function list_(p) {
   {
-    if (p.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(p.key, 'list'); if (!me) return json_({ok:false, error:'bad pin'});
     var sh = sheet_();
     var rows = sh.getDataRange().getValues();
     // Every site visit is a row, so the analytics rows outgrow the real leads
@@ -622,10 +622,11 @@ function list_(p) {
       }
       var o = {};
       for (var j = 0; j < HEADERS.length; j++) o[HEADERS[j]] = rows[i][j];
+      if (me.role === 'tech') { o = techRow_(o); if (!o) continue; }
       leads.push(o);
     }
     leads.reverse(); // newest first
-    return json_({ok:true, leads:leads, windowDays: days > 0 ? days : null, olderRowsSkipped: skipped, delta: !!since, since: since || null});
+    return json_({ok:true, leads:leads, windowDays: days > 0 ? days : null, olderRowsSkipped: skipped, delta: !!since, since: since || null, me: { name: me.name, role: me.role }});
   }
 }
 
@@ -638,44 +639,60 @@ function doPost(e) {
   try { body = JSON.parse(e.postData.contents); } catch (err) { return json_({ok:false}); }
   if (body.action === 'list') return list_({ key: body.key, days: body.days, since: body.since });
   if (body.action === 'billing') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'billing'); if (!me) return json_({ok:false, error:'bad pin'});
     return json_(sgBilling_());
   }
   if (body.action === 'jobs') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'jobs'); if (!me) return json_({ok:false, error:'bad pin'});
     return json_(sgJobs_());
   }
   if (body.action === 'pricemove') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'pricemove'); if (!me) return json_({ok:false, error:'bad pin'}); if (!body.preview) audit_(me, 'pricemove', body.id || '', body.kind ? body.kind + (body.sub ? '-' + body.sub : '') : '');
     return json_(priceMove_(body));
   }
   if (body.action === 'billingcsv') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'billingcsv'); if (!me) return json_({ok:false, error:'bad pin'});
     return json_(billingCsv_());
   }
   if (body.action === 'payremind') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'payremind'); if (!me) return json_({ok:false, error:'bad pin'}); if (!body.preview) audit_(me, 'payremind', body.id || '', body.kind ? body.kind + (body.sub ? '-' + body.sub : '') : '');
     return json_(payRemind_(body));
   }
   if (body.action === 'outreach') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'outreach'); if (!me) return json_({ok:false, error:'bad pin'}); if (!body.preview) audit_(me, 'outreach', body.id || '', body.kind ? body.kind + (body.sub ? '-' + body.sub : '') : '');
     return json_(outreach_(body));
   }
   if (body.action === 'acctlink') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'acctlink'); if (!me) return json_({ok:false, error:'bad pin'});
     var lk = latestRow_(sheet_(), String(body.id || '')); if (!lk) return json_({ok:false, error:'not found'});
     return json_({ ok:true, url: acctLink_(lk.id), ref: refLink_(lk) });
   }
+  if (body.action === 'prepayinvite') {
+    var me = can_(body.key, 'prepayinvite'); if (!me) return json_({ok:false, error:'bad pin'}); if (!body.preview) audit_(me, 'prepayinvite', '', '');
+    return json_(prepayInvite_(body));
+  }
+  if (body.action === 'users') {
+    var me = can_(body.key, 'users'); if (!me) return json_({ok:false, error:'bad pin'});
+    return json_(users_(body, me));
+  }
+  if (body.action === 'activity') {
+    var me = can_(body.key, 'activity'); if (!me) return json_({ok:false, error:'bad pin'});
+    return json_(activity_(body));
+  }
+  if (body.action === 'checkin') {
+    var me = can_(body.key, 'checkin'); if (!me) return json_({ok:false, error:'bad pin'});
+    return json_(checkin_(body, me));
+  }
   if (body.action === 'refinvite') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'refinvite'); if (!me) return json_({ok:false, error:'bad pin'}); if (!body.preview) audit_(me, 'refinvite', body.id || '', body.kind ? body.kind + (body.sub ? '-' + body.sub : '') : '');
     return json_(refInvite_(body));
   }
   if (body.action === 'sgcreate') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'sgcreate'); if (!me) return json_({ok:false, error:'bad pin'}); if (!body.preview) audit_(me, 'sgcreate', body.id || '', body.kind ? body.kind + (body.sub ? '-' + body.sub : '') : '');
     try { return json_(sgCreate_(String(body.id || ''), !!body.force)); } catch (e3) { return json_({ok:false, reason:'error', error:String(e3 && e3.message || e3).slice(0, 200)}); }
   }
   if (body.action === 'sgsync') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'sgsync'); if (!me) return json_({ok:false, error:'bad pin'}); if (!body.preview) audit_(me, 'sgsync', body.id || '', body.kind ? body.kind + (body.sub ? '-' + body.sub : '') : '');
     try { return json_(sgSync()); } catch (e2) { return json_({ok:false, error:String(e2 && e2.message || e2).slice(0, 200)}); }
   }
 
@@ -687,8 +704,10 @@ function doPost(e) {
     // Anyone can post a lead - the public quote form does - so what an
     // unsigned post may say is limited. Only the tracker, which signs with
     // the key, can write settings and spend, set a status, or back-date.
-    var trusted = !!body.key && body.key === pin_();
+    var me = body.key ? who_(body.key) : null, trusted = !!me && me.role !== 'tech';
     var t0 = String(l.type || '');
+    if ((t0 === 'CONFIG' || t0 === 'SPEND') && (!me || me.role !== 'owner')) return json_({ok:false, error:'bad pin'});
+    if (trusted) audit_(me, t0 === 'CONFIG' ? 'setting' : 'lead', l.id || '', t0 === 'CONFIG' ? String(l.name || '') + ' = ' + String(l.notes || '').slice(0, 80) : (t0 + ' ' + String(l.status || '')).trim());
     if (!trusted) {
       if (t0 === 'CONFIG' || t0 === 'SPEND') return json_({ok:false, error:'bad pin'});
       delete l.status;
@@ -741,16 +760,18 @@ function doPost(e) {
   }
 
   if (body.action === 'quota') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'quota'); if (!me) return json_({ok:false, error:'bad pin'});
     var c = msCfg_();
     return json_({ ok:true, office: !!c, from: c ? c.from : '', remaining: c ? MS_DAILY_LIMIT : 0 });
   }
   if (body.action === 'blast') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'blast'); if (!me) return json_({ok:false, error:'bad pin'}); if (!body.preview) audit_(me, 'blast', body.id || '', body.kind ? body.kind + (body.sub ? '-' + body.sub : '') : '');
     return json_(blast_(body));
   }
   if (body.action === 'update') {
-    if (body.key !== pin_()) return json_({ok:false, error:'bad pin'});
+    var me = can_(body.key, 'update'); if (!me) return json_({ok:false, error:'bad pin'});
+    if (me.id !== 'owner' && typeof body.notes === 'string') body.notes = sgSetMarkers_(body.notes, { BY: me.name + '~' + new Date().toISOString().slice(0, 10) });
+    audit_(me, 'update', body.id || '', body.status ? 'status ' + body.status : 'notes');
     var sh2 = sheet_();
     var data = sh2.getDataRange().getValues();
     var idCol = HEADERS.indexOf('id');
@@ -1688,6 +1709,7 @@ function priceMove_(body) {
     var email = String(l.email || '').trim(), first = String(l.name || '').trim().split(/\s+/)[0] || 'there', oldP = parseFloat(it.oldPrice) || 0, newP = parseFloat(it.newPrice) || 0;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { failed.push({ id: it.id, error: 'no email' }); return; }
     if (!(newP > 0)) { failed.push({ id: it.id, error: 'no price' }); return; }
+    var ppm = prepayOf_(l.crmnotes); if (ppm && ppm.to >= when) { failed.push({ id: it.id, error: 'prepaid, price locked through ' + ppm.to }); return; }
     var text = 'Hi ' + first + ',\n\nA quick note about your service, with plenty of notice.' + (oldP ? ' Your price has been $' + oldP + ' a month' : '') + (oldP ? ', and on ' + pretty + ' it moves to $' + newP + ' a month' : ' On ' + pretty + ' your price moves to $' + newP + ' a month') + '.' +
       (reason ? ' ' + reason : '') + '\n\nNothing else changes: same day, same crew, same clean yard, still month to month with no contract. If you have any questions, or if money is tight right now, reply here and we will work it out - I would much rather talk than lose you.\n\nThank you for having us.';
     try {
@@ -1747,7 +1769,8 @@ function openInvoices_(lead) {
                status: st, oneTime: r[H.type] === 'one-time', period: String(r[H.period_start] || '').slice(0, 10), periodEnd: String(r[H.period_end] || '').slice(0, 10), pay: String(r[H.pay_type] || ''), nextTry: String(r[H.next_try] || '').slice(0, 10), desc: String(r[H.description] || '') });
   });
   var cd = (String(lead.crmnotes || '').match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '';
-  out.forEach(function(i) { var f = lateFee_(i.amount, i.date, cd); i.lateFee = f.fee; i.lateMonths = f.months; i.lateRule = f.rule; });
+  var ppx = prepayOf_(lead.crmnotes);
+  out.forEach(function(i) { var f = lateFee_(i.amount, i.date, cd); if (ppx && i.date >= ppx.from && i.date <= ppx.to) f = { fee: 0, months: 0, rule: f.rule }; i.lateFee = f.fee; i.lateMonths = f.months; i.lateRule = f.rule; });
   return out.sort(function(a, b) { return a.date < b.date ? -1 : 1; });
 }
 /* The last payment that went through, from the billing sheet. */
@@ -1893,6 +1916,7 @@ function sendPayReminder_(sh, rows, lead, amount, since, opts) {
 function payRemind_(body) {
   if (!officeMailReady_()) return { ok:false, error: NO_OFFICE_MAIL };
   var sh = sheet_(), l = latestRow_(sh, String(body.id || '')); if (!l) return { ok:false, error:'not found' };
+  var ppn = prepaidNow_(l.crmnotes); if (ppn) return { ok:false, error:'prepaid through ' + ppn.to + ': check the monthly billing is stopped in Sweep&Go' };
   var amount = parseFloat(body.amount) || 0; if (!(amount > 0)) return { ok:false, error:'no amount' };
   if (body.preview) {   // the tracker shows this before anything goes
     var email = String(l.email || '').trim(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok:false, error:'no email' };
@@ -1914,7 +1938,7 @@ function paymentReminders() {
     var l = byName[sgNorm_(u.name)]; if (!l || String(l.status || '') !== 'closed') return;
     var notes = String(l.crmnotes || ''), last = (notes.match(/\[PR:\d+@(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '';
     var lastStep = parseInt((notes.match(/\[PL:(\d)@/) || [])[1] || '0', 10), step = ladderStep_(u.oldest);
-    if (/\[(NOEM|TM):/.test(notes) || (last && last > cut7) || step <= lastStep) { skipped++; return; }
+    if (/\[(NOEM|TM):/.test(notes) || (last && last > cut7) || step <= lastStep || prepaidNow_(notes)) { skipped++; return; }
     try { sendPayReminder_(sh, rows, l, u.owed, u.oldest, { visits: true, photos: false, attach: false }); sent++; } catch (e) { skipped++; }
   });
   return { ok:true, sent: sent, skipped: skipped };
@@ -2294,12 +2318,13 @@ function spring_(p, first, priceLine, days) {
 }
 function outreach_(body) {
   var kind = String(body.kind || ''), sub = String(body.sub || '');
-  if (!/^(winback|upsell|spring)$/.test(kind)) return { ok:false, error:'unknown kind' };
-  if (sub && !OUTREACH_REASONS[sub] && !/^(twice|deo|day)$/.test(sub)) return { ok:false, error:'unknown reason' };
+  if (!/^(winback|upsell|spring|prepay)$/.test(kind)) return { ok:false, error:'unknown kind' };
+  if (kind === 'prepay') sub = 'offer';
+  if (sub && !OUTREACH_REASONS[sub] && !/^(twice|deo|day|offer)$/.test(sub)) return { ok:false, error:'unknown reason' };
   var sh = sheet_(), p = latestRow_(sh, String(body.id || '')); if (!p) return { ok:false, error:'not found' };
   if (kind === 'winback' && !sub) sub = leaveReason_(p) || 'other';
   var email = String(p.email || '').trim(), n = String(p.crmnotes || '');
-  var o = outreachText_(kind, sub, p);
+  var o = kind === 'prepay' ? (prepaidNow_(p.crmnotes) ? { stop: 'already prepaid' } : prepayText_(p)) : outreachText_(kind, sub, p);
   if (o.stop) return { ok:false, error: o.stop };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok:false, error:'no email' };
   if (/\[(NOEM|TM):/.test(n)) return { ok:false, error:'they asked for no emails' };
@@ -2378,6 +2403,7 @@ function account_(t) {
     }
   } catch (e) {}
   try { var code = refCode_(p.id, p.name), all = sheet_().getDataRange().getValues(), nc = HEADERS.indexOf('crmnotes'); for (var i = 1; i < all.length; i++) if (String(all[i][nc] || '').indexOf('[RF:' + code + ']') >= 0) out.refUsed++; } catch (e) {}
+  try { var ppa = prepaidNow_(n); if (ppa) out.prepaid = { to: ppa.to, months: ppa.months }; else if (st === 'closed' && monthlyPrice_(p) > 0) out.prepay = prepayOptions_(monthlyPrice_(p)); } catch (e) {}
   try { if (cache) cache.put(ck, JSON.stringify(out), 600); } catch (e) {}
   return out;
 }
@@ -2403,9 +2429,225 @@ function refInvite_(body) {
   list.slice(0, 30).forEach(function(p) { var t = refInviteText_(p); try { sendCustomerMail_({ to: String(p.email).trim(), subject: t.subject, body: t.body + WE_FOOTER }); E.stamp(p, { RI: today }); sent++; } catch (e) { failed++; } });
   return { ok:true, sent: sent, failed: failed, left: Math.max(0, list.length - sent - failed) };
 }
+/* ======================================================================
+   PREPAY. Jesse: "expand on the prepay idea... make it and improve it".
+   Pay 3, 6 or 12 months ahead for a discount, price locked for the
+   period, no statements or late fees while it runs, a renewal note a
+   month before it ends. The money itself is taken in Sweep&Go (a one-time
+   invoice for the amount, the monthly billing stopped until the end
+   date); the office then taps Mark prepaid on the card, which writes
+   [PP:months@start~end@amount]. Everything here reads that marker.
+   ====================================================================== */
+var PREPAY_OPTIONS = [ { months: 3, off: 3 }, { months: 6, off: 5 }, { months: 12, off: 10 } ];
+function monthlyPrice_(p) { var m = String(p.price || '').match(/\$\s*(\d+(?:\.\d+)?)\s*\/\s*mo/i); return m ? parseFloat(m[1]) : 0; }
+function prepayOptions_(monthly) {
+  return PREPAY_OPTIONS.map(function(o) { var full = monthly * o.months, total = Math.round(full * (100 - o.off)) / 100; return { months: o.months, off: o.off, total: total, save: Math.round((full - total) * 100) / 100, perMonth: Math.round(total / o.months * 100) / 100 }; });
+}
+function prepayOf_(notes) {
+  var m = String(notes || '').match(/\[PP:(\d+)@(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2})@([\d.]+)\]/); if (!m) return null;
+  return { months: parseInt(m[1], 10), from: m[2], to: m[3], amount: parseFloat(m[4]) };
+}
+function prepaidNow_(notes, day) { var pp = prepayOf_(notes), d = day || new Date().toISOString().slice(0, 10); return pp && pp.from <= d && pp.to >= d ? pp : null; }
+function prepayText_(p, renew) {
+  var first = String(p.name || '').trim().split(/\s+/)[0] || 'there', monthly = monthlyPrice_(p); if (!monthly) return { stop: 'no monthly price' };
+  var opts = prepayOptions_(monthly), m = new Date().getMonth() + 1, winter = m >= 10 || m <= 2, pp = prepayOf_(p.crmnotes);
+  var lines = opts.map(function(o) { return '  ' + o.months + ' months: $' + o.total.toFixed(2) + ' (save $' + o.save.toFixed(2) + ', ' + o.off + '% off)'; }).join('\n');
+  if (renew && pp) return { subject: first + ', your prepaid yard service ends ' + longDate_(pp.to), body: 'Hi ' + first + ',\n\nIt’s Corey with CL Professional Pet Services. Thank you for paying ahead. Your prepaid service runs through ' + longDate_(pp.to) + '.\n\nIf you’d like to keep the same discount and keep your price locked, here is what the next stretch costs at $' + monthly + ' a month:\n\n' + lines + '\n\nReply with 3, 6 or 12 and we’ll send the invoice. If you’d rather go back to paying monthly, there is nothing to do: the monthly billing picks up after ' + longDate_(pp.to) + '.' };
+  return { subject: winter ? first + ', lock in your yard through the winter' : first + ', pay ahead and save on your yard', body: 'Hi ' + first + ',\n\nIt’s Corey with CL Professional Pet Services. Some of our customers asked if they could pay ahead, so here is the option. At your price of $' + monthly + ' a month:\n\n' + lines + '\n\nYour price is locked for the whole stretch, there are no monthly charges or card worries while it runs, and' + (winter ? ' the yard stays on the route right through the cold months.' : ' you can still pause for vacations like always.') + '\n\nReply with 3, 6 or 12 and we’ll send one invoice. Or keep paying monthly, nothing changes unless you want it to.' };
+}
+/* good payers: a customer 90+ days, nothing open, no notice in six months, not prepaid, not offered in four months */
+function prepayInviteList_(E) {
+  var owing = {}; try { (sgBilling_().unpaid || []).forEach(function(u) { owing[sgNorm_(u.name)] = 1; }); } catch (e) {}
+  var cut180 = new Date(Date.now() - 180 * DAY_MS).toISOString().slice(0, 10);
+  return E.people.filter(function(p) {
+    var n = String(p.crmnotes || ''), cd = (n.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1], pl = (n.match(/\[PL:\d@(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '', ou = (n.match(/\[OU:prepay-[^@]*@(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '';
+    var names = namesOf_(p), owes = Object.keys(names).some(function(k) { return owing[k]; });
+    return String(p.status) === 'closed' && E.mailable(p) && !/\[CM:1\]/.test(n) && !sgOutOfCount_(n, p.name, E.paying) && cd && ageDays_(cd) >= 90 && !owes && !(pl && pl >= cut180) && !prepaidNow_(n) && !(ou && ageDays_(ou) < 120) && monthlyPrice_(p) > 0;
+  });
+}
+function prepayInvite_(body) {
+  var E = emailRows_(), list = prepayInviteList_(E);
+  if (body.preview) { var s = list[0] ? prepayText_(list[0]) : null; return { ok:true, preview:true, count: list.length, subject: s ? s.subject : '', body: s ? s.body + WE_FOOTER : '', first: list[0] ? String(list[0].name || '') : '' }; }
+  if (!officeMailReady_()) return { ok:false, error: NO_OFFICE_MAIL };
+  var today = new Date().toISOString().slice(0, 10), sent = 0, failed = 0;
+  list.slice(0, 30).forEach(function(p) { var t = prepayText_(p); if (t.stop) return; try { sendCustomerMail_({ to: String(p.email).trim(), subject: t.subject, body: t.body + WE_FOOTER }); E.stamp(p, { OU: 'prepay-offer@' + today }); sent++; } catch (e) { failed++; } });
+  return { ok:true, sent: sent, failed: failed, left: Math.max(0, list.length - sent - failed) };
+}
+/* a month before a prepaid stretch ends, one renewal note (switch: prepay_renewals) */
+function prepayRenewals() {
+  return round_('Prepay renewals', 'prepay_renewals', function(E, today, send) {
+    E.people.forEach(function(p) {
+      var n = String(p.crmnotes || ''), pp = prepayOf_(n); if (!pp || String(p.status) !== 'closed' || !E.mailable(p)) return;
+      var left = -ageDays_(pp.to); if (left < 0 || left > 30 || n.indexOf('[EM:prepayrenew' + pp.to + '@') >= 0) return;
+      var t = prepayText_(p, true); if (t.stop) return;
+      send(p, t.subject, t.body, { EM: 'prepayrenew' + pp.to + '@' + today });
+    });
+  });
+}
+
+/* ======================================================================
+   THE MONDAY OWNER EMAIL. One page for Corey: money, customers, what the
+   office sent, who came back, late fees owed, prepaid money, and a short
+   list of what to do this week. Rides on the Monday 7am push (no new
+   trigger); on while CONFIG owner_report is on, to CONFIG owner_email
+   (or the office mailbox when that is blank).
+   ====================================================================== */
+function ownerReportText_() {
+  var n = weeklyNumbers_(), E = emailRows_(), money = function(v) { return '$' + Math.round(v).toLocaleString(); };
+  var today = new Date().toISOString().slice(0, 10), cut7 = new Date(Date.now() - 7 * DAY_MS).toISOString().slice(0, 10);
+  var f = {}; try { f = sgBilling_(); } catch (e) {}
+  var byName = {}; E.people.forEach(function(p) { Object.keys(namesOf_(p)).forEach(function(k) { byName[k] = p; }); });
+  // late fees owed, and who is due notice 3
+  var fees = 0, notice3 = [];
+  (f.unpaid || []).forEach(function(u) {
+    var p = byName[sgNorm_(u.name)], cd = p ? (String(p.crmnotes || '').match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '' : '';
+    (u.items || [{ d: u.oldest, a: u.owed }]).forEach(function(i) { fees += lateFee_(i.a, i.d, cd).fee; });
+    if (p && u.oldest && ageDays_(u.oldest) >= 35 && !/\[PL:3@/.test(String(p.crmnotes || ''))) notice3.push(String(p.name || '').trim() + ' (' + money(u.owed) + ')');
+  });
+  // notes the office sent last week, and who came back
+  var sent = { winback: 0, upsell: 0, prepay: 0, spring: 0, statements: 0 }, back = [], backMoney = 0, prepaid = { n: 0, ahead: 0, renew: [] }, unhappy = [];
+  E.people.forEach(function(p) {
+    var nt = String(p.crmnotes || ''), ou = (nt.match(/\[OU:([a-z]+)-[^@]*@(\d{4}-\d{2}-\d{2})\]/) || []);
+    if (ou[2] && ou[2] >= cut7 && sent[ou[1]] != null) sent[ou[1]]++;
+    var pr = (nt.match(/\[PR:\d+@(\d{4}-\d{2}-\d{2})\]/) || [])[1]; if (pr && pr >= cut7) sent.statements++;
+    var cd = (nt.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '';
+    if (String(p.status) === 'closed' && cd >= cut7 && ou[2] && ou[2] <= cd && ageDays_(ou[2]) - ageDays_(cd) <= 183) { back.push(String(p.name || '').trim()); backMoney += monthlyPrice_(p); }
+    var pp = prepaidNow_(nt); if (pp && String(p.status) === 'closed') { prepaid.n++; prepaid.ahead += pp.amount; var left = -ageDays_(pp.to); if (left <= 30) prepaid.renew.push(String(p.name || '').trim() + ' (' + longDate_(pp.to) + ')'); }
+    if (String(p.status) === 'cancelled' && /\[CXR:service\]/.test(nt) && !/\[OU:/.test(nt)) { var cx = (nt.match(/\[CX:(\d{4}-\d{2}-\d{2})\]/) || [])[1]; if (cx && ageDays_(cx) <= 120) unhappy.push(String(p.name || '').trim()); }
+  });
+  var mk = today.slice(0, 7), m = (f.months || {})[mk] || null, why = Object.keys(n.leftWhy).map(function(k) { return n.leftWhy[k] + ' ' + k; }).join(', ');
+  var L = [];
+  L.push('CLPPS, the week to ' + longDate_(today));
+  L.push('');
+  L.push('MONEY');
+  L.push('  Last week: ' + money(n.billed) + ' billed, ' + money(n.collected) + ' collected.');
+  if (m) L.push('  ' + MONTHS_LONG[parseInt(mk.slice(5), 10) - 1] + ' so far: ' + money(m.billed) + ' billed, ' + money(m.collected) + ' collected.');
+  L.push('  Owed: ' + money(n.owed) + (n.owed30 ? ', ' + money(n.owed30) + ' of it over 30 days' : '') + (fees ? '. Late fees on it: ' + money(fees) + ' (add them in Sweep&Go to collect)' : '') + '.');
+  if (prepaid.n) L.push('  Prepaid: ' + prepaid.n + ' customer' + (prepaid.n === 1 ? '' : 's') + ', ' + money(prepaid.ahead) + ' collected ahead.');
+  L.push('');
+  L.push('CUSTOMERS');
+  L.push('  ' + n.active + ' active' + (n.newCust ? ', ' + n.newCust + ' new' : '') + (n.left ? ', ' + n.left + ' left (' + why + ')' : '') + '.' + (n.toCheck ? ' ' + n.toCheck + ' to check in Sweep&Go.' : ''));
+  if (back.length) L.push('  Came back after one of our notes: ' + back.join(', ') + ' (' + money(backMoney) + '/mo).');
+  L.push('  Leads: ' + n.leadsIn + ' in' + (n.waiting ? ', ' + n.waiting + ' still waiting for a call' : '') + '.');
+  if (n.reviews) L.push('  Google reviews: ' + n.reviews + '.');
+  L.push('');
+  L.push('WORK');
+  L.push('  ' + n.visits + ' visits done' + (n.skipped ? ', ' + n.skipped + ' skipped' : '') + '.');
+  var notes = Object.keys(sent).filter(function(k) { return sent[k]; }).map(function(k) { return sent[k] + ' ' + (k === 'statements' ? 'statement' + (sent[k] === 1 ? '' : 's') : k + ' note' + (sent[k] === 1 ? '' : 's')); });
+  L.push('  Emails the office sent: ' + (notes.length ? notes.join(', ') : 'none') + '.');
+  L.push('');
+  var todo = [];
+  if (notice3.length) todo.push('Five weeks or more behind, notice 3 not sent yet: ' + notice3.slice(0, 6).join(', ') + '.');
+  if (unhappy.length) todo.push('Left unhappy, not called yet: ' + unhappy.slice(0, 6).join(', ') + '.');
+  if (prepaid.renew.length) todo.push('Prepaid stretch ending within a month: ' + prepaid.renew.slice(0, 6).join(', ') + '.');
+  if (n.waiting) todo.push(n.waiting + ' lead' + (n.waiting === 1 ? '' : 's') + ' waiting for a call.');
+  if (n.toCheck) todo.push(n.toCheck + ' customer' + (n.toCheck === 1 ? '' : 's') + ' to check or disable in Sweep&Go.');
+  L.push('THIS WEEK');
+  L.push(todo.length ? todo.map(function(t) { return '  - ' + t; }).join('\n') : '  Nothing waiting. A good week.');
+  L.push('');
+  L.push('The tracker: ' + PUSH_TRACKER_URL);
+  return L.join('\n');
+}
+function ownerReport() {
+  if (cfg_('owner_report') !== 'on') return { ok:true, off:true };
+  var to = String(cfg_('owner_email') || '').trim(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { var c = msCfg_(); to = c ? c.from : ''; }
+  if (!to) return { ok:false, error:'no address' };
+  var text = ownerReportText_();
+  var how = sendOfficeMail_({ to: to, subject: 'CLPPS last week, ' + longDate_(new Date().toISOString().slice(0, 10)), body: text });
+  return { ok:true, to: to, via: how };
+}
+
+/* ======================================================================
+   TEAM LOGINS. Jesse: "I like the idea of 9, maybe expand on that one".
+   Each person gets their own password and a role. The original password
+   (TRACKER_KEY) stays the owner's. Passwords are never stored: only an
+   HMAC of each one with its own salt, in Script Property USERS. A tech's
+   list is cut down here, in the script, to the route and the yard: no
+   emails, prices, quotes or office notes reach their phone at all.
+   ====================================================================== */
+var ROLES = {
+  office: { list:1, lead:1, update:1, billing:1, jobs:1, quota:1, blast:1, payremind:1, outreach:1, acctlink:1, refinvite:1, prepayinvite:1, sgsync:1, sgcreate:1, checkin:1 },
+  tech:   { list:1, jobs:1, checkin:1 }
+};
+var ROLE_LABEL = { owner: 'Owner', office: 'Office', tech: 'Tech' };
+function usersAll_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('USERS') || '{}') || {}; } catch (e) { return {}; } }
+function usersSave_(u) { PropertiesService.getScriptProperties().setProperty('USERS', JSON.stringify(u)); }
+function pwHash_(pw, salt) { return hex_(Utilities.computeHmacSha256Signature(String(pw), String(salt))); }
+function who_(key) {
+  key = String(key || ''); if (!key) return null;
+  if (key === pin_()) return { id: 'owner', name: 'Owner', role: 'owner' };
+  if (key.length < 10) return null;
+  var u = usersAll_(), hit = null;
+  Object.keys(u).forEach(function(id) { var x = u[id]; if (!hit && x && x.on && x.hash === pwHash_(key, x.salt)) hit = { id: id, name: x.name, role: x.role }; });
+  return hit;
+}
+function can_(key, action) {
+  var me = who_(key); if (!me) return null;
+  if (me.role === 'owner') return me;
+  return ROLES[me.role] && ROLES[me.role][action] ? me : null;
+}
+function newPassword_() { return (Utilities.getUuid() + Utilities.getUuid()).replace(/[^a-z0-9]/gi, '').replace(/[01lo]/gi, '').slice(0, 14); }
+function users_(body, me) {
+  var u = usersAll_(), op = String(body.op || 'list'), now = new Date().toISOString();
+  var view = function() { return Object.keys(u).map(function(id) { var x = u[id]; return { id: id, name: x.name, role: x.role, on: !!x.on, created: x.created || '', last: x.last || '' }; }).sort(function(a, b) { return a.name < b.name ? -1 : 1; }); };
+  if (op === 'list') return { ok:true, users: view() };
+  if (op === 'add') {
+    var name = String(body.name || '').trim().replace(/[\[\]~@,]/g, '').slice(0, 24), role = String(body.role || '');
+    if (!name || !ROLES[role]) return { ok:false, error:'a name and a role (office or tech)' };
+    if (Object.keys(u).some(function(id) { return u[id].on && u[id].name.toLowerCase() === name.toLowerCase(); })) return { ok:false, error:'that name is already in use' };
+    var id = 'u' + Utilities.getUuid().replace(/-/g, '').slice(0, 10), pw = newPassword_(), salt = Utilities.getUuid();
+    u[id] = { name: name, role: role, salt: salt, hash: pwHash_(pw, salt), on: true, created: now }; usersSave_(u);
+    audit_(me, 'user-add', id, name + ' (' + role + ')');
+    return { ok:true, id: id, password: pw, users: view() };
+  }
+  var x = u[String(body.id || '')]; if (!x) return { ok:false, error:'no such person' };
+  if (op === 'off' || op === 'on') { x.on = op === 'on'; usersSave_(u); audit_(me, 'user-' + op, body.id, x.name); return { ok:true, users: view() }; }
+  if (op === 'reset') { var pw2 = newPassword_(); x.salt = Utilities.getUuid(); x.hash = pwHash_(pw2, x.salt); x.on = true; usersSave_(u); audit_(me, 'user-reset', body.id, x.name); return { ok:true, id: body.id, password: pw2, users: view() }; }
+  if (op === 'role') { if (!ROLES[String(body.role || '')]) return { ok:false, error:'bad role' }; x.role = String(body.role); usersSave_(u); audit_(me, 'user-role', body.id, x.name + ' -> ' + x.role); return { ok:true, users: view() }; }
+  return { ok:false, error:'unknown' };
+}
+/* who did what: one row per change, in its own sheet */
+var AUDIT_HEADERS = ['when', 'who', 'role', 'action', 'id', 'detail'];
+function auditSheet_() {
+  var ss = sheet_().getParent(), sh = ss.getSheetByName('activity');
+  if (!sh) { sh = ss.insertSheet('activity'); sh.appendRow(AUDIT_HEADERS); }
+  return sh;
+}
+function audit_(me, action, id, detail) {
+  try { auditSheet_().appendRow([new Date().toISOString(), me ? me.name : '?', me ? me.role : '?', String(action || ''), safeCell_(String(id || '')), safeCell_(String(detail || '').slice(0, 300))]); } catch (e) {}
+  if (me && me.id && me.id !== 'owner') { try { var u = usersAll_(); if (u[me.id]) { u[me.id].last = new Date().toISOString(); usersSave_(u); } } catch (e2) {} }
+}
+function activity_(body) {
+  var sh = auditSheet_(), n = sh.getLastRow(); if (n < 2) return { ok:true, rows: [] };
+  var take = Math.min(150, n - 1), rows = sh.getRange(n - take + 1, 1, take, AUDIT_HEADERS.length).getValues().reverse();
+  return { ok:true, rows: rows.map(function(r) { return { when: String(r[0]), who: String(r[1]), role: String(r[2]), action: String(r[3]), id: String(r[4]), detail: String(r[5]) }; }) };
+}
+/* the tech's start-of-day and end-of-day checklist */
+function checkin_(body, me) {
+  var kind = String(body.kind || ''); if (!/^(start|end)$/.test(kind)) return { ok:false, error:'start or end' };
+  var items = Array.isArray(body.items) ? body.items.slice(0, 20).map(function(x) { return String(x).replace(/[\r\n]+/g, ' ').slice(0, 60); }) : [];
+  var note = String(body.note || '').replace(/[\r\n]+/g, ' ').slice(0, 200);
+  audit_(me, 'check-' + kind, '', (items.length ? items.join('; ') : 'nothing ticked') + (note ? ' | ' + note : ''));
+  return { ok:true, at: new Date().toISOString() };
+}
+/* A tech's copy of the list: customers on the route and the yard details, nothing else. */
+var TECH_FIELDS = ['id', 'type', 'name', 'phone', 'address', 'zip', 'dogs', 'service', 'deodorize', 'status', 'created', 'updated'];
+var TECH_MARKERS = /^\[(DAY|LL|PZ|ET|CM|SGID|CD):[^\]]*\]\s*/;
+var TECH_CONFIG = { route_base:1, deo_season:1 };
+function techRow_(o) {
+  var t = String(o.type || '');
+  if (t === 'CONFIG') return TECH_CONFIG[String(o.name || '')] ? o : null;
+  if (String(o.status || '') !== 'closed' || !/\[SGID:/.test(String(o.crmnotes || ''))) return null;
+  var out = {}; TECH_FIELDS.forEach(function(h) { out[h] = o[h]; });
+  // keep the route markers and the free text (gate codes, dog notes); drop money, emails, quotes and office markers
+  var s = String(o.crmnotes || ''), keep = [], rest = s;
+  var m; while ((m = rest.match(/^\s*\[([A-Z0-9]+):[^\]]*\]\s*/))) { if (TECH_MARKERS.test(m[0].trim() + ' ')) keep.push(m[0].trim()); rest = rest.slice(m[0].length); }
+  out.crmnotes = keep.join(' ') + (keep.length ? ' ' : '') + rest.replace(/\[[A-Z0-9]+:[^\]]*\]\s*/g, '').trim();
+  return out;
+}
 function dailyEmails() {
   var out = {};
-  [['followups', quoteFollowups], ['welcome', welcomeEmails], ['cards', cardFailedEmails], ['winback', winbackEmails], ['revival', leadRevival], ['referral', referralThanks], ['anniversary', anniversaryEmails], ['campaigns', campaignsDue], ['spring', springRestart]].forEach(function(j) {
+  [['followups', quoteFollowups], ['welcome', welcomeEmails], ['cards', cardFailedEmails], ['winback', winbackEmails], ['revival', leadRevival], ['referral', referralThanks], ['anniversary', anniversaryEmails], ['campaigns', campaignsDue], ['spring', springRestart], ['prepay', prepayRenewals]].forEach(function(j) {
     try { out[j[0]] = j[1](); } catch (e) { out[j[0]] = { ok:false, error: String(e && e.message || e).slice(0, 160) }; }
   });
   if (new Date().getDay() === 1) { try { out.reminders = paymentReminders(); } catch (e) { out.reminders = { ok:false, error: String(e && e.message || e) }; } }
@@ -2480,6 +2722,7 @@ function weeklyPush() {
   if (topic) {
     try { UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(topic), { method: 'post', contentType: 'text/plain; charset=utf-8', payload: body, headers: { 'Title': title, 'Priority': 'default', 'Tags': 'bar_chart', 'Click': PUSH_TRACKER_URL }, muteHttpExceptions: true }); } catch (e) {}
   } else { Logger.log('No push topic yet (run setupPush). Would have sent:\n' + body); }
+  try { ownerReport(); } catch (e) { Logger.log('Owner email: ' + e.message); }
   return body;
 }
 function setupWeeklyPush() {

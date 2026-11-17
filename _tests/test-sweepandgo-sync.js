@@ -182,10 +182,10 @@ function build(leadRows){
     Logger: { log: (m) => { logs.push(String(m)); } },
     ScriptApp: { WeekDay: { MONDAY:'mon', SUNDAY:'sun' }, getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/XYZ/exec' }), getProjectTriggers: () => [], deleteTrigger: () => {},
       newTrigger: (fn) => { const chain = { everyDays: () => chain, everyHours: () => chain, onWeekDay: () => chain, onMonthDay: () => chain, after: () => chain, atHour: () => chain, create: () => { triggers.push(fn); } }; return { timeBased: () => chain }; } },
-    MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => 'u', formatDate: (d, tz, f) => f === 'yyyy-MM-dd' ? new Date(d).toISOString().slice(0, 10) : f === 'H' ? '12' : '202611', sleep: (ms) => { sleeps.push(ms); }, base64Encode: (s) => Buffer.from(String(s), 'utf8').toString('base64'), Charset: { UTF_8: 'utf8' }, newBlob: (c, type, name) => ({ c, type, name }), computeHmacSha256Signature: (v, k) => Array.from(require('crypto').createHmac('sha256', k).update(String(v)).digest()).map(b => b > 127 ? b - 256 : b) }, Session: { getScriptTimeZone: () => 'America/Chicago' },
+    MailApp: { sendEmail: (o) => { mails.push(o); }, getRemainingDailyQuota: () => 100 }, Utilities: { getUuid: () => require('crypto').randomUUID(), formatDate: (d, tz, f) => f === 'yyyy-MM-dd' ? new Date(d).toISOString().slice(0, 10) : f === 'H' ? '12' : '202611', sleep: (ms) => { sleeps.push(ms); }, base64Encode: (s) => Buffer.from(String(s), 'utf8').toString('base64'), Charset: { UTF_8: 'utf8' }, newBlob: (c, type, name) => ({ c, type, name }), computeHmacSha256Signature: (v, k) => Array.from(require('crypto').createHmac('sha256', k).update(String(v)).digest()).map(b => b > 127 ? b - 256 : b) }, Session: { getScriptTimeZone: () => 'America/Chicago' },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (txt) => ({ _t: txt, setMimeType(){ return this; } }) },
   };
-  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups, install, INSTALL, sgBillingSync, sgSyncOnce, sgStatus, sgAllUntil_, tidySheet, payRemind_, paymentReminders, monthlyReport, eveningNudge, weeklyHousekeeping, publicDays_, cardFailedEmails, winbackEmails, leadRevival, referralThanks, campaignsDue, yearlyReport, yearlyReportText_, refCode_, doGet, pin_, sgRoutesBackfill, mileage_, hourlyNudge, anniversaryEmails, refreshReviews, monthlyReportText_, list_, ROUTES_BACK_TO, outreach_, springRestart, account_, acctToken_, refInvite_, ladderStep_ };')(...Object.values(G));
+  const F = new Function(...Object.keys(G), gs + '\nreturn { sgSync, sgHook_, sgBilling_, sgJobs_, setupSweepAndGo, weeklyPush, weeklyNumbers_, sgCreate_, sgSplitAddress_, sgQuotedBase_, doPost, followupsDue_, quoteFollowups, FU_STEPS, welcomeDue_, welcomeEmails, priceMove_, billingCsv_, sendCustomerMail_, testOfficeMail, dailyEmails, setupFollowups, install, INSTALL, sgBillingSync, sgSyncOnce, sgStatus, sgAllUntil_, tidySheet, payRemind_, paymentReminders, monthlyReport, eveningNudge, weeklyHousekeeping, publicDays_, cardFailedEmails, winbackEmails, leadRevival, referralThanks, campaignsDue, yearlyReport, yearlyReportText_, refCode_, doGet, pin_, sgRoutesBackfill, mileage_, hourlyNudge, anniversaryEmails, refreshReviews, monthlyReportText_, list_, ROUTES_BACK_TO, outreach_, springRestart, account_, acctToken_, refInvite_, ladderStep_, prepayText_, prepayInvite_, prepayRenewals, ownerReportText_, ownerReport, users_, who_, can_, checkin_, activity_, priceMove_ };')(...Object.values(G));
   return { F, sheets, props };
 }
 
@@ -775,5 +775,75 @@ function build(leadRows){
   msCalls.length = 0;
   const rs = F.refInvite_({});
   ok('sending stamps each one, so the next tap skips them', rs.ok && rs.sent === pv.count && sentMs().length === pv.count && F.refInvite_({ preview: true }).count === 0, JSON.stringify(rs));
+}
+/* ---- prepay, the Monday owner email, and team logins ---- */
+{
+  const R = (o) => HEADERS.map(h => o[h] == null ? '' : o[h]);
+  const today = new Date().toISOString().slice(0, 10), ahead = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const rows = seed();
+  rows.push(R({ id:'goodgreg', created:'2025-01-01T12:00:00Z', type:'SAVED', name:'Good Greg', phone:'6363750071', email:'greg@gmail.com', zip:'63376', price:'$80/mo', status:'closed', crmnotes:'[CD:2025-01-01] [SGID:cl_GREG] [DAY:tue] gate 1234' }));
+  rows.push(R({ id:'prepam', created:'2025-01-01T12:00:00Z', type:'SAVED', name:'Prepaid Patty', phone:'6363750072', email:'patty@gmail.com', zip:'63376', price:'$100/mo', status:'closed', crmnotes:'[CD:2025-01-01] [PP:6@' + d(160) + '~' + ahead(20) + '@570.00] ' }));
+  rows.push(R({ id:'owingowen', created:'2025-01-01T12:00:00Z', type:'SAVED', name:'Owing Owen', phone:'6363750073', email:'owen@gmail.com', zip:'63376', price:'$80/mo', status:'closed', crmnotes:'[CD:2025-01-01] ' }));
+  const { F, sheets, props } = build(rows);
+  F.sgSync(false); F.sgBillingSync();
+  const B = (o) => ['kind','number','date','client','type','status','total','paid','remaining','interval','period_start','pay_type','description','period_end','next_try'].map(h => o[h] == null ? '' : o[h]);
+  sheets.billing.rows.push(B({ kind:'invoice', number:'O-1', date: d(40), client:'Owing Owen', type:'subscription', status:'overdue', total:'80.00', paid:'0.00', remaining:'80.00', interval:'monthly' }));
+  sheets.billing.rows.push(B({ kind:'invoice', number:'P-1', date: d(40), client:'Prepaid Patty', type:'subscription', status:'overdue', total:'100.00', paid:'0.00', remaining:'100.00', interval:'monthly' }));
+  Object.assign(props, MS); msCalls.length = 0;
+  // ---- prepay ----
+  const greg = F.outreach_({ id:'goodgreg', kind:'prepay', preview:true });
+  ok('prepay: the offer lists 3, 6 and 12 months at their own price, with the saving', greg.ok && /3 months: \$232\.80 \(save \$7\.20, 3% off\)/.test(greg.body) && /6 months: \$456\.00 \(save \$24\.00, 5% off\)/.test(greg.body) && /12 months: \$864\.00 \(save \$96\.00, 10% off\)/.test(greg.body) && /price is locked/.test(greg.body), JSON.stringify(greg));
+  ok('somebody already prepaid is not offered it again', F.outreach_({ id:'prepam', kind:'prepay', preview:true }).error === 'already prepaid', JSON.stringify(F.outreach_({ id:'prepam', kind:'prepay', preview:true })));
+  ok('a prepaid customer gets no statement while it runs, with the reason', /^prepaid through /.test(F.payRemind_({ id:'prepam', amount: 100, since: d(40), preview:true }).error || ''));
+  const pv = F.prepayInvite_({ preview: true });
+  ok('the pay-ahead round goes to good payers only: Greg yes; Patty (prepaid) and Owen (owes) no', pv.ok && pv.count >= 1 && pv.first && !/Patty|Owen/.test(pv.first), JSON.stringify(pv).slice(0, 200));
+  msCalls.length = 0;
+  const ps = F.prepayInvite_({});
+  ok('sending it stamps them so they wait four months', ps.sent === pv.count && F.prepayInvite_({ preview: true }).count === 0);
+  ok('the renewal note is off until switched on', F.prepayRenewals().off === true);
+  sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_ppr', created: new Date().toISOString(), type:'CONFIG', name:'prepay_renewals', notes:'on', status:'config' })[h] || ''));
+  msCalls.length = 0; const ren = F.prepayRenewals();
+  ok('switched on: Patty, 20 days from the end, gets the renewal offer, once', ren.sent === 1 && sentMs()[0].to === 'patty@gmail.com' && /your prepaid yard service ends/.test(sentMs()[0].subject) && F.prepayRenewals().sent === 0, JSON.stringify(ren));
+  const pm = F.priceMove_({ items: [{ id:'prepam', oldPrice: 100, newPrice: 110 }], date: ahead(10) });
+  ok('a price move leaves a prepaid customer alone until the stretch ends', pm.failed.length === 1 && /prepaid, price locked through/.test(pm.failed[0].error), JSON.stringify(pm));
+  const acc = F.account_(F.acctToken_('goodgreg')), accP = F.account_(F.acctToken_('prepam'));
+  ok('the customer page offers the three amounts, or says prepaid through', acc.prepay && acc.prepay.length === 3 && acc.prepay[2].total === 864 && accP.prepaid && accP.prepaid.to === ahead(20) && !accP.prepay);
+  // ---- the Monday owner email ----
+  const txt = F.ownerReportText_();
+  ok('the owner email: money, customers, work and a to-do list, with the late fees and prepaid money', /MONEY/.test(txt) && /CUSTOMERS/.test(txt) && /WORK/.test(txt) && /THIS WEEK/.test(txt) && /Late fees on it: \$\d+/.test(txt) && /Prepaid: 1 customer, \$570 collected ahead/.test(txt) && /notice 3 not sent yet: .*Owing Owen/.test(txt) && /Prepaid stretch ending within a month: Prepaid Patty/.test(txt) && /Emails the office sent: .*prepay note/.test(txt), txt);
+  ok('it is off until switched on', F.ownerReport().off === true);
+  sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_or', created: new Date().toISOString(), type:'CONFIG', name:'owner_report', notes:'on', status:'config' })[h] || ''));
+  sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_oe', created: new Date().toISOString(), type:'CONFIG', name:'owner_email', notes:'corey@example.com', status:'config' })[h] || ''));
+  msCalls.length = 0; const orr = F.ownerReport();
+  ok('switched on, it goes to the address set in the tracker', orr.ok && orr.to === 'corey@example.com' && sentMs()[0].to === 'corey@example.com' && /CLPPS last week/.test(sentMs()[0].subject));
+  // ---- team logins ----
+  props.TRACKER_KEY = 'owner-secret-123';
+  const P = (body) => { const s = JSON.stringify(body); return JSON.parse(F.doPost({ postData: { contents: s, length: s.length }, parameter: {} })._t); };
+  ok('the original password is the owner', F.who_('owner-secret-123').role === 'owner' && F.who_('nope') === null && F.who_('') === null);
+  const addT = P({ action:'users', key:'owner-secret-123', op:'add', name:'Mike', role:'tech' }), addO = P({ action:'users', key:'owner-secret-123', op:'add', name:'Olivia', role:'office' });
+  ok('the owner adds people: each gets a password once, and only a hash is kept', addT.ok && addT.password.length >= 10 && addO.ok && !JSON.stringify(props.USERS).includes(addT.password) && addO.users.length === 2, JSON.stringify(addT));
+  ok('the same name twice is refused', P({ action:'users', key:'owner-secret-123', op:'add', name:'mike', role:'office' }).ok === false);
+  ok('nobody but the owner can manage the team', P({ action:'users', key: addO.password, op:'list' }).ok === false && P({ action:'users', key: addT.password, op:'list' }).ok === false);
+  ok('each password is its person and role', F.who_(addT.password).name === 'Mike' && F.who_(addT.password).role === 'tech' && F.who_(addO.password).role === 'office');
+  ok('the office can do the day\'s work but not settings or the accountant\'s file', !!F.can_(addO.password, 'billing') && !!F.can_(addO.password, 'payremind') && !F.can_(addO.password, 'billingcsv') && !F.can_(addO.password, 'pricemove') && P({ action:'lead', key: addO.password, lead: { id:'cfgx', type:'CONFIG', name:'fu_emails', notes:'on' } }).ok === false);
+  ok('a tech can only read the route and check in', !!F.can_(addT.password, 'list') && !!F.can_(addT.password, 'checkin') && !F.can_(addT.password, 'billing') && !F.can_(addT.password, 'update') && !F.can_(addT.password, 'payremind') && P({ action:'update', key: addT.password, id:'goodgreg', status:'cancelled' }).ok === false);
+  const techList = JSON.parse(F.list_({ key: addT.password })._t);
+  const tg = techList.leads.find(l => l.id === 'goodgreg');
+  ok('the tech\'s list is cut down in the script: customers on the route only, no emails or prices, office markers gone, gate code kept', techList.ok && techList.me.role === 'tech' && techList.me.name === 'Mike' && tg && !tg.email && !tg.price && /\[DAY:tue\]/.test(tg.crmnotes) && /gate 1234/.test(tg.crmnotes) && !/\[(PP|PR|PL|OU|EM|QA|FU):/.test(techList.leads.map(l => l.crmnotes || '').join(' ')) && !techList.leads.some(l => /^(new|called|lost|cancelled)$/.test(l.status) || l.id === 'q_old') && techList.leads.every(l => l.type !== 'CONFIG' || /^(route_base|deo_season)$/.test(l.name)), JSON.stringify(techList.leads.slice(0, 3)));
+  ok('the owner\'s list says who is signed in, everything included', JSON.parse(F.list_({ key: 'owner-secret-123' })._t).me.role === 'owner' && JSON.parse(F.list_({ key: 'owner-secret-123' })._t).leads.some(l => l.id === 'q_old'));
+  const up = P({ action:'update', key: addO.password, id:'goodgreg', notes:'[CD:2025-01-01] [SGID:cl_GREG] [DAY:tue] [BY:Somebody~2020-01-01] gate 1234' });
+  const gregNotes = sheets.leads.rows.filter(r => r[HEADERS.indexOf('id')] === 'goodgreg').slice(-1)[0][HEADERS.indexOf('crmnotes')];
+  ok('an office change is signed by the script with the real name, whatever the phone says', up.ok && gregNotes.indexOf('[BY:Olivia~' + today + ']') >= 0 && gregNotes.indexOf('Somebody') < 0, gregNotes);
+  ok('a tech\'s start and end of day are logged with what they ticked', P({ action:'checkin', key: addT.password, kind:'start', items:['Truck fueled and checked', 'Phone charged'], note:'running 10 min late' }).ok);
+  const act = P({ action:'activity', key:'owner-secret-123' });
+  ok('the activity log: newest first, who, what and on which card', act.ok && act.rows[0].who === 'Mike' && act.rows[0].action === 'check-start' && /Truck fueled.*Phone charged \| running 10 min late/.test(act.rows[0].detail) && act.rows.some(r => r.who === 'Olivia' && r.action === 'update' && r.id === 'goodgreg') && act.rows.some(r => r.action === 'user-add'), JSON.stringify(act.rows.slice(0, 4)));
+  ok('only the owner reads the log', P({ action:'activity', key: addO.password }).ok === false);
+  const mikeId = addT.id;
+  P({ action:'users', key:'owner-secret-123', op:'off', id: mikeId });
+  ok('turning a login off locks it out at once', F.who_(addT.password) === null && JSON.parse(F.list_({ key: addT.password })._t).ok === false);
+  const rs = P({ action:'users', key:'owner-secret-123', op:'reset', id: mikeId });
+  ok('a new password works, the old one does not', rs.ok && F.who_(rs.password).name === 'Mike' && F.who_(addT.password) === null);
+  P({ action:'users', key:'owner-secret-123', op:'role', id: mikeId, role:'office' });
+  ok('a role can change', F.who_(rs.password).role === 'office');
 }
 done();

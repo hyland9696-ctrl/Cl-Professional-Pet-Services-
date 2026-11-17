@@ -53,6 +53,14 @@ const ACCOUNT = {
   await p.goto(ORIGIN + '/account/?t=E1.abc123'); await p.waitForTimeout(500);
   ok('only https links are used: a bad pay link or photo address is dropped', !(await p.isVisible('a.btn:has-text("Pay now")')) && (await p.$$('.visit img')).length === 0);
 
+  answer = Object.assign({}, ACCOUNT, { prepay: [ { months: 3, off: 3, total: 276.45, save: 8.55 }, { months: 6, off: 5, total: 541.5, save: 28.5 }, { months: 12, off: 10, total: 1026, save: 114 } ] });
+  await p.goto(ORIGIN + '/account/?t=E1.abc123'); await p.waitForTimeout(500);
+  const pa = (await p.textContent('#app')).replace(/\s+/g, ' ');
+  ok('pay ahead: the three amounts with the saving, each a tap to text the office', /Pay ahead and save/.test(pa) && /6 months\s*save \$28\.50, 5% off\s*\$541\.50/.test(pa) && (await p.$$('a[href^="sms:+16363754342"]:has-text("Choose")')).length === 3 && /pay%20ahead%20for%2012%20months/.test(await p.getAttribute('a:has-text("Choose") >> nth=2', 'href')), pa.slice(pa.indexOf('Pay ahead'), pa.indexOf('Pay ahead') + 300));
+  answer = Object.assign({}, ACCOUNT, { prepaid: { to: '2027-05-11', months: 6 } });
+  await p.goto(ORIGIN + '/account/?t=E1.abc123'); await p.waitForTimeout(500);
+  ok('prepaid: says so at the top, through when, and no pay-ahead offer', /Active · prepaid/.test(await p.textContent('#app')) && /Prepaid through\s*May 11, 2027/.test(await p.textContent('#app')) && !/Pay ahead and save/.test(await p.textContent('#app')));
+
   answer = { ok: false, error: 'not found' };
   await p.goto(ORIGIN + '/account/?t=E1.wrong'); await p.waitForTimeout(500);
   ok('a wrong link says so and gives the office number', /We could not find that account/.test(await p.textContent('#app')) && /\(636\) 375-4342/.test(await p.textContent('#app')));
