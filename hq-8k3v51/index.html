@@ -5478,6 +5478,15 @@ function saveCallRow(l, why){
     SAVE_OUTCOMES.map(function(o){ return '<button onclick="saveCall(\'' + esc(l.id) + '\',\'' + o[0] + '\')" style="padding:5px 9px;min-height:30px;font-size:11.5px;">' + o[1] + '</button>'; }).join('') + '</div></details>';
 }
 /* ---- the collections ladder, as the Owed list shows it ---- */
+/* the late fee, as the script works it out: 10% of each open invoice per
+   full 30 days, or $10 a month for customers who started before the terms
+   changed. The office adds it in Sweep&Go to collect it. */
+var LATE_FEE_PCT = 10, LATE_FEE_FLAT = 10, LATE_FEE_FROM = '2026-11-17';
+function lateFeeOf(l, u){
+  var cd = l ? fuParse(l.crmnotes).cd : '', pct = !!cd && cd >= LATE_FEE_FROM;
+  var items = u.items && u.items.length ? u.items : [{ d: u.oldest, a: u.owed }];
+  return Math.round(items.reduce(function(s, i){ var m = Math.floor(daysAgo(String(i.d || '').slice(0, 10) + 'T12:00:00') / 30); return s + (m >= 1 && i.a > 0 ? (pct ? i.a * LATE_FEE_PCT / 100 * m : LATE_FEE_FLAT * m) : 0); }, 0) * 100) / 100;
+}
 function ladderStepJs(oldest){ var a = daysAgo(String(oldest).slice(0, 10) + 'T12:00:00'); return a >= 35 ? 3 : a >= 21 ? 2 : 1; }
 function ladderNote(l, u){
   var fu = fuParse(l.crmnotes), sent = parseInt(String(fu.pl || '').split('@')[0], 10) || 0, due = ladderStepJs(u.oldest || '');
@@ -5926,12 +5935,12 @@ function renderBilling(){
   // who owes what
   var un = billing.unpaid || [], owedTotal = un.reduce(function(a, u){ return a + u.owed; }, 0);
   h += '<div class="fold" data-fold="bill-owed" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong style="color:#b45309;">Owed</strong><span style="color:#555;">' + un.length + ' customer' + (un.length === 1 ? '' : 's') + ' &middot; ' + money(owedTotal) + '</span></div><div class="fold-body">' +
-    (un.length ? '<div class="sub" style="font-size:11px;color:#9aa5a0;margin:2px 0 4px;">Unpaid invoices by customer, biggest first. Draft means Sweep&amp;Go generated it and never sent it; Overdue and Failed were sent. One tap puts the amount on their card; Statement shows the email (every open invoice, the total, the Pay now link) and sends it on the second tap.</div>' +
+    (un.length ? '<div class="sub" style="font-size:11px;color:#9aa5a0;margin:2px 0 4px;">Unpaid invoices by customer, biggest first. Draft means Sweep&amp;Go generated it and never sent it; Overdue and Failed were sent. One tap puts the amount on their card; Statement shows the email (every open invoice, the total, the Pay now link) and sends it on the second tap. Late fees: 10% of the invoice a month past due for customers who started from ' + LATE_FEE_FROM + ', $10 a month for everyone before. The statement names them; add them in Sweep&amp;Go as a one-time charge to collect them.</div>' +
       '<div style="display:flex;gap:6px;align-items:center;margin:4px 0 6px;"><input id="pay-link" type="url" inputmode="url" placeholder="Pay now link: your Sweep&amp;Go client portal address, https://..." value="' + esc(payLink()) + '" style="flex:1;padding:7px 9px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;min-width:0;"><button onclick="savePayLink()" style="padding:6px 10px;min-height:32px;font-size:11.5px;">Save</button></div>' +
       (payLink() ? '' : '<div class="sub" style="font-size:11px;color:#b45309;margin:0 0 6px;">No Pay now link yet: statements still list the invoices and point to the Sweep&amp;Go invoice emails.</div>') +
       un.slice(0, 25).map(function(u){ var l = leadByName(u.name), st = Object.keys(u.statuses || {}).map(function(k){ return u.statuses[k] + ' ' + k; }).join(', '), fu = l ? fuParse(l.crmnotes) : null;
         return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
-          '<span>' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') + ' <span style="color:#707070;">' + esc(st) + (u.oldest ? ' &middot; since ' + esc(u.oldest) : '') + '</span>' + (l ? ' ' + ladderNote(l, u) : '') + '</span>' +
+          '<span>' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') + ' <span style="color:#707070;">' + esc(st) + (u.oldest ? ' &middot; since ' + esc(u.oldest) : '') + '</span>' + (function(){ var f = lateFeeOf(l, u); return f > 0 ? ' <span style="color:#c0392b;font-weight:700;font-size:11px;">+ $' + f.toFixed(2) + ' late fee</span>' : ''; })() + (l ? ' ' + ladderNote(l, u) : '') + '</span>' +
           '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (l ? (fu.ow ? ' <span style="color:#9aa5a0;font-size:11px;">on card</span>' : ' <button onclick="markOwed(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">On their card</button>') + (l.email ? (fu.pr && fu.pr.split('@')[1] >= new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10) ? ' <span style="color:#9aa5a0;font-size:11px;">reminded ' + esc(fu.pr.split('@')[1]) + '</span>' : ' <button class="pr-btn" onclick="payRemind(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">&#9993;&#65039; Statement</button>') : '') : '') + '</span></div>'; }).join('')
       : '<div class="sub" style="padding-left:10px;">Nothing owed. Every invoice is paid.</div>') + '</div></div>';
   box.innerHTML = h;

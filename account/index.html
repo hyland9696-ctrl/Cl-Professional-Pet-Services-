@@ -75,8 +75,10 @@ function render(d){
   // what is owed, and the way to pay it
   var pay = safeUrl(d.payLink);
   if (d.open && d.open.length){
-    h += '<div class="card"><div class="sec"><h2>Balance</h2><div class="owe"><div class="muted" style="color:#9a4d00;">Open on your account</div><div class="amt">' + money(d.openTotal) + '</div></div>' +
-      d.open.map(function(i){ return '<div class="dline"><span>Invoice ' + esc(i.number || '') + '<br><small class="muted">issued ' + nice(i.date, true) + (i.period ? ' &middot; service ' + nice(i.period) + (i.periodEnd ? ' to ' + nice(i.periodEnd) : '') : '') + '</small></span><span>' + money(i.amount) + '<br><small class="' + (i.status === 'failed' ? 'skip' : 'muted') + '">' + (i.status === 'failed' ? 'card declined' : i.status === 'overdue' ? 'overdue' : 'open') + '</small></span></div>'; }).join('') +
+    h += '<div class="card"><div class="sec"><h2>Balance</h2><div class="owe"><div class="muted" style="color:#9a4d00;">Open on your account</div><div class="amt">' + money((+d.openTotal || 0) + (+d.lateFees || 0)) + '</div></div>' +
+      d.open.map(function(i){ return '<div class="dline"><span>Invoice ' + esc(i.number || '') + '<br><small class="muted">issued ' + nice(i.date, true) + (i.period ? ' &middot; service ' + nice(i.period) + (i.periodEnd ? ' to ' + nice(i.periodEnd) : '') : '') + '</small></span><span>' + money(i.amount) + '<br><small class="' + (i.status === 'failed' ? 'skip' : 'muted') + '">' + (i.status === 'failed' ? 'card declined' : i.status === 'overdue' ? 'overdue' : 'open') + '</small></span></div>' +
+        (i.lateFee > 0 ? '<div class="dline"><span>Late fee<br><small class="muted">' + esc(i.lateWhy || '') + '</small></span><span>' + money(i.lateFee) + '</span></div>' : ''); }).join('') +
+      (d.lateFees > 0 ? '<div class="dline"><span>Total due</span><span>' + money((+d.openTotal || 0) + (+d.lateFees || 0)) + '</span></div><p class="muted" style="margin-top:4px;">Late fees are set out in our <a href="/#tos-modal" style="color:#0F6E56;">Terms of Service</a>, section 3.</p>' : '') +
       (pay ? '<a class="btn" href="' + esc(pay) + '" target="_blank" rel="noopener">Pay now</a>' : '') +
       '<p class="muted" style="margin-top:8px;">Updating your card in the client portal clears a declined payment. Questions? Reply to any of our emails or call us.</p></div></div>';
   } else {

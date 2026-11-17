@@ -12,7 +12,7 @@ const ACCOUNT = {
     { date: '2026-11-05', status: 'skipped', skip: 'Gate locked', start: '', minutes: 0, tech: '' },
   ],
   photos: { '2026-11-12': 'https://img.sweepandgo.test/eddie.jpg' },
-  open: [ { number: '768-5-1', date: '2026-10-05', amount: 95, total: 95, status: 'failed', period: '2026-10-05', periodEnd: '2026-11-04' } ], openTotal: 95,
+  open: [ { number: '768-5-1', date: '2026-10-05', amount: 95, total: 95, status: 'failed', period: '2026-10-05', periodEnd: '2026-11-04', lateFee: 9.5, lateWhy: '10% of the invoice for each month past due' } ], openTotal: 95, lateFees: 9.5,
   paid: [ { date: '2026-09-05', amount: 95, how: 'credit_card' } ],
   payLink: 'https://clpps.sweepandgo.com/portal', refLink: 'https://clpropetservices.com/?ref=eddie-x1y', refUsed: 2,
 };
@@ -31,7 +31,7 @@ const ACCOUNT = {
   const txt = (await p.textContent('#app')).replace(/\s+/g, ' ');
   ok('the page asks the script with the code from the link, and nothing else', asked.length === 1 && /action=account&t=E1\.abc123$/.test(asked[0]), asked.join());
   ok('it greets them, with their plan, price, day and how long they have been with us', /Hi Eddie/.test(txt) && /Active/.test(txt) && /Plan\s*weekly · 2 dogs/.test(txt) && /Price\s*\$95\/mo/.test(txt) && /Service day\s*Thursday/.test(txt) && /With us since\s*May 1, 2025/.test(txt), txt.slice(0, 300));
-  ok('what is open, invoice by invoice, with why, and a Pay now button to the portal', /Open on your account\s*\$95\.00/.test(txt) && /Invoice 768-5-1\s*issued Oct 5, 2026 · service Oct 5 to Nov 4/.test(txt) && /card declined/.test(txt) && (await p.getAttribute('a.btn:has-text("Pay now")', 'href')) === 'https://clpps.sweepandgo.com/portal', txt.slice(txt.indexOf('Balance'), txt.indexOf('Balance') + 250));
+  ok('what is open, invoice by invoice, with why, and a Pay now button to the portal', /Open on your account\s*\$104\.50/.test(txt) && /Late fee\s*10% of the invoice for each month past due\s*\$9\.50/.test(txt) && /Total due\s*\$104\.50/.test(txt) && /Terms of Service/.test(txt) && /Invoice 768-5-1\s*issued Oct 5, 2026 · service Oct 5 to Nov 4/.test(txt) && /card declined/.test(txt) && (await p.getAttribute('a.btn:has-text("Pay now")', 'href')) === 'https://clpps.sweepandgo.com/portal', txt.slice(txt.indexOf('Balance'), txt.indexOf('Balance') + 250));
   ok('visits newest first, the tech and minutes, the skip with its reason, the photo beside its visit', /Nov 12\s*Cleaned at 09:12 by Jesse, 9 min/.test(txt) && /Nov 5\s*Skipped: Gate locked/.test(txt) && (await p.$$('.visit img')).length === 1);
   await p.click('.visit img'); await p.waitForTimeout(150);
   ok('a tap on the photo opens it large', await p.isVisible('#big'));

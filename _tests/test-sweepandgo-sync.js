@@ -722,11 +722,13 @@ function build(leadRows){
   rows.push(R({ id:'grumpy', created:'2025-01-01T12:00:00Z', type:'SAVED', name:'Grumpy Gail', phone:'6363750052', email:'gail@gmail.com', zip:'63376', price:'$85/mo', status:'cancelled', crmnotes:'[CX:' + d(50) + '] [CXR:service] ' }));
   rows.push(R({ id:'snowbird', created:'2025-01-01T12:00:00Z', type:'SAVED', name:'Snowbird Sue', phone:'6363750053', email:'sue@gmail.com', zip:'63376', price:'$70/mo', status:'cancelled', crmnotes:'[CX:' + d(120) + '] [CXR:season] [DAY:tue] ' }));
   rows.push(R({ id:'latelou', created:'2025-01-01T12:00:00Z', type:'SAVED', name:'Late Lou', phone:'6363750054', email:'lou@gmail.com', zip:'63376', price:'$80/mo', status:'closed', crmnotes:'[CD:2025-01-01] ' }));
+  rows.push(R({ id:'newnell', created: new Date().toISOString(), type:'SAVED', name:'New Nell', phone:'6363750056', email:'nell@gmail.com', zip:'63376', price:'$100/mo', status:'closed', crmnotes:'[CD:' + new Date().toISOString().slice(0, 10) + '] ' }));
   rows.push(R({ id:'midmo', created:'2025-01-01T12:00:00Z', type:'SAVED', name:'Mid Mo', phone:'6363750055', email:'mo@gmail.com', zip:'63376', price:'$80/mo', status:'closed', crmnotes:'[CD:2025-01-01] ' }));
   const { F, sheets, props } = build(rows);
   F.sgSync(false); F.sgBillingSync();
   const B = (o) => ['kind','number','date','client','type','status','total','paid','remaining','interval','period_start','pay_type','description','period_end','next_try'].map(h => o[h] == null ? '' : o[h]);
   sheets.billing.rows.push(B({ kind:'invoice', number:'L-1', date: d(40), client:'Late Lou', type:'subscription', status:'overdue', total:'80.00', paid:'0.00', remaining:'80.00', interval:'monthly', pay_type:'credit_card' }));
+  sheets.billing.rows.push(B({ kind:'invoice', number:'N-1', date: d(65), client:'New Nell', type:'subscription', status:'overdue', total:'100.00', paid:'0.00', remaining:'100.00', interval:'monthly', pay_type:'credit_card' }));
   sheets.billing.rows.push(B({ kind:'invoice', number:'M-1', date: d(25), client:'Mid Mo', type:'subscription', status:'overdue', total:'80.00', paid:'0.00', remaining:'80.00', interval:'monthly', pay_type:'check' }));
   Object.assign(props, MS); msCalls.length = 0;
   const today = new Date().toISOString().slice(0, 10);
@@ -745,9 +747,12 @@ function build(leadRows){
   // the collections ladder
   ok('the ladder: a week overdue is notice 1, three weeks notice 2, five weeks notice 3', F.ladderStep_(d(10)) === 1 && F.ladderStep_(d(25)) === 2 && F.ladderStep_(d(40)) === 3);
   const lou = F.payRemind_({ id:'latelou', amount: 80, since: d(40), preview: true });
-  ok('Lou, five weeks behind, gets notice 3: service pauses a week from today unless the account is brought up to date', lou.ok && lou.step === 3 && /Your service pauses .* unless the account is brought up to date/.test(lou.subject) && /This is our third note about the balance on your account, \$80\.00\. .*service will pause on/.test(lou.body), lou.subject + ' | ' + lou.body.slice(0, 300));
+  ok('Lou, five weeks behind, gets notice 3: service pauses a week from today unless the account is brought up to date', lou.ok && lou.step === 3 && /Your service pauses .* unless the account is brought up to date/.test(lou.subject) && /This is our third note about the balance on your account, \$90\.00\. .*service will pause on/.test(lou.body) && lou.lateFees === 10 && /Late fee: \$10\.00 \(\$10 for each month past due\)/.test(lou.body) && /Invoices open: \$80\.00\n  Late fees: \$10\.00\n  Total due: \$90\.00/.test(lou.body) && /Terms of Service/.test(lou.body), lou.subject + ' | ' + lou.body.slice(0, 300));
+  const nell = F.payRemind_({ id:'newnell', amount: 100, since: d(65), preview: true });
+  ok('a customer on the new terms pays 10% of the invoice for each month past due, not compounded: two months on $100 is $20', nell.lateFees === 20 && /Late fee: \$20\.00 \(10% of the invoice for each month past due, 2 months\)/.test(nell.body) && /Total due: \$120\.00/.test(nell.body), nell.body.slice(0, 700));
   const mo = F.payRemind_({ id:'midmo', amount: 80, since: d(25), preview: true });
   ok('Mo, three weeks behind, gets notice 2, the firmer one; every statement carries the account page link', mo.step === 2 && /Second notice/.test(mo.subject) && /This is our second note/.test(mo.body) && /Your account page, with every visit, photo and invoice: https:\/\/clpropetservices\.com\/account\/\?t=midmo\./.test(mo.body), mo.body.slice(0, 500));
+  ok('under a month past due there is no fee', mo.lateFees === 0 && !/Late fee/.test(mo.body));
   sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_pr2', created: new Date().toISOString(), type:'CONFIG', name:'pay_reminders', notes:'on', status:'config' })[h] || ''));
   msCalls.length = 0;
   const r1 = F.paymentReminders();

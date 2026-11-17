@@ -1418,7 +1418,8 @@ function sgBilling_() {
         var rem = r[H.remaining] !== '' && r[H.remaining] != null ? parseFloat(r[H.remaining]) : total;
         if (!(rem > 0)) rem = total;
         m.unpaid += rem;
-        var u = unpaidBy[r[H.client]] || (unpaidBy[r[H.client]] = { name: r[H.client], owed: 0, n: 0, oldest: '', statuses: {} });
+        var u = unpaidBy[r[H.client]] || (unpaidBy[r[H.client]] = { name: r[H.client], owed: 0, n: 0, oldest: '', statuses: {}, items: [] });
+        if (u.items.length < 24) u.items.push({ d: String(r[H.date] || '').slice(0, 10), a: Math.round(rem * 100) / 100 });
         u.owed += rem; u.n++; u.statuses[status] = (u.statuses[status] || 0) + 1; if (!u.oldest || String(r[H.date]) < u.oldest) u.oldest = String(r[H.date]);
       }
     } else {
@@ -1717,6 +1718,21 @@ function billingCsv_() {
    14+ days behind while the switch (CONFIG pay_reminders) is on. Never
    twice inside 14 days. Stamped [PR:amount@date]. */
 function payLink_() { var v = String(cfg_('pay_link') || '').trim(); return /^https:\/\/[^\s"'<>]+$/.test(v) ? v : ''; }
+/* ---- the late fee ----
+   Jesse: "a 10% late fee per month they have waited to pay". For each full
+   30 days an invoice has been open, 10% of what is open on it, not
+   compounded. Customers who started before the terms changed (LATE_FEE_FROM)
+   agreed to $10 a month instead, and keep it until they are told otherwise.
+   The fee is worked out and named here; Sweep&Go only collects it once the
+   office adds it there as a one-time charge. */
+var LATE_FEE_PCT = 10, LATE_FEE_FLAT = 10, LATE_FEE_FROM = '2026-11-17';
+function lateFeeRule_(cd) { return cd && cd >= LATE_FEE_FROM ? 'pct' : 'flat'; }
+function lateFee_(amount, date, cd) {
+  var months = Math.floor(ageDays_(date) / 30); if (!(months >= 1) || !(amount > 0)) return { months: 0, fee: 0, rule: lateFeeRule_(cd) };
+  var rule = lateFeeRule_(cd);
+  return { months: months, fee: Math.round((rule === 'pct' ? amount * LATE_FEE_PCT / 100 * months : LATE_FEE_FLAT * months) * 100) / 100, rule: rule };
+}
+function lateFeeWhy_(f) { return (f.rule === 'pct' ? LATE_FEE_PCT + '% of the invoice' : '$' + LATE_FEE_FLAT) + ' for each month past due' + (f.months > 1 ? ', ' + f.months + ' months' : ''); }
 function openInvoices_(lead) {
   var sh = billingSheet_(); if (sh.getLastRow() < 2) return [];
   var rows = sh.getRange(2, 1, sh.getLastRow() - 1, BILLING_HEADERS.length).getValues(), H = {}; BILLING_HEADERS.forEach(function(h, i) { H[h] = i; });
@@ -1730,6 +1746,8 @@ function openInvoices_(lead) {
     out.push({ date: String(r[H.date] || '').slice(0, 10), number: String(r[H.number] || ''), amount: Math.round(rem * 100) / 100, total: Math.round(total * 100) / 100, paid: Math.round((parseFloat(r[H.paid]) || 0) * 100) / 100,
                status: st, oneTime: r[H.type] === 'one-time', period: String(r[H.period_start] || '').slice(0, 10), periodEnd: String(r[H.period_end] || '').slice(0, 10), pay: String(r[H.pay_type] || ''), nextTry: String(r[H.next_try] || '').slice(0, 10), desc: String(r[H.description] || '') });
   });
+  var cd = (String(lead.crmnotes || '').match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '';
+  out.forEach(function(i) { var f = lateFee_(i.amount, i.date, cd); i.lateFee = f.fee; i.lateMonths = f.months; i.lateRule = f.rule; });
   return out.sort(function(a, b) { return a.date < b.date ? -1 : 1; });
 }
 /* The last payment that went through, from the billing sheet. */
@@ -1807,6 +1825,7 @@ function invoiceBlock_(i, visits, photos) {
   var how = i.status === 'failed' ? 'Card on file did not go through' : i.status === 'overdue' ? (i.pay === 'check' ? 'Overdue \u00b7 pay by check or card' : i.pay === 'credit_card' ? 'Overdue \u00b7 the card on file has not gone through' : 'Overdue') : 'Open, not yet paid';
   if (/^\d{4}-\d{2}-\d{2}$/.test(i.nextTry) && i.nextTry >= new Date().toISOString().slice(0, 10)) how += ' \u00b7 next card try ' + longDate_(i.nextTry);
   var lines = ['  Invoice ' + (i.number || '\u2014') + ' \u00b7 issued ' + longDate_(i.date), '    ' + period, '    $' + i.total.toFixed(2) + ' billed \u00b7 $' + i.paid.toFixed(2) + ' paid \u00b7 $' + i.amount.toFixed(2) + ' open', '    ' + how];
+  if (i.lateFee > 0) lines.push('    Late fee: $' + i.lateFee.toFixed(2) + ' (' + lateFeeWhy_({ rule: i.lateRule, months: i.lateMonths }) + ')');
   if (visits && visits.length) lines.push('    Visits: ' + visits.map(function(v) { return visitLine_(v, !!(photos && photos[v.date])); }).join(' \u00b7 '));
   return lines.join('\n');
 }
@@ -1822,10 +1841,11 @@ function ladderOpening_(step, total, pauseOn) {
 function statementText_(first, items, link, extra) {
   extra = extra || {};
   var total = items.reduce(function(a, i) { return a + i.amount; }, 0), n = items.length;
+  var fees = Math.round(items.reduce(function(a, i) { return a + (i.lateFee || 0); }, 0) * 100) / 100, due = total + fees;
   var anyFailed = items.some(function(i) { return i.status === 'failed'; }), nPhotos = Object.keys(extra.photos || {}).length;
-  var opening = ladderOpening_(extra.step || 1, total, extra.pauseOn || '');
+  var opening = ladderOpening_(extra.step || 1, due, extra.pauseOn || '');
   return 'Hi ' + first + ',\n\n' + (opening ? opening + '\n\n' : '') + 'Here is where your account stands as of ' + longDate_(new Date().toISOString().slice(0, 10)) + '. ' + (n === 1 ? 'One invoice is open' : n + ' invoices are open') + ', $' + total.toFixed(2) + ' in all. Everything we have on each one is below.\n\n' +
-    items.map(function(i) { return invoiceBlock_(i, extra.visits && extra.visits[i.number], extra.photos); }).join('\n\n') + '\n\n  Total open: $' + total.toFixed(2) +
+    items.map(function(i) { return invoiceBlock_(i, extra.visits && extra.visits[i.number], extra.photos); }).join('\n\n') + (fees > 0 ? '\n\n  Invoices open: $' + total.toFixed(2) + '\n  Late fees: $' + fees.toFixed(2) + '\n  Total due: $' + due.toFixed(2) + '\n  (Late fees are set out in our Terms of Service: clpropetservices.com, section 3.)' : '\n\n  Total open: $' + total.toFixed(2)) +
     (extra.lastPay ? '\n  Last payment received: ' + longDate_(extra.lastPay.date) + ', $' + extra.lastPay.amount.toFixed(2) + (extra.lastPay.how === 'check' ? ' by check' : extra.lastPay.how === 'credit_card' ? ' by card' : '') : '') +
     (nPhotos ? '\n  ' + (nPhotos === 1 ? 'One photo from the visits is attached' : nPhotos + ' photos from the visits are attached') + ', named by date.' : '') + '\n\n' +
     (link ? 'Pay now: ' + link + '\n\n' : '') +
@@ -1857,7 +1877,7 @@ function payReminderMail_(lead, amount, since, opts) {
   try { extra.acct = acctLink_(lead.id); } catch (e) {}
   var atts = opts.attach ? fetchPhotos_(extra.photos) : [];
   if (opts.attach) { var kept = {}; atts.forEach(function(a) { kept[a.name.slice(6, 16)] = 1; }); Object.keys(extra.photos).forEach(function(dt) { if (!kept[dt]) delete extra.photos[dt]; }); }   // say "attached" only for what really is
-  return { subject: 'Your account with CL Professional Pet Services', body: statementText_(first, items, payLink_(), extra) + WE_FOOTER, items: items, total: Math.round(items.reduce(function(a, i) { return a + i.amount; }, 0) * 100) / 100, link: !!payLink_(), visits: nVisits, photos: Object.keys(extra.photos).length, attachments: atts, step: extra.step, pauseOn: extra.step === 3 ? extra.pauseOn : '' };
+  return { subject: 'Your account with CL Professional Pet Services', body: statementText_(first, items, payLink_(), extra) + WE_FOOTER, items: items, total: Math.round(items.reduce(function(a, i) { return a + i.amount; }, 0) * 100) / 100, link: !!payLink_(), visits: nVisits, photos: Object.keys(extra.photos).length, attachments: atts, lateFees: Math.round(items.reduce(function(a, i) { return a + (i.lateFee || 0); }, 0) * 100) / 100, step: extra.step, pauseOn: extra.step === 3 ? extra.pauseOn : '' };
 }
 function sendPayReminder_(sh, rows, lead, amount, since, opts) {
   var email = String(lead.email || '').trim();
@@ -2347,7 +2367,7 @@ function account_(t) {
     }
   } catch (e) {}
   try { out.photos = visitPhotos_(names, out.visits.filter(function(v) { return v.status === 'completed'; }).map(function(v) { return v.date; }).slice(0, 4)); } catch (e) {}
-  try { out.open = openInvoices_(p).map(function(i) { return { number: i.number, date: i.date, amount: i.amount, total: i.total, status: i.status, period: i.period, periodEnd: i.periodEnd }; }); out.openTotal = Math.round(out.open.reduce(function(a, i) { return a + i.amount; }, 0) * 100) / 100; } catch (e) {}
+  try { out.open = openInvoices_(p).map(function(i) { return { number: i.number, date: i.date, amount: i.amount, total: i.total, status: i.status, period: i.period, periodEnd: i.periodEnd, lateFee: i.lateFee || 0, lateWhy: i.lateFee ? lateFeeWhy_({ rule: i.lateRule, months: i.lateMonths }) : '' }; }); out.openTotal = Math.round(out.open.reduce(function(a, i) { return a + i.amount; }, 0) * 100) / 100; out.lateFees = Math.round(out.open.reduce(function(a, i) { return a + i.lateFee; }, 0) * 100) / 100; } catch (e) {}
   try {
     var bs = billingSheet_();
     if (bs.getLastRow() > 1) {

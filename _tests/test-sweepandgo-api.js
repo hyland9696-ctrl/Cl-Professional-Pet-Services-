@@ -315,7 +315,7 @@ const { ok, done } = reporter();
   const bill = (await p.textContent('#billing')).replace(/\s+/g, ' ');
   ok('this month billed and collected, with last month beside each', /\$8,078\s*billed Nov · \$8,144 last month/.test(bill) && /\$6,796\s*collected Nov · \$6,332 last month/.test(bill), bill.slice(0, 400));
   ok('the year so far, and what is still unpaid', /\$16,222\s*billed 2026 · \$13,128 collected/.test(bill) && /\$3,866\s*invoiced this year, still unpaid/.test(bill), bill.slice(0, 500));
-  ok('who owes what, with Draft explained', /Owed\s*2 customers · \$255/.test(bill) && /Eddie Eow 1 overdue, 1 draft · since 2026-10-05[^$]*\$190/.test(bill) && /Draft means Sweep&Go generated it and never sent it/.test(bill), bill.slice(bill.indexOf('Owed'), bill.indexOf('Owed') + 300));
+  ok('who owes what, with Draft explained', /Owed\s*2 customers · \$255/.test(bill) && /Eddie Eow 1 overdue, 1 draft · since 2026-10-05.*\$190/.test(bill) && /Draft means Sweep&Go generated it and never sent it/.test(bill), bill.slice(bill.indexOf('Owed'), bill.indexOf('Owed') + 300));
   ok('cards declining are listed with the date and the amount', /Cards declining\s*1.*Eddie Eow failed 2026-11-08\s*\$95/.test(bill), bill.slice(bill.indexOf('Cards declining'), bill.indexOf('Cards declining') + 160));
   ok('somebody not in the tracker is listed without a link', /Nobody Known 1 failed/.test(bill) && (await p.$$('#billing a:has-text("Nobody Known")')).length === 0);
   await p.click('#billing button:has-text("On their card")'); await p.waitForTimeout(400);
@@ -401,7 +401,7 @@ const { ok, done } = reporter();
   ok('logging the call stamps the card and the list shows it', posts.some(x => x.action === 'update' && x.id === 'E1' && /\[SC:kept@2026-11-12\]/.test(x.notes)) && /last: staying 2026-11-12/.test(await p.textContent('#risk')));
   /* the collections ladder and the route flag */
   const owedTxt = (await p.textContent('#billing')).replace(/\s+/g, ' ');
-  ok('the Owed list says which notice is due: Eddie is five weeks behind, notice 3', /Eddie Eow[^$]*no notice yet · notice 3 due/.test(owedTxt), owedTxt.slice(owedTxt.indexOf('Eddie Eow'), owedTxt.indexOf('Eddie Eow') + 160));
+  ok('the Owed list shows the late fee and which notice is due: Eddie started before the new terms, so $10 a month; five weeks behind, notice 3', /Eddie Eow 1 overdue, 1 draft · since 2026-10-05\s*\+ \$10\.00 late fee\s*no notice yet · notice 3 due/.test(owedTxt) && /add them in Sweep&Go as a one-time charge/.test(owedTxt), owedTxt.slice(owedTxt.indexOf('Eddie Eow 1'), owedTxt.indexOf('Eddie Eow 1') + 200));
   await p.evaluate(() => { billing.unpaid.push({ name:'Dana Deo', owed: 302, n: 2, oldest:'2026-08-01', statuses: { overdue: 2 } }); render(); });
   const sched2 = (await p.textContent('#schedule')).replace(/\s+/g, ' ');
   ok('a stop unpaid 60 days or more is flagged on the route', /Dana Deo[^⛔]*⛔ unpaid since 2026-08-01, check before cleaning/.test(sched2), sched2.slice(sched2.indexOf('Dana Deo'), sched2.indexOf('Dana Deo') + 200));
