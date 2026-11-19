@@ -126,6 +126,14 @@ const refCode = (l) => { const first = String(l.name).trim().split(/\s+/)[0].toL
     ok('and the plan line says no day is set', /no day set/.test(fran));
     await p.click('#card-F1 button:has-text("Put them on Mon")'); await p.waitForTimeout(400);
     ok('one tap puts them on that day', posts.some(x => x.action === 'update' && x.id === 'F1' && /\[DAY:mon\]/.test(x.notes)) && !/Best day/.test(await t('F1')) && /📅 Mon/.test(await t('F1')), (await t('F1')).slice(0, 200));
+    /* a new lead asking to start gets the same suggestion, worded for the call */
+    await p.evaluate(() => { leads.push({ id:'NL1', type:'ACTIVATE', name:'Nora Newlead', phone:'6363750199', email:'nora@gmail.com', zip:'63376', dogs:'2', service:'weekly', price:'$91/mo', status:'new', crmnotes:'', created: new Date().toISOString() }); render(); });
+    await p.waitForTimeout(300);
+    const nora = await t('NL1');
+    ok('a new lead with a weekly price gets the best day to offer them, before they are a customer', /Best day to offer them: (Mon|Tue)/.test(nora) && /Save (Mon|Tue) as their day/.test(nora), nora.slice(nora.indexOf('Best day'), nora.indexOf('Best day') + 200));
+    await p.click('#card-NL1 button:has-text("as their day")'); await p.waitForTimeout(300);
+    ok('one tap saves it on the lead, and the suggestion goes', posts.some(x => x.action === 'update' && x.id === 'NL1' && /\[DAY:(mon|tue)\]/.test(x.notes)) && !/Best day/.test(await t('NL1')));
+    await p.evaluate(() => { leads = leads.filter(l => l.id !== 'NL1'); render(); });
     const sched1 = (await p.textContent('#schedule')).replace(/\s+/g, ' ');
     ok('the Schedule card follows: four of four', /4 of 4 placed/.test(sched1) && /Mon\s*2 stops/.test(sched1), sched1.slice(0, 200));
     ok('Monday: Gina', /Mon\s*1 stop · 1 dog · \$85\/mo · 1 town/.test(sched));

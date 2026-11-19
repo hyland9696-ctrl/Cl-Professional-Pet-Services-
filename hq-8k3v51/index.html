@@ -4798,13 +4798,13 @@ function bestDayRow(l){
   if (!bd) return '';
   var twice = /twice/i.test(String(l.service || ''));
   var picks = twice ? bd.filter(function(x, i){ return i === 0 || x.day !== bd[0].day; }).slice(0, 2) : bd.slice(0, 1);
-  var val = picks.map(function(x){ return x.day; }).join(',');
+  var val = picks.map(function(x){ return x.day; }).join(','), lead = (l.status || 'new') !== 'closed';
   var fmt = function(x){ return '<strong>' + dayLabel(x.day) + '</strong> <span style="font-weight:400;">(' + esc(bestDayWhy(x, l)) + ', adds ~' + (x.added < 10 ? x.added.toFixed(1) : Math.round(x.added)) + ' mi)</span>'; };
-  return '<div style="background:#E6F2ED;border-radius:9px;padding:8px 11px;margin-top:8px;font-size:12.5px;color:#0F6E56;font-weight:700;">&#128663; Best day' + (twice ? 's' : '') + ': ' + picks.map(fmt).join(' + ') +
+  return '<div style="background:#E6F2ED;border-radius:9px;padding:8px 11px;margin-top:8px;font-size:12.5px;color:#0F6E56;font-weight:700;">&#128663; Best day' + (twice ? 's' : '') + (lead ? ' to offer them' : '') + ': ' + picks.map(fmt).join(' + ') +
     (bd[1] && !twice ? '<div style="font-weight:400;color:#555;font-size:12px;margin-top:2px;">next best ' + dayLabel(bd[1].day) + ', adds ~' + (bd[1].added < 10 ? bd[1].added.toFixed(1) : Math.round(bd[1].added)) + ' mi</div>' : '') +
     (bd[0].approx ? '<div style="font-weight:400;color:#9aa5a0;font-size:11px;">placed at the ZIP centre until the home is pinned</div>' : '') +
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
-      '<button onclick="setDay(\'' + esc(l.id) + '\',\'' + val + '\')" style="background:#188663;color:#fff;border:none;border-radius:8px;padding:8px 12px;min-height:38px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#10003; Put them on ' + esc(dayText(val)) + '</button>' +
+      '<button onclick="setDay(\'' + esc(l.id) + '\',\'' + val + '\')" style="background:#188663;color:#fff;border:none;border-radius:8px;padding:8px 12px;min-height:38px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">&#10003; ' + (lead ? 'Save ' + esc(dayText(val)) + ' as their day' : 'Put them on ' + esc(dayText(val))) + '</button>' +
       '<button onclick="openMore(\'' + esc(l.id) + '\')" style="background:none;color:#0F6E56;border:1px solid #0F6E56;border-radius:8px;padding:8px 10px;min-height:38px;font-size:12px;cursor:pointer;font-family:inherit;">Pick another day</button>' +
     '</div></div>';
 }
@@ -7501,7 +7501,8 @@ function render(){
         '<label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="noem-box" ' + (fu.noem ? 'checked' : '') + ' onchange="setNoEmail(\'' + esc(l.id) + '\', this.checked)"> &#9993;&#65039; No marketing emails</label>' +
         (fu.em ? '<span style="color:#707070;">emailed: ' + esc(String(fu.em).split(',').map(function(x){ var p = x.split('@'); return p[0] + (p[1] ? ' on ' + p[1] : ''); }).join(', ')) + '</span>' : '') + '</div>';
     }
-    var bestRow = st === 'closed' && isRecurring(l) && !fu.day ? bestDayRow(l) : '';
+    // the day that adds the fewest miles: for a customer to put them on, for a lead to offer them on the call
+    var bestRow = isRecurring(l) && !fu.day && (st === 'closed' || ((st === 'new' || st === 'called') && isLead(l) && l.type !== 'COMMERCIAL')) ? bestDayRow(l) : '';
     var saveRow = savePending === l.id && st === 'closed' ? saveOfferRow(l) : '';
     /* Why they said no. The site asks this in a dropdown and the answer lands
        in the notes as text; the tag is read from that text until somebody
