@@ -5926,13 +5926,21 @@ function qbMatch(people){
   });
   return { tag: tag, have: have, gone: gone, none: none };
 }
-var qbPlan = null;
+var qbPlan = null, qbLast = [];
+function qbUndo(){
+  if (!qbLast.length) return;
+  if (!confirm('Take the QuickBooks mark back off the ' + qbLast.length + ' just marked?')) return;
+  qbLast.forEach(function(id, i){ var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return; var m = fuParse(l.crmnotes); if (m.be !== 'qbo') return; m.be = ''; l.crmnotes = fuCompose(m); l.updated = new Date().toISOString(); setTimeout(function(){ post({ action: 'update', key: KEY, id: id, notes: l.crmnotes }); }, i * 250); });
+  var n = qbLast.length; qbLast = []; saveLocal(); render();
+  document.getElementById('qb-out').innerHTML = '<strong>Undone:</strong> ' + n + ' put back to billing in Sweep&amp;Go.'; toast('Undone');
+}
 function qbShow(people, src){
   var out = document.getElementById('qb-out'); if (!out) return;
   if (!people.length){ out.innerHTML = 'No names found in that ' + src + '. The file needs a column headed Customer or Name.'; return; }
   var m = qbPlan = qbMatch(people);
   var line = function(x){ return '<label style="display:flex;gap:8px;align-items:center;padding:3px 0;"><input type="checkbox" class="qb-pick" value="' + esc(x.l.id) + '" checked> <span><strong>' + esc(x.l.name) + '</strong>' + (sgNormName(x.l.name) !== sgNormName(x.p.name) ? ' <span style="color:#707070;">(QuickBooks: ' + esc(x.p.name) + ')</span>' : '') + '</span></label>'; };
   out.innerHTML = '<div style="font-weight:700;">' + people.length + ' customer' + (people.length === 1 ? '' : 's') + ' in the QuickBooks ' + src + '</div>' +
+    (m.tag.length > 15 ? '<div style="background:#FFF4E5;color:#7a4a00;border-radius:9px;padding:8px 11px;margin-top:6px;font-weight:700;">That is a lot of people for a QuickBooks list. Check this is the QuickBooks export and not a full customer list before marking.</div>' : '') +
     (m.tag.length ? '<div style="margin-top:6px;font-weight:700;color:#0F6E56;">Will be marked Billing: in QuickBooks (' + m.tag.length + ')</div><div style="font-size:11.5px;color:#707070;">Untick anyone who is not billed there.</div>' + m.tag.map(line).join('') : '<div style="margin-top:6px;color:#707070;">Nobody new to mark.</div>') +
     (m.have.length ? '<div style="margin-top:8px;color:#707070;"><strong>Already marked (' + m.have.length + '):</strong> ' + esc(m.have.map(function(x){ return x.l.name; }).join(', ')) + '</div>' : '') +
     (m.gone.length ? '<div style="margin-top:8px;color:#707070;"><strong>In QuickBooks, but not an active customer here (' + m.gone.length + '):</strong> ' + esc(m.gone.map(function(x){ return x.l.name; }).join(', ')) + '</div>' : '') +
@@ -5949,7 +5957,11 @@ function qbApply(){
   if (!qbPlan) return;
   var ids = Array.prototype.map.call(document.querySelectorAll('.qb-pick:checked'), function(x){ return x.value; }), n = 0;
   if (!ids.length){ toast('Nobody ticked'); return; }
-  if (!confirm('Mark ' + ids.length + ' customer' + (ids.length === 1 ? '' : 's') + ' as billed in QuickBooks? They stop getting statements and late fees from the tracker.')) return;
+  // a QuickBooks list is a handful of people; most of the customer base means the wrong file was picked
+  var actN = leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed'; }).length;
+  if (ids.length > 15 && ids.length > actN / 4){ if (prompt('That is ' + ids.length + ' of your ' + actN + ' active customers, which looks like the wrong file (a full customer list, not the QuickBooks one). If it really is right, type YES to go ahead.') !== 'YES'){ toast('Nothing was changed'); return; } }
+  else if (!confirm('Mark ' + ids.length + ' customer' + (ids.length === 1 ? '' : 's') + ' as billed in QuickBooks? They stop getting statements and late fees from the tracker.')) return;
+  qbLast = ids.slice();
   ids.forEach(function(id, i){
     var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
     var m = fuParse(l.crmnotes); m.be = 'qbo'; stampBy(m); l.crmnotes = fuCompose(m); l.updated = new Date().toISOString(); n++;
@@ -5957,7 +5969,7 @@ function qbApply(){
   });
   saveLocal(); render(); qbPlan = null;
   document.getElementById('qb-go').style.display = 'none';
-  document.getElementById('qb-out').innerHTML = '<strong style="color:#0F6E56;">&#10003; ' + n + ' marked as billed in QuickBooks.</strong> Change any one on its card: Billing.';
+  document.getElementById('qb-out').innerHTML = '<strong style="color:#0F6E56;">&#10003; ' + n + ' marked as billed in QuickBooks.</strong> Change any one on its card: Billing. <button onclick="qbUndo()" style="padding:5px 10px;min-height:32px;font-size:12px;margin-left:6px;">Undo</button>';
   toast(n + ' marked as billed in QuickBooks');
 }
 
