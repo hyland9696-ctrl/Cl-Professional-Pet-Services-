@@ -1198,6 +1198,7 @@ function mileageCsv_() { var m = mileage_(); return 'month,miles,days_driven\n' 
    schedule" text-notification opt-in, not a schedule status: ignored.) */
 function sgOutOfCount_(notes, name, paying) {
   if (!/\[SS:none\]/.test(String(notes || ''))) return false;
+  if (/\[BE:[^\]]+\]/.test(String(notes || ''))) return false;   // billed in QuickBooks, or paid for by another customer: Sweep&Go's money says nothing about them
   var k = sgNorm_(name), aka = (String(notes || '').match(/\[AKA:([^\]]*)\]/) || [])[1];
   return !(paying[k] || (aka && paying[sgNorm_(aka)]));
 }

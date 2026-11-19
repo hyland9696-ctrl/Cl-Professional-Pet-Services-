@@ -429,6 +429,16 @@ const { ok, done } = reporter();
   const during = await p.evaluate(() => { const b = billing, j = jobsData; billing = null; jobsData = null; render(); const mid = document.querySelector('#stats .stat:nth-child(3) .n').textContent; const raw = leads.filter(l => isLead(l) && (l.status || 'new') === 'closed').length - dormantList().length; billing = b; jobsData = j; render(); return { mid, raw, after: document.querySelector('#stats .stat:nth-child(3) .n').textContent }; });
   ok('before the billing and visits arrive the Active tile holds the last settled number, not a provisional one', during.mid === settled && String(during.raw) !== settled && during.after === settled, JSON.stringify({ settled, during }));
   ok('and the page asks for the billing and the visits even with the Numbers panel shut', posts.some(x => x.action === 'billing') && posts.some(x => x.action === 'jobs'));
+  /* ---- billed elsewhere: a neighbor pays, or QuickBooks ---- */
+  ok('Zed, never billed and never visited, is on the to-check list to begin with', (await p.evaluate(() => !!checkInfo(leads.filter(l => l.id === 'Z1')[0]))));
+  await p.evaluate(() => { window.prompt = () => 'Dana Deo'; setBilledElsewhere('Z1', 'by'); }); await p.waitForTimeout(300);
+  ok('marked "paid by Dana Deo", Dana\'s money counts as his: he is active and off the list', posts.some(x => x.action === 'update' && x.id === 'Z1' && /\[BE:by~Dana Deo\]/.test(x.notes)) && (await p.evaluate(() => { const z = leads.filter(l => l.id === 'Z1')[0]; return !checkInfo(z) && lastMoney(z) === '2026-11-02'; })) && /paid by Dana Deo/.test(await p.textContent('#card-Z1')));
+  await p.evaluate(() => setBilledElsewhere('Z1', 'qbo')); await p.waitForTimeout(300);
+  ok('marked "in QuickBooks", only the visits can say he has gone quiet: no visits, so he is still to check, in those words', (await p.evaluate(() => (checkInfo(leads.filter(l => l.id === 'Z1')[0]) || {}).why)) === 'billed in QuickBooks, and no visit in the jobs report');
+  await p.evaluate(() => setBilledElsewhere('E1', 'qbo')); await p.waitForTimeout(300);
+  ok('a QuickBooks customer with visits is active, and the Owed list does not chase him', (await p.evaluate(() => !checkInfo(leads.filter(l => l.id === 'E1')[0]))) && /Eddie Eow 1 overdue.*\$190\s*(on card)?\s*billed elsewhere/.test((await p.textContent('#billing')).replace(/\s+/g, ' ')) && (await p.$$('#billing .pr-btn')).length === 0, (await p.textContent('#billing')).replace(/\s+/g, ' ').slice(-400));
+  await p.evaluate(() => { setBilledElsewhere('E1', ''); setBilledElsewhere('Z1', ''); }); await p.waitForTimeout(300);
+  ok('setting it back restores the normal rules', (await p.evaluate(() => !!checkInfo(leads.filter(l => l.id === 'Z1')[0]) && !billedElsewhere(leads.filter(l => l.id === 'E1')[0]))));
   /* ---- the owed tiles open a list with a pay link ---- */
   await p.evaluate(() => { foldAll(true); cashOwed = ''; render(); });
   await p.click('#cash .owed-tile >> nth=0'); await p.waitForTimeout(200);

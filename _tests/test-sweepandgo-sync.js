@@ -744,6 +744,7 @@ function build(leadRows){
   const got = sentMs().slice(-1)[0];
   ok('the send uses the office\'s edited words, adds the signature, and stamps her row', sent.ok && got.subject === 'Pam, come back' && /^Hi Pam,\n\nMy own words\.\n\n— Corey/.test(got.body) && sheets.leads.rows.some(r => r[HEADERS.indexOf('id')] === 'p6363750040' && r[HEADERS.indexOf('crmnotes')].indexOf('[OU:winback-price@' + today + ']') >= 0), JSON.stringify(got).slice(0, 300));
   ok('the spring round is off until switched on', F.springRestart().off === true);
+  ok('someone billed elsewhere is never counted out for having no Sweep&Go money', new Function(gs + '\nreturn sgOutOfCount_;')()('[SS:none] [BE:qbo] ', 'Anyone', {}) === false && new Function(gs + '\nreturn sgOutOfCount_;')()('[SS:none] ', 'Anyone', {}) === true);
   // the collections ladder
   ok('the ladder: a week overdue is notice 1, three weeks notice 2, five weeks notice 3', F.ladderStep_(d(10)) === 1 && F.ladderStep_(d(25)) === 2 && F.ladderStep_(d(40)) === 3);
   const lou = F.payRemind_({ id:'latelou', amount: 80, since: d(40), preview: true });

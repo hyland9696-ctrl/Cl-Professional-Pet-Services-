@@ -1656,13 +1656,13 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', cf: '', wk: '', lr: '', rt: '', an: '', ng: '', ou: '', pl: '', ri: '', sc: '', pp: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', cf: '', wk: '', lr: '', rt: '', an: '', ng: '', ou: '', pl: '', ri: '', sc: '', pp: '', be: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
   // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
   // ll = lat,lng from Sweep&Go's dispatch board; sgid = their client id. Both written by the nightly sync.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR|CF|WK|LR|RT|AN|NG|OU|PL|RI|SC|PP):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR|CF|WK|LR|RT|AN|NG|OU|PL|RI|SC|PP|BE):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1718,7 +1718,8 @@ function fuParse(crmnotes){
     else if (hit[1] === 'PL') m.pl = hit[2];                                 // collections ladder: the notice sent, step@date
     else if (hit[1] === 'RI') m.ri = hit[2];                                 // referral link emailed, date
     else if (hit[1] === 'SC') m.sc = hit[2];
-    else if (hit[1] === 'PP') m.pp = hit[2];                                 // prepaid: months@start~end@amount                                 // save call: outcome@date
+    else if (hit[1] === 'PP') m.pp = hit[2];
+    else if (hit[1] === 'BE') m.be = hit[2];                                 // billed elsewhere: qbo, or by~Name (another customer pays)                                 // prepaid: months@start~end@amount                                 // save call: outcome@date
     else if (hit[1] === 'NG') m.ng = hit[2];                                 // the hour-later nudge went to the phones                                 // price move: new@effective date
     else m.t1 = hit[2];
     s = s.slice(hit[0].length);
@@ -1767,7 +1768,7 @@ function fuCompose(m){
          (m.fe ? m.fe.split(',').map(function(x){ return '[FE:' + x + '] '; }).join('') : '') +
          (m.we ? m.we.split(',').map(function(x){ return '[WE:' + x + '] '; }).join('') : '') +
          (m.pm ? '[PM:' + m.pm + '] ' : '') +
-         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.cf ? '[CF:' + m.cf + '] ' : '') + (m.wk ? '[WK:' + m.wk + '] ' : '') + (m.lr ? '[LR:' + m.lr + '] ' : '') + (m.rt ? '[RT:' + m.rt + '] ' : '') + (m.an ? '[AN:' + m.an + '] ' : '') + (m.ng ? '[NG:' + m.ng + '] ' : '') + (m.ou ? '[OU:' + m.ou + '] ' : '') + (m.pl ? '[PL:' + m.pl + '] ' : '') + (m.ri ? '[RI:' + m.ri + '] ' : '') + (m.sc ? '[SC:' + m.sc + '] ' : '') + (m.pp ? '[PP:' + m.pp + '] ' : '') + (m.text || '');
+         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.cf ? '[CF:' + m.cf + '] ' : '') + (m.wk ? '[WK:' + m.wk + '] ' : '') + (m.lr ? '[LR:' + m.lr + '] ' : '') + (m.rt ? '[RT:' + m.rt + '] ' : '') + (m.an ? '[AN:' + m.an + '] ' : '') + (m.ng ? '[NG:' + m.ng + '] ' : '') + (m.ou ? '[OU:' + m.ou + '] ' : '') + (m.pl ? '[PL:' + m.pl + '] ' : '') + (m.ri ? '[RI:' + m.ri + '] ' : '') + (m.sc ? '[SC:' + m.sc + '] ' : '') + (m.pp ? '[PP:' + m.pp + '] ' : '') + (m.be ? '[BE:' + m.be + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -4639,7 +4640,33 @@ function isPaused(l){ var p = pauseOf(l); if (!p) return false; var t = new Date
    judged until the billing has loaded. */
 var DORMANT_DAYS = 60, DORMANT_NEW = 45;
 function sgNormJs(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
-function lastMoney(l){ if (!billing || !billing.last) return undefined; var v = ''; namesOf(l).forEach(function(k){ var d = billing.last[k]; if (d && d > v) v = d; }); return v; }
+/* Billed elsewhere. Corey: "Carrie pays for their neighbor Ron and Debbie,
+   so billing is no good", and some pay through QuickBooks. [BE:by~Name]:
+   the payer's money counts as theirs. [BE:qbo]: Sweep&Go will never show
+   their money, so they are treated as paying and only the visits can say
+   they have gone quiet. */
+function billedElsewhere(l){ var b = String(fuParse(l.crmnotes).be || ''); if (!b) return null; return b === 'qbo' ? { how: 'qbo' } : /^by~/.test(b) ? { how: 'by', name: b.slice(3) } : null; }
+function lastMoney(l){
+  if (!billing || !billing.last) return undefined;
+  var v = '', be = billedElsewhere(l), keys = namesOf(l);
+  if (be && be.how === 'qbo') return new Date().toISOString().slice(0, 10);
+  if (be && be.how === 'by'){ keys = keys.concat([sgNormName(be.name)]); var payer = leadByName(be.name); if (payer) keys = keys.concat(namesOf(payer)); }
+  keys.forEach(function(k){ var d = billing.last[k]; if (d && d > v) v = d; }); return v;
+}
+function setBilledElsewhere(id, v){
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  var val = '';
+  if (v === 'qbo') val = 'qbo';
+  else if (v === 'by'){ var n = prompt('Who pays for ' + (l.name || 'them') + '? Type the customer\u2019s name as it is on their card.'); if (n === null){ render(); return; } n = String(n).trim().replace(/[\[\]~]/g, '').slice(0, 60); if (!n){ render(); return; } if (!leadByName(n) && !confirm('Nobody in the tracker is called "' + n + '". Save it anyway?')){ render(); return; } val = 'by~' + n; }
+  var m = fuParse(l.crmnotes); m.be = val; stampBy(m); l.crmnotes = fuCompose(m); l.updated = new Date().toISOString(); saveLocal(); render();
+  post({ action: 'update', key: KEY, id: id, notes: l.crmnotes }, val === 'qbo' ? 'Billed in QuickBooks' : val ? 'Paid by ' + val.slice(3) : 'Billed in Sweep&Go');
+}
+function billedRow(l){
+  var be = billedElsewhere(l);
+  return '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#129534; Billing: <select class="why be-sel" onchange="setBilledElsewhere(\'' + esc(l.id) + '\', this.value)">' +
+    '<option value=""' + (be ? '' : ' selected') + '>in Sweep&amp;Go, their own</option><option value="by"' + (be && be.how === 'by' ? ' selected' : '') + '>' + (be && be.how === 'by' ? 'paid by ' + esc(be.name) : 'paid by another customer\u2026') + '</option><option value="qbo"' + (be && be.how === 'qbo' ? ' selected' : '') + '>in QuickBooks</option></select>' +
+    (be ? '<span style="color:#9aa5a0;">no statements or late fees from here; visits alone decide if they have gone quiet</span>' : '') + '</div>';
+}
 function recentVisits(l){ if (!jobsData || !jobsData.byClient) return null; var ks = namesOf(l), hit = Object.keys(jobsData.byClient).filter(function(n){ return ks.indexOf(sgNormJs(n)) >= 0; })[0]; return hit ? jobsData.byClient[hit].n : 0; }
 function recentJobs(l){ if (!jobsData || !jobsData.recent) return null; var ks = namesOf(l), hit = Object.keys(jobsData.recent).filter(function(n){ return ks.indexOf(sgNormJs(n)) >= 0; })[0]; return hit ? jobsData.recent[hit] : []; }
 /* Sweep&Go's off_schedule field is the customer's "off schedule" text
@@ -4652,10 +4679,12 @@ function checkInfo(l){
   if (!isLead(l) || (l.status || 'new') !== 'closed' || !isRecurring(l)) return null;
   var fu = fuParse(l.crmnotes); if (!fu.sgid) return null;   // only what Sweep&Go itself calls active
   var paying = paidRecently(l), last = lastMoney(l) || '';
-  if (fu.ss === 'none') return paying ? { why: 'paying, but no subscription in Sweep&Go', last: last, flag: true, group: 'investigate', counts: true } : { why: 'no subscription in Sweep&Go', last: last, flag: true, group: 'disable' };
+  var be = billedElsewhere(l);
+  if (fu.ss === 'none' && !be) return paying ? { why: 'paying, but no subscription in Sweep&Go', last: last, flag: true, group: 'investigate', counts: true } : { why: 'no subscription in Sweep&Go', last: last, flag: true, group: 'disable' };
   if (!billing || !billing.last) return null;
   var since = fu.cd || String(l.created || '').slice(0, 10), now = Date.now();
   if (since && now - new Date(since + 'T12:00:00').getTime() < DORMANT_NEW * 86400000) return null;   // new: not billed yet is normal
+  if (be && be.how === 'qbo'){ if (!jobsData || !jobsData.byClient) return null; return recentVisits(l) ? null : { why: 'billed in QuickBooks, and no visit in the jobs report', last: '', flag: true, group: 'check' }; }
   var last = lastMoney(l);
   if (last && now - new Date(last + 'T12:00:00').getTime() < DORMANT_DAYS * 86400000) return null;
   var v = recentVisits(l); if (v) return null;
@@ -6029,13 +6058,13 @@ function cashOwedList(which){
   h += rows.slice(0, 40).map(function(u){
     var l = leadByName(u.name), fee = l ? lateFeeOf(l, u) : 0, fu = l ? fuParse(l.crmnotes) : {}, ph = l ? String(l.phone || '').replace(/\D/g, '') : '';
     if (ph.length === 10) ph = '1' + ph;
-    var pre = l && prepaidNow(l);
+    var pre = l && (prepaidNow(l) || billedElsewhere(l)), preWord = l && billedElsewhere(l) ? 'billed elsewhere' : 'prepaid';
     var lastTx = fu.txDate && fu.txDate >= new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10) ? ' <span style="color:#9aa5a0;font-size:11px;">texted ' + esc(fu.txDate) + '</span>' : '';
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:6px 0;border-top:1px solid #f3e6d3;font-size:12.5px;flex-wrap:wrap;">' +
       '<span style="flex:1 1 150px;min-width:0;">' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') +
         ' <span style="color:#707070;">' + (u.oldest ? 'since ' + esc(String(u.oldest).slice(0, 10)) : '') + '</span>' + lastTx + '</span>' +
       '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (fee > 0 ? ' <span style="color:#c0392b;font-size:11px;font-weight:700;">+ $' + fee.toFixed(2) + ' fee</span>' : '') + '</span>' +
-      '<span style="display:flex;gap:4px;">' + (pre ? '<span style="color:#0F6E56;font-size:11px;font-weight:700;">prepaid</span>' :
+      '<span style="display:flex;gap:4px;">' + (pre ? '<span style="color:#0F6E56;font-size:11px;font-weight:700;">' + preWord + '</span>' :
         (ph && l ? '<a href="sms:' + esc(ph) + '?&body=' + encodeURIComponent(payText(l, u)).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(l.id) + '\')" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:6px 9px;font-size:11.5px;font-weight:700;text-decoration:none;">&#128172; Text pay link</a>' : '<span style="color:#9aa5a0;font-size:11px;">' + (l ? 'no phone' : 'not in the tracker') + '</span>') +
         (l && l.email ? '<button class="pr-btn2" onclick="payRemind(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:5px 8px;min-height:30px;font-size:11.5px;">&#9993;&#65039; Email</button>' : '')) + '</span></div>';
   }).join('');
@@ -6220,8 +6249,8 @@ function renderBilling(){
       (payLink() ? '' : '<div class="sub" style="font-size:11px;color:#b45309;margin:0 0 6px;">No Pay now link yet: statements still list the invoices and point to the Sweep&amp;Go invoice emails.</div>') +
       un.slice(0, 25).map(function(u){ var l = leadByName(u.name), st = Object.keys(u.statuses || {}).map(function(k){ return u.statuses[k] + ' ' + k; }).join(', '), fu = l ? fuParse(l.crmnotes) : null;
         return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
-          '<span>' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') + ' <span style="color:#707070;">' + esc(st) + (u.oldest ? ' &middot; since ' + esc(u.oldest) : '') + '</span>' + (function(){ var f = lateFeeOf(l, u); return f > 0 ? ' <span style="color:#c0392b;font-weight:700;font-size:11px;">+ $' + f.toFixed(2) + ' late fee</span>' : ''; })() + (l && !prepaidNow(l) ? ' ' + ladderNote(l, u) : '') + '</span>' +
-          '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (l ? (fu.ow ? ' <span style="color:#9aa5a0;font-size:11px;">on card</span>' : ' <button onclick="markOwed(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">On their card</button>') + (prepaidNow(l) ? ' <span style="color:#0F6E56;font-size:11px;font-weight:700;">prepaid</span>' : '') + (l.email && !prepaidNow(l) ? (fu.pr && fu.pr.split('@')[1] >= new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10) ? ' <span style="color:#9aa5a0;font-size:11px;">reminded ' + esc(fu.pr.split('@')[1]) + '</span>' : ' <button class="pr-btn" onclick="payRemind(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">&#9993;&#65039; Statement</button>') : '') : '') + '</span></div>'; }).join('')
+          '<span>' + (l ? '<a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(u.name) + '</a>' : '<strong>' + esc(u.name) + '</strong>') + ' <span style="color:#707070;">' + esc(st) + (u.oldest ? ' &middot; since ' + esc(u.oldest) : '') + '</span>' + (function(){ var f = lateFeeOf(l, u); return f > 0 ? ' <span style="color:#c0392b;font-weight:700;font-size:11px;">+ $' + f.toFixed(2) + ' late fee</span>' : ''; })() + (l && !prepaidNow(l) && !billedElsewhere(l) ? ' ' + ladderNote(l, u) : '') + '</span>' +
+          '<span style="white-space:nowrap;"><strong style="color:#b45309;">' + money(u.owed) + '</strong>' + (l ? (fu.ow ? ' <span style="color:#9aa5a0;font-size:11px;">on card</span>' : ' <button onclick="markOwed(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">On their card</button>') + (prepaidNow(l) ? ' <span style="color:#0F6E56;font-size:11px;font-weight:700;">prepaid</span>' : billedElsewhere(l) ? ' <span style="color:#0F6E56;font-size:11px;font-weight:700;">billed elsewhere</span>' : '') + (l.email && !prepaidNow(l) && !billedElsewhere(l) ? (fu.pr && fu.pr.split('@')[1] >= new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10) ? ' <span style="color:#9aa5a0;font-size:11px;">reminded ' + esc(fu.pr.split('@')[1]) + '</span>' : ' <button class="pr-btn" onclick="payRemind(\'' + esc(l.id) + '\',' + u.owed + ',\'' + esc(u.oldest || '') + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:4px 8px;min-height:30px;font-size:11px;margin-left:4px;">&#9993;&#65039; Statement</button>') : '') : '') + '</span></div>'; }).join('')
       : '<div class="sub" style="padding-left:10px;">Nothing owed. Every invoice is paid.</div>') + '</div></div>';
   box.innerHTML = h;
   box.querySelectorAll('.fold[data-fold]').forEach(function(c){ foldApply(c, c.getAttribute('data-fold') === 'bill-owed'); });
@@ -7548,7 +7577,7 @@ function render(){
         (/twice/i.test(String(l.service || '')) ? '<span style="color:#9aa5a0;">(twice a week: type both, e.g. Tue, Fri, under Edit if they change)</span>' : '') +
         (fu.day ? '' : '<span style="color:#9aa5a0;">(set it once and the Schedule card fills in)</span>') + '</div>';
     }
-    if (st === 'closed') custMore = dayRow + refShareRow(l) + prepayRow(l) + accountRow(l);
+    if (st === 'closed') custMore = dayRow + refShareRow(l) + prepayRow(l) + billedRow(l) + accountRow(l);
     else if (st === 'cancelled' && fu.sgid) custMore = accountRow(l);
     if (blastEmailOk(l.email)){
       custMore += '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
