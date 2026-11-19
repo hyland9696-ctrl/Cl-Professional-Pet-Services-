@@ -11,8 +11,8 @@
                 twice a week = the weekly price × 1.80 (double, less 10%)
                 all rounded to the nearest whole dollar, and no recurring
                 plan is ever quoted below the monthly minimum
-   Initial clean: $40 on a recurring customer's first invoice, currently
-                WAIVED as a promotion - see waiveInitialClean below.
+   Initial clean: $40 on a recurring customer's first invoice. The waiver
+                promotion ended 2026-11-19 - see waiveInitialClean below.
    One-time:    $75 for the first 30 minutes, +$20 per extra 15 minutes.
                 ZIP multiplier NOT applied.
    Unlisted ZIP (inside the service area): priced as Value
@@ -34,13 +34,14 @@ var CLPPS_PRICING = {
   onetimeBlock: 15,     // each additional block, in minutes
   onetimeBlockPrice: 20,
   initialClean: 40,     // one-time, first invoice, recurring customers only
-  /* PROMOTION: the initial clean fee is waived for new recurring customers.
-     Set waiveInitialClean to false to end it and the $40 comes straight back
+  /* PROMOTION (ended 2026-11-19, Jesse: "we're going to start charging
+     initial fees again"): set waiveInitialClean to true to waive the fee for
+     new recurring customers. While it is false the $40 is charged
      everywhere - the wizard, the phone quote and the emailed quote. Leads
      taken while it is on are stamped [IC:w], so the revenue figures already
      know not to count a fee that was never charged. waiveInitialFrom is the
      day it started, used to compare sign-ups before and after. */
-  waiveInitialClean: true,
+  waiveInitialClean: false,
   waiveInitialFrom: '2026-09-09',
   deodorize: 15,        // per treatment
   /* Deodorize & sanitize is a warm-weather service: once it drops below
@@ -56,6 +57,7 @@ var CLPPS_PRICING = {
   changes: [
     { date: '2026-09-08', what: 'Monthly (once-a-month) plan retired' },
     { date: '2026-09-09', what: '$40 initial clean waived for new recurring customers' },
+    { date: '2026-11-19', what: '$40 initial clean charged again (waiver ended)' },
     { date: '2026-10-13', what: 'Franklin County towns moved to Value' },
     { date: '2026-10-21', what: 'Illinois priced off the table; 128 ZIPs placed in tiers' },
     { date: '2026-10-21', what: 'Lincoln County moved onto the income data (Troy to Standard)' },

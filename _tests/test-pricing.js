@@ -92,8 +92,8 @@ ok('part blocks round up - 35 minutes bills as 45', onetime(35).price === onetim
 
 /* ---- add-ons ---- */
 ok('deodorize is still $' + P.deodorize + ' a treatment', P.deodorize === 15);
-ok('the initial clean is still $' + P.initialClean + ' and still waived',
-   P.initialClean === 40 && P.waiveInitialClean === true);
+ok('the initial clean is $' + P.initialClean + ' and charged again: the waiver promotion is off',
+   P.initialClean === 40 && P.waiveInitialClean === false);
 
 /* ---- what gets no automatic price, and why ---- */
 ok('5 or more dogs is priced by hand',

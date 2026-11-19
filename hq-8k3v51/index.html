@@ -527,7 +527,7 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/pricing.js?v=556061a3"></script>
+<script src="/pricing.js?v=5a3d9754"></script>
 <script src="/contact-check.js?v=b4a5b7a1"></script>
 <script>
 var CRM_ENDPOINT = "https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec";
@@ -3732,7 +3732,7 @@ function fillBlast(text, r){
 }
 var BLAST_PRESETS = {
   season: { tag: 'fall2026', subject: '{first}, your yard price is still good \u2014 and the leaves are coming',
-    body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. You asked us for a price a while back and I wanted to check in before the yard disappears under the leaves.\n\nYour price of {price} for {plan} still stands, the $40 initial clean is waived right now, and there is no contract \u2014 month to month, cancel any time.\n\nIf you\u2019d like us to take the yard off your plate this season, just reply to this email or text me at (636) 375-4342 and I\u2019ll get you on the schedule this week.' },
+    body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. You asked us for a price a while back and I wanted to check in before the yard disappears under the leaves.\n\nYour price of {price} for {plan} still stands, and there is no contract \u2014 month to month, cancel any time.\n\nIf you\u2019d like us to take the yard off your plate this season, just reply to this email or text me at (636) 375-4342 and I\u2019ll get you on the schedule this week.' },
   winback: { tag: 'winback', subject: '{first}, we\u2019d love to have you back',
     body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. We miss your yard! If you\u2019d like us to pick it back up, there is no initial clean fee to restart and your old price holds.\n\nJust reply here or text (636) 375-4342 and we\u2019ll put you back on the route.' },
   referral: { tag: 'referral', subject: 'A free deodorize for a neighbor with a dog',
@@ -3783,7 +3783,7 @@ function payRemindersOn(){ var c = config.pay_reminders; return !!c && String(c.
 var AUTO_SWITCHES = [
   { key: 'card_emails', title: 'Card failed, same night.', text: 'When a payment fails, a plain note from the office that evening: the amount, the date, how to update the card. Once a week at most per person.' },
   { key: 'winback_emails', title: 'Win-back, a month after leaving.', text: 'Thirty days after an account closes, one come-back note: no initial clean fee to restart, old price holds. Not to anyone who moved or lost the dog.' },
-  { key: 'revival_emails', title: 'Revival: quotes that never went ahead.', text: 'Anyone who got a price 30+ days ago and never signed up, or said no, gets one note: the quote still stands, the $40 initial clean is waived this month. Once, ever, per person. The older ones go out over a few days.' },
+  { key: 'revival_emails', title: 'Revival: quotes that never went ahead.', text: 'Anyone who got a price 30+ days ago and never signed up, or said no, gets one note: the quote still stands, no contract. Once, ever, per person. The older ones go out over a few days.' },
   { key: 'referral_emails', title: 'Referral thank-you.', text: 'When someone a customer referred starts, the customer gets a thank-you from the office saying the free deodorize is on the next visit, and the phones get a reminder to add it in Sweep&Go.' },
   { key: 'spring_emails', title: 'Spring restart, every March.', text: 'In March, everyone who left for the winter or is paused with no return date gets one note: we are back on your street, old price, no restart fee. Once a year per person. The Win back card lists who.' },
   { key: 'prepay_renewals', title: 'Prepay renewal, a month before it ends.', text: 'One note to each prepaid customer a month before their stretch ends, offering the same discount again. The Prepaid card lists who.' },
@@ -5308,7 +5308,7 @@ function renderDormant(){
    ============================================================ */
 var LEAVE_ALONE_JS = { nodog: 1, nonpay: 1, byus: 1 };
 var WB_LEFT = [['price', 'Left over cost', 'old price locked a year, no restart fee'], ['season', 'Left for the winter', 'the spring restart note'], ['competitor', 'Went to another company', 'come back, photo every visit'], ['diy', 'Doing it themselves', 'want your Saturdays back'], ['moved', 'Moved', 'did you stay in the area'], ['other', 'No reason given', 'old price holds, no restart fee'], ['service', 'Unhappy with the service', 'a call from Corey, not an email']];
-var WB_PASSED = [['price', 'Passed on price', '$40 off and the price locked a year'], ['elsewhere', 'Went with someone else', 'if it is not working out'], ['comparing', 'Were comparing', 'if it is not working out'], ['timing', 'Bad timing', 'is now a better time'], ['diy', 'Doing it themselves', 'want your Saturdays back'], ['other', 'Never said why', 'the quote still stands']];
+var WB_PASSED = [['price', 'Passed on price', 'the price locked a year'], ['elsewhere', 'Went with someone else', 'if it is not working out'], ['comparing', 'Were comparing', 'if it is not working out'], ['timing', 'Bad timing', 'is now a better time'], ['diy', 'Doing it themselves', 'want your Saturdays back'], ['other', 'Never said why', 'the quote still stands']];
 /* the last time we reached out to them, any way: our notes, the old automatic ones, a text */
 function lastOutreach(l){
   var fu = fuParse(l.crmnotes), best = '';

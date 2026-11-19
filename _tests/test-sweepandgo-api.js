@@ -384,7 +384,7 @@ const { ok, done } = reporter();
   });
   await p.waitForTimeout(300);
   const wb = (await p.textContent('#winback')).replace(/\s+/g, ' ');
-  ok('Win back: everyone who left or passed, grouped by why, each group with its offer', /Left over cost · 1 · old price locked a year, no restart fee\s*Pricey Pam \$85\/mo · left 2026-09-01/.test(wb) && /Unhappy with the service · 1 · a call from Corey/.test(wb) && /Passed on price · 2 · \$40 off and the price locked a year\s*Quote Quinn[^·]*· quoted 2026-10-01\s*✉️ Note\s*Lapsed Lena/.test(wb), wb.slice(600, 1600));
+  ok('Win back: everyone who left or passed, grouped by why, each group with its offer', /Left over cost · 1 · old price locked a year, no restart fee\s*Pricey Pam \$85\/mo · left 2026-09-01/.test(wb) && /Unhappy with the service · 1 · a call from Corey/.test(wb) && /Passed on price · 2 · the price locked a year\s*Quote Quinn[^·]*· quoted 2026-10-01\s*✉️ Note\s*Lapsed Lena/.test(wb), wb.slice(600, 1600));
   ok('the one who left for the winter is in Spring restart; the one who lost the dog is left alone, counted not named', /Ready for spring · 1 · we are back on your street\s*Snowy Sue/.test(wb) && !/Dogless Dot/.test(wb) && /1 left alone on purpose/.test(wb), wb);
   ok('came back: Rita restarted three weeks after her win-back note, with the dollars it brought back', /Came back: 1 · \$80\/mo/.test(wb) && /Returned Rita · win-back left over cost 2026-10-01, back 2026-10-20 · \$80\/mo/.test(wb), wb.slice(0, 400));
   ok('the unhappy one gets a Call button, not a note', /Grumpy Gus[^·]*· left 2026-09-02\s*📞 Call/.test(wb));

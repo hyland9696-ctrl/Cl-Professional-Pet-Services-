@@ -627,7 +627,7 @@ function build(leadRows){
   ok('Pam, gone six weeks over price, gets the come-back note; Gus, who moved, does not', wb.sent === 1 && wbMail.to === 'pricepam@gmail.com' && /love to have you back/.test(wbMail.subject) && /no initial clean fee to restart/.test(wbMail.body) && /\[WK:/.test(notes('p6363750040')) && !/\[WK:/.test(notes('p6363750003')), JSON.stringify(wb));
   msCalls.length = 0;
   const lr = F.leadRevival(), lrMail = sentMs().filter(m => m.to === 'oldq@gmail.com')[0];
-  ok('the quote that went quiet six weeks ago is revived, and so is the one who said no: the price still stands, the initial clean waived; the lead that came in today is left alone', lr.sent === 2 && sentMs().some(m => m.to === 'larry@gmail.com') && lrMail && /is the yard still on the list/.test(lrMail.subject) && /Your price of \$85\/mo for weekly still stands/.test(lrMail.body) && /\[LR:/.test(notes('q_old')) && !/\[LR:/.test(notes('p6363750007')), JSON.stringify(lr) + ' ' + (lrMail && lrMail.body));
+  ok('the quote that went quiet six weeks ago is revived, and so is the one who said no: the price still stands, with no waiver promised; the lead that came in today is left alone', lr.sent === 2 && sentMs().some(m => m.to === 'larry@gmail.com') && lrMail && /is the yard still on the list/.test(lrMail.subject) && /Your price of \$85\/mo for weekly still stands/.test(lrMail.body) && /\[LR:/.test(notes('q_old')) && !/\[LR:/.test(notes('p6363750007')), JSON.stringify(lr) + ' ' + (lrMail && lrMail.body));
   ok('and only once, ever', F.leadRevival().sent === 0);
   // a referral: Rita came through Dana's link and started this week
   const code = F.refCode_('p6363750001', 'Dana D');
