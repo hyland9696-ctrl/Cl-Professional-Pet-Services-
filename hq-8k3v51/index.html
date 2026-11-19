@@ -5372,6 +5372,35 @@ function cameBack(){
 }
 var OUT_LABEL = { 'winback-auto': 'automatic win-back', 'revival-auto': 'automatic revival', 'winback-text': 'win-back text', 'spring': 'spring restart' };
 function outLabel(w){ if (OUT_LABEL[w]) return OUT_LABEL[w]; var p = String(w).split('-'); var g = WB_LEFT.concat(WB_PASSED).filter(function(x){ return x[0] === p[1]; })[0]; return (p[0] === 'upsell' ? 'upsell ' : p[0] === 'spring' ? 'spring ' : 'win-back ') + (g ? g[1].toLowerCase() : p[1] || ''); }
+/* The same offer as the email, short enough for a text. Former customers
+   restart with no fee (Jesse: "waive their fees to make it an incentive");
+   quotes that never started get their price held, no waiver promised. */
+function wbText(l, kind, sub){
+  var first = String(l.name || '').trim().split(/\s+/)[0] || 'there', pp = parsePrice(l), price = pp ? '$' + pp.amt + (pp.isMo ? '/mo' : '') : '';
+  var hi = 'Hi ' + first + ", it's Corey with CL Professional Pet Services. ", end = ' Just reply here and we\u2019ll get you on the route.';
+  if ((l.status || 'new') === 'cancelled' || kind === 'spring'){
+    var keep = price ? 'your old price of ' + price + ' holds' : 'your old price holds';
+    if (kind === 'spring' || sub === 'season') return hi + 'Spring is here and we\u2019re back on your street. No restart fee and ' + keep + '.' + end;
+    if (sub === 'price') return hi + 'We\u2019d love to have your yard back: no restart fee, and ' + keep + ', locked for a year.' + end;
+    if (sub === 'competitor') return hi + 'If the other company isn\u2019t working out, we\u2019d be glad to have you back: no restart fee, ' + keep + ', and a photo after every visit.' + end;
+    if (sub === 'moved') return hi + 'Did you stay in the area? If so we\u2019d love to pick up at the new place, same price, no setup fee. Reply with the address and I\u2019ll tell you the day.';
+    if (sub === 'diy') return hi + 'If doing the yard yourself has become one more chore, we can take it back: no restart fee and ' + keep + '.' + end;
+    return hi + 'We miss your yard! If you\u2019d like us back, there\u2019s no restart fee and ' + keep + '.' + end;
+  }
+  var q = price ? 'Your price of ' + price + ' still stands' : 'The price we gave you still stands';
+  if (sub === 'price') return hi + q + ' and I can lock it for a full year, no contract.' + end;
+  if (sub === 'elsewhere' || sub === 'comparing') return hi + 'How is the yard going? If the company you picked isn\u2019t working out, ' + q.charAt(0).toLowerCase() + q.slice(1) + ', and every visit comes with a photo.' + end;
+  if (sub === 'timing') return hi + 'Is now a better time for the yard? ' + q + ', no contract, start whenever suits you.' + end;
+  if (sub === 'diy') return hi + 'Want your Saturdays back? ' + q + ', no contract.' + end;
+  return hi + 'Is the yard still on the to-do list? ' + q + ', no contract.' + end;
+}
+function wbTexted(id){
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  textLead(id);
+  var m = fuParse(l.crmnotes); m.wc = new Date().toISOString().slice(0, 10); stampBy(m);
+  l.crmnotes = fuCompose(m); l.updated = new Date().toISOString(); saveLocal(); render();
+  post({ action: 'update', key: KEY, id: id, notes: l.crmnotes }, 'Texted: they wait 60 days before the next one');
+}
 function wbRow(l, kind, sub){
   var fu = fuParse(l.crmnotes), last = lastOutreach(l), pp = parsePrice(l), recent = last && daysAgo(last + 'T12:00:00') < 60;
   var when = (l.status || 'new') === 'cancelled' ? (fu.cx ? 'left ' + fu.cx : 'left') : 'quoted ' + String(l.created || '').slice(0, 10);
@@ -5379,8 +5408,8 @@ function wbRow(l, kind, sub){
   var btn;
   if (sub === 'service') btn = d ? '<a href="tel:+' + esc(d) + '" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:5px 9px;font-size:11.5px;font-weight:700;text-decoration:none;">&#128222; Call</a>' : '<span style="color:#9aa5a0;font-size:11px;">no phone</span>';
   else if (recent) btn = '<span style="color:#9aa5a0;font-size:11px;">noted ' + esc(last) + '</span>';
-  else if (!blastEmailOk(l.email) || fu.noem) btn = d ? '<a href="sms:' + esc(d) + '" onclick="textLead(\'' + esc(l.id) + '\')" style="display:inline-block;border:1.5px solid #0F6E56;color:#0F6E56;border-radius:8px;padding:4px 8px;font-size:11.5px;font-weight:700;text-decoration:none;">Text</a>' : '<span style="color:#9aa5a0;font-size:11px;">no email</span>';
-  else btn = '<button class="ou-btn" onclick="outreach(\'' + esc(l.id) + '\',\'' + kind + '\',\'' + esc(sub) + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:4px 9px;min-height:30px;font-size:11.5px;">&#9993;&#65039; Note</button>';
+  else if (!blastEmailOk(l.email) || fu.noem) btn = d ? '<a class="wb-text" href="sms:' + esc(d) + '?&body=' + encodeURIComponent(wbText(l, kind, sub)).replace(/'/g, '%27') + '" onclick="wbTexted(\'' + esc(l.id) + '\')" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:5px 9px;font-size:11.5px;font-weight:700;text-decoration:none;">&#128172; Text</a>' : '<span style="color:#9aa5a0;font-size:11px;">no email</span>';
+  else btn = (d && kind !== 'upsell' ? '<a class="wb-text" href="sms:' + esc(d) + '?&body=' + encodeURIComponent(wbText(l, kind, sub)).replace(/'/g, '%27') + '" onclick="wbTexted(\'' + esc(l.id) + '\')" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:5px 9px;font-size:11.5px;font-weight:700;text-decoration:none;margin-right:4px;">&#128172; Text</a>' : '') + '<button class="ou-btn" onclick="outreach(\'' + esc(l.id) + '\',\'' + kind + '\',\'' + esc(sub) + '\')" ' + (officeMail === true ? '' : 'disabled title="Waits for the office mailbox"') + ' style="padding:4px 9px;min-height:30px;font-size:11.5px;">&#9993;&#65039; Note</button>';
   return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f3f5f4;font-size:12.5px;flex-wrap:wrap;">' +
     '<span style="flex:1 1 160px;min-width:0;"><a href="#card-' + esc(l.id) + '" onclick="jumpToLead(\'' + esc(l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(l.name || '(no name)') + '</a> <span style="color:#707070;">' + (pp ? '$' + pp.amt + (pp.isMo ? '/mo' : '') + ' &middot; ' : '') + esc(when) + '</span></span>' + btn + '</div>';
 }
@@ -5395,7 +5424,7 @@ function renderWinback(){
   if (officeMail === null && KEY) checkOfficeMail(function(){ renderWinback(); });
   var w = winbackLists(), cb = cameBack();
   var h = '<div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#128140; Win back <span style="font-size:11px;font-weight:600;color:#707070;">everyone who left or passed, by why</span></div>' +
-    '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">Note shows the email written for their reason; change any word, then send. Unhappy customers get a call instead. Nobody who lost the dog, did not pay, or was let go by us is ever written to. Anyone noted in the last 60 days waits.</div>';
+    '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">Text opens a message on this phone, already written for their reason; Note does the same by email, shown first. Unhappy customers get a call instead. Nobody who lost the dog, did not pay, or was let go by us is ever written to. Anyone noted in the last 60 days waits.</div>';
   h += '<div style="background:#E8F5EF;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:6px;"><strong style="color:#0F6E56;">Came back: ' + cb.list.length + (cb.list.length ? ' &middot; ' + money(cb.money) + '/mo' : '') + '</strong> <span style="color:#555;">restarted within six months of one of our notes</span>' +
     (cb.list.length ? cb.list.slice(0, 8).map(function(r){ return '<div style="font-size:12px;margin-top:3px;">' + esc(r.l.name || '') + ' <span style="color:#707070;">&middot; ' + esc(outLabel(r.what)) + ' ' + esc(r.d) + ', back ' + esc(r.cd) + (r.amt ? ' &middot; $' + r.amt + '/mo' : '') + '</span></div>'; }).join('') : '') + '</div>';
   var lc = 0, pc = 0; Object.keys(w.left).forEach(function(k){ lc += w.left[k].length; }); Object.keys(w.passed).forEach(function(k){ pc += w.passed[k].length; });
