@@ -424,6 +424,11 @@ const { ok, done } = reporter();
   await p.click('#stmt button:has-text("Send 30 now")'); await p.waitForTimeout(300);
   ok('and sends 30 a tap', refinvites.length === 2 && !refinvites[1].preview && !(await p.isVisible('#stmt')));
   await p.evaluate(() => { leads = leads.filter(l => !/^W[PGDSLR]$/.test(l.id)); foldAll(false); render(); });
+  /* ---- the Active number does not jump about while the page loads ---- */
+  const settled = await p.evaluate(() => { render(); return document.querySelector('#stats .stat:nth-child(3) .n').textContent; });
+  const during = await p.evaluate(() => { const b = billing, j = jobsData; billing = null; jobsData = null; render(); const mid = document.querySelector('#stats .stat:nth-child(3) .n').textContent; const raw = leads.filter(l => isLead(l) && (l.status || 'new') === 'closed').length - dormantList().length; billing = b; jobsData = j; render(); return { mid, raw, after: document.querySelector('#stats .stat:nth-child(3) .n').textContent }; });
+  ok('before the billing and visits arrive the Active tile holds the last settled number, not a provisional one', during.mid === settled && String(during.raw) !== settled && during.after === settled, JSON.stringify({ settled, during }));
+  ok('and the page asks for the billing and the visits even with the Numbers panel shut', posts.some(x => x.action === 'billing') && posts.some(x => x.action === 'jobs'));
   /* ---- the owed tiles open a list with a pay link ---- */
   await p.evaluate(() => { foldAll(true); cashOwed = ''; render(); });
   await p.click('#cash .owed-tile >> nth=0'); await p.waitForTimeout(200);

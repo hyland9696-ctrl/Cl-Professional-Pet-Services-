@@ -5016,10 +5016,10 @@ function renderSchedule(){
 var jobsData = null;
 function loadJobs(force){
   if (!CRM_ENDPOINT) return;
-  if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_jobs') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ jobsData = c.data; renderJobs(); return; } } catch (e) {} }
+  if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_jobs') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ jobsData = c.data; renderJobs(); settleRedraw(); return; } } catch (e) {} }
   fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'jobs', key: KEY }) })
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (d && d.ok && (d.byDate || d.empty)){ jobsData = d; try { localStorage.setItem('clpps_jobs', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderJobs(); renderRisk(); renderDormant(); renderUpsell(); renderGlance(); renderSchedule(); renderFoldSums(); if (ownerOpen) renderOwner(); } })
+    .then(function(d){ if (d && d.ok && (d.byDate || d.empty)){ jobsData = d; try { localStorage.setItem('clpps_jobs', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderJobs(); renderRisk(); renderDormant(); renderUpsell(); renderGlance(); renderSchedule(); renderFoldSums(); if (ownerOpen) renderOwner();  settleRedraw(); } })
     .catch(function(){});
 }
 function sgRoutesByDate(){ var c = config.sg_routes; if (!c) return {}; try { return JSON.parse(c.value) || {}; } catch (e) { return {}; } }
@@ -6079,12 +6079,24 @@ function renderExpand(){
    the numbers panel opens, kept an hour.
    ============================================================ */
 var billing = null;
+/* Corey: "the active number seems to change around a bit, 89 then refresh
+   and it says 93, then 91". Who counts as active depends on the billing and
+   the visit report, which arrive after the customer list. Until both are
+   in, the tiles show the last settled number, not a provisional one. */
+function settledActive(n, key){
+  var k = 'clpps_active_' + (key || 'n');
+  if (billing && billing.last && jobsData){ try { localStorage.setItem(k, String(n)); } catch (e) {} return n; }
+  try { var s = parseInt(localStorage.getItem(k), 10); if (s >= 0) return s; } catch (e) {}
+  return n;
+}
+function activeSettled(){ return !!(billing && billing.last && jobsData); }
+function settleRedraw(){ if (!activeSettled()) return; var a = document.activeElement; if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return; try { render(); } catch (e) {} }
 function loadBilling(force){
   if (!CRM_ENDPOINT) return;
-  if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_billing') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ billing = c.data; renderBilling(); return; } } catch (e) {} }
+  if (!force){ try { var c = JSON.parse(localStorage.getItem('clpps_billing') || 'null'); if (c && c.at && Date.now() - c.at < 3600000){ billing = c.data; renderBilling(); settleRedraw(); return; } } catch (e) {} }
   fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'billing', key: KEY }) })
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (d && d.ok && (d.months || d.empty)){ billing = d; try { localStorage.setItem('clpps_billing', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderBilling(); renderRisk(); renderDormant(); renderCash(); renderSchedule(); renderUnderTable(); renderRevenue(); renderDeo(); renderTerritory(); renderFoldSums(); renderGlance(); if (ownerOpen) renderOwner(); } })
+    .then(function(d){ if (d && d.ok && (d.months || d.empty)){ billing = d; try { localStorage.setItem('clpps_billing', JSON.stringify({ at: Date.now(), data: d })); } catch (e) {} renderBilling(); renderRisk(); renderDormant(); renderCash(); renderSchedule(); renderUnderTable(); renderRevenue(); renderDeo(); renderTerritory(); renderFoldSums(); renderGlance(); if (ownerOpen) renderOwner();  settleRedraw(); } })
     .catch(function(){});
 }
 function billingKind(name){
@@ -6465,7 +6477,7 @@ function renderGlance(){
     tile(tp && tp.stops.length ? tp.stops.length : '0', tp && tp.stops.length ? 'stops today &middot; ' + hoursText(tp.total) + ' &middot; ' + money(tp.money) : 'stops today', null, sparks.stops) +
     tile(waiting, (waiting === 1 ? 'lead' : 'leads') + ' not called yet' + (due ? ' &middot; ' + due + ' follow-up' + (due === 1 ? '' : 's') + ' due' : '') + trends.leads, waiting ? '#c0392b' : null, sparks.leads) +
     tile(bm ? money(bm.billed) : money(mrr), (bm ? 'billed ' + monthShort(nowK) + ' &middot; ' + money(bm.collected) + ' collected' : 'a month on the books') + trends.billed, null, sparks.billed) +
-    tile(active, 'active' + trends.active + (dorm ? ' &middot; <span style="color:#b45309;">' + dorm + ' to check</span>' : '') + ' &middot; +' + newM + ' this month' + (leftM ? ' &middot; &minus;' + leftM + ' left' : '') + (owed ? ' &middot; ' + money(owed) + ' owed' : ''), null, sparks.active);
+    tile(settledActive(active, 'glance'), 'active' + trends.active + (dorm ? ' &middot; <span style="color:#b45309;">' + dorm + ' to check</span>' : '') + ' &middot; +' + newM + ' this month' + (leftM ? ' &middot; &minus;' + leftM + ' left' : '') + (owed ? ' &middot; ' + money(owed) + ' owed' : ''), null, sparks.active);
 }
 function foldAll(open){
   FOLD_CARDS.forEach(function(id){
@@ -7422,7 +7434,7 @@ function render(){
   document.getElementById('stats').innerHTML =
     '<div class="stat" onclick="filter=\'interested\';render()" style="cursor:pointer;"><div class="n" style="color:#188663">' + counts.interested + '</div><div class="l">Interested</div></div>' +
     '<div class="stat" onclick="filter=\'new\';render()" style="cursor:pointer;"><div class="n" style="color:#2980ef">' + newToCall + '</div><div class="l">New to call</div></div>' +
-    (function(){ var out = 0, tc = 0; try { out = dormantList().length; tc = checkList().length; } catch (e) {} return '<div class="stat" onclick="filter=\'closed\';render()" style="cursor:pointer;"><div class="n" style="color:#188663">' + (counts.closed - out) + '</div><div class="l">Active' + (tc ? ' <span style="color:#b45309;text-transform:none;letter-spacing:0;">&middot; ' + tc + ' to check</span>' : '') + '</div></div>'; })() +
+    (function(){ var out = 0, tc = 0; try { out = dormantList().length; tc = checkList().length; } catch (e) {} return '<div class="stat" onclick="filter=\'closed\';render()" style="cursor:pointer;"><div class="n" style="color:#188663">' + settledActive(counts.closed - out, 'top') + '</div><div class="l">Active' + (tc ? ' <span style="color:#b45309;text-transform:none;letter-spacing:0;">&middot; ' + tc + ' to check</span>' : '') + '</div></div>'; })() +
     '<div class="stat" onclick="filter=\'saidno\';render()" style="cursor:pointer;"><div class="n" style="color:#b45309">' + counts.saidno + '</div><div class="l">Said no</div></div>';
   document.getElementById('chips').innerHTML = FILTERS.map(function(f){
     return '<button class="chip' + (filter === f.k ? ' on' : '') + '" onclick="filter=\'' + f.k + '\';render()">' + f.label +
@@ -8049,6 +8061,7 @@ if (KEY) loadLeads(false); else { loadLocal(); render(); needKey(''); }
 // the moment the tab comes back into view, so an acceptance shows up on its own.
 setInterval(function(){ loadLeads(false, null, true); }, 60000);
 // the panel remembered open from last time: fetch what it shows, as a tap would
+if (KEY && !numbersOpen()){ loadBilling(false); loadJobs(false); }   // the Active count needs both, whether or not the Numbers panel is open
 if (numbersOpen() && KEY){ loadBilling(false); loadJobs(false); try { loadWeather(); } catch (e) {} if (trafficDaysLoaded < TRAFFIC_DAYS_FULL) loadLeads(false, null, true, TRAFFIC_DAYS_FULL); }
 ownerTipWire();
 if (location.hash === '#owner' || ownerHome()) setTimeout(function(){ if (KEY) toggleOwner(true); }, 700);
