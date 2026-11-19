@@ -3734,7 +3734,7 @@ var BLAST_PRESETS = {
   season: { tag: 'fall2026', subject: '{first}, your yard price is still good \u2014 and the leaves are coming',
     body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. You asked us for a price a while back and I wanted to check in before the yard disappears under the leaves.\n\nYour price of {price} for {plan} still stands, and there is no contract \u2014 month to month, cancel any time.\n\nIf you\u2019d like us to take the yard off your plate this season, just reply to this email or text me at (636) 375-4342 and I\u2019ll get you on the schedule this week.' },
   winback: { tag: 'winback', subject: '{first}, we\u2019d love to have you back',
-    body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. We miss your yard! If you\u2019d like us to pick it back up, there is no initial clean fee to restart and your old price holds.\n\nJust reply here or text (636) 375-4342 and we\u2019ll put you back on the route.' },
+    body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. We miss your yard! If you\u2019d like us to pick it back up, there is no restart fee, and you get 10% off today\u2019s price for your first 6 months back.\n\nJust reply here or text (636) 375-4342 and we\u2019ll put you back on the route.' },
   referral: { tag: 'referral', subject: 'A free deodorize for a neighbor with a dog',
     body: 'Hi {first},\n\nQuick thank-you for having us out every week. If you know a neighbor or friend with a dog, send them our way \u2014 when they sign up, you get a free deodorize treatment on your next visit.\n\nThey can text (636) 375-4342 or go to clpropetservices.com and mention your name.' }
 };
@@ -3782,10 +3782,10 @@ function payRemindersOn(){ var c = config.pay_reminders; return !!c && String(c.
 /* the other automatic rounds, one switch each, all off until somebody turns them on */
 var AUTO_SWITCHES = [
   { key: 'card_emails', title: 'Card failed, same night.', text: 'When a payment fails, a plain note from the office that evening: the amount, the date, how to update the card. Once a week at most per person.' },
-  { key: 'winback_emails', title: 'Win-back, a month after leaving.', text: 'Thirty days after an account closes, one come-back note: no initial clean fee to restart, old price holds. Not to anyone who moved or lost the dog.' },
+  { key: 'winback_emails', title: 'Win-back, a month after leaving.', text: 'Thirty days after an account closes, one come-back note: no restart fee, 10% off today\u2019s price for the first 6 months back. Not to anyone who moved or lost the dog.' },
   { key: 'revival_emails', title: 'Revival: quotes that never went ahead.', text: 'Anyone who got a price 30+ days ago and never signed up, or said no, gets one note: the quote still stands, no contract. Once, ever, per person. The older ones go out over a few days.' },
   { key: 'referral_emails', title: 'Referral thank-you.', text: 'When someone a customer referred starts, the customer gets a thank-you from the office saying the free deodorize is on the next visit, and the phones get a reminder to add it in Sweep&Go.' },
-  { key: 'spring_emails', title: 'Spring restart, every March.', text: 'In March, everyone who left for the winter or is paused with no return date gets one note: we are back on your street, old price, no restart fee. Once a year per person. The Win back card lists who.' },
+  { key: 'spring_emails', title: 'Spring restart, every March.', text: 'In March, everyone who left for the winter or is paused with no return date gets one note: we are back on your street, no restart fee, 10% off today\u2019s price for the first 6 months back. Once a year per person. The Win back card lists who.' },
   { key: 'prepay_renewals', title: 'Prepay renewal, a month before it ends.', text: 'One note to each prepaid customer a month before their stretch ends, offering the same discount again. The Prepaid card lists who.' },
   { key: 'owner_report', title: 'Monday owner email.', text: 'Every Monday at 7, one page to the address below (or the office mailbox): money, customers, emails sent, who came back, late fees owed, prepaid money, and what to do this week.' },
   { key: 'anniversary_emails', title: 'A year with us.', text: 'On the anniversary of their start, a thank-you from the office with a free deodorize on the next visit. Every year, once.' }
@@ -5307,7 +5307,7 @@ function renderDormant(){
    of our notes, with the dollars it brought back.
    ============================================================ */
 var LEAVE_ALONE_JS = { nodog: 1, nonpay: 1, byus: 1 };
-var WB_LEFT = [['price', 'Left over cost', 'old price locked a year, no restart fee'], ['season', 'Left for the winter', 'the spring restart note'], ['competitor', 'Went to another company', 'come back, photo every visit'], ['diy', 'Doing it themselves', 'want your Saturdays back'], ['moved', 'Moved', 'did you stay in the area'], ['other', 'No reason given', 'old price holds, no restart fee'], ['service', 'Unhappy with the service', 'a call from Corey, not an email']];
+var WB_LEFT = [['price', 'Left over cost', '10% off 6 months, no restart fee'], ['season', 'Left for the winter', 'the spring restart note'], ['competitor', 'Went to another company', 'come back, photo every visit'], ['diy', 'Doing it themselves', 'want your Saturdays back'], ['moved', 'Moved', 'did you stay in the area'], ['other', 'No reason given', '10% off 6 months, no restart fee'], ['service', 'Unhappy with the service', 'a call from Corey, not an email']];
 var WB_PASSED = [['price', 'Passed on price', 'the price locked a year'], ['elsewhere', 'Went with someone else', 'if it is not working out'], ['comparing', 'Were comparing', 'if it is not working out'], ['timing', 'Bad timing', 'is now a better time'], ['diy', 'Doing it themselves', 'want your Saturdays back'], ['other', 'Never said why', 'the quote still stands']];
 /* the last time we reached out to them, any way: our notes, the old automatic ones, a text */
 function lastOutreach(l){
@@ -5375,15 +5375,28 @@ function outLabel(w){ if (OUT_LABEL[w]) return OUT_LABEL[w]; var p = String(w).s
 /* The same offer as the email, short enough for a text. Former customers
    restart with no fee (Jesse: "waive their fees to make it an incentive");
    quotes that never started get their price held, no waiver promised. */
+/* The welcome-back deal: today's price from the price list for their ZIP,
+   dogs and plan, with 10% off the first 6 months. Never the old price. */
+var COMEBACK_PCT = 10, COMEBACK_MONTHS = 6;
+function todayPrice(l){
+  try { var s = String(l.service || '').toLowerCase(), freq = /twice/.test(s) ? 'twiceweekly' : /other/.test(s) ? 'biweekly' : 'weekly';
+    if (/one/.test(s) || /month/.test(s)) return 0;
+    var r = clppsQuote({ zip: zipOf(l), dogs: Math.min(parseInt(l.dogs, 10) || 1, 6), freq: freq, deo: 'none' });
+    return r && !r.manual && r.total ? r.total : 0; } catch (e) { return 0; }
+}
+function comebackDeal(l){
+  var now = todayPrice(l);
+  return now ? 'today\u2019s price is $' + now + '/mo, with ' + COMEBACK_PCT + '% off your first ' + COMEBACK_MONTHS + ' months back ($' + Math.round(now * (100 - COMEBACK_PCT) / 100) + '/mo)' : COMEBACK_PCT + '% off today\u2019s price for your first ' + COMEBACK_MONTHS + ' months back';
+}
 function wbText(l, kind, sub){
   var first = String(l.name || '').trim().split(/\s+/)[0] || 'there', pp = parsePrice(l), price = pp ? '$' + pp.amt + (pp.isMo ? '/mo' : '') : '';
   var hi = 'Hi ' + first + ", it's Corey with CL Professional Pet Services. ", end = ' Just reply here and we\u2019ll get you on the route.';
   if ((l.status || 'new') === 'cancelled' || kind === 'spring'){
-    var keep = price ? 'your old price of ' + price + ' holds' : 'your old price holds';
+    var keep = comebackDeal(l);
     if (kind === 'spring' || sub === 'season') return hi + 'Spring is here and we\u2019re back on your street. No restart fee and ' + keep + '.' + end;
-    if (sub === 'price') return hi + 'We\u2019d love to have your yard back: no restart fee, and ' + keep + ', locked for a year.' + end;
+    if (sub === 'price') return hi + 'We\u2019d love to have your yard back: no restart fee, and ' + keep + '.' + end;
     if (sub === 'competitor') return hi + 'If the other company isn\u2019t working out, we\u2019d be glad to have you back: no restart fee, ' + keep + ', and a photo after every visit.' + end;
-    if (sub === 'moved') return hi + 'Did you stay in the area? If so we\u2019d love to pick up at the new place, same price, no setup fee. Reply with the address and I\u2019ll tell you the day.';
+    if (sub === 'moved') return hi + 'Did you stay in the area? If so we\u2019d love to pick up at the new place, with no setup fee and ' + COMEBACK_PCT + '% off your first ' + COMEBACK_MONTHS + ' months.' + ' Reply with the address and I\u2019ll tell you the day.';
     if (sub === 'diy') return hi + 'If doing the yard yourself has become one more chore, we can take it back: no restart fee and ' + keep + '.' + end;
     return hi + 'We miss your yard! If you\u2019d like us back, there\u2019s no restart fee and ' + keep + '.' + end;
   }
@@ -5468,7 +5481,7 @@ function outreach(id, kind, sub){
   if (officeMail !== true){ toast(NO_OFFICE_TEXT); return; }
   var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
   ouBusy = true; toast('Drawing up the note…');
-  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'outreach', key: KEY, id: id, kind: kind, sub: sub, preview: true }) })
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'outreach', key: KEY, id: id, kind: kind, sub: sub, preview: true, now: todayPrice(l) }) })
     .then(function(r){ return r.json(); })
     .then(function(d){ ouBusy = false; if (!d || !d.ok){ toast(d && d.error ? 'No note: ' + d.error : 'No note'); return; } showOutreach(l, d, kind, sub); })
     .catch(function(){ ouBusy = false; toast('No connection'); });
@@ -7468,7 +7481,7 @@ function render(){
     }
     var wcRow = '';
     if (winbackClosedDue(l)){
-      var wcBody = 'Hi ' + (String(l.name || '').trim().split(' ')[0] || 'there') + ", it's Corey with CL Professional Pet Services. We'd love to have you back - no initial clean fee, same price as before. Just reply here if you'd like us to pick the yard back up.";
+      var wcBody = 'Hi ' + (String(l.name || '').trim().split(' ')[0] || 'there') + ", it's Corey with CL Professional Pet Services. We'd love to have you back - no restart fee, and " + comebackDeal(l).replace(/\u2019/g, "'") + ". Just reply here if you'd like us to pick the yard back up.";
       wcRow = '<div style="background:#E6F2ED;border-radius:9px;padding:8px 11px;margin-top:8px;font-size:12.5px;color:#0F6E56;font-weight:700;">&#128154; Gone ' + Math.floor((Date.now() - new Date(fu.cx + 'T12:00:00').getTime()) / 864e5) + ' days &mdash; worth a win-back text' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
         (digits2 ? '<a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(wcBody).replace(/'/g, '%27') + '" onclick="markWinbackClosed(\'' + esc(l.id) + '\')" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:9px 12px;font-size:12px;text-decoration:none;min-height:40px;line-height:22px;">&#128172; Text the offer</a>' : '') +
