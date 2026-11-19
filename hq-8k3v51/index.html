@@ -393,6 +393,17 @@
         </div>
         <div id="sg-days-out" style="font-size:12.5px;line-height:1.6;color:#2B3A34;margin-top:10px;"></div>
       </div>
+      <div id="qb-import" style="border-top:1px solid #eee;margin-top:14px;padding-top:12px;">
+        <div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#129534; Customers billed in QuickBooks</div>
+        <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:8px;">In QuickBooks: <strong>Sales &rarr; Customers</strong>, then the export icon above the list (Export to Excel). Pick that file here. Everyone on it who is an active customer in the tracker gets <strong>Billing: in QuickBooks</strong>, so they are never chased for money Sweep&amp;Go cannot see. You see the list first. The file is read on this phone and is not uploaded.</div>
+        <input type="file" id="qb-file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="font-size:12.5px;">
+        <textarea id="qb-paste" rows="3" placeholder="Or paste the names here, one a line" style="width:100%;margin-top:8px;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;font-family:inherit;box-sizing:border-box;"></textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+          <button class="copybtn" onclick="qbPreview()">Preview</button>
+          <button class="copybtn" id="qb-go" onclick="qbApply()" style="display:none;background:#188663;color:#fff;border-color:#188663;">Mark them</button>
+        </div>
+        <div id="qb-out" style="font-size:12.5px;line-height:1.6;color:#2B3A34;margin-top:10px;"></div>
+      </div>
     </div>
     <div id="blastPanel" style="display:none;background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,.07);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
@@ -5803,6 +5814,151 @@ function saveOwnerEmail(){
   if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){ toast('That does not look like an email address'); return; }
   config.owner_email = { value: v, created: new Date().toISOString() }; saveStatsCache();
   post({ action: 'lead', lead: { id: 'cfg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), created: new Date().toISOString(), type: 'CONFIG', name: 'owner_email', notes: v, status: 'config', crmnotes: '' } }, v ? 'The Monday email goes to ' + v : 'The Monday email goes to the office mailbox');
+}
+
+/* ============================================================
+   QUICKBOOKS IMPORT. Corey bills some customers through QuickBooks, so
+   Sweep&Go never sees their money. He exports his customer list
+   (Sales > Customers > export, an Excel file; a CSV works too), it is
+   picked here, and everyone on it who is an active customer in the
+   tracker is tagged Billing: in QuickBooks. The file is read on this
+   phone and never uploaded; only the tags are saved.
+   ============================================================ */
+function qbCsv(text){
+  var rows = [], row = [], cur = '', q = false;
+  for (var i = 0; i < text.length; i++){ var ch = text[i];
+    if (q){ if (ch === '"'){ if (text[i + 1] === '"'){ cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ','){ row.push(cur); cur = ''; }
+    else if (ch === '\n' || ch === '\r'){ if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cur); cur = ''; rows.push(row); row = []; }
+    else cur += ch; }
+  if (cur !== '' || row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+/* an .xlsx is a zip of XML: find the shared strings and the first sheet, inflate them, read the cells */
+function qbInflate(bytes, method){
+  if (method === 0) return Promise.resolve(new TextDecoder().decode(bytes));
+  if (typeof DecompressionStream === 'undefined') return Promise.reject(new Error('This browser cannot open Excel files. Save the export as CSV and pick that.'));
+  var ds = new DecompressionStream('deflate-raw'), w = ds.writable.getWriter(); w.write(bytes); w.close();
+  return new Response(ds.readable).arrayBuffer().then(function(b){ return new TextDecoder().decode(b); });
+}
+function qbXlsx(buf){
+  var dv = new DataView(buf), u8 = new Uint8Array(buf), eo = -1;
+  for (var i = buf.byteLength - 22; i >= 0 && i > buf.byteLength - 70000; i--) if (dv.getUint32(i, true) === 0x06054b50){ eo = i; break; }
+  if (eo < 0) return Promise.reject(new Error('That does not look like an Excel file.'));
+  var n = dv.getUint16(eo + 10, true), p = dv.getUint32(eo + 16, true), files = {};
+  for (var k = 0; k < n; k++){
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    var method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), nl = dv.getUint16(p + 28, true), el = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), lo = dv.getUint32(p + 42, true);
+    var name = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nl));
+    files[name] = { method: method, csize: csize, lo: lo }; p += 46 + nl + el + cl;
+  }
+  var get = function(name){ var f = files[name]; if (!f) return Promise.resolve('');
+    var nl2 = dv.getUint16(f.lo + 26, true), el2 = dv.getUint16(f.lo + 28, true), start = f.lo + 30 + nl2 + el2;
+    return qbInflate(u8.subarray(start, start + f.csize), f.method); };
+  var sheet = Object.keys(files).filter(function(x){ return /^xl\/worksheets\/sheet\d+\.xml$/.test(x); }).sort()[0];
+  if (!sheet) return Promise.reject(new Error('No sheet found in that Excel file.'));
+  return Promise.all([get('xl/sharedStrings.xml'), get(sheet)]).then(function(x){
+    var P = new DOMParser(), strings = [];
+    if (x[0]) Array.prototype.forEach.call(P.parseFromString(x[0], 'application/xml').getElementsByTagName('si'), function(si){ strings.push(Array.prototype.map.call(si.getElementsByTagName('t'), function(t){ return t.textContent; }).join('')); });
+    var rows = [];
+    Array.prototype.forEach.call(P.parseFromString(x[1], 'application/xml').getElementsByTagName('row'), function(r){
+      var row = [];
+      Array.prototype.forEach.call(r.getElementsByTagName('c'), function(c){
+        var ref = String(c.getAttribute('r') || '').replace(/\d+/g, ''), col = 0; for (var j = 0; j < ref.length; j++) col = col * 26 + (ref.charCodeAt(j) - 64);
+        var t = c.getAttribute('t'), v = c.getElementsByTagName('v')[0], val = t === 's' ? (strings[parseInt(v ? v.textContent : '-1', 10)] || '') : t === 'inlineStr' ? Array.prototype.map.call(c.getElementsByTagName('t'), function(e){ return e.textContent; }).join('') : (v ? v.textContent : '');
+        row[Math.max(0, col - 1)] = val;
+      });
+      for (var z = 0; z < row.length; z++) if (row[z] == null) row[z] = '';
+      rows.push(row);
+    });
+    return rows;
+  });
+}
+function qbReadFile(f){
+  if (/\.xlsx?$/i.test(f.name)) return f.arrayBuffer().then(qbXlsx);
+  return f.text().then(qbCsv);
+}
+/* the people in the file: the name column, and a phone and email where the export has them */
+function qbPeople(rows){
+  var hi = -1, ci = {};
+  for (var i = 0; i < Math.min(rows.length, 15) && hi < 0; i++){
+    rows[i].forEach(function(c, j){ var h = String(c || '').trim().toLowerCase();
+      if (/^(customer|customer name|name|display name|customer full name|display name as)$/.test(h) && ci.name == null) ci.name = j;
+      else if (/^(full name)$/.test(h) && ci.full == null) ci.full = j;
+      else if (/phone/.test(h) && ci.phone == null) ci.phone = j;
+      else if (/e-?mail/.test(h) && ci.email == null) ci.email = j; });
+    if (ci.name != null || ci.full != null) hi = i; else ci = {};
+  }
+  var out = [], seen = {};
+  if (hi < 0){ hi = -1; ci = { name: 0 }; }   // no header: a plain list of names, one a line
+  for (var r = hi + 1; r < rows.length; r++){
+    var name = String(rows[r][ci.name != null ? ci.name : ci.full] || '').trim(), full = ci.full != null ? String(rows[r][ci.full] || '').trim() : '';
+    if (!name && full) name = full;
+    if (!name || /^total\b/i.test(name) || name.length > 80) continue;
+    var k = sgNormName(name); if (!k || seen[k]) continue; seen[k] = 1;
+    out.push({ name: name, full: full, phone: ci.phone != null ? String(rows[r][ci.phone] || '').replace(/\D/g, '').slice(-10) : '', email: ci.email != null ? String(rows[r][ci.email] || '').trim().toLowerCase() : '' });
+  }
+  return out;
+}
+/* "Weiss, Ron" and "Ron Weiss" are the same person; a sub-customer "Parent:Child" is the child */
+function qbNameKeys(n){
+  var s = String(n || '').split(':').pop().trim(), keys = [sgNormName(s)];
+  if (s.indexOf(',') > 0){ var a = s.split(','); keys.push(sgNormName(a.slice(1).join(' ') + ' ' + a[0])); }
+  return keys.filter(Boolean);
+}
+function qbMatch(people){
+  var act = leads.filter(function(l){ return isLead(l) && (l.status || 'new') === 'closed'; }), all = leads.filter(isLead);
+  var find = function(list, p){
+    var hit = null;
+    if (p.email) hit = list.filter(function(l){ return String(l.email || '').trim().toLowerCase() === p.email; })[0];
+    if (!hit && p.phone.length === 10) hit = list.filter(function(l){ return String(l.phone || '').replace(/\D/g, '').slice(-10) === p.phone; })[0];
+    if (!hit){ var keys = qbNameKeys(p.name).concat(qbNameKeys(p.full)); hit = list.filter(function(l){ return namesOf(l).some(function(k){ return keys.indexOf(k) >= 0; }); })[0]; }
+    if (!hit){ var toks = qbNameKeys(p.full || p.name)[0].split(' ').filter(function(t){ return t.length > 1 && t !== 'and'; });
+      if (toks.length >= 2){ var c = list.filter(function(l){ var ln = ' ' + sgNormName(l.name) + ' '; return ln.indexOf(' ' + toks[0] + ' ') >= 0 && ln.indexOf(' ' + toks[toks.length - 1] + ' ') >= 0; }); if (c.length === 1) hit = c[0]; } }
+    return hit || null;
+  };
+  var tag = [], have = [], gone = [], none = [], used = {};
+  people.forEach(function(p){
+    var l = find(act, p);
+    if (l){ if (used[l.id]) return; used[l.id] = 1; (billedElsewhere(l) && billedElsewhere(l).how === 'qbo' ? have : tag).push({ p: p, l: l }); return; }
+    var o = find(all, p); if (o) gone.push({ p: p, l: o }); else none.push(p);
+  });
+  return { tag: tag, have: have, gone: gone, none: none };
+}
+var qbPlan = null;
+function qbShow(people, src){
+  var out = document.getElementById('qb-out'); if (!out) return;
+  if (!people.length){ out.innerHTML = 'No names found in that ' + src + '. The file needs a column headed Customer or Name.'; return; }
+  var m = qbPlan = qbMatch(people);
+  var line = function(x){ return '<label style="display:flex;gap:8px;align-items:center;padding:3px 0;"><input type="checkbox" class="qb-pick" value="' + esc(x.l.id) + '" checked> <span><strong>' + esc(x.l.name) + '</strong>' + (sgNormName(x.l.name) !== sgNormName(x.p.name) ? ' <span style="color:#707070;">(QuickBooks: ' + esc(x.p.name) + ')</span>' : '') + '</span></label>'; };
+  out.innerHTML = '<div style="font-weight:700;">' + people.length + ' customer' + (people.length === 1 ? '' : 's') + ' in the QuickBooks ' + src + '</div>' +
+    (m.tag.length ? '<div style="margin-top:6px;font-weight:700;color:#0F6E56;">Will be marked Billing: in QuickBooks (' + m.tag.length + ')</div><div style="font-size:11.5px;color:#707070;">Untick anyone who is not billed there.</div>' + m.tag.map(line).join('') : '<div style="margin-top:6px;color:#707070;">Nobody new to mark.</div>') +
+    (m.have.length ? '<div style="margin-top:8px;color:#707070;"><strong>Already marked (' + m.have.length + '):</strong> ' + esc(m.have.map(function(x){ return x.l.name; }).join(', ')) + '</div>' : '') +
+    (m.gone.length ? '<div style="margin-top:8px;color:#707070;"><strong>In QuickBooks, but not an active customer here (' + m.gone.length + '):</strong> ' + esc(m.gone.map(function(x){ return x.l.name; }).join(', ')) + '</div>' : '') +
+    (m.none.length ? '<div style="margin-top:8px;color:#b45309;"><strong>Not found in the tracker (' + m.none.length + '):</strong> ' + esc(m.none.slice(0, 60).map(function(p){ return p.name; }).join(', ')) + (m.none.length > 60 ? ', and ' + (m.none.length - 60) + ' more' : '') + '<div style="font-size:11.5px;color:#707070;">Other QuickBooks customers, or a name spelled differently. Set those by hand on the card: Billing &rarr; in QuickBooks.</div></div>' : '');
+  var go = document.getElementById('qb-go'); if (go) go.style.display = m.tag.length ? 'inline-block' : 'none';
+}
+function qbPreview(){
+  var out = document.getElementById('qb-out'), f = (document.getElementById('qb-file') || {}).files, pasted = String((document.getElementById('qb-paste') || {}).value || '').trim();
+  if (f && f[0]){ out.innerHTML = 'Reading&hellip;'; qbReadFile(f[0]).then(function(rows){ qbShow(qbPeople(rows), 'file'); }).catch(function(e){ out.innerHTML = '<span style="color:#c0392b;">' + esc(e && e.message || 'Could not read that file.') + '</span>'; }); return; }
+  if (pasted){ qbShow(qbPeople(pasted.split(/\n/).map(function(x){ return [x.trim()]; })), 'list'); return; }
+  out.innerHTML = 'Pick the QuickBooks export, or paste the names.';
+}
+function qbApply(){
+  if (!qbPlan) return;
+  var ids = Array.prototype.map.call(document.querySelectorAll('.qb-pick:checked'), function(x){ return x.value; }), n = 0;
+  if (!ids.length){ toast('Nobody ticked'); return; }
+  if (!confirm('Mark ' + ids.length + ' customer' + (ids.length === 1 ? '' : 's') + ' as billed in QuickBooks? They stop getting statements and late fees from the tracker.')) return;
+  ids.forEach(function(id, i){
+    var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+    var m = fuParse(l.crmnotes); m.be = 'qbo'; stampBy(m); l.crmnotes = fuCompose(m); l.updated = new Date().toISOString(); n++;
+    setTimeout(function(){ post({ action: 'update', key: KEY, id: id, notes: l.crmnotes }); }, i * 250);   // spaced, so the script is not hit all at once
+  });
+  saveLocal(); render(); qbPlan = null;
+  document.getElementById('qb-go').style.display = 'none';
+  document.getElementById('qb-out').innerHTML = '<strong style="color:#0F6E56;">&#10003; ' + n + ' marked as billed in QuickBooks.</strong> Change any one on its card: Billing.';
+  toast(n + ' marked as billed in QuickBooks');
 }
 
 /* ============================================================

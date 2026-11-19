@@ -439,6 +439,41 @@ const { ok, done } = reporter();
   ok('a QuickBooks customer with visits is active, and the Owed list does not chase him', (await p.evaluate(() => !checkInfo(leads.filter(l => l.id === 'E1')[0]))) && /Eddie Eow 1 overdue.*\$190\s*(on card)?\s*billed elsewhere/.test((await p.textContent('#billing')).replace(/\s+/g, ' ')) && (await p.$$('#billing .pr-btn')).length === 0, (await p.textContent('#billing')).replace(/\s+/g, ' ').slice(-400));
   await p.evaluate(() => { setBilledElsewhere('E1', ''); setBilledElsewhere('Z1', ''); }); await p.waitForTimeout(300);
   ok('setting it back restores the normal rules', (await p.evaluate(() => !!checkInfo(leads.filter(l => l.id === 'Z1')[0]) && !billedElsewhere(leads.filter(l => l.id === 'E1')[0]))));
+  /* ---- the QuickBooks import ---- */
+  {
+    const zlib = require('zlib');
+    // a small real .xlsx: a zip of the shared strings and one sheet, deflated, as Excel writes it
+    const strs = ['Customer Contact List', 'Customer', 'Phone Numbers', 'Email', 'Deo, Dana', 'Edward Near', 'Somebody Else', 'Quinn, Quote', 'eddie@gmail.com', 'E. Eow'];
+    const cell = (ref, i) => '<c r="' + ref + '" t="s"><v>' + i + '</v></c>';
+    const sheet = '<?xml version="1.0"?><worksheet><sheetData><row r="1">' + cell('A1', 0) + '</row><row r="3">' + cell('A3', 1) + cell('B3', 2) + cell('C3', 3) + '</row><row r="4">' + cell('A4', 4) + '</row><row r="5">' + cell('A5', 5) + '</row><row r="6">' + cell('A6', 6) + '</row><row r="7">' + cell('A7', 7) + '</row><row r="8">' + cell('A8', 9) + cell('C8', 8) + '</row></sheetData></worksheet>';
+    const sst = '<?xml version="1.0"?><sst>' + strs.map(x => '<si><t>' + x + '</t></si>').join('') + '</sst>';
+    const parts = [['xl/sharedStrings.xml', sst], ['xl/worksheets/sheet1.xml', sheet]];
+    const chunks = [], central = []; let off = 0;
+    parts.forEach(([name, text]) => { const raw = Buffer.from(text), def = zlib.deflateRawSync(raw), nb = Buffer.from(name), crc = zlib.crc32(raw);
+      const lh = Buffer.alloc(30); lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(8, 8); lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(def.length, 18); lh.writeUInt32LE(raw.length, 22); lh.writeUInt16LE(nb.length, 26);
+      const ch = Buffer.alloc(46); ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(8, 10); ch.writeUInt32LE(crc, 16); ch.writeUInt32LE(def.length, 20); ch.writeUInt32LE(raw.length, 24); ch.writeUInt16LE(nb.length, 28); ch.writeUInt32LE(off, 42);
+      chunks.push(lh, nb, def); central.push(ch, nb); off += 30 + nb.length + def.length; });
+    const cd = Buffer.concat(central), eo = Buffer.alloc(22); eo.writeUInt32LE(0x06054b50, 0); eo.writeUInt16LE(2, 8); eo.writeUInt16LE(2, 10); eo.writeUInt32LE(cd.length, 12); eo.writeUInt32LE(off, 16);
+    const xlsx = Buffer.concat(chunks.concat([cd, eo]));
+    await p.evaluate(() => { document.getElementById('importPanel').style.display = 'block'; });
+    await p.setInputFiles('#qb-file', { name: 'customers.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: xlsx });
+    await p.click('#qb-import button:has-text("Preview")'); await p.waitForTimeout(500);
+    const qb = (await p.textContent('#qb-out')).replace(/\s+/g, ' ');
+    ok('the QuickBooks Excel export is read on the phone: five customers, the title row skipped', /5 customers in the QuickBooks file/.test(qb), qb.slice(0, 300));
+    ok('matched to active customers by name ("Deo, Dana"), by Sweep&Go\'s spelling (Edward Near is Near Ned) and by email (E. Eow)', /Will be marked Billing: in QuickBooks \(3\)/.test(qb) && /Dana Deo \(QuickBooks: Deo, Dana\)/.test(qb) && /Near Ned \(QuickBooks: Edward Near\)/.test(qb) && /Eddie Eow \(QuickBooks: E\. Eow\)/.test(qb), qb);
+    ok('someone in QuickBooks who is not an active customer here is listed apart, and a stranger is listed as not found', /not an active customer here \(1\): Quote Quinn/.test(qb) && /Not found in the tracker \(1\): Somebody Else/.test(qb), qb);
+    await p.uncheck('.qb-pick[value="N1"]');
+    await p.click('#qb-go'); await p.waitForTimeout(1200);
+    ok('Mark them tags the ticked ones and leaves the unticked one alone', posts.some(x => x.action === 'update' && x.id === 'D1' && /\[BE:qbo\]/.test(x.notes)) && posts.some(x => x.action === 'update' && x.id === 'E1' && /\[BE:qbo\]/.test(x.notes)) && !posts.some(x => x.id === 'N1' && /\[BE:qbo\]/.test(x.notes || '')) && /2 marked as billed in QuickBooks/.test(await p.textContent('#qb-out')));
+    await p.setInputFiles('#qb-file', { name: 'customers.csv', mimeType: 'text/csv', buffer: Buffer.from('Customer,Email\n"Deo, Dana",\nNear Ned,\n') });
+    await p.click('#qb-import button:has-text("Preview")'); await p.waitForTimeout(400);
+    const qb2 = (await p.textContent('#qb-out')).replace(/\s+/g, ' ');
+    ok('a CSV works too, and a second run only offers who is new', /Will be marked Billing: in QuickBooks \(1\)\s*Untick[^.]*\.\s*Near Ned/.test(qb2) && /Already marked \(1\): Dana Deo/.test(qb2), qb2);
+    await p.setInputFiles('#qb-file', []); await p.fill('#qb-paste', 'Paying Polly\nNobody At All');
+    await p.click('#qb-import button:has-text("Preview")'); await p.waitForTimeout(300);
+    ok('pasted names work without a file', /2 customers in the QuickBooks list/.test(await p.textContent('#qb-out')) && /Paying Polly/.test(await p.textContent('#qb-out')) && /Not found in the tracker \(1\): Nobody At All/.test((await p.textContent('#qb-out')).replace(/\s+/g, ' ')));
+    await p.evaluate(() => { setBilledElsewhere('D1', ''); setBilledElsewhere('E1', ''); document.getElementById('qb-paste').value = ''; document.getElementById('importPanel').style.display = 'none'; }); await p.waitForTimeout(300);
+  }
   /* ---- the owed tiles open a list with a pay link ---- */
   await p.evaluate(() => { foldAll(true); cashOwed = ''; render(); });
   await p.click('#cash .owed-tile >> nth=0'); await p.waitForTimeout(200);
