@@ -395,8 +395,8 @@
       </div>
       <div id="qb-import" style="border-top:1px solid #eee;margin-top:14px;padding-top:12px;">
         <div style="font-weight:800;font-size:14px;margin-bottom:4px;">&#129534; Customers billed in QuickBooks</div>
-        <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:8px;">In QuickBooks: <strong>Sales &rarr; Customers</strong>, then the export icon above the list (Export to Excel). Pick that file here. Everyone on it who is an active customer in the tracker gets <strong>Billing: in QuickBooks</strong>, so they are never chased for money Sweep&amp;Go cannot see. You see the list first. The file is read on this phone and is not uploaded.</div>
-        <input type="file" id="qb-file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="font-size:12.5px;">
+        <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:8px;">In QuickBooks: <strong>Sales &rarr; Customers</strong>, then the export icon above the list (Export to Excel). Pick that file here; a PDF from QuickBooks works too. Everyone on it who is an active customer in the tracker gets <strong>Billing: in QuickBooks</strong>, so they are never chased for money Sweep&amp;Go cannot see. You see the list first. The file is read on this phone and is not uploaded.</div>
+        <input type="file" id="qb-file" accept=".xlsx,.xls,.csv,.pdf,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="font-size:12.5px;">
         <textarea id="qb-paste" rows="3" placeholder="Or paste the names here, one a line" style="width:100%;margin-top:8px;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;font-family:inherit;box-sizing:border-box;"></textarea>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
           <button class="copybtn" onclick="qbPreview()">Preview</button>
@@ -5879,6 +5879,53 @@ function qbReadFile(f){
   if (/\.xlsx?$/i.test(f.name)) return f.arrayBuffer().then(qbXlsx);
   return f.text().then(qbCsv);
 }
+/* A PDF (what QuickBooks hands a phone: a customer list, a transaction list,
+   a statement). Its layout cannot be trusted to give a clean name column,
+   so it is searched the other way round: every customer in the tracker is
+   looked for in the PDF's text, by name, email or phone. The reader is
+   Mozilla's pdf.js, kept beside this page (vendor/) and loaded only when a
+   PDF is picked. The file is read on this phone, never uploaded. */
+var qbPdfLib = null;
+function qbPdfLoad(){
+  if (qbPdfLib) return qbPdfLib;
+  qbPdfLib = new Promise(function(res, rej){
+    if (window.pdfjsLib) return res(window.pdfjsLib);
+    var s = document.createElement('script'); s.src = 'vendor/pdf.min.js';
+    s.onload = function(){ if (!window.pdfjsLib) return rej(new Error('The PDF reader did not load.')); window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js'; res(window.pdfjsLib); };
+    s.onerror = function(){ qbPdfLib = null; rej(new Error('The PDF reader did not load. Check the connection and try again.')); };
+    document.head.appendChild(s);
+  });
+  return qbPdfLib;
+}
+function qbPdfText(f){
+  return Promise.all([qbPdfLoad(), f.arrayBuffer()]).then(function(x){
+    return x[0].getDocument({ data: x[1] }).promise.then(function(doc){
+      var pages = []; for (var i = 1; i <= Math.min(doc.numPages, 60); i++) pages.push(i);
+      return pages.reduce(function(chain, n){ return chain.then(function(acc){ return doc.getPage(n).then(function(pg){ return pg.getTextContent(); }).then(function(tc){
+        // one line per row of the page: items that share a height, left to right
+        var rows = {}; tc.items.forEach(function(it){ var y = Math.round(it.transform[5] / 3); (rows[y] = rows[y] || []).push(it); });
+        Object.keys(rows).sort(function(a, b){ return b - a; }).forEach(function(y){ acc.push(rows[y].sort(function(a, b){ return a.transform[4] - b.transform[4]; }).map(function(it){ return it.str; }).join(' ')); });
+        return acc; }); }); }, Promise.resolve([])).then(function(lines){ return lines.join('\n'); });
+    });
+  });
+}
+function qbMatchText(text){
+  var norm = ' ' + sgNormName(text) + ' ', low = String(text).toLowerCase(), phones = {};
+  (String(text).match(/\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}/g) || []).forEach(function(x){ phones[x.replace(/\D/g, '')] = 1; });
+  var inText = function(l){
+    var em = String(l.email || '').trim().toLowerCase(); if (em && em.indexOf('@') > 0 && low.indexOf(em) >= 0) return true;
+    var ph = String(l.phone || '').replace(/\D/g, '').slice(-10); if (ph.length === 10 && phones[ph]) return true;
+    return namesOf(l).some(function(k){ var tk = k.split(' ').filter(Boolean); if (tk.length < 2) return false;   // "Kelly" alone would match half a page
+      return norm.indexOf(' ' + k + ' ') >= 0 || norm.indexOf(' ' + tk[tk.length - 1] + ' ' + tk.slice(0, -1).join(' ') + ' ') >= 0; });
+  };
+  var tag = [], have = [], gone = [];
+  leads.filter(isLead).forEach(function(l){
+    if (!inText(l)) return;
+    var x = { p: { name: l.name }, l: l };
+    if ((l.status || 'new') !== 'closed') gone.push(x); else if (billedElsewhere(l) && billedElsewhere(l).how === 'qbo') have.push(x); else tag.push(x);
+  });
+  return { tag: tag, have: have, gone: gone, none: [], pdf: true };
+}
 /* the people in the file: the name column, and a phone and email where the export has them */
 function qbPeople(rows){
   var hi = -1, ci = {};
@@ -5937,9 +5984,14 @@ function qbUndo(){
 function qbShow(people, src){
   var out = document.getElementById('qb-out'); if (!out) return;
   if (!people.length){ out.innerHTML = 'No names found in that ' + src + '. The file needs a column headed Customer or Name.'; return; }
-  var m = qbPlan = qbMatch(people);
+  qbRender(qbMatch(people), people.length + ' customer' + (people.length === 1 ? '' : 's') + ' in the QuickBooks ' + src);
+}
+function qbRender(m, title){
+  var out = document.getElementById('qb-out'); if (!out) return;
+  qbPlan = m;
   var line = function(x){ return '<label style="display:flex;gap:8px;align-items:center;padding:3px 0;"><input type="checkbox" class="qb-pick" value="' + esc(x.l.id) + '" checked> <span><strong>' + esc(x.l.name) + '</strong>' + (sgNormName(x.l.name) !== sgNormName(x.p.name) ? ' <span style="color:#707070;">(QuickBooks: ' + esc(x.p.name) + ')</span>' : '') + '</span></label>'; };
-  out.innerHTML = '<div style="font-weight:700;">' + people.length + ' customer' + (people.length === 1 ? '' : 's') + ' in the QuickBooks ' + src + '</div>' +
+  out.innerHTML = '<div style="font-weight:700;">' + title + '</div>' +
+    (m.pdf ? '<div style="font-size:11.5px;color:#707070;">A PDF is searched for the customers you already have, by name, email or phone. Anyone in it who is not in the tracker cannot be listed.</div>' : '') +
     (m.tag.length > 15 ? '<div style="background:#FFF4E5;color:#7a4a00;border-radius:9px;padding:8px 11px;margin-top:6px;font-weight:700;">That is a lot of people for a QuickBooks list. Check this is the QuickBooks export and not a full customer list before marking.</div>' : '') +
     (m.tag.length ? '<div style="margin-top:6px;font-weight:700;color:#0F6E56;">Will be marked Billing: in QuickBooks (' + m.tag.length + ')</div><div style="font-size:11.5px;color:#707070;">Untick anyone who is not billed there.</div>' + m.tag.map(line).join('') : '<div style="margin-top:6px;color:#707070;">Nobody new to mark.</div>') +
     (m.have.length ? '<div style="margin-top:8px;color:#707070;"><strong>Already marked (' + m.have.length + '):</strong> ' + esc(m.have.map(function(x){ return x.l.name; }).join(', ')) + '</div>' : '') +
@@ -5949,6 +6001,7 @@ function qbShow(people, src){
 }
 function qbPreview(){
   var out = document.getElementById('qb-out'), f = (document.getElementById('qb-file') || {}).files, pasted = String((document.getElementById('qb-paste') || {}).value || '').trim();
+  if (f && f[0] && (/\.pdf$/i.test(f[0].name) || f[0].type === 'application/pdf')){ out.innerHTML = 'Reading the PDF&hellip;'; qbPdfText(f[0]).then(function(text){ if (!String(text).trim()){ out.innerHTML = 'That PDF has no text in it (it may be a scan or a photo). Paste the names in the box instead.'; return; } qbRender(qbMatchText(text), 'Searched the PDF for your customers'); }).catch(function(e){ out.innerHTML = '<span style="color:#c0392b;">' + esc(e && e.message || 'Could not read that PDF.') + '</span>'; }); return; }
   if (f && f[0]){ out.innerHTML = 'Reading&hellip;'; qbReadFile(f[0]).then(function(rows){ qbShow(qbPeople(rows), 'file'); }).catch(function(e){ out.innerHTML = '<span style="color:#c0392b;">' + esc(e && e.message || 'Could not read that file.') + '</span>'; }); return; }
   if (pasted){ qbShow(qbPeople(pasted.split(/\n/).map(function(x){ return [x.trim()]; })), 'list'); return; }
   out.innerHTML = 'Pick the QuickBooks export, or paste the names.';

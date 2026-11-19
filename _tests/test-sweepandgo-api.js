@@ -473,6 +473,21 @@ const { ok, done } = reporter();
     await p.click('#qb-import button:has-text("Preview")'); await p.waitForTimeout(400);
     const qb2 = (await p.textContent('#qb-out')).replace(/\s+/g, ' ');
     ok('a CSV works too, and a second run only offers who is new', /Will be marked Billing: in QuickBooks \(1\)\s*Untick[^.]*\.\s*Near Ned/.test(qb2) && /Already marked \(1\): Dana Deo/.test(qb2), qb2);
+    /* a PDF, as QuickBooks hands a phone: the tracker's customers are looked for in its text */
+    {
+      const lines = ['Sales transactions', 'Deo, Dana   Invoice 1391   $85.80   Overdue 49 days', 'Edward Near   Payment   VENMO   Closed', 'Quinn Quote   Invoice 1390', 'Stranger Dan   Invoice 1388', 'Pat called about the gate'];
+      const content = 'BT /F1 11 Tf 40 760 Td ' + lines.map((x, i) => (i ? '0 -22 Td ' : '') + '(' + x.replace(/[()\\]/g, '\\$&') + ') Tj').join(' ') + ' ET';
+      const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>', '<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+      let pdf = '%PDF-1.4\n'; const offs = [];
+      objs.forEach((o, i) => { offs.push(pdf.length); pdf += (i + 1) + ' 0 obj\n' + o + '\nendobj\n'; });
+      const xref = pdf.length; pdf += 'xref\n0 6\n0000000000 65535 f \n' + offs.map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('') + 'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF';
+      await p.setInputFiles('#qb-file', { name: 'transactions.pdf', mimeType: 'application/pdf', buffer: Buffer.from(pdf, 'latin1') });
+      await p.click('#qb-import button:has-text("Preview")');
+      await p.waitForFunction(() => !/Reading/.test(document.getElementById('qb-out').textContent), null, { timeout: 20000 });
+      const qp = (await p.textContent('#qb-out')).replace(/\s+/g, ' ');
+      ok('a PDF is read on the phone and searched for your customers: Near Ned by Sweep&Go\'s spelling; Dana, "Deo, Dana" in the PDF, is already marked', /Searched the PDF for your customers/.test(qp) && /Will be marked Billing: in QuickBooks \(1\).*Near Ned/.test(qp) && /Already marked \(1\): Dana Deo/.test(qp), qp);
+      ok('someone in it who is not active is set apart; a one-word name like Pat is never matched on its own; strangers cannot be listed and it says so', /not an active customer here \(1\): Quote Quinn/.test(qp) && !/Paused Pat/.test(qp) && !/Stranger/.test(qp) && /Anyone in it who is not in the tracker cannot be listed/.test(qp), qp);
+    }
     await p.setInputFiles('#qb-file', []); await p.fill('#qb-paste', 'Paying Polly\nNobody At All');
     await p.click('#qb-import button:has-text("Preview")'); await p.waitForTimeout(300);
     ok('pasted names work without a file', /2 customers in the QuickBooks list/.test(await p.textContent('#qb-out')) && /Paying Polly/.test(await p.textContent('#qb-out')) && /Not found in the tracker \(1\): Nobody At All/.test((await p.textContent('#qb-out')).replace(/\s+/g, ' ')));
