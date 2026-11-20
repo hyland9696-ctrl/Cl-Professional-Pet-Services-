@@ -26,6 +26,13 @@ const refCode = (l) => { const first = String(l.name).trim().split(/\s+/)[0].toL
     await p.route('**/script.google.com/**?action=days**', r => r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, zips: { '63376': ['tue', 'thu'] } }) }));
     await p.fill('#q-zip', '63376'); await p.waitForTimeout(700);
     ok('the quote page says which days we are already on this ZIP\'s streets, from the route, with nothing about anyone', /We’re already on 63376’s streets on Tuesdays and Thursdays\./.test(await p.textContent('#q-zipmsg')), await p.textContent('#q-zipmsg'));
+    /* a one-time job is priced by the time on site, so a big yard or 5+ dogs still gets its price at once */
+    await p.evaluate(() => { qSet('freq', 'onetime', document.querySelector('#q-freq [data-v="onetime"]')); qSet('yard', 'large', document.querySelector('[data-v="large"]')); qSet('dogs', '5', document.querySelector('[data-v="5"]')); });
+    await p.waitForTimeout(300);
+    ok('one-time on a yard over a quarter acre with 5+ dogs shows from $75 and the extra-time rate, not "we will quote you"', /from \$75/.test(await p.textContent('#q-price')) && /then \$20 per extra 15 minutes/.test(await p.textContent('#q-price-note')), (await p.textContent('#q-price')) + ' | ' + (await p.textContent('#q-price-note')));
+    await p.evaluate(() => { qSet('freq', 'weekly', document.querySelector('#q-freq [data-v="weekly"]')); }); await p.waitForTimeout(300);
+    ok('the same big yard on a weekly plan still gets a hand-built quote', !/^\$\d/.test((await p.textContent('#q-price')).trim()), await p.textContent('#q-price'));
+    await p.evaluate(() => { qSet('yard', 'small', document.querySelector('[data-v="small"]')); qSet('dogs', '1', document.querySelector('#q-dogs [data-v="1"], [data-v="1"]')); }); await p.waitForTimeout(300);
     await p.fill('#qf2-name', 'Gina Guest'); await p.fill('#qf2-phone', '(636) 375-0104');
     ok('somebody who came through a customer\'s link is told so on the quote page', await p.isVisible('#ref-note') && /A customer of ours sent you/.test(await p.textContent('#ref-note')));
     await p.fill('#qf2-email', 'gina@gmail.com'); await p.fill('#qf2-addr', '12 Elm St');

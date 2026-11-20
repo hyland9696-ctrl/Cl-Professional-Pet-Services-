@@ -1348,8 +1348,13 @@
     if (!PRICING || typeof clppsQuote !== 'function'){
       return { manual: true, reason: 'noprice' };
     }
-    if (q.yard === 'large') return { manual: true, reason: 'yard' };
-    if (q.dogs === '5')     return { manual: true, reason: '5+ dogs' };
+    // A one-time job is priced by the time on site ($75 for the first 30
+    // minutes, then per extra 15), so a big yard or a big pack changes the
+    // bill on the day, not the quote. Jesse: "it doesn't matter because we
+    // already state on our one time prices that after 30 min the price goes up".
+    var once = q.freq === 'onetime';
+    if (q.yard === 'large' && !once) return { manual: true, reason: 'yard' };
+    if (q.dogs === '5' && !once)     return { manual: true, reason: '5+ dogs' };
     var off = qDeoSeason() !== 'on';
     var p = clppsQuote({ zip: q.zip, dogs: q.dogs, freq: q.freq, deo: off ? 'none' : q.deo });
     // chosen, but not until the season reopens: on the lead, never in the price
