@@ -347,6 +347,15 @@ def ensure_pricing_script(html):
     return html.replace('  <script src="/meta-pixel.js', '  <script src="/pricing.js"></script>\n  <script src="/meta-pixel.js', 1)
 
 
+def ensure_ads_script(html):
+    """Every page loads google-ads.js (Google Ads conversions; does nothing
+    until its ID is filled in), straight after the Meta pixel."""
+    if 'src="/google-ads.js' in html:
+        return html
+    return re.sub(r'([ \t]*)<script( defer)? src="/meta-pixel\.js(\?v=[0-9a-f]+)?"></script>',
+                  lambda m: m.group(0) + '\n' + m.group(1) + '<script defer src="/google-ads.js"></script>', html, count=1)
+
+
 def fix_schema(html, name, state, slug):
     """One shared business record, in a marked block the generator owns. The
     first time through, the page's original hand-written LocalBusiness block
@@ -542,6 +551,7 @@ def run(check=False):
             html = path.read_text()
         out = html
         out = ensure_pricing_script(out)
+        out = ensure_ads_script(out)
         out = live_reviews(out)
         out = defer_scripts(out)
         out = style_additions(out)

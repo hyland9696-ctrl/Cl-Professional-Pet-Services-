@@ -381,6 +381,7 @@
   <script src="/lead-source.js?v=1854a505"></script>
   <script defer src="/reviews.js?v=0d1bf809"></script>
   <script defer src="/meta-pixel.js?v=38fe5a84"></script>
+  <script defer src="/google-ads.js?v=59ba62d5"></script>
 </head>
 <body>
 <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -1495,6 +1496,7 @@
       // A commercial callback request is an inquiry, not an activation, so it
       // is reported as Contact and never as a Lead conversion.
       if (window.clppsTrack) clppsTrack('Contact', { content_name: 'Commercial inquiry', content_category: ptype });
+      if (window.clppsAds) clppsAds('commercial');
       document.getElementById('c-form-area').style.display = 'none';
       document.getElementById('c-success').classList.add('show');
     }).catch(function(){
@@ -1904,6 +1906,7 @@
          for an ad set to learn from. CompleteRegistration is the standard
          event for "filled in the form", fires once per visit, and gives the
          ads a conversion with enough volume to optimise on. */
+      if (window.clppsAds) clppsAds('quote', p.manual ? 0 : p.total);   // Google Ads: the same moment
       if (window.clppsTrack) clppsTrack('CompleteRegistration', {
         content_name: 'Quote requested', content_category: q.freq,
         status: p.manual ? 'manual' : 'priced',
@@ -1958,6 +1961,7 @@
         // Meta's Lead event means one thing only: a confirmed activation.
         if (!leadTracked){
           leadTracked = true;
+          if (window.clppsAds) clppsAds('activated', p.manual ? 0 : p.total);
           if (window.clppsTrack) clppsTrack('Lead', {
             content_name: 'Activated service', content_category: q.freq,
             value: p.manual ? 0 : p.total, currency: 'USD'
