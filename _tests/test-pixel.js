@@ -50,8 +50,11 @@ async function toPrice(p, who){
     ok('CompleteRegistration fires once per visit, whatever they change', ev.filter(e => e === 'CompleteRegistration').length === 1, ev.join(','));
 
     await p.check('#qf2-tos');
+    // a yes moves on to the thank-you page; hold that move here so the events on this page can be read
+    let wentTo = ''; await p.route('**/thank-you/**', r => { wentTo = r.request().url(); r.fulfill({ status: 204, body: '' }); });
     await p.click('#q-yes-btn'); await p.waitForTimeout(800);
     ev = await events(p);
+    ok('and then heads for the thank-you page, with the sale noted for it', /\/thank-you\/\?t=start$/.test(wentTo) && (await p.evaluate(() => (JSON.parse(sessionStorage.getItem('clpps_ty') || '{}')).k)) === 'start', wentTo);
     ok('activating sends Lead, once', ev.filter(e => e === 'Lead').length === 1, ev.join(','));
     ok('no page errors', errs.length === 0, errs.join('; '));
     await p.close();

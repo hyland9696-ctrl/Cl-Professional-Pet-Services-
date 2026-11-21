@@ -1496,9 +1496,9 @@
       // A commercial callback request is an inquiry, not an activation, so it
       // is reported as Contact and never as a Lead conversion.
       if (window.clppsTrack) clppsTrack('Contact', { content_name: 'Commercial inquiry', content_category: ptype });
-      if (window.clppsAds) clppsAds('commercial');
       document.getElementById('c-form-area').style.display = 'none';
       document.getElementById('c-success').classList.add('show');
+      qThanks('commercial', 0);
     }).catch(function(){
       var body = Object.keys(payload).map(function(k){ return k + ': ' + payload[k]; }).join('%0D%0A');
       window.location.href = 'mailto:' + BIZ_EMAIL + '?subject=Commercial%20Inquiry&body=' + body;
@@ -1961,7 +1961,6 @@
         // Meta's Lead event means one thing only: a confirmed activation.
         if (!leadTracked){
           leadTracked = true;
-          if (window.clppsAds) clppsAds('activated', p.manual ? 0 : p.total);
           if (window.clppsTrack) clppsTrack('Lead', {
             content_name: 'Activated service', content_category: q.freq,
             value: p.manual ? 0 : p.total, currency: 'USD'
@@ -1972,6 +1971,9 @@
           content_category: q.freq, value: p.manual ? 0 : p.total, currency: 'USD'
         });
       }
+      // a yes goes to the thank-you page, which reports the sale to Google Ads once;
+      // the short wait lets the Meta event leave before the page changes
+      if (accept){ qThanks('start', p.manual ? 0 : p.total); return; }
       qDone(accept, p);
     }, function(){
       // The email failed but the sheet row is already in. Hand them off to
@@ -1981,6 +1983,10 @@
       btn.disabled = false; btn.textContent = label;
       qAnswered = false;
     });
+  }
+  function qThanks(kind, value){
+    try { sessionStorage.setItem('clpps_ty', JSON.stringify({ k: kind, v: value || 0, at: Date.now() })); } catch (e) {}
+    setTimeout(function(){ window.location.href = '/thank-you/?t=' + kind; }, 350);
   }
   function qDone(accept, p){
     document.getElementById('q-price-area').style.display = 'none';

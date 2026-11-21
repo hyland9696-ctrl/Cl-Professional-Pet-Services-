@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Thank You | CL Professional Pet Services</title>
+<link rel="icon" type="image/png" href="/images/logo.png">
+<script defer src="/meta-pixel.js?v=38fe5a84"></script>
+<script defer src="/google-ads.js?v=59ba62d5"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;background:#f4f6f5;line-height:1.6;}
+.top{background:#fff;border-bottom:1px solid #e8e8e8;padding:14px 20px;display:flex;align-items:center;gap:10px;}
+.top img{width:42px;height:42px;object-fit:contain;}
+.top b{font-size:14px;display:block;}
+.top small{font-size:11px;color:#707070;}
+.top a{color:inherit;text-decoration:none;display:flex;align-items:center;gap:10px;}
+.wrap{max-width:560px;margin:0 auto;padding:28px 18px 60px;}
+.card{background:#fff;border-radius:18px;box-shadow:0 6px 28px rgba(0,0,0,0.08);overflow:hidden;}
+.head{background:linear-gradient(135deg,#188663,#0F6E56);color:#fff;padding:30px 24px;text-align:center;}
+.head .icon{font-size:44px;line-height:1;}
+.head h1{font-size:25px;margin:10px 0 4px;}
+.head p{font-size:15px;opacity:0.94;}
+.sec{padding:20px 24px;}
+.sec h2{font-size:15px;color:#0F6E56;margin-bottom:8px;}
+.step{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid #f1f1f1;font-size:14.5px;}
+.step:last-child{border-bottom:none;}
+.step b{flex:none;width:26px;height:26px;border-radius:50%;background:#E8F5EF;color:#0F6E56;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 24px 22px;}
+.btn{display:block;text-align:center;background:#0F6E56;color:#fff;text-decoration:none;font-weight:800;font-size:15px;border-radius:12px;padding:13px;}
+.btn.ghost{background:#fff;color:#0F6E56;border:2px solid #0F6E56;}
+.foot{text-align:center;font-size:12.5px;color:#707070;margin-top:18px;}
+.foot a{color:#0F6E56;font-weight:700;text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="top"><a href="/"><img src="/images/logo.png" alt=""><div><b>CL Professional Pet Services</b><small>St. Peters, MO &middot; (636) 375-4342</small></div></a></div>
+<div class="wrap">
+  <div class="card">
+    <div class="head"><div class="icon" id="ty-icon">&#127881;</div><h1 id="ty-title">Thank you!</h1><p id="ty-sub">We got it, and we&rsquo;ll be in touch soon.</p></div>
+    <div class="sec"><h2>What happens next</h2><div id="ty-steps"></div></div>
+    <div class="btns"><a class="btn" href="tel:+16363754342">Call us</a><a class="btn ghost" href="sms:+16363754342">Text us</a></div>
+  </div>
+  <div class="foot"><a href="/">Back to the home page</a> &middot; <a href="mailto:info@clpropetservices.com">info@clpropetservices.com</a></div>
+</div>
+<script>
+/* The page people land on after sending a form. ?t= says which one:
+   start (said yes to their price), commercial, contact. The form that sent
+   them here leaves a one-time note in sessionStorage; the conversion is
+   reported only when that note is there, so a refresh, a bookmark or a
+   typed address never counts as a second sale. */
+var KINDS = {
+  start: { icon: '&#127881;', title: 'You&rsquo;re on the list!', sub: 'Your sign-up is in our inbox.',
+    steps: ['We&rsquo;ll call or text within one business day to confirm your start date.', 'We set up your account and send a secure link for the card on file.', 'On your first visit we clean the whole yard and send a photo when it&rsquo;s done.'], ads: 'activated' },
+  commercial: { icon: '&#127970;', title: 'Thanks, we have your request', sub: 'Someone will call you back within one business day.',
+    steps: ['We look over the property details you sent.', 'We call to ask a few questions and set a time to walk the site.', 'You get a written proposal with the price and the schedule.'], ads: 'commercial' },
+  contact: { icon: '&#9993;&#65039;', title: 'Message sent', sub: 'We read every one and reply within one business day.',
+    steps: ['Your message is in our inbox.', 'We&rsquo;ll reply by email, or call if you left a number.', 'Need us sooner? Call or text the number below.'], ads: '' }
+};
+(function(){
+  var t = new URLSearchParams(location.search).get('t') || '', K = KINDS[t] || { icon: '&#128075;', title: 'Thank you!', sub: 'We got it, and we&rsquo;ll be in touch soon.', steps: ['Your request is in our inbox.', 'We&rsquo;ll be in touch within one business day.', 'Need us sooner? Call or text the number below.'], ads: '' };
+  document.getElementById('ty-icon').innerHTML = K.icon;
+  document.getElementById('ty-title').innerHTML = K.title;
+  document.getElementById('ty-sub').innerHTML = K.sub;
+  document.getElementById('ty-steps').innerHTML = K.steps.map(function(s, i){ return '<div class="step"><b>' + (i + 1) + '</b><span>' + s + '</span></div>'; }).join('');
+  var note = null; try { note = JSON.parse(sessionStorage.getItem('clpps_ty') || 'null'); sessionStorage.removeItem('clpps_ty'); } catch (e) {}
+  window.clppsThanks = { kind: t, counted: false };
+  if (!note || note.k !== t || !K.ads) return;
+  if (!(Date.now() - (note.at || 0) < 600000)) return;   // ten minutes: an old note is not a fresh sale
+  window.clppsThanks.counted = true;
+  // the tracking files load deferred, so wait for the page before reporting
+  window.addEventListener('load', function(){ try { if (window.clppsAds) clppsAds(K.ads, +note.v || 0); } catch (e) {} });
+})();
+</script>
+</body>
+</html>

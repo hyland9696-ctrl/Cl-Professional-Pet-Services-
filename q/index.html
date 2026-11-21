@@ -197,7 +197,6 @@ function authorizeQuote(){
   var btn = document.getElementById('az-btn');
   btn.disabled = true; btn.textContent = 'Authorizing\u2026';
   var priceStr = document.getElementById('q-price').textContent + (QP.t === 'once' ? ' one-time' : '');
-  if (window.clppsAds) clppsAds('activated', parseFloat(String(QP.p || '0').replace(/[^0-9.]/g, '')) || 0);
   if (window.clppsTrack) clppsTrack('Purchase', {
     content_name: 'Authorized their quote', content_category: QP.sv || '',
     value: parseFloat(String(QP.p || '0').replace(/[^0-9.]/g, '')) || 0, currency: 'USD'
@@ -218,6 +217,9 @@ function authorizeQuote(){
     document.getElementById('tosd').style.display = 'none';
     document.getElementById('az-done').style.display = 'block';
     window.scrollTo({top:0, behavior:'smooth'});
+    // on to the thank-you page, which reports the sale to Google Ads once
+    try { sessionStorage.setItem('clpps_ty', JSON.stringify({ k: 'start', v: parseFloat(String(QP.p || '0').replace(/[^0-9.]/g, '')) || 0, at: Date.now() })); } catch (e) {}
+    setTimeout(function(){ window.location.href = '/thank-you/?t=start'; }, 350);
   };
   try {
     fetch('https://script.google.com/macros/s/AKfycbzyQ1guq2GPodjaO0fM-qeO5tez3irnCqYPZpUKnc5Ine3x4DhVhZz5WNcDmZgJzdEsKg/exec', {
