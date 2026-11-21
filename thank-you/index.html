@@ -7,7 +7,7 @@
 <title>Thank You | CL Professional Pet Services</title>
 <link rel="icon" type="image/png" href="/images/logo.png">
 <script defer src="/meta-pixel.js?v=38fe5a84"></script>
-<script defer src="/google-ads.js?v=59ba62d5"></script>
+<script defer src="/google-ads.js?v=f411da2e"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;background:#f4f6f5;line-height:1.6;}
@@ -70,7 +70,7 @@ var KINDS = {
   if (!(Date.now() - (note.at || 0) < 600000)) return;   // ten minutes: an old note is not a fresh sale
   window.clppsThanks.counted = true;
   // the tracking files load deferred, so wait for the page before reporting
-  window.addEventListener('load', function(){ try { if (window.clppsAds) clppsAds(K.ads, +note.v || 0); } catch (e) {} });
+  window.addEventListener('load', function(){ try { if (window.clppsAds) clppsAds(K.ads, +note.v || 0, note.id || ''); } catch (e) {} });
 })();
 </script>
 </body>

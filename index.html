@@ -381,7 +381,7 @@
   <script src="/lead-source.js?v=1854a505"></script>
   <script defer src="/reviews.js?v=0d1bf809"></script>
   <script defer src="/meta-pixel.js?v=38fe5a84"></script>
-  <script defer src="/google-ads.js?v=59ba62d5"></script>
+  <script defer src="/google-ads.js?v=f411da2e"></script>
 </head>
 <body>
 <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -1900,13 +1900,13 @@
     crmCapture(qCrmRow('ENQUIRY', p, '', qEnquiry.filed));
     if (!qEnquiry.filed){
       qEnquiry.filed = true;
-      qMail(qPayload('ENQUIRY', p, ''), function(){}, function(){});
+      // Google Ads "Quote Lead": only once the details have really been sent on
+      qMail(qPayload('ENQUIRY', p, ''), function(){ if (window.clppsAds) clppsAds('quote'); }, function(){});
       /* The moment they hand over a name and phone. Meta's Lead event is
          kept for a confirmed activation, which is right but rare - too rare
          for an ad set to learn from. CompleteRegistration is the standard
          event for "filled in the form", fires once per visit, and gives the
          ads a conversion with enough volume to optimise on. */
-      if (window.clppsAds) clppsAds('quote', p.manual ? 0 : p.total);   // Google Ads: the same moment
       if (window.clppsTrack) clppsTrack('CompleteRegistration', {
         content_name: 'Quote requested', content_category: q.freq,
         status: p.manual ? 'manual' : 'priced',
@@ -1966,7 +1966,10 @@
             value: p.manual ? 0 : p.total, currency: 'USD'
           });
         }
-      } else if (window.clppsTrackCustom){
+      } else {
+        if (window.clppsAds && why) clppsAds('declined');   // Google Ads "Quote Declined": the no and its reason are saved
+      }
+      if (!accept && window.clppsTrackCustom){
         clppsTrackCustom('QuoteDeclined', {
           content_category: q.freq, value: p.manual ? 0 : p.total, currency: 'USD'
         });
@@ -1985,7 +1988,7 @@
     });
   }
   function qThanks(kind, value){
-    try { sessionStorage.setItem('clpps_ty', JSON.stringify({ k: kind, v: value || 0, at: Date.now() })); } catch (e) {}
+    try { sessionStorage.setItem('clpps_ty', JSON.stringify({ k: kind, v: value || 0, at: Date.now(), id: window.clppsAdsVisit ? clppsAdsVisit() : '' })); } catch (e) {}
     setTimeout(function(){ window.location.href = '/thank-you/?t=' + kind; }, 350);
   }
   function qDone(accept, p){

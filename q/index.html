@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Your Quote | CL Professional Pet Services</title>
 <link rel="icon" type="image/png" href="/images/logo.png">
-<script defer src="/google-ads.js?v=59ba62d5"></script>
+<script defer src="/google-ads.js?v=f411da2e"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;background:#f4f6f5;line-height:1.6;}
@@ -218,7 +218,7 @@ function authorizeQuote(){
     document.getElementById('az-done').style.display = 'block';
     window.scrollTo({top:0, behavior:'smooth'});
     // on to the thank-you page, which reports the sale to Google Ads once
-    try { sessionStorage.setItem('clpps_ty', JSON.stringify({ k: 'start', v: parseFloat(String(QP.p || '0').replace(/[^0-9.]/g, '')) || 0, at: Date.now() })); } catch (e) {}
+    try { sessionStorage.setItem('clpps_ty', JSON.stringify({ k: 'start', v: parseFloat(String(QP.p || '0').replace(/[^0-9.]/g, '')) || 0, at: Date.now(), id: window.clppsAdsVisit ? clppsAdsVisit() : '' })); } catch (e) {}
     setTimeout(function(){ window.location.href = '/thank-you/?t=start'; }, 350);
   };
   try {
