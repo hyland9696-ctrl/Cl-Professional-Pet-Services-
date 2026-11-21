@@ -424,6 +424,23 @@ const { ok, done } = reporter();
   await p.click('#stmt button:has-text("Send 30 now")'); await p.waitForTimeout(300);
   ok('and sends 30 a tap', refinvites.length === 2 && !refinvites[1].preview && !(await p.isVisible('#stmt')));
   await p.evaluate(() => { leads = leads.filter(l => !/^W[PGDSLR]$/.test(l.id)); foldAll(false); render(); });
+  /* ---- "Priced -> said yes" is one group of people over whole days, so it holds still ---- */
+  {
+    const tile = () => p.evaluate(() => { renderTraffic(); return document.querySelector('#t-nums .stat:nth-child(5)').textContent.replace(/\s+/g, ' '); });
+    const base = await tile();
+    ok('the tile shows the rate with its counts: the site leads shown a price in the last 30 days, and how many said yes', /^\d+%Priced → said yes\s*\d+ of \d+$/.test(base), base);
+    const n = (t) => t.match(/(\d+) of (\d+)/).slice(1).map(Number);
+    const [y0, d0] = n(base);
+    // a customer the sync added (never shown a site price) and more price views by the same visitors change nothing
+    const same = await p.evaluate(() => { leads.push({ id:'SYN9', type:'SAVED', name:'Synced Sam', status:'closed', price:'$85/mo', crmnotes:'[QA:a] [SGID:x9] ', created: new Date().toISOString() }); for (let i = 0; i < 5; i++) qviews.push({ id:'qvx' + i, type:'QVIEW', created: new Date().toISOString() }); renderTraffic(); const t = document.querySelector('#t-nums .stat:nth-child(5)').textContent.replace(/\s+/g, ' '); leads = leads.filter(l => l.id !== 'SYN9'); qviews = qviews.filter(v => !/^qvx/.test(v.id)); return t; });
+    ok('a customer added by the Sweep&Go sync and repeat price views do not move it', same === base, same + ' vs ' + base);
+    // a priced site lead from 29 days ago counts all day long; from 31 days ago it does not
+    const edge = await p.evaluate(() => { const at = (d, h) => { const x = new Date(); x.setDate(x.getDate() - d); x.setHours(h, 0, 0, 0); return x.toISOString(); };
+      leads.push({ id:'ED1', type:'ENQUIRY', name:'Edge One', status:'new', price:'$85/mo', crmnotes:'', created: at(30, 1) }); leads.push({ id:'ED2', type:'ENQUIRY', name:'Edge Two', status:'new', price:'$85/mo', crmnotes:'', created: at(31, 23) }); leads.push({ id:'ED3', type:'ACTIVATE', name:'Edge Yes', status:'new', price:'$85/mo', crmnotes:'', created: at(2, 9) }); leads.push({ id:'ED4', type:'ENQUIRY', name:'Edge Manual', status:'new', price:'custom, to be quoted', crmnotes:'', created: at(2, 9) });
+      renderTraffic(); const t = document.querySelector('#t-nums .stat:nth-child(5)').textContent.replace(/\s+/g, ' '); leads = leads.filter(l => !/^ED\d$/.test(l.id)); renderTraffic(); return t; });
+    const [y1, d1] = n(edge);
+    ok('whole days: a lead from early on the 30th day back still counts, one from the 31st does not; a yes adds to both; one never shown a price is left out', d1 === d0 + 2 && y1 === y0 + 1, edge + ' from ' + base);
+  }
   /* ---- nothing pushes the page wider than the phone ---- */
   {
     const wide = async () => p.evaluate(() => { const w = window.innerWidth; const bad = Array.prototype.filter.call(document.querySelectorAll('#numbers *'), e => e.offsetParent && e.getBoundingClientRect().right > w + 1).slice(0, 3).map(e => (e.id || e.className || e.tagName) + ':' + (e.textContent || '').slice(0, 30)); return { over: document.documentElement.scrollWidth - w, bad }; });

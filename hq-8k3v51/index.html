@@ -8000,11 +8000,17 @@ function renderTraffic(){
   var q30 = qviews.filter(function(v){ return new Date(v.created) >= cut30; }).length;
   // "priced -> lead" is meaningless now that the details come first: everybody
   // priced IS a lead. The number worth watching is how many of them say yes.
-  var said30 = leads.filter(function(l){
-    if (new Date(l.created) < cut30) return false;
-    return String(l.type) === 'ACTIVATE' || fuParse(l.crmnotes).qa === 'a';
-  }).length;
-  var priceConv = q30 ? Math.round(said30 / q30 * 100) : 0;
+  // Corey: "this number is a floating number, 19 to 21 to 22 to 23 on
+  // different refreshes". It was yeses (from leads) over price views (from
+  // visits), on a window cut to the minute, so it drifted all day. Now it is
+  // one group of people: everyone the site showed a price in the last 30
+  // whole days, and how many of those said yes. It moves when a priced lead
+  // arrives or answers, and once at midnight; the counts sit under it.
+  var cutDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+  var priced30 = leads.filter(function(l){ return new Date(l.created) >= cutDay && /^(ENQUIRY|ACTIVATE|DECLINED)$/.test(String(l.type)) && String(l.price || '').indexOf('$') >= 0; });
+  var said30 = priced30.filter(function(l){ return String(l.type) === 'ACTIVATE' || fuParse(l.crmnotes).qa === 'a' || !!auths[l.id]; }).length;
+  var pricedN = priced30.length;
+  var priceConv = pricedN ? Math.round(said30 / pricedN * 100) : 0;
   var tn = document.getElementById('t-nums');
   tn.style.gridTemplateColumns = 'repeat(5,1fr)';
   tn.style.cursor = 'pointer';
@@ -8014,8 +8020,8 @@ function renderTraffic(){
     '<div class="stat"><div class="n">' + v7 + '</div><div class="l">Views 7d</div></div>' +
     '<div class="stat"><div class="n">' + v30 + '</div><div class="l">Views 30d</div></div>' +
     '<div class="stat"><div class="n">' + l30 + '</div><div class="l">Leads 30d</div></div>' +
-    '<div class="stat"><div class="n"' + (q30 && priceConv < 25 ? ' style="color:#c0392b"' : '') + '>' +
-      (q30 ? priceConv + '%' : '\u2014') + '</div><div class="l">Priced &rarr; said yes</div></div>';
+    '<div class="stat"><div class="n"' + (pricedN && priceConv < 25 ? ' style="color:#c0392b"' : '') + '>' +
+      (pricedN ? priceConv + '%' : '\u2014') + '</div><div class="l">Priced &rarr; said yes' + (pricedN ? '<br><span style="text-transform:none;letter-spacing:0;">' + said30 + ' of ' + pricedN + '</span>' : '') + '</div></div>';
   var days = [], counts = [];
   for (var i = 13; i >= 0; i--){
     var d = new Date(now.getTime() - i * 86400000);
