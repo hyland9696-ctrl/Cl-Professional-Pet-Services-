@@ -424,6 +424,18 @@ const { ok, done } = reporter();
   await p.click('#stmt button:has-text("Send 30 now")'); await p.waitForTimeout(300);
   ok('and sends 30 a tap', refinvites.length === 2 && !refinvites[1].preview && !(await p.isVisible('#stmt')));
   await p.evaluate(() => { leads = leads.filter(l => !/^W[PGDSLR]$/.test(l.id)); foldAll(false); render(); });
+  /* ---- nothing pushes the page wider than the phone ---- */
+  {
+    const wide = async () => p.evaluate(() => { const w = window.innerWidth; const bad = Array.prototype.filter.call(document.querySelectorAll('#numbers *'), e => e.offsetParent && e.getBoundingClientRect().right > w + 1).slice(0, 3).map(e => (e.id || e.className || e.tagName) + ':' + (e.textContent || '').slice(0, 30)); return { over: document.documentElement.scrollWidth - w, bad }; });
+    await p.setViewportSize({ width: 360, height: 800 });
+    await p.evaluate(() => { foldAll(false); render(); }); await p.waitForTimeout(250);
+    const shut = await wide();
+    ok('on a narrow phone, with every card closed, no heading runs off the right edge (Billed, collected, owed wraps its buttons and its summary)', shut.over <= 0 && shut.bad.length === 0, JSON.stringify(shut));
+    await p.evaluate(() => { foldAll(true); render(); }); await p.waitForTimeout(250);
+    const open = await wide();
+    ok('and with every card open the page is still no wider than the screen', open.over <= 0, JSON.stringify(open));
+    await p.setViewportSize({ width: 430, height: 1500 });
+  }
   /* ---- the Active number does not jump about while the page loads ---- */
   const settled = await p.evaluate(() => { render(); return document.querySelector('#stats .stat:nth-child(3) .n').textContent; });
   const during = await p.evaluate(() => { const b = billing, j = jobsData; billing = null; jobsData = null; render(); const mid = document.querySelector('#stats .stat:nth-child(3) .n').textContent; const raw = leads.filter(l => isLead(l) && (l.status || 'new') === 'closed').length - dormantList().length; billing = b; jobsData = j; render(); return { mid, raw, after: document.querySelector('#stats .stat:nth-child(3) .n').textContent }; });

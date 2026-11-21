@@ -56,7 +56,10 @@
   .fold.folded > :first-child{margin-bottom:0 !important;}
   .fold.folded > :first-child::after{content:'\25B8';}
   .fold.folded > :not(:first-child){display:none !important;}
-  .fsum{font-size:11px;font-weight:600;color:#707070;margin-left:8px;white-space:nowrap;}
+  .fsum{font-size:11px;font-weight:600;color:#707070;margin-left:8px;}
+  /* a card's heading wraps instead of pushing the page wider than the phone */
+  #numbers .fold > :first-child{flex-wrap:wrap;min-width:0;}
+  #numbers .fold{max-width:100%;overflow-wrap:anywhere;}
   .nsec{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#9aa5a0;font-weight:700;margin:6px 2px 8px;}
   #glance .stat .n{font-size:17px;} #glance .stat .l{text-transform:none;letter-spacing:0;font-size:11px;line-height:1.3;}
   #glance .spark{display:block;margin:4px auto 0;}
@@ -6427,8 +6430,8 @@ function markOwed(id, amt, since){
 }
 function renderBilling(){
   var box = document.getElementById('billing'); if (!box) return;
-  var head = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;"><div style="font-weight:800;font-size:14px;">&#128179; Billed, collected, owed <span style="font-size:11px;font-weight:600;color:#707070;">from Sweep&amp;Go</span></div>' +
-    (billing && billing.months ? '<span style="white-space:nowrap;"><button onclick="monthReview()" style="padding:5px 9px;min-height:32px;font-size:11.5px;">&#128196; Month in review</button> <button class="owner-only" onclick="accountantExport()" title="Two CSV files: by month, and every invoice and payment" style="padding:5px 9px;min-height:32px;font-size:11.5px;">&#11015;&#65039; For the accountant</button></span>' : '') + '</div>';
+  var head = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;"><div style="font-weight:800;font-size:14px;">&#128179; Billed, collected, owed <span style="font-size:11px;font-weight:600;color:#707070;">from Sweep&amp;Go</span></div>' +
+    (billing && billing.months ? '<span style="display:flex;gap:6px;flex-wrap:wrap;"><button onclick="monthReview()" style="padding:5px 9px;min-height:32px;font-size:11.5px;">&#128196; Month in review</button> <button class="owner-only" onclick="accountantExport()" title="Two CSV files: by month, and every invoice and payment" style="padding:5px 9px;min-height:32px;font-size:11.5px;">&#11015;&#65039; For the accountant</button></span>' : '') + '</div>';
   if (!billing){
     box.innerHTML = head + '<div style="font-size:12.5px;color:#9aa5a0;">' + (sgSyncInfo() ? 'Loading\u2026' : 'Not connected yet. Once the Sweep&amp;Go token is in the script and setupSweepAndGo() has run, every invoice and payment lands here on its own.') + '</div>';
     return;
