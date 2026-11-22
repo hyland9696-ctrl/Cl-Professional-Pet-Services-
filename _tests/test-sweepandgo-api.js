@@ -441,6 +441,7 @@ const { ok, done } = reporter();
     const [y1, d1] = n(edge);
     ok('whole days: a lead from early on the 30th day back still counts, one from the 31st does not; a yes adds to both; one never shown a price is left out', d1 === d0 + 2 && y1 === y0 + 1, edge + ' from ' + base);
   }
+  ok('a draft invoice adds no late fee on the Owed list', await p.evaluate(() => { const l = leads.filter(x => x.id === 'E1')[0]; return lateFeeOf(l, { owed: 190, oldest: '2026-07-01', items: [{ d: '2026-07-01', a: 95, s: 'draft' }, { d: '2026-10-05', a: 95, s: 'overdue' }] }) === 10 && lateFeeOf(l, { owed: 95, oldest: '2026-07-01', items: [{ d: '2026-07-01', a: 95, s: 'draft' }] }) === 0; }));
   /* ---- nothing pushes the page wider than the phone ---- */
   {
     const wide = async () => p.evaluate(() => { const w = window.innerWidth; const bad = Array.prototype.filter.call(document.querySelectorAll('#numbers *'), e => e.offsetParent && e.getBoundingClientRect().right > w + 1).slice(0, 3).map(e => (e.id || e.className || e.tagName) + ':' + (e.textContent || '').slice(0, 30)); return { over: document.documentElement.scrollWidth - w, bad }; });
@@ -451,6 +452,8 @@ const { ok, done } = reporter();
     await p.evaluate(() => { foldAll(true); render(); }); await p.waitForTimeout(250);
     const open = await wide();
     ok('and with every card open the page is still no wider than the screen', open.over <= 0, JSON.stringify(open));
+    const badge = await p.evaluate(() => { leads.push({ id:'LB1', type:'SAVED', name:'Long Badge Lee', phone:'6363750188', status:'cancelled', price:'$85/mo', crmnotes:'[CX:2026-05-01] ', created:'2025-01-01T12:00:00Z' }); filter = 'cancelled'; render(); const w = window.innerWidth; const bad = Array.prototype.filter.call(document.querySelectorAll('#list *'), e => e.offsetParent && e.getBoundingClientRect().right > w + 0.5).length; const over = document.documentElement.scrollWidth - w; leads = leads.filter(l => l.id !== 'LB1'); filter = 'all'; render(); return { bad, over }; });
+    ok('a card with a long badge (Account closed with its date) stays inside the screen too', badge.bad === 0 && badge.over <= 0, JSON.stringify(badge));
     await p.setViewportSize({ width: 430, height: 1500 });
   }
   /* ---- the Active number does not jump about while the page loads ---- */

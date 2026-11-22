@@ -1441,7 +1441,7 @@ function sgBilling_() {
         if (!(rem > 0)) rem = total;
         m.unpaid += rem;
         var u = unpaidBy[r[H.client]] || (unpaidBy[r[H.client]] = { name: r[H.client], owed: 0, n: 0, oldest: '', statuses: {}, items: [] });
-        if (u.items.length < 24) u.items.push({ d: String(r[H.date] || '').slice(0, 10), a: Math.round(rem * 100) / 100 });
+        if (u.items.length < 24) u.items.push({ d: String(r[H.date] || '').slice(0, 10), a: Math.round(rem * 100) / 100, s: status });
         u.owed += rem; u.n++; u.statuses[status] = (u.statuses[status] || 0) + 1; if (!u.oldest || String(r[H.date]) < u.oldest) u.oldest = String(r[H.date]);
       }
     } else {
@@ -1770,8 +1770,9 @@ function openInvoices_(lead) {
                status: st, oneTime: r[H.type] === 'one-time', period: String(r[H.period_start] || '').slice(0, 10), periodEnd: String(r[H.period_end] || '').slice(0, 10), pay: String(r[H.pay_type] || ''), nextTry: String(r[H.next_try] || '').slice(0, 10), desc: String(r[H.description] || '') });
   });
   var cd = (String(lead.crmnotes || '').match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1] || '';
+  // no fee on an invoice inside a prepaid stretch, or on a draft Sweep&Go never sent them
   var ppx = prepayOf_(lead.crmnotes);
-  out.forEach(function(i) { var f = lateFee_(i.amount, i.date, cd); if (ppx && i.date >= ppx.from && i.date <= ppx.to) f = { fee: 0, months: 0, rule: f.rule }; i.lateFee = f.fee; i.lateMonths = f.months; i.lateRule = f.rule; });
+  out.forEach(function(i) { var f = lateFee_(i.amount, i.date, cd); if ((ppx && i.date >= ppx.from && i.date <= ppx.to) || i.status === 'draft') f = { fee: 0, months: 0, rule: f.rule }; i.lateFee = f.fee; i.lateMonths = f.months; i.lateRule = f.rule; });
   return out.sort(function(a, b) { return a.date < b.date ? -1 : 1; });
 }
 /* The last payment that went through, from the billing sheet. */
@@ -1845,7 +1846,8 @@ function longDate_(iso) { var d = new Date(iso + 'T12:00:00'); return isNaN(d.ge
        Visits: Oct 3 09:12 (Jesse, 9 min, photo attached) · Oct 17 skipped, gate locked */
 function invoiceBlock_(i, visits, photos) {
   var what = i.oneTime ? (i.desc || 'one-time service') : 'monthly service';
-  var period = /^\d{4}-\d{2}-\d{2}$/.test(i.period) ? 'Service ' + longDate_(i.period).replace(/, \d{4}$/, '') + (/^\d{4}-\d{2}-\d{2}$/.test(i.periodEnd) ? ' \u2013 ' + longDate_(i.periodEnd) : '') + ' (' + what + ')' : (i.oneTime ? what.charAt(0).toUpperCase() + what.slice(1) : 'Monthly service');
+  var hasEnd = /^\d{4}-\d{2}-\d{2}$/.test(i.periodEnd);
+  var period = /^\d{4}-\d{2}-\d{2}$/.test(i.period) ? (hasEnd ? 'Service ' + longDate_(i.period).replace(/, \d{4}$/, '') + ' \u2013 ' + longDate_(i.periodEnd) + ' (' + what + ')' : what.charAt(0).toUpperCase() + what.slice(1) + ' from ' + longDate_(i.period)) : (i.oneTime ? what.charAt(0).toUpperCase() + what.slice(1) : 'Monthly service');
   var how = i.status === 'failed' ? 'Card on file did not go through' : i.status === 'overdue' ? (i.pay === 'check' ? 'Overdue \u00b7 pay by check or card' : i.pay === 'credit_card' ? 'Overdue \u00b7 the card on file has not gone through' : 'Overdue') : 'Open, not yet paid';
   if (/^\d{4}-\d{2}-\d{2}$/.test(i.nextTry) && i.nextTry >= new Date().toISOString().slice(0, 10)) how += ' \u00b7 next card try ' + longDate_(i.nextTry);
   var lines = ['  Invoice ' + (i.number || '\u2014') + ' \u00b7 issued ' + longDate_(i.date), '    ' + period, '    $' + i.total.toFixed(2) + ' billed \u00b7 $' + i.paid.toFixed(2) + ' paid \u00b7 $' + i.amount.toFixed(2) + ' open', '    ' + how];
@@ -1897,7 +1899,8 @@ function payReminderMail_(lead, amount, since, opts) {
   try { extra.lastPay = lastPayment_(lead); } catch (e) {}
   if (opts.visits !== false) items.slice(0, 6).forEach(function(i) { try { var v = invoiceVisits_(names, i); extra.visits[i.number] = v; nVisits += v.length; } catch (e) {} });
   if (opts.photos) { var dates = []; Object.keys(extra.visits).forEach(function(k) { extra.visits[k].forEach(function(v) { if (v.status === 'completed' && dates.indexOf(v.date) < 0) dates.push(v.date); }); }); try { extra.photos = visitPhotos_(names, dates.sort().reverse()); } catch (e) {} }
-  extra.step = ladderStep_(items[0].date); extra.pauseOn = new Date(Date.now() + 7 * DAY_MS).toISOString().slice(0, 10);
+  var sentOnes = items.filter(function(i) { return i.status !== 'draft'; });
+  extra.step = sentOnes.length ? ladderStep_(sentOnes[0].date) : 1; extra.pauseOn = new Date(Date.now() + 7 * DAY_MS).toISOString().slice(0, 10);
   try { extra.acct = acctLink_(lead.id); } catch (e) {}
   var atts = opts.attach ? fetchPhotos_(extra.photos) : [];
   if (opts.attach) { var kept = {}; atts.forEach(function(a) { kept[a.name.slice(6, 16)] = 1; }); Object.keys(extra.photos).forEach(function(dt) { if (!kept[dt]) delete extra.photos[dt]; }); }   // say "attached" only for what really is

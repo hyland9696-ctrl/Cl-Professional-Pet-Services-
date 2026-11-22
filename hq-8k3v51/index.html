@@ -38,6 +38,8 @@
   .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
   .who{font-size:16px;font-weight:700;}
   .badge{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;white-space:nowrap;}
+  /* a long badge ("ACCOUNT CLOSED · May 1, 2027") wraps on a narrow phone instead of pushing the page wide */
+  #list .badge{white-space:normal;text-align:right;max-width:58%;}
   .badge.act{background:#E1F5EE;color:#0F6E56;}
   .badge.sav{background:#FDF3DC;color:#9a6d00;}
   .badge.com{background:#EDE7F6;color:#5E35B1;}
@@ -5591,7 +5593,7 @@ var LATE_FEE_PCT = 10, LATE_FEE_FLAT = 10, LATE_FEE_FROM = '2026-11-17';
 function lateFeeOf(l, u){
   var cd = l ? fuParse(l.crmnotes).cd : '', pct = !!cd && cd >= LATE_FEE_FROM;
   var items = u.items && u.items.length ? u.items : [{ d: u.oldest, a: u.owed }];
-  return Math.round(items.reduce(function(s, i){ var m = Math.floor(daysAgo(String(i.d || '').slice(0, 10) + 'T12:00:00') / 30); return s + (m >= 1 && i.a > 0 ? (pct ? i.a * LATE_FEE_PCT / 100 * m : LATE_FEE_FLAT * m) : 0); }, 0) * 100) / 100;
+  return Math.round(items.reduce(function(s, i){ if (i.s === 'draft') return s; var m = Math.floor(daysAgo(String(i.d || '').slice(0, 10) + 'T12:00:00') / 30); return s + (m >= 1 && i.a > 0 ? (pct ? i.a * LATE_FEE_PCT / 100 * m : LATE_FEE_FLAT * m) : 0); }, 0) * 100) / 100;
 }
 function ladderStepJs(oldest){ var a = daysAgo(String(oldest).slice(0, 10) + 'T12:00:00'); return a >= 35 ? 3 : a >= 21 ? 2 : 1; }
 function ladderNote(l, u){

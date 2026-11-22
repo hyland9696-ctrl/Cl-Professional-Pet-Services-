@@ -751,9 +751,14 @@ function build(leadRows){
   ok('Lou, five weeks behind, gets notice 3: service pauses a week from today unless the account is brought up to date', lou.ok && lou.step === 3 && /Your service pauses .* unless the account is brought up to date/.test(lou.subject) && /This is our third note about the balance on your account, \$90\.00\. .*service will pause on/.test(lou.body) && lou.lateFees === 10 && /Late fee: \$10\.00 \(\$10 for each month past due\)/.test(lou.body) && /Invoices open: \$80\.00\n  Late fees: \$10\.00\n  Total due: \$90\.00/.test(lou.body) && /Terms of Service/.test(lou.body), lou.subject + ' | ' + lou.body.slice(0, 300));
   const nell = F.payRemind_({ id:'newnell', amount: 100, since: d(65), preview: true });
   ok('a customer on the new terms pays 10% of the invoice for each month past due, not compounded: two months on $100 is $20', nell.lateFees === 20 && /Late fee: \$20\.00 \(10% of the invoice for each month past due, 2 months\)/.test(nell.body) && /Total due: \$120\.00/.test(nell.body), nell.body.slice(0, 700));
+  sheets.billing.rows.push(B({ kind:'invoice', number:'L-2', date: d(36), client:'Late Lou', type:'subscription', status:'overdue', total:'80.00', paid:'0.00', remaining:'80.00', interval:'monthly', period_start: d(36) }));
+  const lou2 = F.payRemind_({ id:'latelou', amount: 160, since: d(40), preview: true });
+  ok('with a start but no end date on file the service line reads plainly, never "Service Jul 1 (monthly service)"', /Monthly service from \w{3} \d+, 20\d\d/.test(lou2.body) && !/Service \w{3} \d+ \(/.test(lou2.body), lou2.body.slice(0, 900));
+  sheets.billing.rows.pop();
+  sheets.billing.rows.push(B({ kind:'invoice', number:'M-0', date: d(70), client:'Mid Mo', type:'subscription', status:'draft', total:'80.00', paid:'0.00', remaining:'80.00', interval:'monthly' }));
   const mo = F.payRemind_({ id:'midmo', amount: 80, since: d(25), preview: true });
   ok('Mo, three weeks behind, gets notice 2, the firmer one; every statement carries the account page link', mo.step === 2 && /Second notice/.test(mo.subject) && /This is our second note/.test(mo.body) && /Your account page, with every visit, photo and invoice: https:\/\/clpropetservices\.com\/account\/\?t=midmo\./.test(mo.body), mo.body.slice(0, 500));
-  ok('under a month past due there is no fee', mo.lateFees === 0 && !/Late fee/.test(mo.body));
+  ok('a draft Sweep&Go never sent carries no late fee and does not push the notice up: Mo, with a 70-day-old draft and a 25-day-old real invoice, is still fee-free', mo.lateFees === 0 && !/Late fee/.test(mo.body) && mo.items.length === 2);
   sheets.leads.rows.push(HEADERS.map(h => ({ id:'cfg_pr2', created: new Date().toISOString(), type:'CONFIG', name:'pay_reminders', notes:'on', status:'config' })[h] || ''));
   msCalls.length = 0;
   const r1 = F.paymentReminders();
