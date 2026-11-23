@@ -2270,6 +2270,7 @@ var DAY_NAMES_ = { mon:'Monday', tue:'Tuesday', wed:'Wednesday', thu:'Thursday',
 function daysText_(keys) { var a = keys.map(function(k) { return DAY_NAMES_[k] || k; }); return a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
 /* Their own day if they had one, else the days we are already in their ZIP. */
 function streetDays_(p) {
+  if (p._day) return daysText_(p._day);   // the tracker worked out the best day on today's route
   var own = ((String(p.crmnotes || '').match(/\[DAY:([^\]]*)\]/) || [])[1] || '').split(',').filter(Boolean);
   if (own.length) return daysText_(own);
   try { var z = publicDays_().zips[String(p.zip || '').slice(0, 5)]; if (z && z.length) return daysText_(z); } catch (e) {}
@@ -2305,7 +2306,7 @@ function priceSentence_(p, back) {
 function outreachText_(kind, sub, p) {
   var first = String(p.name || '').trim().split(/\s+/)[0] || 'there', days = streetDays_(p);
   var priceLine = priceSentence_(p, true) + ' The initial clean fee is waived.';
-  var onStreet = days ? ' We are already on your street on ' + days + 's, so it is no trouble to fit you back in.' : '';
+  var onStreet = p._day ? ' Your service day would be ' + days + ', when we are already in your area.' : days ? ' We are already on your street on ' + days + 's, so it is no trouble to fit you back in.' : '';
   var corey = 'It’s Jesse with CL Professional Pet Services.';
   var back = '\n\nJust reply here or text (636) 375-4342 and we’ll put you back on the route.';
   if (kind === 'winback') {
@@ -2325,7 +2326,7 @@ function outreachText_(kind, sub, p) {
     // people who are put in the not interested option".
     var offer = priceSentence_(p, false) + ' The $40 initial clean fee is waived. No contract, month to month.';
     var close = '\n\nReply here or text (636) 375-4342 and I’ll get you on the schedule.';
-    var onQ = days ? ' We are already on your street on ' + days + 's.' : '';
+    var onQ = p._day ? ' Your service day would be ' + days + ', when we are already in your area.' : days ? ' We are already on your street on ' + days + 's.' : '';
     if (sub === 'price') return { subject: first + ', I can make the yard price work', body: 'Hi ' + first + ',\n\n' + corey + ' When you looked at us, the price was the sticking point, so here is what I can do. ' + offer + onQ + close };
     if (sub === 'comparing' || sub === 'elsewhere' || sub === 'competitor') return { subject: first + ', how is the yard going?', body: 'Hi ' + first + ',\n\n' + corey + ' You were looking at a few companies when we spoke. If the one you picked is not working out, I’d like another chance. ' + offer + ' Every visit comes with a photo.' + onQ + close };
     if (sub === 'timing') return { subject: first + ', is now a better time?', body: 'Hi ' + first + ',\n\n' + corey + ' The timing was not right when you got your price, so I wanted to check back in. ' + offer + onQ + close };
@@ -2341,7 +2342,7 @@ function outreachText_(kind, sub, p) {
   return { stop: 'unknown' };
 }
 function spring_(p, first, priceLine, days) {
-  return { subject: first + ', we’re back on your street for spring', body: 'Hi ' + first + ',\n\nIt’s Jesse with CL Professional Pet Services. Spring is here, and everything the dog left all winter is out there now.' + (days ? ' We are back on your street on ' + days + 's.' : '') + ' Your yard can go straight back on the route. ' + priceLine + '\n\nReply here or text (636) 375-4342 and we’ll pick it back up this week.' };
+  return { subject: first + ', we’re back on your street for spring', body: 'Hi ' + first + ',\n\nIt’s Jesse with CL Professional Pet Services. Spring is here, and everything the dog left all winter is out there now.' + (p._day ? ' Your service day would be ' + days + '.' : days ? ' We are back on your street on ' + days + 's.' : '') + ' Your yard can go straight back on the route. ' + priceLine + '\n\nReply here or text (636) 375-4342 and we’ll pick it back up this week.' };
 }
 function outreach_(body) {
   var kind = String(body.kind || ''), sub = String(body.sub || '');
@@ -2352,6 +2353,7 @@ function outreach_(body) {
   if (kind === 'winback' && !sub) sub = leaveReason_(p) || 'other';
   var nowP = parseFloat(body.now); if (nowP > 0 && nowP < 2000) p._now = nowP;
   if (/^(Weekly service|Every-other-week service)$/.test(String(body.plan || ''))) p._plan = String(body.plan);
+  var dayK = String(body.day || '').split(',').filter(function(k) { return DAY_NAMES_[k]; }).slice(0, 2); if (dayK.length) p._day = dayK;
   var email = String(p.email || '').trim(), n = String(p.crmnotes || '');
   var o = kind === 'prepay' ? (prepaidNow_(p.crmnotes) ? { stop: 'already prepaid' } : prepayText_(p)) : outreachText_(kind, sub, p);
   if (o.stop) return { ok:false, error: o.stop };

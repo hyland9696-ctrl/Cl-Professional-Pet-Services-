@@ -5449,9 +5449,25 @@ function priceSentence(l, back){
   return 'Your price is $' + o.now + '/mo. You get ' + off + then;
 }
 function comebackDeal(l){ return priceSentence(l, true); }
+/* Jesse: "they are asking what days they need to be put on... even though
+   they're closed, we need to see what days they'd work best on our active
+   schedule." The day today's route grows least if this home comes back;
+   two days for twice a week. Their old day is not used: the route has moved. */
+var DAY_FULL = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
+function backDay(l){
+  var bd; try { bd = bestDays(l); } catch (e) { bd = null; }
+  if (!bd || !bd.length) return null;
+  var twice = /twice/i.test(String(l.service || ''));
+  var picks = twice ? bd.filter(function(x, i){ return i === 0 || x.day !== bd[0].day; }).slice(0, 2) : bd.slice(0, 1);
+  var ord = DAYS.map(function(d){ return d[0]; }); picks.sort(function(a, b){ return ord.indexOf(a.day) - ord.indexOf(b.day); });
+  var keys = picks.map(function(x){ return x.day; });
+  return { keys: keys, val: keys.join(','), picks: picks, next: twice ? null : bd.filter(function(x){ return x.day !== bd[0].day; })[0] || null,
+    words: keys.map(function(k){ return DAY_FULL[k]; }).join(' and '), approx: bd[0].approx };
+}
+function daySentence(l){ var b = backDay(l); return b ? ' Your service day would be ' + b.words + ', when we’re already in your area.' : ''; }
 function wbText(l, kind, sub){
   var first = String(l.name || '').trim().split(/\s+/)[0] || 'there';
-  var hi = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. ", end = ' Just reply here and we’ll get you on the route.';
+  var hi = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. ", end = daySentence(l) + ' Just reply here and we’ll get you on the route.';
   if ((l.status || 'new') === 'cancelled' || kind === 'spring'){
     var deal = priceSentence(l, true) + ' The initial clean fee is waived.';
     if (kind === 'spring' || sub === 'season') return hi + 'Spring is here and we’re back on your street. ' + deal + end;
@@ -5482,10 +5498,14 @@ function winbackCardRow(l){
   if (left && LEAVE_ALONE_JS[sub]) return '<div class="wb-card" style="font-size:12px;color:#9aa5a0;margin-top:6px;">&#128154; No win-back offer for this one: ' + (sub === 'nodog' ? 'no dog any more' : sub === 'nonpay' ? 'the account closed over payment' : 'we ended it') + '.</div>';
   var kind = left && sub === 'season' ? 'spring' : 'winback';
   var btn = 'display:inline-block;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;text-decoration:none;min-height:40px;line-height:22px;cursor:pointer;font-family:inherit;';
-  var call = left && sub === 'service', o = todayOffer(l);
+  var call = left && sub === 'service', o = todayOffer(l), bk = backDay(l), mi = function(x){ return x.added < 10 ? x.added.toFixed(1) : Math.round(x.added); };
+  var was = dayKeys(fu.day).join(','), dayLine = bk ? '<div class="wb-day" style="font-size:12px;margin-top:4px;">&#128663; <strong>Best day if they come back: ' + bk.picks.map(function(x){ return dayLabel(x.day); }).join(' + ') + '</strong> <span style="color:#555;">(' + bk.picks.map(function(x){ return esc(bestDayWhy(x, l)) + ', adds ~' + mi(x) + ' mi'; }).join('; ') + ')' +
+      (bk.next ? ' &middot; next best ' + dayLabel(bk.next.day) + ', adds ~' + mi(bk.next) + ' mi' : '') + (was && was !== bk.val ? ' &middot; they were on ' + esc(dayText(was)) + ' before' : '') + (bk.approx ? ' &middot; placed at the ZIP centre until the home is pinned' : '') + '. The message tells them this day.</span></div>'
+    : '<div class="wb-day" style="font-size:11.5px;color:#b45309;margin-top:4px;">&#128663; No day can be suggested: this card has no address or ZIP we can place on the map.</div>';
   var told = o ? 'They will be told: $' + o.now + '/mo now' + (o.was && o.was !== o.now ? ' (was $' + o.was + ')' : '') + (o.switched ? ' for ' + o.plan.toLowerCase() : '') + ', $' + o.disc + '/mo for the first ' + COMEBACK_MONTHS + ' months.' : 'No price can be worked out for this card (' + (!zipOf(l) ? 'no ZIP' : 'a custom yard or 5+ dogs') + '), so the message offers the discount and asks them to reply for the exact price.';
   return box('<div style="font-weight:700;">&#128154; Win them back: ' + COMEBACK_PCT + '% off for ' + COMEBACK_MONTHS + ' months, initial clean fee waived' + (last ? ' <span style="font-weight:600;color:#707070;">&middot; last sent ' + esc(last) + '</span>' : '') + '</div>' +
     '<div class="wb-told" style="font-size:11.5px;color:' + (o ? '#555' : '#b45309') + ';margin-top:2px;">' + told + '</div>' +
+    dayLine +
     (call ? '<div style="font-size:11.5px;color:#555;margin-top:2px;">They left unhappy, so a call comes first.</div>' : '') +
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
     (call && d ? '<a href="tel:+' + esc(d) + '" style="' + btn + 'background:#188663;color:#fff;">&#128222; Call</a>' : '') +
@@ -5567,7 +5587,7 @@ function outreach(id, kind, sub){
   if (officeMail !== true){ toast(NO_OFFICE_TEXT); return; }
   var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
   ouBusy = true; toast('Drawing up the note…');
-  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'outreach', key: KEY, id: id, kind: kind, sub: sub, preview: true, now: todayPrice(l), plan: (todayOffer(l) || {}).plan || '' }) })
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'outreach', key: KEY, id: id, kind: kind, sub: sub, preview: true, now: todayPrice(l), plan: (todayOffer(l) || {}).plan || '', day: (l.status || 'new') === 'closed' ? '' : (backDay(l) || {}).val || '' }) })
     .then(function(r){ return r.json(); })
     .then(function(d){ ouBusy = false; if (!d || !d.ok){ toast(d && d.error ? 'No note: ' + d.error : 'No note'); return; } showOutreach(l, d, kind, sub); })
     .catch(function(){ ouBusy = false; toast('No connection'); });
