@@ -416,7 +416,7 @@
         <button onclick="toggleBlast()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:40px;">Close</button>
       </div>
       <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:10px;">One message, sent as a separate email to each person from the office mailbox, info@clpropetservices.com, through Microsoft. Replies land in Outlook. Use <code>{first}</code>, <code>{price}</code> and <code>{plan}</code> and they fill in per person. Everyone emailed gets stamped, so running the same promotion twice only reaches the people it missed. <span id="bl-quota" style="color:#0F6E56;font-weight:700;"></span></div>
-      <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="fu-auto-box" onchange="toggleFuEmails(this.checked)" style="margin-top:3px;"><span><strong>Automatic follow-ups for quotes that went quiet.</strong> <span class="office-note" style="color:#b45309;"></span> Two days after a quote with no answer, a short email from Corey with their price; one more at six days; then it stops. It also stops the moment they accept, decline, get a call or a text, or ask to be left alone. Sent from the business account each morning at 9. <span id="fu-stat" style="color:#0F6E56;"></span></span></label>
+      <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="fu-auto-box" onchange="toggleFuEmails(this.checked)" style="margin-top:3px;"><span><strong>Automatic follow-ups for quotes that went quiet.</strong> <span class="office-note" style="color:#b45309;"></span> Two days after a quote with no answer, a short email from Jesse with their price; one more at six days; then it stops. It also stops the moment they accept, decline, get a call or a text, or ask to be left alone. Sent from the business account each morning at 9. <span id="fu-stat" style="color:#0F6E56;"></span></span></label>
       <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="we-auto-box" onchange="toggleWelcomeEmails(this.checked)" style="margin-top:3px;"><span><strong>Welcome sequence for new customers.</strong> <span class="office-note" style="color:#b45309;"></span> The day after someone starts, a what-to-expect email with their day and how to reach us. A month in, a how-are-we-doing with the Google review link (counts as the review ask, so the card does not ask again). Nothing for paused customers or opt-outs. <span id="we-stat" style="color:#0F6E56;"></span></span></label>
       <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="pr-auto-box" onchange="togglePayReminders(this.checked)" style="margin-top:3px;"><span><strong>Payment reminders every Monday.</strong> <span class="office-note" style="color:#b45309;"></span> Anyone 14 or more days behind gets one plain note from the office with the amount; never twice inside 14 days, never to opt-outs. The Remind button on the Owed list does the same for one person. <span id="pr-stat" style="color:#0F6E56;"></span></span></label>
       <div id="auto-switches"></div>
@@ -1041,7 +1041,7 @@ function saveOfferRow(l){
   if (o.eow){ line = 'Every other week would be <strong>$' + o.eow + '/mo</strong> instead of $' + o.now + '/mo. Worth one text before it closes.'; offer = 'would every other week at $' + o.eow + '/mo work better for you? Same crew, half the visits.'; }
   else if (o.half){ line = 'Offer <strong>next month at half price ($' + o.half + ' instead of $' + o.now + ')</strong> and their price stays locked. One text before it closes.'; offer = 'could we do next month at half price ($' + o.half + ' instead of $' + o.now + ') and keep your rate locked in?'; }
   else { line = 'One offer before it closes: a month at half price, or a free deodorize.'; offer = 'could we do next month at half price to keep you on?'; }
-  var body = 'Hi ' + first + ", it's Corey with CL Professional Pet Services. Sorry to see you go - before we close it out, " + offer + ' Just reply here either way.';
+  var body = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. Sorry to see you go - before we close it out, " + offer + ' Just reply here either way.';
   return '<div id="save-' + esc(l.id) + '" style="background:#FFF3E0;border:1.5px solid #f3c48b;border-radius:10px;padding:10px 12px;margin-top:8px;font-size:12.5px;color:#7a4a00;">' +
     '<div style="font-weight:800;margin-bottom:4px;">&#128737;&#65039; Before the account closes</div><div>' + line + '</div>' +
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">' +
@@ -1106,7 +1106,7 @@ function referrerOf(fu){ if (fu.rb) return fu.rb; var r = fu.rf && refIdx[fu.rf]
 function refShareRow(l){
   var link = refLink(l), first = String(l.name || '').trim().split(' ')[0] || 'there', d = String(l.phone || '').replace(/\D/g, '');
   if (d.length === 10) d = '1' + d;
-  var body = 'Hi ' + first + ", it's Corey with CL Professional Pet Services. Know someone with a dog? Here's your own link: " + link + ' - when they sign up through it, you get a free deodorize treatment. Thanks for having us!';
+  var body = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. Know someone with a dog? Here's your own link: " + link + ' - when they sign up through it, you get a free deodorize treatment. Thanks for having us!';
   var used = leads.filter(function(x){ return fuParse(x.crmnotes).rf === refCode(l); }).length;
   return '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#128279; Their referral link: <code style="background:#f3f5f4;border-radius:5px;padding:2px 5px;font-size:11.5px;">' + esc(link) + '</code>' +
     '<button onclick="copyText(\'' + esc(link) + '\')" style="padding:5px 9px;min-height:32px;font-size:11.5px;">Copy</button>' +
@@ -1814,7 +1814,7 @@ function schedSave(id){
   render();
   post({action:'update', key:KEY, id:id, notes:l.crmnotes}, 'Visit date saved');
   var first = String(l.name || '').trim().split(' ')[0] || 'there';
-  var body = 'Hi ' + first + ", it's Corey with CL Professional Pet Services - great news, you're on the schedule! Your first visit is " + niceDate(dv) +
+  var body = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services - great news, you're on the schedule! Your first visit is " + niceDate(dv) +
     ". No need to be home, just make sure the gate's unlocked. You'll get a text when we're on the way and photo confirmation when the job's done. See you then!";
   return { lead: l, date: dv, body: body };
 }
@@ -1836,7 +1836,7 @@ function schedEmail(id){
   if (!r) return;
   var subject = "You're on the schedule! First visit " + niceDate(r.date) + ' - CL Professional Pet Services';
   window.location.href = 'mailto:' + encodeURIComponent(em) + '?subject=' + encodeURIComponent(subject) +
-    '&body=' + encodeURIComponent(r.body + '\n\nCorey\nCL Professional Pet Services\n(636) 375-4342\nclpropetservices.com');
+    '&body=' + encodeURIComponent(r.body + '\n\nJesse\nCL Professional Pet Services\n(636) 375-4342\nclpropetservices.com');
 }
 function quoteLink(l){
   // Read the price the same way the revenue math does, so "80" works as well
@@ -3389,7 +3389,7 @@ function reviewDue(l){
 function reviewMsg(l){
   var first = String(l.name || '').trim().split(' ')[0] || 'there';
   var link = reviewLink();
-  return 'Hi ' + first + "! Corey with CL Professional Pet Services. So glad the yard's been looking good! " +
+  return 'Hi ' + first + "! Jesse with CL Professional Pet Services. So glad the yard's been looking good! " +
     'If you have 60 seconds, a Google review would mean the world to our small business' +
     (link ? ': ' + link : '. Just search "CL Professional Pet Services" on Google and tap Write a review.') +
     ' Thank you!';
@@ -3421,7 +3421,7 @@ function reviewEmail(id){
   markReviewAsked(id);
   window.location.href = 'mailto:' + encodeURIComponent(em) +
     '?subject=' + encodeURIComponent('A quick favor? - CL Professional Pet Services') +
-    '&body=' + encodeURIComponent(reviewMsg(l) + '\n\nCorey\nCL Professional Pet Services\n(636) 375-4342');
+    '&body=' + encodeURIComponent(reviewMsg(l) + '\n\nJesse\nCL Professional Pet Services\n(636) 375-4342');
 }
 function reviewStat(k){ var c = config[k]; return c ? String(c.value || '') : ''; }
 function saveReviewStats(){
@@ -3743,15 +3743,15 @@ function blastFields(l){
   var price = String(l.price || '').split(',')[0].split(' (')[0].trim();
   return { id: l.id, email: String(l.email).trim(), first: String(l.name || '').trim().split(' ')[0] || 'there', price: price.indexOf('$') >= 0 ? price : '', plan: planLabel(l.service).toLowerCase() };
 }
-var BLAST_FOOTER = '\n\n\u2014 Corey\nCL Professional Pet Services LLC \u00b7 St. Peters, MO \u00b7 (636) 375-4342 \u00b7 clpropetservices.com\nReply STOP and we\u2019ll leave you off future emails.';
+var BLAST_FOOTER = '\n\n\u2014 Jesse\nCL Professional Pet Services LLC \u00b7 St. Peters, MO \u00b7 (636) 375-4342 \u00b7 clpropetservices.com\nReply STOP and we\u2019ll leave you off future emails.';
 function fillBlast(text, r){
   return String(text || '').split('{first}').join(r.first || 'there').split('{price}').join(r.price || 'your quoted price').split('{plan}').join(r.plan || 'your plan');
 }
 var BLAST_PRESETS = {
   season: { tag: 'fall2026', subject: '{first}, your yard price is still good \u2014 and the leaves are coming',
-    body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. You asked us for a price a while back and I wanted to check in before the yard disappears under the leaves.\n\nYour price of {price} for {plan} still stands, and there is no contract \u2014 month to month, cancel any time.\n\nIf you\u2019d like us to take the yard off your plate this season, just reply to this email or text me at (636) 375-4342 and I\u2019ll get you on the schedule this week.' },
+    body: 'Hi {first},\n\nIt\u2019s Jesse with CL Professional Pet Services. You asked us for a price a while back and I wanted to check in before the yard disappears under the leaves.\n\nYour price of {price} for {plan} still stands, and there is no contract \u2014 month to month, cancel any time.\n\nIf you\u2019d like us to take the yard off your plate this season, just reply to this email or text me at (636) 375-4342 and I\u2019ll get you on the schedule this week.' },
   winback: { tag: 'winback', subject: '{first}, we\u2019d love to have you back',
-    body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. We miss your yard! If you\u2019d like us to pick it back up, the initial clean fee is waived, and you get 10% off today\u2019s price for your first 6 months back.\n\nJust reply here or text (636) 375-4342 and we\u2019ll put you back on the route.' },
+    body: 'Hi {first},\n\nIt\u2019s Jesse with CL Professional Pet Services. We miss your yard! If you\u2019d like us to pick it back up, the initial clean fee is waived, and you get 10% off today\u2019s price for your first 6 months back.\n\nJust reply here or text (636) 375-4342 and we\u2019ll put you back on the route.' },
   referral: { tag: 'referral', subject: 'A free deodorize for a neighbor with a dog',
     body: 'Hi {first},\n\nQuick thank-you for having us out every week. If you know a neighbor or friend with a dog, send them our way \u2014 when they sign up, you get a free deodorize treatment on your next visit.\n\nThey can text (636) 375-4342 or go to clpropetservices.com and mention your name.' }
 };
@@ -4554,7 +4554,7 @@ function pmItems(){
 function pmPreview(items){
   var it = items[0], first = String(it.l && it.l.name || '').trim().split(' ')[0] || 'there';
   var pretty = new Date(pricePlan.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  return 'Hi ' + first + ',\n\nA quick note about your service, with plenty of notice. Your price has been $' + it.oldPrice + ' a month, and on ' + pretty + ' it moves to $' + it.newPrice + ' a month.' + (pricePlan.reason.trim() ? ' ' + pricePlan.reason.trim() : '') + '\n\nNothing else changes: same day, same crew, same clean yard, still month to month with no contract. If you have any questions, or if money is tight right now, reply here and we will work it out - I would much rather talk than lose you.\n\nThank you for having us.\n\n— Corey';
+  return 'Hi ' + first + ',\n\nA quick note about your service, with plenty of notice. Your price has been $' + it.oldPrice + ' a month, and on ' + pretty + ' it moves to $' + it.newPrice + ' a month.' + (pricePlan.reason.trim() ? ' ' + pricePlan.reason.trim() : '') + '\n\nNothing else changes: same day, same crew, same clean yard, still month to month with no contract. If you have any questions, or if money is tight right now, reply here and we will work it out - I would much rather talk than lose you.\n\nThank you for having us.\n\n— Jesse';
 }
 /* typing a price, a date or the reason only redraws the preview, so the cursor stays put */
 function pmRefresh(){ var items = pmItems(), pv = document.getElementById('pm-preview'); if (pv && items.length) pv.textContent = pmPreview(items); }
@@ -5315,7 +5315,7 @@ function renderRisk(){
   h += '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">A failing card, money owed, skipped visits, a pause, an open save offer. Two or more and they are here, worst first. A text today beats a cancellation next week.</div>' +
     list.slice(0, 15).map(function(r){
       var first = String(r.l.name || '').trim().split(' ')[0] || 'there', d = String(r.l.phone || '').replace(/\D/g, ''); if (d.length === 10) d = '1' + d;
-      var body = 'Hi ' + first + ", it's Corey with CL Professional Pet Services. Just checking in - is everything still working for you with the yard? If anything needs changing, the day, the plan, the card on file, just reply here and I'll sort it.";
+      var body = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. Just checking in - is everything still working for you with the yard? If anything needs changing, the day, the plan, the card on file, just reply here and I'll sort it.";
       return '<div style="padding:7px 0;border-top:1px solid #f3f5f4;font-size:12.5px;">' +
         '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><a href="#card-' + esc(r.l.id) + '" onclick="jumpToLead(\'' + esc(r.l.id) + '\');return false;" style="color:#0F6E56;font-weight:700;text-decoration:none;">' + esc(r.l.name || '(no name)') + '</a>' +
         (d ? '<a href="sms:' + esc(d) + '?&body=' + encodeURIComponent(body).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(r.l.id) + '\')" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:6px 10px;font-size:11.5px;font-weight:700;text-decoration:none;white-space:nowrap;">&#128172; Check in</a>' : '') + '</div>' +
@@ -5352,7 +5352,7 @@ function renderDormant(){
    of our notes, with the dollars it brought back.
    ============================================================ */
 var LEAVE_ALONE_JS = { nodog: 1, nonpay: 1, byus: 1 };
-var WB_LEFT = [['price', 'Left over cost', '10% off 6 months, initial clean waived'], ['season', 'Left for the winter', 'the spring restart note'], ['competitor', 'Went to another company', 'come back, photo every visit'], ['diy', 'Doing it themselves', 'want your Saturdays back'], ['moved', 'Moved', 'did you stay in the area'], ['other', 'No reason given', '10% off 6 months, initial clean waived'], ['service', 'Unhappy with the service', 'a call from Corey, not an email']];
+var WB_LEFT = [['price', 'Left over cost', '10% off 6 months, initial clean waived'], ['season', 'Left for the winter', 'the spring restart note'], ['competitor', 'Went to another company', 'come back, photo every visit'], ['diy', 'Doing it themselves', 'want your Saturdays back'], ['moved', 'Moved', 'did you stay in the area'], ['other', 'No reason given', '10% off 6 months, initial clean waived'], ['service', 'Unhappy with the service', 'a call, not an email']];
 var WB_PASSED = [['price', 'Passed on price', '10% off 6 months, initial clean waived'], ['elsewhere', 'Went with someone else', '10% off 6 months, initial clean waived'], ['comparing', 'Were comparing', '10% off 6 months, initial clean waived'], ['timing', 'Bad timing', '10% off 6 months, initial clean waived'], ['diy', 'Doing it themselves', 'want your Saturdays back'], ['other', 'Never said why', '10% off 6 months, initial clean waived']];
 /* the last time we reached out to them, any way: our notes, the old automatic ones, a text */
 function lastOutreach(l){
@@ -5435,7 +5435,7 @@ function comebackDeal(l){
 }
 function wbText(l, kind, sub){
   var first = String(l.name || '').trim().split(/\s+/)[0] || 'there', now = todayPrice(l);
-  var hi = 'Hi ' + first + ", it's Corey with CL Professional Pet Services. ", end = ' Just reply here and we\u2019ll get you on the route.';
+  var hi = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. ", end = ' Just reply here and we\u2019ll get you on the route.';
   var waived = 'the initial clean fee is waived';
   if ((l.status || 'new') === 'cancelled' || kind === 'spring'){
     var keep = comebackDeal(l);
@@ -5469,7 +5469,7 @@ function winbackCardRow(l){
   var btn = 'display:inline-block;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;text-decoration:none;min-height:40px;line-height:22px;cursor:pointer;font-family:inherit;';
   var call = left && sub === 'service';
   return box('<div style="font-weight:700;">&#128154; Win them back: ' + COMEBACK_PCT + '% off for ' + COMEBACK_MONTHS + ' months, initial clean fee waived' + (last ? ' <span style="font-weight:600;color:#707070;">&middot; last sent ' + esc(last) + '</span>' : '') + '</div>' +
-    (call ? '<div style="font-size:11.5px;color:#555;margin-top:2px;">They left unhappy, so a call from Corey comes first.</div>' : '') +
+    (call ? '<div style="font-size:11.5px;color:#555;margin-top:2px;">They left unhappy, so a call comes first.</div>' : '') +
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
     (call && d ? '<a href="tel:+' + esc(d) + '" style="' + btn + 'background:#188663;color:#fff;">&#128222; Call</a>' : '') +
     (d ? '<a class="wb-text" href="sms:' + esc(d) + '?&body=' + encodeURIComponent(wbText(l, kind, sub)).replace(/'/g, '%27') + '" onclick="wbTexted(\'' + esc(l.id) + '\')" style="' + btn + (call ? 'background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;' : 'background:#188663;color:#fff;') + '">&#128172; Text the offer</a>' : '<span style="font-size:11.5px;color:#9aa5a0;align-self:center;">no phone on file</span>') +
@@ -5557,10 +5557,10 @@ function outreach(id, kind, sub){
 }
 function showOutreach(l, d, kind, sub){
   var box = document.getElementById('stmt'); if (!box) return;
-  var body = String(d.body || '').replace(/\n*— Corey\nCL Professional Pet Services LLC[\s\S]*$/, '');
+  var body = String(d.body || '').replace(/\n*— Jesse\nCL Professional Pet Services LLC[\s\S]*$/, '');
   box.innerHTML = '<div class="stmt-card">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;"><div style="font-weight:800;font-size:15px;">&#9993;&#65039; Note to ' + esc(l.name || 'them') + '</div><button onclick="closeStatement()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:36px;">Close</button></div>' +
-    '<div style="font-size:12px;color:#555;margin-bottom:8px;">To ' + esc(d.to || '') + ' from the office address. Change anything you like; Corey’s signature and the unsubscribe line go on underneath.</div>' +
+    '<div style="font-size:12px;color:#555;margin-bottom:8px;">To ' + esc(d.to || '') + ' from the office address. Change anything you like; Jesse’s signature and the unsubscribe line go on underneath.</div>' +
     '<input id="ou-subject" value="' + esc(d.subject || '') + '" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;margin-bottom:6px;box-sizing:border-box;">' +
     '<textarea id="ou-body" rows="12" style="width:100%;padding:10px 12px;border:1px solid #E4EBE7;border-radius:10px;font-size:13px;line-height:1.5;font-family:inherit;box-sizing:border-box;background:#F7F9F8;">' + esc(body) + '</textarea>' +
     '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;"><button class="copybtn" id="ou-send" onclick="sendOutreach(\'' + esc(l.id) + '\',\'' + kind + '\',\'' + esc(sub) + '\')" style="background:#0F6E56;color:#fff;border-color:#0F6E56;">Send it</button><button class="copybtn" onclick="closeStatement()">Not now</button></div></div>';
@@ -5587,7 +5587,7 @@ var SAVE_OUTCOMES = [['kept', 'Staying'], ['offer', 'Offer made'], ['leaving', '
 function saveScript(l, why){
   var first = String(l.name || '').trim().split(/\s+/)[0] || 'there', pp = parsePrice(l);
   return [
-    '1. "Hi ' + first + ', it’s Corey from CL Professional Pet Services. Got a minute? I just wanted to check in on the yard."',
+    '1. "Hi ' + first + ', it’s Jesse from CL Professional Pet Services. Got a minute? I just wanted to check in on the yard."',
     '2. Ask, then listen: "Is everything still working for you? Anything we could be doing better?"',
     '3. What we are seeing: ' + why.join('; ') + '.',
     '4. Fix what you can on the call: a different day, a new card in the client portal, a pause instead of a cancel.',
@@ -5642,7 +5642,7 @@ function accountLink(id){
       var box = document.getElementById('acct-' + id); if (!box) return;
       var ph = String(l.phone || '').replace(/\D/g, ''); if (ph.length === 10) ph = '1' + ph;
       var first = String(l.name || '').trim().split(/\s+/)[0] || 'there';
-      var text = 'Hi ' + first + ", it's Corey with CL Professional Pet Services. Here's your own account page, with every visit, photo and invoice: " + d.url;
+      var text = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. Here's your own account page, with every visit, photo and invoice: " + d.url;
       box.innerHTML = '<code style="background:#f3f5f4;border-radius:5px;padding:2px 5px;font-size:11px;word-break:break-all;">' + esc(d.url) + '</code> <button onclick="copyText(\'' + esc(d.url) + '\')" style="padding:5px 9px;min-height:32px;font-size:11.5px;">Copy</button>' +
         (ph ? ' <a href="sms:' + esc(ph) + '?&body=' + encodeURIComponent(text).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(id) + '\')" style="display:inline-block;background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:8px;padding:5px 9px;font-size:11.5px;font-weight:700;text-decoration:none;">Text it</a>' : '') +
         ' <a href="' + esc(d.url) + '" target="_blank" rel="noopener" style="font-size:11.5px;color:#0F6E56;font-weight:700;">Open</a>';
@@ -6543,7 +6543,7 @@ function renderDeo(){
   h += '<div class="fold' + (later.length ? '' : ' folded') + '" data-fold="deo-later" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong style="color:#b45309;">Want it when the season reopens</strong><span style="color:#555;">' + later.length + '</span></div><div class="fold-body">' +
     (later.length ? '<div class="sub" style="padding-left:10px;">' + (season === 'on' ? 'The season is on: add it to their service, update the price, and set deodorize on their card.' : 'When the switch goes on, text these first.') + '</div>' +
       later.map(function(l){ var d = String(l.phone || '').replace(/\D/g, ''); if (d.length === 10) d = '1' + d; var first = String(l.name || '').trim().split(' ')[0] || 'there';
-        var body = 'Hi ' + first + ", it's Corey with CL Professional Pet Services. Deodorize season is back on - want us to add it to your visits? $15 a treatment. Just reply here."; 
+        var body = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. Deodorize season is back on - want us to add it to your visits? $15 a treatment. Just reply here."; 
         return person(l, ((l.status || 'new') === 'closed' ? 'active' : 'quote') + (season === 'on' && d ? ' &middot; <a href="sms:' + esc(d) + '?&body=' + encodeURIComponent(body).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(l.id) + '\')" style="color:#188663;font-weight:700;text-decoration:none;">&#128172; text them</a>' : '')); }).join('')
       : '<div class="sub" style="padding-left:10px;">Nobody waiting. A yes to deodorize while the season is off lands here.</div>') + '</div></div>';
   h += '<div class="fold folded" data-fold="deo-off" style="border-top:1px solid #f3f5f4;padding:6px 0;"><div style="display:flex;justify-content:space-between;font-size:13px;cursor:pointer;"><strong style="color:#555;">Active without it</strong><span style="color:#555;">' + off.length + '</span></div><div class="fold-body">' +
@@ -7749,7 +7749,7 @@ function render(){
     var firstName = String(l.name || '').trim().split(' ')[0] || 'there';
     var shortPrice = String(l.price || '').split(',')[0];
     if (shortPrice.indexOf('$') < 0) shortPrice = priceLabel(l);
-    var smsBody = 'Hi ' + firstName + ", it's Corey with CL Professional Pet Services - just got your request" +
+    var smsBody = 'Hi ' + firstName + ", it's Jesse with CL Professional Pet Services - just got your request" +
       (shortPrice ? ' (' + shortPrice + ')' : '') + ". When's a good time to talk?";
     var smsBtn = digits2 ? '<a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(smsBody).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(l.id) + '\')"' +
       ' style="display:inline-block;background:#188663;color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:700;text-decoration:none;">&#128172; Text them</a>' : '';
@@ -7766,7 +7766,7 @@ function render(){
     var expRow = '';
     if (quoteExpiring(l)){
       var dl = quoteDaysLeft(l), untilTxt = quoteExpiry(l).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-      var expBody = 'Hi ' + (String(l.name || '').trim().split(' ')[0] || 'there') + ", it's Corey with CL Professional Pet Services. Your price" + (String(l.price || '').split(',')[0].indexOf('$') >= 0 ? ' of ' + String(l.price).split(',')[0].split(' (')[0] : '') + ' is locked in until ' + untilTxt + ' - want to get started before then? Just reply here.';
+      var expBody = 'Hi ' + (String(l.name || '').trim().split(' ')[0] || 'there') + ", it's Jesse with CL Professional Pet Services. Your price" + (String(l.price || '').split(',')[0].indexOf('$') >= 0 ? ' of ' + String(l.price).split(',')[0].split(' (')[0] : '') + ' is locked in until ' + untilTxt + ' - want to get started before then? Just reply here.';
       expRow = '<div style="background:#FFF8E1;border-radius:9px;padding:8px 11px;margin-top:8px;font-size:12.5px;color:#7a5c00;font-weight:700;">&#9203; Price locked until ' + esc(untilTxt) + ' &mdash; ' + (dl === 0 ? 'last day' : dl + ' day' + (dl === 1 ? '' : 's') + ' left') +
         (digits2 ? ' <a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(expBody).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(l.id) + '\')" style="display:inline-block;margin-left:6px;background:#188663;color:#fff;border-radius:8px;padding:7px 11px;font-size:12px;text-decoration:none;">&#128172; Text them</a>' : '') + '</div>';
     }

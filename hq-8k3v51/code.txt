@@ -1585,11 +1585,11 @@ function sgCreate_(id, force) {
    until the office switches it on (CONFIG fu_emails = on). */
 var FU_STEPS = [
   { step: 1, afterDays: 2, subject: '{first}, your yard price is saved - any questions?',
-    body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. You looked at a price for {plan} the other day and I wanted to make sure you had what you needed.\n\nYour price of {price} is saved for six months either way, and there is no contract - month to month, cancel any time.\n\nIf you have a question about the yard, the day, or the dogs, just reply here or text me at (636) 375-4342. Happy to help either way.' },
+    body: 'Hi {first},\n\nIt\u2019s Jesse with CL Professional Pet Services. You looked at a price for {plan} the other day and I wanted to make sure you had what you needed.\n\nYour price of {price} is saved for six months either way, and there is no contract - month to month, cancel any time.\n\nIf you have a question about the yard, the day, or the dogs, just reply here or text me at (636) 375-4342. Happy to help either way.' },
   { step: 2, afterDays: 6, subject: 'Last note from me, {first}',
     body: 'Hi {first},\n\nOne last note so I am not filling your inbox. Your price of {price} for {plan} stays locked for six months, so there is no rush.\n\nIf the timing is off, no problem at all. If you would like us to take the yard off your plate, reply here or text (636) 375-4342 and I will get you on the schedule this week.' }
 ];
-var FU_FOOTER = '\n\n\u2014 Corey\nCL Professional Pet Services LLC \u00b7 St. Peters, MO \u00b7 (636) 375-4342 \u00b7 clpropetservices.com\nReply STOP and we\u2019ll leave you off future emails.';
+var FU_FOOTER = '\n\n\u2014 Jesse\nCL Professional Pet Services LLC \u00b7 St. Peters, MO \u00b7 (636) 375-4342 \u00b7 clpropetservices.com\nReply STOP and we\u2019ll leave you off future emails.';
 function fuFill_(t, r) { return String(t).split('{first}').join(r.first).split('{price}').join(r.price).split('{plan}').join(r.plan); }
 /* Which quotes are due which step, today. Pure, so it can be tested. */
 function followupsDue_(rows, now) {
@@ -1654,7 +1654,7 @@ var WE_STEPS = [
   { step: 2, from: 30, to: 46, subject: 'How are we doing, {first}?',
     body: 'Hi {first},\n\nYou have been with us about a month now, so a quick check-in: is everything the way you want it? If anything is off, reply here and I will fix it myself.\n\nAnd if we have earned it, a Google review would mean the world to a small local business like ours. It takes a minute: {review}\n\nThank you for having us in your yard.' }
 ];
-var WE_FOOTER = '\n\n\u2014 Corey\nCL Professional Pet Services LLC \u00b7 St. Peters, MO \u00b7 (636) 375-4342 \u00b7 clpropetservices.com\nReply STOP and we\u2019ll leave you off future emails.';
+var WE_FOOTER = '\n\n\u2014 Jesse\nCL Professional Pet Services LLC \u00b7 St. Peters, MO \u00b7 (636) 375-4342 \u00b7 clpropetservices.com\nReply STOP and we\u2019ll leave you off future emails.';
 function welcomeDue_(rows, now, reviewLink) {
   now = now || new Date();
   var H = {}; HEADERS.forEach(function(h, i) { H[h] = i; });
@@ -2164,7 +2164,7 @@ function winbackEmails() {
       var n = String(p.crmnotes || ''), cx = (n.match(/\[CX:(\d{4}-\d{2}-\d{2})\]/) || [])[1], why = (n.match(/\[CXR:([^\]]*)\]/) || [])[1] || '';
       var age = ageDays_(cx); if (!cx || age < 30 || age > 75) return;
       if (/moved|nodog/.test(why) || /\[(WK|WC):/.test(n) || /\[EM:winback/.test(n)) return;
-      send(p, E.first(p) + ', we\u2019d love to have you back', 'Hi ' + E.first(p) + ',\n\nIt\u2019s Corey with CL Professional Pet Services. We miss your yard! If you\u2019d like us to pick it back up, the initial clean fee is waived, and you get ' + COMEBACK_PCT + '% off today\u2019s price for your first ' + COMEBACK_MONTHS + ' months back.\n\nJust reply here or text (636) 375-4342 and we\u2019ll put you back on the route.', { WK: today });
+      send(p, E.first(p) + ', we\u2019d love to have you back', 'Hi ' + E.first(p) + ',\n\nIt\u2019s Jesse with CL Professional Pet Services. We miss your yard! If you\u2019d like us to pick it back up, the initial clean fee is waived, and you get ' + COMEBACK_PCT + '% off today\u2019s price for your first ' + COMEBACK_MONTHS + ' months back.\n\nJust reply here or text (636) 375-4342 and we\u2019ll put you back on the route.', { WK: today });
     });
   });
 }
@@ -2178,7 +2178,7 @@ function leadRevival() {
       var age = ageDays_(p.created); if (age < 30 || age > 400) return;
       if (/\[LR:/.test(n) || /\[SGID:/.test(n)) return;
       var price = String(p.price || '').trim(), plan = String(p.service || '').trim() || 'your plan', when = new Date(String(p.created)).toLocaleDateString('en-US', { month: 'long' });
-      var body = 'Hi ' + E.first(p) + ',\n\nIt\u2019s Corey with CL Professional Pet Services. You asked us for a price back in ' + when + ' and I wanted to check in, in case the yard is still on the to-do list.\n\n' +
+      var body = 'Hi ' + E.first(p) + ',\n\nIt\u2019s Jesse with CL Professional Pet Services. You asked us for a price back in ' + when + ' and I wanted to check in, in case the yard is still on the to-do list.\n\n' +
         (price && /\d/.test(price) ? 'Your price of ' + price + ' for ' + plan + ' still stands, ' : 'The price we gave you still stands, ') + 'and there is no contract \u2014 month to month, cancel any time.\n\nIf you\u2019d like us to take it off your plate, just reply to this email or text me at (636) 375-4342 and I\u2019ll get you on the schedule this week.';
       send(p, E.first(p) + ', is the yard still on the list?', body, { LR: today });
     });
@@ -2218,7 +2218,7 @@ function anniversaryEmails() {
       var n = String(p.crmnotes || ''); if (String(p.status) !== 'closed' || !E.mailable(p) || /\[CM:1\]/.test(n) || sgOutOfCount_(n, p.name, E.paying)) return;
       var cd = (n.match(/\[CD:(\d{4}-\d{2}-\d{2})\]/) || [])[1]; if (!cd || cd.slice(5) !== md) return;
       var years = yr - parseInt(cd.slice(0, 4), 10); if (years < 1 || n.indexOf('[AN:' + yr) >= 0) return;
-      send(p, (years === 1 ? 'A year with us, ' : years + ' years with us, ') + E.first(p) + ' \u2014 thank you', 'Hi ' + E.first(p) + ',\n\n' + (years === 1 ? 'It has been a year today since we first came out to your yard.' : 'It has been ' + years + ' years today since we first came out to your yard.') + ' Thank you for having us every week; a small business runs on customers like you.\n\nAs a small thank-you, your next visit includes a free deodorizing and sanitizing treatment, on the house. Nothing to do on your end.\n\nIf there is anything we could be doing better, reply here and tell me straight. \u2014 Corey', { AN: yr + '@' + today });
+      send(p, (years === 1 ? 'A year with us, ' : years + ' years with us, ') + E.first(p) + ' \u2014 thank you', 'Hi ' + E.first(p) + ',\n\n' + (years === 1 ? 'It has been a year today since we first came out to your yard.' : 'It has been ' + years + ' years today since we first came out to your yard.') + ' Thank you for having us every week; a small business runs on customers like you.\n\nAs a small thank-you, your next visit includes a free deodorizing and sanitizing treatment, on the house. Nothing to do on your end.\n\nIf there is anything we could be doing better, reply here and tell me straight. \u2014 Jesse', { AN: yr + '@' + today });
     });
   });
 }
@@ -2226,13 +2226,13 @@ function anniversaryEmails() {
    switch (CONFIG campaigns), sent on the day to its audience, once a year. */
 var CAMPAIGNS = {
   spring:  { date: '03-15', name: 'Spring cleanup', who: 'quotes', subject: '{first}, spring is here \u2014 your yard price still stands',
-             body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. The snow is gone and so is the excuse: everything the dog left all winter is out there now.\n\nYour price of {price} for {plan} still stands, and there is no contract \u2014 month to month, cancel any time.\n\nReply here or text (636) 375-4342 and we\u2019ll get the yard back to normal this week.' },
+             body: 'Hi {first},\n\nIt\u2019s Jesse with CL Professional Pet Services. The snow is gone and so is the excuse: everything the dog left all winter is out there now.\n\nYour price of {price} for {plan} still stands, and there is no contract \u2014 month to month, cancel any time.\n\nReply here or text (636) 375-4342 and we\u2019ll get the yard back to normal this week.' },
   deo:     { date: '05-01', name: 'Deodorize season', who: 'customers-no-deo', subject: '{first}, the warm months are coming: deodorize and sanitize',
-             body: 'Hi {first},\n\nQuick one from Corey. Once it warms up, a clean yard can still smell like a dog yard. Our deodorizing and sanitizing treatment fixes that: $15 a visit, added to your regular service, and you can stop it any time in the fall.\n\nReply \u201cyes\u201d and we\u2019ll add it from your next visit.' },
+             body: 'Hi {first},\n\nQuick one from Jesse. Once it warms up, a clean yard can still smell like a dog yard. Our deodorizing and sanitizing treatment fixes that: $15 a visit, added to your regular service, and you can stop it any time in the fall.\n\nReply \u201cyes\u201d and we\u2019ll add it from your next visit.' },
   fall:    { date: '10-01', name: 'Fall leaves', who: 'quotes', subject: '{first}, your yard price is still good \u2014 and the leaves are coming',
-             body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. You asked us for a price a while back and I wanted to check in before the yard disappears under the leaves.\n\nYour price of {price} for {plan} still stands, and there is no contract \u2014 month to month, cancel any time.\n\nIf you\u2019d like us to take the yard off your plate this season, just reply or text me at (636) 375-4342.' },
+             body: 'Hi {first},\n\nIt\u2019s Jesse with CL Professional Pet Services. You asked us for a price a while back and I wanted to check in before the yard disappears under the leaves.\n\nYour price of {price} for {plan} still stands, and there is no contract \u2014 month to month, cancel any time.\n\nIf you\u2019d like us to take the yard off your plate this season, just reply or text me at (636) 375-4342.' },
   holiday: { date: '12-01', name: 'Holiday deep clean', who: 'quotes-and-former', subject: '{first}, a clean yard before the guests arrive',
-             body: 'Hi {first},\n\nIt\u2019s Corey with CL Professional Pet Services. If family is coming for the holidays, we can do a one-time deep clean of the yard the week before \u2014 $75 covers the first half hour, and we haul everything away.\n\nReply here or text (636) 375-4342 with the week you want, and consider it done.' }
+             body: 'Hi {first},\n\nIt\u2019s Jesse with CL Professional Pet Services. If family is coming for the holidays, we can do a one-time deep clean of the yard the week before \u2014 $75 covers the first half hour, and we haul everything away.\n\nReply here or text (636) 375-4342 with the week you want, and consider it done.' }
 };
 function campaignsDue() {
   var cfg = {}; try { cfg = JSON.parse(cfg_('campaigns') || '{}') || {}; } catch (e) {}
@@ -2298,7 +2298,7 @@ function outreachText_(kind, sub, p) {
   var first = String(p.name || '').trim().split(/\s+/)[0] || 'there', price = String(p.price || '').split(',')[0].trim();
   var priceLine = comebackDeal_(p), days = streetDays_(p);
   var onStreet = days ? ' We are already on your street on ' + days + 's, so it is no trouble to fit you back in.' : '';
-  var corey = 'It’s Corey with CL Professional Pet Services.';
+  var corey = 'It’s Jesse with CL Professional Pet Services.';
   if (kind === 'winback') {
     var left = String(p.status) === 'cancelled';
     if (LEAVE_ALONE[sub]) return { stop: 'leave alone' };
@@ -2333,7 +2333,7 @@ function outreachText_(kind, sub, p) {
   return { stop: 'unknown' };
 }
 function spring_(p, first, priceLine, days) {
-  return { subject: first + ', we’re back on your street for spring', body: 'Hi ' + first + ',\n\nIt’s Corey with CL Professional Pet Services. Spring is here, and everything the dog left all winter is out there now.' + (days ? ' We are back on your street on ' + days + 's.' : '') + ' Your yard can go straight back on the route: ' + priceLine + ' and the initial clean fee is waived.\n\nReply here or text (636) 375-4342 and we’ll pick it back up this week.' };
+  return { subject: first + ', we’re back on your street for spring', body: 'Hi ' + first + ',\n\nIt’s Jesse with CL Professional Pet Services. Spring is here, and everything the dog left all winter is out there now.' + (days ? ' We are back on your street on ' + days + 's.' : '') + ' Your yard can go straight back on the route: ' + priceLine + ' and the initial clean fee is waived.\n\nReply here or text (636) 375-4342 and we’ll pick it back up this week.' };
 }
 function outreach_(body) {
   var kind = String(body.kind || ''), sub = String(body.sub || '');
@@ -2352,7 +2352,7 @@ function outreach_(body) {
   if (!officeMailReady_()) return { ok:false, error: NO_OFFICE_MAIL };
   // the office may have edited the wording in the tracker; the footer always goes on
   var subject = typeof body.subject === 'string' && body.subject.trim() ? body.subject.trim().slice(0, 200) : o.subject;
-  var text = typeof body.text === 'string' && body.text.trim() ? body.text.replace(/\n*— Corey\nCL Professional Pet Services LLC[\s\S]*$/, '').trim().slice(0, 6000) : o.body;
+  var text = typeof body.text === 'string' && body.text.trim() ? body.text.replace(/\n*— Jesse\nCL Professional Pet Services LLC[\s\S]*$/, '').trim().slice(0, 6000) : o.body;
   try { sendCustomerMail_({ to: email, subject: subject, body: text + WE_FOOTER }); } catch (e) { return { ok:false, error: String(e && e.message || e).slice(0, 120) }; }
   var today = new Date().toISOString().slice(0, 10), rows = sh.getDataRange().getValues(), idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes'), marker = kind + '-' + sub + '@' + today;
   for (var i = 1; i < rows.length; i++) if (String(rows[i][idCol]) === String(p.id)) sh.getRange(i + 1, nCol + 1).setValue(safeCell_(sgSetMarkers_(String(rows[i][nCol] || ''), { OU: marker })));
@@ -2439,7 +2439,7 @@ function refInviteList_(E) {
 }
 function refInviteText_(p) {
   var first = String(p.name || '').trim().split(/\s+/)[0] || 'there';
-  return { subject: first + ', your own referral link', body: 'Hi ' + first + ',\n\nIt’s Corey with CL Professional Pet Services. Thank you for having us. Most of our new customers come from neighbors, so here is a link that is yours alone:\n\n' + refLink_(p) + '\n\nWhen a friend or neighbor signs up through it, your next visit includes a free deodorizing and sanitizing treatment. There is no limit.\n\nYour account page, with every visit, photo and invoice, is here any time:\n' + acctLink_(p.id) };
+  return { subject: first + ', your own referral link', body: 'Hi ' + first + ',\n\nIt’s Jesse with CL Professional Pet Services. Thank you for having us. Most of our new customers come from neighbors, so here is a link that is yours alone:\n\n' + refLink_(p) + '\n\nWhen a friend or neighbor signs up through it, your next visit includes a free deodorizing and sanitizing treatment. There is no limit.\n\nYour account page, with every visit, photo and invoice, is here any time:\n' + acctLink_(p.id) };
 }
 function refInvite_(body) {
   var E = emailRows_(), list = refInviteList_(E);
@@ -2472,8 +2472,8 @@ function prepayText_(p, renew) {
   var first = String(p.name || '').trim().split(/\s+/)[0] || 'there', monthly = monthlyPrice_(p); if (!monthly) return { stop: 'no monthly price' };
   var opts = prepayOptions_(monthly), m = new Date().getMonth() + 1, winter = m >= 10 || m <= 2, pp = prepayOf_(p.crmnotes);
   var lines = opts.map(function(o) { return '  ' + o.months + ' months: $' + o.total.toFixed(2) + ' (save $' + o.save.toFixed(2) + ', ' + o.off + '% off)'; }).join('\n');
-  if (renew && pp) return { subject: first + ', your prepaid yard service ends ' + longDate_(pp.to), body: 'Hi ' + first + ',\n\nIt’s Corey with CL Professional Pet Services. Thank you for paying ahead. Your prepaid service runs through ' + longDate_(pp.to) + '.\n\nIf you’d like to keep the same discount and keep your price locked, here is what the next stretch costs at $' + monthly + ' a month:\n\n' + lines + '\n\nReply with 3, 6 or 12 and we’ll send the invoice. If you’d rather go back to paying monthly, there is nothing to do: the monthly billing picks up after ' + longDate_(pp.to) + '.' };
-  return { subject: winter ? first + ', lock in your yard through the winter' : first + ', pay ahead and save on your yard', body: 'Hi ' + first + ',\n\nIt’s Corey with CL Professional Pet Services. Some of our customers asked if they could pay ahead, so here is the option. At your price of $' + monthly + ' a month:\n\n' + lines + '\n\nYour price is locked for the whole stretch, there are no monthly charges or card worries while it runs, and' + (winter ? ' the yard stays on the route right through the cold months.' : ' you can still pause for vacations like always.') + '\n\nReply with 3, 6 or 12 and we’ll send one invoice. Or keep paying monthly, nothing changes unless you want it to.' };
+  if (renew && pp) return { subject: first + ', your prepaid yard service ends ' + longDate_(pp.to), body: 'Hi ' + first + ',\n\nIt’s Jesse with CL Professional Pet Services. Thank you for paying ahead. Your prepaid service runs through ' + longDate_(pp.to) + '.\n\nIf you’d like to keep the same discount and keep your price locked, here is what the next stretch costs at $' + monthly + ' a month:\n\n' + lines + '\n\nReply with 3, 6 or 12 and we’ll send the invoice. If you’d rather go back to paying monthly, there is nothing to do: the monthly billing picks up after ' + longDate_(pp.to) + '.' };
+  return { subject: winter ? first + ', lock in your yard through the winter' : first + ', pay ahead and save on your yard', body: 'Hi ' + first + ',\n\nIt’s Jesse with CL Professional Pet Services. Some of our customers asked if they could pay ahead, so here is the option. At your price of $' + monthly + ' a month:\n\n' + lines + '\n\nYour price is locked for the whole stretch, there are no monthly charges or card worries while it runs, and' + (winter ? ' the yard stays on the route right through the cold months.' : ' you can still pause for vacations like always.') + '\n\nReply with 3, 6 or 12 and we’ll send one invoice. Or keep paying monthly, nothing changes unless you want it to.' };
 }
 /* good payers: a customer 90+ days, nothing open, no notice in six months, not prepaid, not offered in four months */
 function prepayInviteList_(E) {
