@@ -90,6 +90,16 @@ const refCode = (l) => { const first = String(l.name).trim().split(/\s+/)[0].toL
     ok('and says the reward is owed', /owes them a free deodorize/.test(await t('G1')));
     ok('a code that matches nobody asks for the name', /referral link \(nobody-zzz\) that matches nobody/.test(await t('H1')));
     ok('a lead that is not a customer has no link of its own', !/Their referral link/.test(await t('H1')));
+    /* ---- the neighbor promo ---- */
+    const np = decodeURIComponent(await p.getAttribute('#card-E1 .np-card a.np-text', 'href'));
+    ok('every active customer has a Text the promo button: both get 10% off for 3 months, it stacks to 20% for two, with their own link', /^sms:16363750002\?&body=Hi Eddie, it's Jesse with CL Professional Pet Services\./.test(np) && /you BOTH get 10% off for 3 months\. It stacks, so two neighbors is 20% off your bill\. Your link: https:\/\/clpropetservices\.com\/\?ref=eddie-/.test(np), np);
+    ok('Dana, whose neighbor already started through her link, shows what she has earned', /1 neighbor started: 10% off earned/.test(await t('D1')), (await t('D1')).slice(-400));
+    ok('a lead that is not a customer has no promo button', (await p.$$('#card-H1 .np-text')).length === 0);
+    await p.evaluate(() => neighborTexted('E1')); await p.waitForTimeout(200);
+    ok('sending it stamps the card with the date, and the script is told', /texted 2\d{3}-\d\d-\d\d/.test(await p.textContent('#card-E1 .np-card')) && posts.some(x => x.action === 'update' && x.id === 'E1' && /\[NP:\d{4}-\d\d-\d\d\]/.test(x.notes) && /\[DAY:tue\]/.test(x.notes)));
+    await p.evaluate(() => neighborList()); await p.waitForTimeout(150);
+    const npl = (await p.textContent('#npList')).replace(/\s+/g, ' ');
+    ok('the text list counts who has had it and lists only those who have not', /1 of 4 texted/.test(npl) && !/Eddie Eow/.test(npl) && /Dana Deo/.test(npl) && /Gina Guest/.test(npl) && (await p.$$('#npList .np-text')).length === 3, npl);
     await p.evaluate(() => { try { localStorage.setItem('clpps_numbers', 'open'); } catch (e) {} });
     await p.click('#numbersBtn'); await p.waitForTimeout(1200);
     ok('the numbers cards start closed', await p.$eval('#schedule', e => e.classList.contains('folded')) && await p.$eval('#deo', e => e.classList.contains('folded')));

@@ -422,6 +422,7 @@
       <div id="auto-switches"></div>
       <div class="owner-only" style="display:flex;gap:6px;align-items:center;margin:-4px 0 10px;flex-wrap:wrap;font-size:12px;"><span>Monday email to:</span><input id="owner-email" type="email" placeholder="Corey's email (blank = the office mailbox)" style="flex:1 1 200px;padding:7px 9px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;min-width:0;"><button onclick="saveOwnerEmail()" style="padding:6px 10px;min-height:32px;font-size:11.5px;">Save</button></div>
       <div style="display:flex;align-items:center;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;flex-wrap:wrap;"><span style="flex:1 1 200px;"><strong>Referral links to every customer.</strong> Each active customer gets their own link and their account page, once in six months. You see the email first.</span><button class="copybtn" onclick="refInvite(false)">&#128279; Send referral links</button></div>
+      <div style="background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="flex:1 1 200px;"><strong>&#127873; Neighbor promo by text.</strong> A neighbor starts through their link and both get 10% off for 3 months. It stacks: two neighbors, 20%.</span><button class="copybtn" onclick="neighborList()">&#128172; Text list</button></div><div id="npList"></div></div>
       <div style="font-weight:700;font-size:13px;margin:4px 0;">Campaign calendar</div>
       <div style="font-size:11.5px;color:#707070;margin-bottom:6px;">Four seasonal emails, each on its date, once a year, to the people it is for. Tick the ones you want; change a date if you like. Each needs the office mailbox, like everything else here.</div>
       <div id="campaign-cal" style="margin-bottom:10px;"></div>
@@ -1103,6 +1104,38 @@ function buildRefIndex(){
 }
 /* Who referred them: the name typed on the card, else the customer whose link they used. */
 function referrerOf(fu){ if (fu.rb) return fu.rb; var r = fu.rf && refIdx[fu.rf]; return r ? String(r.name || '').trim() : ''; }
+/* The neighbor promo. Jesse: "if any of their neighbors use their referral
+   link, they and their neighbor will get 10% off for three months. And that
+   promotion can stack, so if they get two neighbors, it is 20% off." */
+var NEIGHBOR_PCT = 10, NEIGHBOR_MONTHS = 3;
+function neighborText(l){
+  var first = String(l.name || '').trim().split(/\s+/)[0] || 'there';
+  return 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. A thank-you for being a customer: share your link with a neighbor who has a dog, and when they start service through it you BOTH get " + NEIGHBOR_PCT + '% off for ' + NEIGHBOR_MONTHS + ' months. It stacks, so two neighbors is ' + (2 * NEIGHBOR_PCT) + '% off your bill. Your link: ' + refLink(l) + ' Just forward it to them.';
+}
+function neighborTexted(id){
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  var m = fuParse(l.crmnotes); m.np = new Date().toISOString().slice(0, 10); stampBy(m);
+  l.crmnotes = fuCompose(m); l.updated = new Date().toISOString(); saveLocal(); render(); var nb = document.getElementById('npList'); if (nb && nb.innerHTML) neighborList(true);
+  post({ action:'update', key:KEY, id:id, notes:l.crmnotes }, 'Neighbor promo texted');
+}
+function smsDigits(l){ var d = String(l.phone || '').replace(/\D/g, ''); if (d.length === 10) d = '1' + d; return d.length === 11 ? d : ''; }
+function neighborBtn(l, label){
+  var d = smsDigits(l); if (!d) return '';
+  return '<a class="np-text" href="sms:' + esc(d) + '?&body=' + encodeURIComponent(neighborText(l)).replace(/'/g, '%27') + '" onclick="neighborTexted(\'' + esc(l.id) + '\')" style="display:inline-block;background:#188663;color:#fff;border-radius:8px;padding:5px 9px;min-height:32px;line-height:20px;font-size:11.5px;font-weight:700;text-decoration:none;">&#127873; ' + label + '</a>';
+}
+/* How many neighbors started through their link or their name, and what that earns. */
+function neighborsWon(l){
+  var name = String(l.name || '').trim().toLowerCase(), code = refCode(l);
+  return leads.filter(function(x){ if (x.id === l.id || (x.status || 'new') !== 'closed') return false; var m = fuParse(x.crmnotes); return m.rf === code || (m.rb && String(m.rb).trim().toLowerCase() === name); }).length;
+}
+/* The list to work down: every active customer with a mobile, not yet texted first. */
+function neighborList(keep){
+  var box = document.getElementById('npList'); if (!box) return;
+  if (!keep && box.innerHTML){ box.innerHTML = ''; return; }
+  var all = activeRecurring().filter(smsDigits), todo = all.filter(function(l){ return !fuParse(l.crmnotes).np; }), done = all.length - todo.length;
+  box.innerHTML = '<div class="sub" style="margin:6px 0;">' + done + ' of ' + all.length + ' texted. Each tap opens the text on your phone, ready to send, and ticks them off.</div>' +
+    (todo.length ? todo.map(function(l){ return '<div class="bar np-row"><span style="flex:1;font-size:12.5px;"><strong>' + esc(l.name || '') + '</strong> <span class="sub">' + esc(townOf(zipOf(l), l) || '') + '</span></span>' + neighborBtn(l, 'Text') + '</div>'; }).join('') : '<div class="sub">Everyone has had it.</div>');
+}
 function refShareRow(l){
   var link = refLink(l), first = String(l.name || '').trim().split(' ')[0] || 'there', d = String(l.phone || '').replace(/\D/g, '');
   if (d.length === 10) d = '1' + d;
@@ -1111,7 +1144,10 @@ function refShareRow(l){
   return '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#128279; Their referral link: <code style="background:#f3f5f4;border-radius:5px;padding:2px 5px;font-size:11.5px;">' + esc(link) + '</code>' +
     '<button onclick="copyText(\'' + esc(link) + '\')" style="padding:5px 9px;min-height:32px;font-size:11.5px;">Copy</button>' +
     (d ? '<a href="sms:' + esc(d) + '?&body=' + encodeURIComponent(body).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(l.id) + '\')" style="display:inline-block;background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:8px;padding:5px 9px;min-height:32px;line-height:20px;font-size:11.5px;font-weight:700;text-decoration:none;">&#128172; Text it to them</a>' : '') +
-    (used ? '<span style="color:#188663;font-weight:700;">used ' + used + ' time' + (used === 1 ? '' : 's') + '</span>' : '') + '</div>';
+    (used ? '<span style="color:#188663;font-weight:700;">used ' + used + ' time' + (used === 1 ? '' : 's') + '</span>' : '') + '</div>' +
+    '<div class="np-card" style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#127873; Neighbor promo: ' + NEIGHBOR_PCT + '% off for ' + NEIGHBOR_MONTHS + ' months for both, stacks ' + neighborBtn(l, 'Text the promo') +
+    (fuParse(l.crmnotes).np ? '<span style="color:#707070;">texted ' + esc(fuParse(l.crmnotes).np) + '</span>' : '') +
+    (neighborsWon(l) ? '<span style="color:#188663;font-weight:700;">' + neighborsWon(l) + ' neighbor' + (neighborsWon(l) === 1 ? '' : 's') + ' started: ' + (neighborsWon(l) * NEIGHBOR_PCT) + '% off earned</span>' : '') + '</div>';
 }
 function copyText(t){
   try { navigator.clipboard.writeText(t).then(function(){ toast('Copied'); }, function(){ prompt('Copy this:', t); }); } catch (e) { prompt('Copy this:', t); }
@@ -1504,7 +1540,7 @@ function renderInsights(){
 
   // ---- referral rewards owed ----
   var owed = leads.filter(function(l){ var m = fuParse(l.crmnotes); var st = l.status || 'new'; return referrerOf(m) && !m.rw && (st === 'closed' || st === 'cancelled'); });
-  h += '<h4>&#129309; Referral rewards owed <span class="sub">(a free deodorize each)</span></h4>';
+  h += '<h4>&#129309; Referral rewards owed <span class="sub">(a free deodorize each; under the neighbor promo, 10% off for 3 months for both instead)</span></h4>';
   h += owed.length
     ? owed.map(function(l){ var m = fuParse(l.crmnotes);
         return '<div class="bar"><span style="flex:1;font-size:12.5px;"><strong>' + esc(referrerOf(m)) + '</strong> referred ' + esc(l.name || '') + (m.rb ? '' : ' <span class="sub">(their link)</span>') + (m.cd ? ' <span class="sub">(closed ' + esc(m.cd) + ')</span>' : '') + '</span>' +
@@ -1672,13 +1708,13 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', cf: '', wk: '', lr: '', rt: '', an: '', ng: '', ou: '', pl: '', ri: '', sc: '', pp: '', be: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', cf: '', wk: '', lr: '', rt: '', an: '', ng: '', ou: '', pl: '', ri: '', np: '', sc: '', pp: '', be: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
   // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
   // ll = lat,lng from Sweep&Go's dispatch board; sgid = their client id. Both written by the nightly sync.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR|CF|WK|LR|RT|AN|NG|OU|PL|RI|SC|PP|BE):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR|CF|WK|LR|RT|AN|NG|OU|PL|RI|SC|PP|BE|NP):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1732,6 +1768,7 @@ function fuParse(crmnotes){
     else if (hit[1] === 'AN') m.an = hit[2];                                 // anniversary email: year@date
     else if (hit[1] === 'OU') m.ou = hit[2];                                 // a one-off note from the Win back or Upsell card: kind-sub@date
     else if (hit[1] === 'PL') m.pl = hit[2];                                 // collections ladder: the notice sent, step@date
+    else if (hit[1] === 'NP') m.np = hit[2];                                 // neighbor promo texted, date
     else if (hit[1] === 'RI') m.ri = hit[2];                                 // referral link emailed, date
     else if (hit[1] === 'SC') m.sc = hit[2];
     else if (hit[1] === 'PP') m.pp = hit[2];
@@ -1784,7 +1821,7 @@ function fuCompose(m){
          (m.fe ? m.fe.split(',').map(function(x){ return '[FE:' + x + '] '; }).join('') : '') +
          (m.we ? m.we.split(',').map(function(x){ return '[WE:' + x + '] '; }).join('') : '') +
          (m.pm ? '[PM:' + m.pm + '] ' : '') +
-         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.cf ? '[CF:' + m.cf + '] ' : '') + (m.wk ? '[WK:' + m.wk + '] ' : '') + (m.lr ? '[LR:' + m.lr + '] ' : '') + (m.rt ? '[RT:' + m.rt + '] ' : '') + (m.an ? '[AN:' + m.an + '] ' : '') + (m.ng ? '[NG:' + m.ng + '] ' : '') + (m.ou ? '[OU:' + m.ou + '] ' : '') + (m.pl ? '[PL:' + m.pl + '] ' : '') + (m.ri ? '[RI:' + m.ri + '] ' : '') + (m.sc ? '[SC:' + m.sc + '] ' : '') + (m.pp ? '[PP:' + m.pp + '] ' : '') + (m.be ? '[BE:' + m.be + '] ' : '') + (m.text || '');
+         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.cf ? '[CF:' + m.cf + '] ' : '') + (m.wk ? '[WK:' + m.wk + '] ' : '') + (m.lr ? '[LR:' + m.lr + '] ' : '') + (m.rt ? '[RT:' + m.rt + '] ' : '') + (m.an ? '[AN:' + m.an + '] ' : '') + (m.ng ? '[NG:' + m.ng + '] ' : '') + (m.ou ? '[OU:' + m.ou + '] ' : '') + (m.pl ? '[PL:' + m.pl + '] ' : '') + (m.ri ? '[RI:' + m.ri + '] ' : '') + (m.np ? '[NP:' + m.np + '] ' : '') + (m.sc ? '[SC:' + m.sc + '] ' : '') + (m.pp ? '[PP:' + m.pp + '] ' : '') + (m.be ? '[BE:' + m.be + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
