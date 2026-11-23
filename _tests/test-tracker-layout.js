@@ -131,7 +131,8 @@ ok('a new lead\'s card is shorter than the old 555px', nora < 500, nora + 'px');
      !(await visibleIn(p, 'L6', 'Email quote')) && !(await visibleIn(p, 'L6', 'Follow up on')) &&
      !(await visibleIn(p, 'L6', '+1 attempt')));
   const pat = await h('L6');
-  ok('a passed lead\'s card is small', pat < 380, pat + 'px');
+  // a passed lead now carries the win-back offer and its two buttons (Jesse asked for them on the card), so it is a little taller
+  ok('a passed lead\'s card is still small, with the win-back offer on it', pat < 480 && /Win them back/.test(await p.textContent('#card-L6')), pat + 'px');
   ok('status buttons and notes are on every card regardless',
      await visibleIn(p, 'L6', 'Not interested') && await p.isVisible('#note-L6'));
 

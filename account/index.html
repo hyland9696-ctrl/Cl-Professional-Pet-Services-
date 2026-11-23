@@ -106,7 +106,7 @@ function render(d){
       '<button class="btn" onclick="share(\'' + esc(ref) + '\')">Share my link</button>' + (d.refUsed ? '<p class="muted" style="margin-top:8px;text-align:center;">Used ' + d.refUsed + ' time' + (d.refUsed === 1 ? '' : 's') + ' so far. Thank you!</p>' : '') + '</div></div>';
   }
   if (d.status === 'closed'){
-    h += '<div class="card"><div class="sec" style="text-align:center;"><h2>Want us back?</h2><p style="font-size:14px;">No restart fee, and 10% off today&rsquo;s price for your first 6 months back.</p><a class="btn" href="sms:+16363754342?&body=' + encodeURIComponent('Hi, it\'s ' + (d.first || '') + '. I\'d like to restart service.') + '">Text us to restart</a></div></div>';
+    h += '<div class="card"><div class="sec" style="text-align:center;"><h2>Want us back?</h2><p style="font-size:14px;">The initial clean fee is waived, and you get 10% off today&rsquo;s price for your first 6 months back.</p><a class="btn" href="sms:+16363754342?&body=' + encodeURIComponent('Hi, it\'s ' + (d.first || '') + '. I\'d like to restart service.') + '">Text us to restart</a></div></div>';
   }
   h += '<div class="foot">Questions? <a href="tel:+16363754342">(636) 375-4342</a> &middot; <a href="mailto:info@clpropetservices.com">info@clpropetservices.com</a><br>This page is private to you. Please do not share its address.</div>';
   document.getElementById('app').innerHTML = h;

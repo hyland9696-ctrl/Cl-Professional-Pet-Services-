@@ -67,11 +67,13 @@ const day = (days) => new Date(NOW.getTime() - days * 864e5).toISOString().slice
   ok('a 100-day-old quote does not warn yet', !/Price locked until/.test(await t('e2')));
 
   /* ---- win-back for a closed account ---- */
-  ok('an account closed 100 days ago for cost gets the win-back offer', /Gone 100 days — worth a win-back text/.test(await t('w1')), await t('w1'));
-  ok('one closed for non-payment never does', !/win-back/.test(await t('w2')));
-  ok('one closed 30 days ago, not yet', !/win-back/.test(await t('w3')));
-  await p.click('#card-w1 button:has-text("Mark as sent")'); await p.waitForTimeout(300);
-  ok('marking it sent stamps the date', posts.some(x => x.action === 'update' && x.id === 'w1' && /\[WC:2026-11-05\]/.test(x.notes)) && /Win-back text sent 2026-11-05/.test(await t('w1')));
+  ok('a closed account\'s card carries the win-back offer with a Text and an Email button', /Win them back: 10% off for 6 months, initial clean fee waived/.test(await t('w1')) && (await p.$$('#card-w1 .wb-text')).length === 1 && /Text the offer/.test(await t('w1')), await t('w1'));
+  const w1sms = decodeURIComponent(await p.getAttribute('#card-w1 .wb-text', 'href'));
+  ok('the text is written for them: the initial clean fee waived and 10% off the first 6 months', /initial clean fee is waived/.test(w1sms) && /10% off/.test(w1sms) && /6 months/.test(w1sms), w1sms);
+  ok('one closed for non-payment gets no offer, and the card says why', /No win-back offer for this one: the account closed over payment/.test(await t('w2')) && (await p.$$('#card-w2 .wb-text')).length === 0);
+  ok('there is no waiting period: one closed 30 days ago has the buttons too', (await p.$$('#card-w3 .wb-text')).length === 1);
+  await p.evaluate(() => wbTexted('w1')); await p.waitForTimeout(300);
+  ok('texting stamps the date, and the card shows when it was last sent with the buttons still there', posts.some(x => x.action === 'update' && x.id === 'w1' && /\[WC:2026-11-05\]/.test(x.notes)) && /last sent 2026-11-05/.test(await t('w1')) && (await p.$$('#card-w1 .wb-text')).length === 1);
 
   /* ---- behind on payment ---- */
   await p.click('#card-u4 button:has-text("Behind on payment")'); await p.waitForTimeout(500);
