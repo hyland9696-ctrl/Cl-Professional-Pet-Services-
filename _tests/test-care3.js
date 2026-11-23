@@ -41,6 +41,8 @@ const refCode = (l) => { const first = String(l.name).trim().split(/\s+/)[0].toL
     const lead = posts.find(l => l && l.type === 'ENQUIRY');
     ok('how they heard rides along in their own words, beside the measured source', lead && /\[HH:Nextdoor\]/.test(lead.crmnotes), lead && lead.crmnotes);
     ok('the quote row carries the referral code', lead && /\[RF:dana-1nx\]/.test(lead.crmnotes), lead && lead.crmnotes);
+    const refNote = (await p.textContent('#q-price-note')).replace(/\s+/g, ' ');
+    ok('a referred neighbor sees the deal on their price: initial clean free, and 10% off the first 3 months in dollars; the saved price stays the full price and the waiver is stamped', /Neighbor referral/.test(refNote) && /Initial clean \$40 FREE/.test(refNote) && /10% off your first 3 months \(\$\d+\/mo\)/.test(refNote) && /\[IC:w\]/.test(lead.crmnotes) && /^\$\d+\/mo/.test(lead.price) && /10% off your first 3 months/.test(await p.textContent('#ref-note')), refNote + ' | ' + lead.price);
     // the text-us button: on a phone, beside the call button, and the call button stays first
     const fabs = await p.$$eval('.fab', els => els.map(e => ({ href: e.getAttribute('href'), shown: getComputedStyle(e).display !== 'none' })));
     ok('two floating buttons on a phone: call, then text', fabs.length === 2 && /^tel:/.test(fabs[0].href) && /^sms:\+16363754342/.test(fabs[1].href) && fabs[1].shown, JSON.stringify(fabs));
@@ -87,12 +89,12 @@ const refCode = (l) => { const first = String(l.name).trim().split(/\s+/)[0].toL
     ok('and how often it has been used', /used 1 time/.test(await t('D1')));
     ok('the link can be texted to them, and that logs the text', await p.$eval('#card-D1 a[href^="sms:"][onclick^="textLead"]', e => /ref=dana-1nx/.test(decodeURIComponent(e.getAttribute('href')))));
     ok('the quote that came through the link names the referrer', /Referred by Dana Deo \(used their link\)/.test(await t('G1')), await t('G1'));
-    ok('and says the reward is owed', /owes them a free deodorize/.test(await t('G1')));
+    ok('and says the reward is owed', /both are owed 10% off for 3 months/.test(await t('G1')));
     ok('a code that matches nobody asks for the name', /referral link \(nobody-zzz\) that matches nobody/.test(await t('H1')));
     ok('a lead that is not a customer has no link of its own', !/Their referral link/.test(await t('H1')));
     /* ---- the neighbor promo ---- */
     const np = decodeURIComponent(await p.getAttribute('#card-E1 .np-card a.np-text', 'href'));
-    ok('every active customer has a Text the promo button: both get 10% off for 3 months, it stacks to 20% for two, with their own link', /^sms:16363750002\?&body=Hi Eddie, it's Jesse with CL Professional Pet Services\./.test(np) && /you BOTH get 10% off for 3 months\. It stacks, so two neighbors is 20% off your bill\. Your link: https:\/\/clpropetservices\.com\/\?ref=eddie-/.test(np), np);
+    ok('every active customer has a Text the promo button: both get 10% off for 3 months, the neighbor\'s initial clean waived, 10% each up to 5, with their own link', /^sms:16363750002\?&body=Hi Eddie, it's Jesse with CL Professional Pet Services\./.test(np) && /you BOTH get 10% off for 3 months, and their \$40 initial clean fee is waived\. It stacks: 10% for each neighbor, up to 5 \(50% off your bill\)\. Your link: https:\/\/clpropetservices\.com\/\?ref=eddie-/.test(np), np);
     ok('Dana, whose neighbor already started through her link, shows what she has earned', /1 neighbor started: 10% off earned/.test(await t('D1')), (await t('D1')).slice(-400));
     ok('a lead that is not a customer has no promo button', (await p.$$('#card-H1 .np-text')).length === 0);
     await p.evaluate(() => neighborTexted('E1')); await p.waitForTimeout(200);

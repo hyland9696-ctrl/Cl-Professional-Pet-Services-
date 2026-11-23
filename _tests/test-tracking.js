@@ -146,7 +146,7 @@ for (let d = 0; d < 40; d++) ROWS.push({ id:'v' + d, type:'VIEW', name:'Home', y
   ok('a closed referral with no reward yet is listed as owed', /Beth Kowalski referred Std Won C/.test(ins));
   ok('one already rewarded is not', !/referred Std Won D/.test(ins));
   ok('the referred customer\'s card says who referred them and that a reward is owed',
-     /Referred by Beth Kowalski/.test(await card('L13')) && /owes them a free deodorize/.test(await card('L13')));
+     /Referred by Beth Kowalski/.test(await card('L13')) && /both are owed 10% off for 3 months/.test(await card('L13')));
   await p.evaluate(() => document.querySelectorAll('#insights .fold').forEach(c => c.classList.remove('folded')));   // the sections fold on their own now
   await p.click('#insights button:has-text("Reward given")'); await p.waitForTimeout(300);
   const rwPost = posts.find(x => x.action === 'update' && x.id === 'L13');

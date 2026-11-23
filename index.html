@@ -444,8 +444,8 @@
     <div class="spring-banner">
       <div>
         <div class="sb-eyebrow">Referral Program</div>
-        <div class="sb-title">Refer a Neighbor, Get a Free Deodorize &amp; Sanitize</div>
-        <div class="sb-sub">Know someone whose yard needs us? When a neighbor you refer starts service, you get a one-time deodorizing &amp; sanitizing treatment on your yard, completely free.</div>
+        <div class="sb-title">Refer a Neighbor, You Both Get 10% Off for 3 Months</div>
+        <div class="sb-sub">Know someone whose yard needs us? When a neighbor starts service through your referral link, you both get 10% off for 3 months, and their $40 initial clean is waived. It stacks: 10% for each neighbor, up to 5 neighbors (50% off).</div>
       </div>
       <a class="sb-btn" href="tel:+16363754342">Call to Refer a Neighbor</a>
     </div>
@@ -826,7 +826,7 @@
       <h2 class="page-title">Get Your Instant Quote</h2>
       <p>Tell us about your yard on one page, see your price on the next. No phone tag, no waiting, and nothing is booked until you say yes.</p>
     </div>
-    <div id="ref-note" style="display:none;max-width:720px;margin:0 auto 14px;background:#E6F2ED;border:1px solid #bfe0d2;border-radius:12px;padding:12px 16px;font-size:15px;color:#0F6E56;line-height:1.5;">&#128075; <strong>A customer of ours sent you.</strong> Finish your quote and we&rsquo;ll make sure they get their thank-you, and you start with the $40 initial clean on us.</div>
+    <div id="ref-note" style="display:none;max-width:720px;margin:0 auto 14px;background:#E6F2ED;border:1px solid #bfe0d2;border-radius:12px;padding:12px 16px;font-size:15px;color:#0F6E56;line-height:1.5;">&#128075; <strong>A customer of ours sent you.</strong> Finish your quote and you get <strong>10% off your first 3 months</strong> with the <strong>$40 initial clean fee waived</strong>, and your neighbor gets 10% off too.</div>
     <div class="q-wrap">
       <div class="q-steps">
         <div class="q-step active" id="qs1"><span class="dot">1</span> Your Details</div>
@@ -1357,7 +1357,10 @@
     if (q.yard === 'large' && !once) return { manual: true, reason: 'yard' };
     if (q.dogs === '5' && !once)     return { manual: true, reason: '5+ dogs' };
     var off = qDeoSeason() !== 'on';
-    var p = clppsQuote({ zip: q.zip, dogs: q.dogs, freq: q.freq, deo: off ? 'none' : q.deo });
+    // a neighbor who came through a customer's referral link: the initial clean is on us
+    var viaRef = !once && typeof clppsLeadRef === 'function' && !!clppsLeadRef();
+    var p = clppsQuote({ zip: q.zip, dogs: q.dogs, freq: q.freq, deo: off ? 'none' : q.deo, waiveInitial: viaRef });
+    p.viaRef = viaRef && !p.manual;
     // chosen, but not until the season reopens: on the lead, never in the price
     p.deoLater = off && q.deo !== 'none';
     return p;
@@ -1416,9 +1419,10 @@
       // Show the fee crossed out rather than just saying "waived" - people
       // need to see what they are not paying for it to feel like anything.
       var promo = p.initial ? '' :
-        '<span class="promo-tag">&#127991;&#65039; New customer promo</span> ' +
+        '<span class="promo-tag">&#127991;&#65039; ' + (p.viaRef ? 'Neighbor referral' : 'New customer promo') + '</span> ' +
         'Initial clean <s style="opacity:.6;">$' + PRICING.initialClean + '</s> ' +
-        '<strong style="color:#fff;">FREE</strong> &mdash; first invoice is just <strong style="color:#fff;">$' + p.first + '</strong>. ';
+        '<strong style="color:#fff;">FREE</strong> &mdash; first invoice is just <strong style="color:#fff;">$' + p.first + '</strong>. ' +
+        (p.viaRef ? 'Plus <strong style="color:#fff;">10% off your first 3 months</strong> ($' + Math.round(p.total * 0.9) + '/mo), taken off your invoices. ' : '');
       noteEl.innerHTML = eowNote + (p.deoMo ? 'Includes ' + p.treatments + '\u00d7 $15 deodorize/mo. ' : '') +
         (p.initial
           ? 'First invoice $' + p.first + ', which includes your one-time $' + PRICING.initialClean + ' initial clean. '

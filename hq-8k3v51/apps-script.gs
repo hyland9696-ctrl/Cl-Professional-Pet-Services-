@@ -2184,7 +2184,7 @@ function leadRevival() {
     });
   });
 }
-/* When someone a customer referred starts, thank the referrer and remind the office of the free deodorize. */
+/* When someone a customer referred starts, thank the referrer and remind the office of the reward: 10% off for 3 months for both, up to 5 neighbors. */
 function refCode_(id, name) {
   var first = String(name || '').trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z]/g, '').slice(0, 6) || 'clpps';
   var h = 0, str = String(id || ''); for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
@@ -2200,11 +2200,11 @@ function referralThanks() {
       var rb = (n.match(/\[RB:([^\]]*)\]/) || [])[1], rf = (n.match(/\[RF:([^\]]*)\]/) || [])[1];
       var ref = (rb && byName[sgNorm_(rb)]) || (rf && byCode[rf]); if (!ref || ref.id === p.id) return;
       var newFirst = E.first(p);
-      if (E.mailable(ref)) send(ref, 'Thank you, ' + E.first(ref) + ' \u2014 your free deodorize is on the way', 'Hi ' + E.first(ref) + ',\n\n' + newFirst + ' just started with us and mentioned you sent them our way. Thank you \u2014 that is the best compliment a small business can get.\n\nAs promised, your next visit includes a free deodorizing and sanitizing treatment on the house. Nothing to do on your end.\n\nThanks again for having us, and for the kind word.', { RT: today });
+      if (E.mailable(ref)) send(ref, 'Thank you, ' + E.first(ref) + ' \u2014 your 10% off is on the way', 'Hi ' + E.first(ref) + ',\n\n' + newFirst + ' just started with us and mentioned you sent them our way. Thank you \u2014 that is the best compliment a small business can get.\n\nAs promised, you both get 10% off for 3 months; it comes off your next invoices, with nothing to do on your end. It stacks, too: another 10% for each neighbor who starts, up to 5.\n\nThanks again for having us, and for the kind word.', { RT: today });
       else E.stamp(p, { RT: today });
       // the office: the reward to apply in Sweep&Go
       var topic = pushTopic_();
-      if (topic) { try { UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(topic), { method: 'post', contentType: 'text/plain; charset=utf-8', payload: String(ref.name || '').trim() + ' referred ' + String(p.name || '').trim() + ', who just started. Add the free deodorize to ' + E.first(ref) + '\u2019s next visit in Sweep&Go.', headers: { 'Title': 'Referral reward owed', 'Tags': 'handshake' }, muteHttpExceptions: true }); } catch (e) {} }
+      if (topic) { try { UrlFetchApp.fetch('https://ntfy.sh/' + encodeURIComponent(topic), { method: 'post', contentType: 'text/plain; charset=utf-8', payload: String(ref.name || '').trim() + ' referred ' + String(p.name || '').trim() + ', who just started. Put 10% off for 3 months on both accounts in Sweep&Go, and waive ' + newFirst + '\u2019s initial clean.', headers: { 'Title': 'Referral reward owed', 'Tags': 'handshake' }, muteHttpExceptions: true }); } catch (e) {} }
       if (E.mailable(ref)) { /* stamped by send */ } else { /* stamped above */ }
       if (E.mailable(ref)) E.stamp(p, { RT: today });
     });
@@ -2450,7 +2450,7 @@ function refInviteList_(E) {
 }
 function refInviteText_(p) {
   var first = String(p.name || '').trim().split(/\s+/)[0] || 'there';
-  return { subject: first + ', your own referral link', body: 'Hi ' + first + ',\n\nIt’s Jesse with CL Professional Pet Services. Thank you for having us. Most of our new customers come from neighbors, so here is a link that is yours alone:\n\n' + refLink_(p) + '\n\nWhen a friend or neighbor signs up through it, your next visit includes a free deodorizing and sanitizing treatment. There is no limit.\n\nYour account page, with every visit, photo and invoice, is here any time:\n' + acctLink_(p.id) };
+  return { subject: first + ', your own referral link', body: 'Hi ' + first + ',\n\nIt’s Jesse with CL Professional Pet Services. Thank you for having us. Most of our new customers come from neighbors, so here is a link that is yours alone:\n\n' + refLink_(p) + '\n\nWhen a friend or neighbor starts service through it, you both get 10% off for 3 months, and their $40 initial clean fee is waived. It stacks: 10% for each neighbor, up to 5 (50% off your bill).\n\nYour account page, with every visit, photo and invoice, is here any time:\n' + acctLink_(p.id) };
 }
 function refInvite_(body) {
   var E = emailRows_(), list = refInviteList_(E);

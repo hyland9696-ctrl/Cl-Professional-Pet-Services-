@@ -102,7 +102,7 @@ function render(d){
   }
   var ref = safeUrl(d.refLink);
   if (ref && d.status !== 'closed'){
-    h += '<div class="card"><div class="sec"><h2>Share us, get a free deodorize</h2><p style="font-size:14px;">When a friend or neighbor signs up through your link, your next visit includes a free deodorizing and sanitizing treatment. No limit.</p><div class="ref">' + esc(ref) + '</div>' +
+    h += '<div class="card"><div class="sec"><h2>Share us, you both get 10% off</h2><p style="font-size:14px;">When a friend or neighbor starts service through your link, you both get 10% off for 3 months, and their $40 initial clean is waived. It stacks: 10% for each neighbor, up to 5 (50% off).</p><div class="ref">' + esc(ref) + '</div>' +
       '<button class="btn" onclick="share(\'' + esc(ref) + '\')">Share my link</button>' + (d.refUsed ? '<p class="muted" style="margin-top:8px;text-align:center;">Used ' + d.refUsed + ' time' + (d.refUsed === 1 ? '' : 's') + ' so far. Thank you!</p>' : '') + '</div></div>';
   }
   if (d.status === 'closed'){

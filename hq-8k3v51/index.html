@@ -311,7 +311,7 @@
           <option value="w">Initial clean fee WAIVED</option>
         </select>
         <input id="m-addr" placeholder="Address" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
-        <input id="m-ref" placeholder="Referred by (a customer's name - they earn a free deodorize)" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+        <input id="m-ref" placeholder="Referred by (a customer's name - both get 10% off for 3 months)" style="grid-column:1 / -1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">
         <button class="copybtn" id="m-savebtn" onclick="addManual()">Add manual lead</button>
@@ -422,7 +422,7 @@
       <div id="auto-switches"></div>
       <div class="owner-only" style="display:flex;gap:6px;align-items:center;margin:-4px 0 10px;flex-wrap:wrap;font-size:12px;"><span>Monday email to:</span><input id="owner-email" type="email" placeholder="Corey's email (blank = the office mailbox)" style="flex:1 1 200px;padding:7px 9px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;min-width:0;"><button onclick="saveOwnerEmail()" style="padding:6px 10px;min-height:32px;font-size:11.5px;">Save</button></div>
       <div style="display:flex;align-items:center;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;flex-wrap:wrap;"><span style="flex:1 1 200px;"><strong>Referral links to every customer.</strong> Each active customer gets their own link and their account page, once in six months. You see the email first.</span><button class="copybtn" onclick="refInvite(false)">&#128279; Send referral links</button></div>
-      <div style="background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="flex:1 1 200px;"><strong>&#127873; Neighbor promo by text.</strong> A neighbor starts through their link and both get 10% off for 3 months. It stacks: two neighbors, 20%.</span><button class="copybtn" onclick="neighborList()">&#128172; Text list</button></div><div id="npList"></div></div>
+      <div style="background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="flex:1 1 200px;"><strong>&#127873; Neighbor promo by text.</strong> A neighbor starts through their link and both get 10% off for 3 months, the neighbor&rsquo;s initial clean waived. It stacks, up to 5 neighbors (50%).</span><button class="copybtn" onclick="neighborList()">&#128172; Text list</button></div><div id="npList"></div></div>
       <div style="font-weight:700;font-size:13px;margin:4px 0;">Campaign calendar</div>
       <div style="font-size:11.5px;color:#707070;margin-bottom:6px;">Four seasonal emails, each on its date, once a year, to the people it is for. Tick the ones you want; change a date if you like. Each needs the office mailbox, like everything else here.</div>
       <div id="campaign-cal" style="margin-bottom:10px;"></div>
@@ -1107,10 +1107,10 @@ function referrerOf(fu){ if (fu.rb) return fu.rb; var r = fu.rf && refIdx[fu.rf]
 /* The neighbor promo. Jesse: "if any of their neighbors use their referral
    link, they and their neighbor will get 10% off for three months. And that
    promotion can stack, so if they get two neighbors, it is 20% off." */
-var NEIGHBOR_PCT = 10, NEIGHBOR_MONTHS = 3;
+var NEIGHBOR_PCT = 10, NEIGHBOR_MONTHS = 3, NEIGHBOR_MAX = 5;   // Jesse: "max it out at five per customer"
 function neighborText(l){
   var first = String(l.name || '').trim().split(/\s+/)[0] || 'there';
-  return 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. A thank-you for being a customer: share your link with a neighbor who has a dog, and when they start service through it you BOTH get " + NEIGHBOR_PCT + '% off for ' + NEIGHBOR_MONTHS + ' months. It stacks, so two neighbors is ' + (2 * NEIGHBOR_PCT) + '% off your bill. Your link: ' + refLink(l) + ' Just forward it to them.';
+  return 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. A thank-you for being a customer: share your link with a neighbor who has a dog, and when they start service through it you BOTH get " + NEIGHBOR_PCT + '% off for ' + NEIGHBOR_MONTHS + ' months, and their $40 initial clean fee is waived. It stacks: ' + NEIGHBOR_PCT + '% for each neighbor, up to ' + NEIGHBOR_MAX + ' (' + (NEIGHBOR_MAX * NEIGHBOR_PCT) + '% off your bill). Your link: ' + refLink(l) + ' Just forward it to them.';
 }
 function neighborTexted(id){
   var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
@@ -1139,15 +1139,15 @@ function neighborList(keep){
 function refShareRow(l){
   var link = refLink(l), first = String(l.name || '').trim().split(' ')[0] || 'there', d = String(l.phone || '').replace(/\D/g, '');
   if (d.length === 10) d = '1' + d;
-  var body = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. Know someone with a dog? Here's your own link: " + link + ' - when they sign up through it, you get a free deodorize treatment. Thanks for having us!';
+  var body = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. Know someone with a dog? Here's your own link: " + link + ' - when they start service through it, you both get 10% off for 3 months and their $40 initial clean fee is waived. Thanks for having us!';
   var used = leads.filter(function(x){ return fuParse(x.crmnotes).rf === refCode(l); }).length;
   return '<div style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#128279; Their referral link: <code style="background:#f3f5f4;border-radius:5px;padding:2px 5px;font-size:11.5px;">' + esc(link) + '</code>' +
     '<button onclick="copyText(\'' + esc(link) + '\')" style="padding:5px 9px;min-height:32px;font-size:11.5px;">Copy</button>' +
     (d ? '<a href="sms:' + esc(d) + '?&body=' + encodeURIComponent(body).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(l.id) + '\')" style="display:inline-block;background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:8px;padding:5px 9px;min-height:32px;line-height:20px;font-size:11.5px;font-weight:700;text-decoration:none;">&#128172; Text it to them</a>' : '') +
     (used ? '<span style="color:#188663;font-weight:700;">used ' + used + ' time' + (used === 1 ? '' : 's') + '</span>' : '') + '</div>' +
-    '<div class="np-card" style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#127873; Neighbor promo: ' + NEIGHBOR_PCT + '% off for ' + NEIGHBOR_MONTHS + ' months for both, stacks ' + neighborBtn(l, 'Text the promo') +
+    '<div class="np-card" style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">&#127873; Neighbor promo: ' + NEIGHBOR_PCT + '% off for ' + NEIGHBOR_MONTHS + ' months for both, their initial clean waived, stacks up to ' + NEIGHBOR_MAX + ' ' + neighborBtn(l, 'Text the promo') +
     (fuParse(l.crmnotes).np ? '<span style="color:#707070;">texted ' + esc(fuParse(l.crmnotes).np) + '</span>' : '') +
-    (neighborsWon(l) ? '<span style="color:#188663;font-weight:700;">' + neighborsWon(l) + ' neighbor' + (neighborsWon(l) === 1 ? '' : 's') + ' started: ' + (neighborsWon(l) * NEIGHBOR_PCT) + '% off earned</span>' : '') + '</div>';
+    (neighborsWon(l) ? '<span style="color:#188663;font-weight:700;">' + neighborsWon(l) + ' neighbor' + (neighborsWon(l) === 1 ? '' : 's') + ' started: ' + (Math.min(neighborsWon(l), NEIGHBOR_MAX) * NEIGHBOR_PCT) + '% off earned' + (neighborsWon(l) >= NEIGHBOR_MAX ? ' (the most)' : '') + '</span>' : '') + '</div>';
 }
 function copyText(t){
   try { navigator.clipboard.writeText(t).then(function(){ toast('Copied'); }, function(){ prompt('Copy this:', t); }); } catch (e) { prompt('Copy this:', t); }
@@ -1540,7 +1540,7 @@ function renderInsights(){
 
   // ---- referral rewards owed ----
   var owed = leads.filter(function(l){ var m = fuParse(l.crmnotes); var st = l.status || 'new'; return referrerOf(m) && !m.rw && (st === 'closed' || st === 'cancelled'); });
-  h += '<h4>&#129309; Referral rewards owed <span class="sub">(a free deodorize each; under the neighbor promo, 10% off for 3 months for both instead)</span></h4>';
+  h += '<h4>&#129309; Referral rewards owed <span class="sub">(10% off for 3 months for both, the new customer&rsquo;s initial clean waived; up to 5 neighbors each)</span></h4>';
   h += owed.length
     ? owed.map(function(l){ var m = fuParse(l.crmnotes);
         return '<div class="bar"><span style="flex:1;font-size:12.5px;"><strong>' + esc(referrerOf(m)) + '</strong> referred ' + esc(l.name || '') + (m.rb ? '' : ' <span class="sub">(their link)</span>') + (m.cd ? ' <span class="sub">(closed ' + esc(m.cd) + ')</span>' : '') + '</span>' +
@@ -3789,8 +3789,8 @@ var BLAST_PRESETS = {
     body: 'Hi {first},\n\nIt\u2019s Jesse with CL Professional Pet Services. You asked us for a price a while back and I wanted to check in before the yard disappears under the leaves.\n\nYour price of {price} for {plan} still stands, and there is no contract \u2014 month to month, cancel any time.\n\nIf you\u2019d like us to take the yard off your plate this season, just reply to this email or text me at (636) 375-4342 and I\u2019ll get you on the schedule this week.' },
   winback: { tag: 'winback', subject: '{first}, we\u2019d love to have you back',
     body: 'Hi {first},\n\nIt\u2019s Jesse with CL Professional Pet Services. We miss your yard! If you\u2019d like us to pick it back up, the initial clean fee is waived, and you get 10% off today\u2019s price for your first 6 months back.\n\nJust reply here or text (636) 375-4342 and we\u2019ll put you back on the route.' },
-  referral: { tag: 'referral', subject: 'A free deodorize for a neighbor with a dog',
-    body: 'Hi {first},\n\nQuick thank-you for having us out every week. If you know a neighbor or friend with a dog, send them our way \u2014 when they sign up, you get a free deodorize treatment on your next visit.\n\nThey can text (636) 375-4342 or go to clpropetservices.com and mention your name.' }
+  referral: { tag: 'referral', subject: '10% off for you and a neighbor with a dog',
+    body: 'Hi {first},\n\nQuick thank-you for having us out every week. If you know a neighbor or friend with a dog, send them our way \u2014 when they start service, you both get 10% off for 3 months, and their $40 initial clean fee is waived. It stacks: 10% for each neighbor, up to 5.\n\nThey can text (636) 375-4342 or go to clpropetservices.com and mention your name.' }
 };
 function blastPreset(k){
   var p = BLAST_PRESETS[k]; if (!p) return;
@@ -3838,7 +3838,7 @@ var AUTO_SWITCHES = [
   { key: 'card_emails', title: 'Card failed, same night.', text: 'When a payment fails, a plain note from the office that evening: the amount, the date, how to update the card. Once a week at most per person.' },
   { key: 'winback_emails', title: 'Win-back, a month after leaving.', text: 'Thirty days after an account closes, one come-back note: initial clean fee waived, 10% off today\u2019s price for the first 6 months back. Not to anyone who moved or lost the dog.' },
   { key: 'revival_emails', title: 'Revival: quotes that never went ahead.', text: 'Anyone who got a price 30+ days ago and never signed up, or said no, gets one note: the quote still stands, no contract. Once, ever, per person. The older ones go out over a few days.' },
-  { key: 'referral_emails', title: 'Referral thank-you.', text: 'When someone a customer referred starts, the customer gets a thank-you from the office saying the free deodorize is on the next visit, and the phones get a reminder to add it in Sweep&Go.' },
+  { key: 'referral_emails', title: 'Referral thank-you.', text: 'When someone a customer referred starts, the customer gets a thank-you from the office saying their 10% off for 3 months is on the way, and the phones get a reminder to put the discount on both accounts in Sweep&Go.' },
   { key: 'spring_emails', title: 'Spring restart, every March.', text: 'In March, everyone who left for the winter or is paused with no return date gets one note: we are back on your street, initial clean fee waived, 10% off today\u2019s price for the first 6 months back. Once a year per person. The Win back card lists who.' },
   { key: 'prepay_renewals', title: 'Prepay renewal, a month before it ends.', text: 'One note to each prepaid customer a month before their stretch ends, offering the same discount again. The Prepaid card lists who.' },
   { key: 'owner_report', title: 'Monday owner email.', text: 'Every Monday at 7, one page to the address below (or the office mailbox): money, customers, emails sent, who came back, late fees owed, prepaid money, and what to do this week.' },
@@ -7874,7 +7874,7 @@ function render(){
     var refChip = refName
       ? '<div style="color:#0F6E56;font-size:12px;font-weight:600;margin-top:6px;">&#129309; Referred by ' + esc(refName) + (fu.rb ? '' : ' <span style="color:#707070;font-weight:400;">(used their link)</span>') +
         (fu.rw ? ' <span style="color:#707070;font-weight:400;">&middot; reward given ' + esc(fu.rw) + '</span>'
-               : ((st === 'closed' || st === 'cancelled') ? ' <span style="color:#c0392b;font-weight:700;">&middot; owes them a free deodorize</span>' : '')) + '</div>'
+               : ((st === 'closed' || st === 'cancelled') ? ' <span style="color:#c0392b;font-weight:700;">&middot; both are owed 10% off for 3 months</span>' : '')) + '</div>'
       : (fu.rf
           ? '<div style="color:#8a6d1a;font-size:12px;margin-top:6px;">&#129309; Came through a referral link (' + esc(fu.rf) + ') that matches nobody &mdash; tap Edit and put in who referred them</div>'
           : (fu.src === 'Referral' && !fu.rb
