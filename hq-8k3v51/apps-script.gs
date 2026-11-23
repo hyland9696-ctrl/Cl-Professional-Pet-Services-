@@ -2289,40 +2289,48 @@ function leaveReason_(p) {
    months of being back". Today's price comes from the tracker (it holds the
    price list) as p._now; without it the note names the discount alone. */
 var COMEBACK_PCT = 10, COMEBACK_MONTHS = 6;
-function comebackDeal_(p) {
-  var now = parseFloat(p._now) || 0;
-  if (now > 0) return 'today\u2019s price for your yard is $' + Math.round(now) + ' a month, and you get ' + COMEBACK_PCT + '% off your first ' + COMEBACK_MONTHS + ' months back ($' + Math.round(now * (100 - COMEBACK_PCT) / 100) + ' a month)';
-  return 'you get ' + COMEBACK_PCT + '% off today\u2019s price for your first ' + COMEBACK_MONTHS + ' months back';
+/* Upfront about the money: the price now (the tracker works it out from the
+   price list and sends it as p._now), what it was when it has moved, the
+   discounted price, and what it goes to afterwards. */
+function priceSentence_(p, back) {
+  var now = Math.round(parseFloat(p._now) || 0), off = COMEBACK_PCT + '% off your first ' + COMEBACK_MONTHS + ' months';
+  if (!(now > 0)) return 'You get ' + off + (back ? ' back' : '') + '; reply and I will send your exact price.';
+  var disc = Math.round(now * (100 - COMEBACK_PCT) / 100), then = ', so $' + disc + ' a month, then $' + now + ' a month after that.';
+  var plan = String(p._plan || ''), was = plan ? 0 : Math.round(monthlyPrice_(p));
+  if (plan) return plan + ' for your yard is $' + now + ' a month. You get ' + off + then;
+  if (was && now > was) return 'To be upfront, our prices have changed since ' + (back ? 'you were with us' : 'your quote') + ': your yard is now $' + now + ' a month (it was $' + was + '). You get ' + off + then;
+  if (was && now < was) return 'Good news: your price is now $' + now + ' a month, down from $' + was + '. You get ' + off + ' on top' + then;
+  return 'Your price is $' + now + ' a month. You get ' + off + then;
 }
 function outreachText_(kind, sub, p) {
-  var first = String(p.name || '').trim().split(/\s+/)[0] || 'there', price = String(p.price || '').split(',')[0].trim();
-  var priceLine = comebackDeal_(p), days = streetDays_(p);
+  var first = String(p.name || '').trim().split(/\s+/)[0] || 'there', days = streetDays_(p);
+  var priceLine = priceSentence_(p, true) + ' The initial clean fee is waived.';
   var onStreet = days ? ' We are already on your street on ' + days + 's, so it is no trouble to fit you back in.' : '';
   var corey = 'It’s Jesse with CL Professional Pet Services.';
+  var back = '\n\nJust reply here or text (636) 375-4342 and we’ll put you back on the route.';
   if (kind === 'winback') {
     var left = String(p.status) === 'cancelled';
     if (LEAVE_ALONE[sub]) return { stop: 'leave alone' };
-    if (sub === 'service' && left) return { stop: 'call' };   // an unhappy customer gets a phone call from Corey, not an email
+    if (sub === 'service' && left) return { stop: 'call' };   // an unhappy customer gets a phone call, not an email
     if (left) {
-      if (sub === 'price') return { subject: first + ', a welcome-back price for your yard', body: 'Hi ' + first + ',\n\n' + corey + ' When you stopped, cost was the reason, so I wanted to make coming back easy: ' + priceLine + ', and the initial clean fee is waived.' + onStreet + '\n\nJust reply here or text (636) 375-4342 and we’ll put you back on the route.' };
+      if (sub === 'price') return { subject: first + ', a welcome-back price for your yard', body: 'Hi ' + first + ',\n\n' + corey + ' When you stopped, cost was the reason, so I want to be straight about the numbers. ' + priceLine + onStreet + back };
       if (sub === 'season') return spring_(p, first, priceLine, days);
-      if (sub === 'competitor') return { subject: first + ', we’d be glad to have you back', body: 'Hi ' + first + ',\n\n' + corey + ' If the company you switched to is not showing up the way you’d like, we’d be glad to have you back: the initial clean fee is waived, ' + priceLine + ', and every visit comes with a photo so you know it was done.' + onStreet + '\n\nReply here or text (636) 375-4342 and we’ll pick it back up.' };
-      if (sub === 'moved') return { subject: first + ', did you stay in the area?', body: 'Hi ' + first + ',\n\n' + corey + ' I know you moved. If the new place is anywhere in St. Charles County or west St. Louis County, we would love to pick up there, with no setup fee and ' + COMEBACK_PCT + '% off your first ' + COMEBACK_MONTHS + ' months.' + ' Reply with the new address and I’ll tell you the day.\n\nAnd if you moved further away, thank you for the time we had your yard.' };
-      if (sub === 'diy') return { subject: first + ', want your Saturdays back?', body: 'Hi ' + first + ',\n\n' + corey + ' If doing the yard yourself has turned into one more chore, we can take it back off your plate: ' + priceLine + ' and the initial clean fee is waived.' + onStreet + '\n\nReply here or text (636) 375-4342.' };
-      return { subject: first + ', we’d love to have you back', body: 'Hi ' + first + ',\n\n' + corey + ' We miss your yard! If you’d like us to pick it back up, the initial clean fee is waived and ' + priceLine + '.' + onStreet + '\n\nJust reply here or text (636) 375-4342 and we’ll put you back on the route.' };
+      if (sub === 'competitor') return { subject: first + ', we’d be glad to have you back', body: 'Hi ' + first + ',\n\n' + corey + ' If the company you switched to is not showing up the way you’d like, we’d be glad to have you back. ' + priceLine + ' Every visit comes with a photo so you know it was done.' + onStreet + back };
+      if (sub === 'moved') return { subject: first + ', did you stay in the area?', body: 'Hi ' + first + ',\n\n' + corey + ' I know you moved. If the new place is anywhere in St. Charles County or west St. Louis County, we would love to pick up there, with the initial clean fee waived and ' + COMEBACK_PCT + '% off your first ' + COMEBACK_MONTHS + ' months. Reply with the new address and I’ll send the exact price and the day.\n\nAnd if you moved further away, thank you for the time we had your yard.' };
+      if (sub === 'diy') return { subject: first + ', want your Saturdays back?', body: 'Hi ' + first + ',\n\n' + corey + ' If doing the yard yourself has turned into one more chore, we can take it back off your plate. ' + priceLine + onStreet + back };
+      return { subject: first + ', we’d love to have you back', body: 'Hi ' + first + ',\n\n' + corey + ' We miss your yard and would love to pick it back up. ' + priceLine + onStreet + back };
     }
     // a quote that never went ahead, or was marked not interested: the same
     // offer as a returning customer. Jesse: "it needs to be the same for our
     // people who are put in the not interested option".
-    var nowQ = parseFloat(p._now) || 0;
-    var offer = (nowQ > 0 ? 'Today\u2019s price for your yard is $' + Math.round(nowQ) + ' a month. ' : '') + 'If you start now you get ' + COMEBACK_PCT + '% off your first ' + COMEBACK_MONTHS + ' months' + (nowQ > 0 ? ' ($' + Math.round(nowQ * (100 - COMEBACK_PCT) / 100) + ' a month)' : '') + ', and the $40 initial clean fee is waived. No contract, month to month.';
-    var close = '\n\nReply here or text (636) 375-4342 and I\u2019ll get you on the schedule.';
+    var offer = priceSentence_(p, false) + ' The $40 initial clean fee is waived. No contract, month to month.';
+    var close = '\n\nReply here or text (636) 375-4342 and I’ll get you on the schedule.';
     var onQ = days ? ' We are already on your street on ' + days + 's.' : '';
     if (sub === 'price') return { subject: first + ', I can make the yard price work', body: 'Hi ' + first + ',\n\n' + corey + ' When you looked at us, the price was the sticking point, so here is what I can do. ' + offer + onQ + close };
-    if (sub === 'comparing' || sub === 'elsewhere' || sub === 'competitor') return { subject: first + ', how is the yard going?', body: 'Hi ' + first + ',\n\n' + corey + ' You were looking at a few companies when we spoke. If the one you picked is not working out, I\u2019d like another chance. ' + offer + ' Every visit comes with a photo.' + onQ + close };
+    if (sub === 'comparing' || sub === 'elsewhere' || sub === 'competitor') return { subject: first + ', how is the yard going?', body: 'Hi ' + first + ',\n\n' + corey + ' You were looking at a few companies when we spoke. If the one you picked is not working out, I’d like another chance. ' + offer + ' Every visit comes with a photo.' + onQ + close };
     if (sub === 'timing') return { subject: first + ', is now a better time?', body: 'Hi ' + first + ',\n\n' + corey + ' The timing was not right when you got your price, so I wanted to check back in. ' + offer + onQ + close };
     if (sub === 'diy') return { subject: first + ', want your Saturdays back?', body: 'Hi ' + first + ',\n\n' + corey + ' You were planning to keep doing the yard yourself. If that has turned into one more chore, let us take it. ' + offer + onQ + close };
-    return { subject: first + ', an offer for your yard', body: 'Hi ' + first + ',\n\n' + corey + ' You asked us for a price a while back, and I\u2019d still like to earn your yard. ' + offer + onQ + close };
+    return { subject: first + ', an offer for your yard', body: 'Hi ' + first + ',\n\n' + corey + ' You asked us for a price a while back, and I’d still like to earn your yard. ' + offer + onQ + close };
   }
   if (kind === 'spring') return spring_(p, first, priceLine, days);
   if (kind === 'upsell') {
@@ -2333,7 +2341,7 @@ function outreachText_(kind, sub, p) {
   return { stop: 'unknown' };
 }
 function spring_(p, first, priceLine, days) {
-  return { subject: first + ', we’re back on your street for spring', body: 'Hi ' + first + ',\n\nIt’s Jesse with CL Professional Pet Services. Spring is here, and everything the dog left all winter is out there now.' + (days ? ' We are back on your street on ' + days + 's.' : '') + ' Your yard can go straight back on the route: ' + priceLine + ' and the initial clean fee is waived.\n\nReply here or text (636) 375-4342 and we’ll pick it back up this week.' };
+  return { subject: first + ', we’re back on your street for spring', body: 'Hi ' + first + ',\n\nIt’s Jesse with CL Professional Pet Services. Spring is here, and everything the dog left all winter is out there now.' + (days ? ' We are back on your street on ' + days + 's.' : '') + ' Your yard can go straight back on the route. ' + priceLine + '\n\nReply here or text (636) 375-4342 and we’ll pick it back up this week.' };
 }
 function outreach_(body) {
   var kind = String(body.kind || ''), sub = String(body.sub || '');
@@ -2343,6 +2351,7 @@ function outreach_(body) {
   var sh = sheet_(), p = latestRow_(sh, String(body.id || '')); if (!p) return { ok:false, error:'not found' };
   if (kind === 'winback' && !sub) sub = leaveReason_(p) || 'other';
   var nowP = parseFloat(body.now); if (nowP > 0 && nowP < 2000) p._now = nowP;
+  if (/^(Weekly service|Every-other-week service)$/.test(String(body.plan || ''))) p._plan = String(body.plan);
   var email = String(p.email || '').trim(), n = String(p.crmnotes || '');
   var o = kind === 'prepay' ? (prepaidNow_(p.crmnotes) ? { stop: 'already prepaid' } : prepayText_(p)) : outreachText_(kind, sub, p);
   if (o.stop) return { ok:false, error: o.stop };

@@ -5423,36 +5423,51 @@ function outLabel(w){ if (OUT_LABEL[w]) return OUT_LABEL[w]; var p = String(w).s
 /* The welcome-back deal: today's price from the price list for their ZIP,
    dogs and plan, with 10% off the first 6 months. Never the old price. */
 var COMEBACK_PCT = 10, COMEBACK_MONTHS = 6;
-function todayPrice(l){
-  try { var s = String(l.service || '').toLowerCase(), freq = /twice/.test(s) ? 'twiceweekly' : /other/.test(s) ? 'biweekly' : 'weekly';
-    if (/one/.test(s) || /month/.test(s)) return 0;
+/* Today's price for their ZIP, dogs and plan, from the price list. A past
+   one-time job is priced as weekly (that is what we are offering them); the
+   retired monthly plan as every other week. */
+function todayOffer(l){
+  try { var s = String(l.service || '').toLowerCase(), one = /one/.test(s), mon = /month/.test(s);
+    var freq = /twice/.test(s) ? 'twiceweekly' : (/other/.test(s) || mon) ? 'biweekly' : 'weekly';
     var r = clppsQuote({ zip: zipOf(l), dogs: Math.min(parseInt(l.dogs, 10) || 1, 6), freq: freq, deo: 'none' });
-    return r && !r.manual && r.total ? r.total : 0; } catch (e) { return 0; }
+    if (!r || r.manual || !r.total) return null;
+    var pp = parsePrice(l), was = pp && pp.isMo && !one && !mon ? pp.amt : 0;
+    return { now: r.total, was: was, disc: Math.round(r.total * (100 - COMEBACK_PCT) / 100), plan: one ? 'Weekly service' : mon ? 'Every-other-week service' : '', switched: one || mon };
+  } catch (e) { return null; }
 }
-function comebackDeal(l){
-  var now = todayPrice(l);
-  return now ? 'today\u2019s price is $' + now + '/mo, with ' + COMEBACK_PCT + '% off your first ' + COMEBACK_MONTHS + ' months back ($' + Math.round(now * (100 - COMEBACK_PCT) / 100) + '/mo)' : COMEBACK_PCT + '% off today\u2019s price for your first ' + COMEBACK_MONTHS + ' months back';
+function todayPrice(l){ var o = todayOffer(l); return o ? o.now : 0; }
+/* Upfront about the money. Jesse: "a lot of these people, we've changed our
+   price since last being with us. So be upfront." The price now, what it
+   was if it moved, the discounted price, and what it goes to after. */
+function priceSentence(l, back){
+  var o = todayOffer(l), off = COMEBACK_PCT + '% off your first ' + COMEBACK_MONTHS + ' months';
+  if (!o) return 'You get ' + off + (back ? ' back' : '') + '; reply and I’ll send your exact price.';
+  var then = ', so $' + o.disc + '/mo, then $' + o.now + '/mo after that.';
+  if (o.switched) return o.plan + ' for your yard is $' + o.now + '/mo. You get ' + off + then;
+  if (o.was && o.now > o.was) return 'To be upfront, our prices have changed since ' + (back ? 'you were with us' : 'your quote') + ': your yard is now $' + o.now + '/mo (it was $' + o.was + '). You get ' + off + then;
+  if (o.was && o.now < o.was) return 'Good news: your price is now $' + o.now + '/mo, down from $' + o.was + '. You get ' + off + ' on top' + then;
+  return 'Your price is $' + o.now + '/mo. You get ' + off + then;
 }
+function comebackDeal(l){ return priceSentence(l, true); }
 function wbText(l, kind, sub){
-  var first = String(l.name || '').trim().split(/\s+/)[0] || 'there', now = todayPrice(l);
-  var hi = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. ", end = ' Just reply here and we\u2019ll get you on the route.';
-  var waived = 'the initial clean fee is waived';
+  var first = String(l.name || '').trim().split(/\s+/)[0] || 'there';
+  var hi = 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. ", end = ' Just reply here and we’ll get you on the route.';
   if ((l.status || 'new') === 'cancelled' || kind === 'spring'){
-    var keep = comebackDeal(l);
-    if (kind === 'spring' || sub === 'season') return hi + 'Spring is here and we\u2019re back on your street. ' + waived.charAt(0).toUpperCase() + waived.slice(1) + ' and ' + keep + '.' + end;
-    if (sub === 'price') return hi + 'We\u2019d love to have your yard back: ' + waived + ', and ' + keep + '.' + end;
-    if (sub === 'competitor') return hi + 'If the other company isn\u2019t working out, we\u2019d be glad to have you back: ' + waived + ', ' + keep + ', and a photo after every visit.' + end;
-    if (sub === 'moved') return hi + 'Did you stay in the area? If so we\u2019d love to pick up at the new place, with the initial clean fee waived and ' + COMEBACK_PCT + '% off your first ' + COMEBACK_MONTHS + ' months. Reply with the address and I\u2019ll tell you the day.';
-    if (sub === 'diy') return hi + 'If doing the yard yourself has become one more chore, we can take it back: ' + waived + ' and ' + keep + '.' + end;
-    return hi + 'We miss your yard! If you\u2019d like us back, ' + waived + ' and ' + keep + '.' + end;
+    var deal = priceSentence(l, true) + ' The initial clean fee is waived.';
+    if (kind === 'spring' || sub === 'season') return hi + 'Spring is here and we’re back on your street. ' + deal + end;
+    if (sub === 'price') return hi + 'We’d love to have your yard back. ' + deal + end;
+    if (sub === 'competitor') return hi + 'If the other company isn’t working out, we’d be glad to have you back. ' + deal + ' Every visit comes with a photo.' + end;
+    if (sub === 'moved') return hi + 'Did you stay in the area? If so we’d love to pick up at the new place, with the initial clean fee waived and ' + COMEBACK_PCT + '% off your first ' + COMEBACK_MONTHS + ' months. Reply with the address and I’ll send the exact price and the day.';
+    if (sub === 'diy') return hi + 'If doing the yard yourself has become one more chore, we can take it back. ' + deal + end;
+    return hi + 'We miss your yard and would love to have you back. ' + deal + end;
   }
   // a quote that never started, or was marked not interested: the same offer
-  var offer = (now ? 'Today\u2019s price is $' + now + '/mo, with ' : 'You get ') + COMEBACK_PCT + '% off your first ' + COMEBACK_MONTHS + ' months' + (now ? ' ($' + Math.round(now * (100 - COMEBACK_PCT) / 100) + '/mo)' : '') + ' and the $40 initial clean fee waived. No contract.';
-  if (sub === 'price') return hi + 'I\u2019d still like to earn your yard, so here\u2019s what I can do. ' + offer + end;
-  if (sub === 'elsewhere' || sub === 'comparing') return hi + 'How is the yard going? If the company you picked isn\u2019t working out, I\u2019d like another chance. ' + offer + ' Every visit comes with a photo.' + end;
+  var offer = priceSentence(l, false) + ' The $40 initial clean fee is waived. No contract.';
+  if (sub === 'price') return hi + 'I’d still like to earn your yard, so here’s what I can do. ' + offer + end;
+  if (sub === 'elsewhere' || sub === 'comparing') return hi + 'How is the yard going? If the company you picked isn’t working out, I’d like another chance. ' + offer + ' Every visit comes with a photo.' + end;
   if (sub === 'timing') return hi + 'Is now a better time for the yard? ' + offer + end;
   if (sub === 'diy') return hi + 'Want your Saturdays back? ' + offer + end;
-  return hi + 'I\u2019d still like to earn your yard. ' + offer + end;
+  return hi + 'I’d still like to earn your yard. ' + offer + end;
 }
 /* The same two buttons on the card itself, for anyone whose account closed
    or who was marked not interested. Jesse looked for them here: "I thought
@@ -5467,8 +5482,10 @@ function winbackCardRow(l){
   if (left && LEAVE_ALONE_JS[sub]) return '<div class="wb-card" style="font-size:12px;color:#9aa5a0;margin-top:6px;">&#128154; No win-back offer for this one: ' + (sub === 'nodog' ? 'no dog any more' : sub === 'nonpay' ? 'the account closed over payment' : 'we ended it') + '.</div>';
   var kind = left && sub === 'season' ? 'spring' : 'winback';
   var btn = 'display:inline-block;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;text-decoration:none;min-height:40px;line-height:22px;cursor:pointer;font-family:inherit;';
-  var call = left && sub === 'service';
+  var call = left && sub === 'service', o = todayOffer(l);
+  var told = o ? 'They will be told: $' + o.now + '/mo now' + (o.was && o.was !== o.now ? ' (was $' + o.was + ')' : '') + (o.switched ? ' for ' + o.plan.toLowerCase() : '') + ', $' + o.disc + '/mo for the first ' + COMEBACK_MONTHS + ' months.' : 'No price can be worked out for this card (' + (!zipOf(l) ? 'no ZIP' : 'a custom yard or 5+ dogs') + '), so the message offers the discount and asks them to reply for the exact price.';
   return box('<div style="font-weight:700;">&#128154; Win them back: ' + COMEBACK_PCT + '% off for ' + COMEBACK_MONTHS + ' months, initial clean fee waived' + (last ? ' <span style="font-weight:600;color:#707070;">&middot; last sent ' + esc(last) + '</span>' : '') + '</div>' +
+    '<div class="wb-told" style="font-size:11.5px;color:' + (o ? '#555' : '#b45309') + ';margin-top:2px;">' + told + '</div>' +
     (call ? '<div style="font-size:11.5px;color:#555;margin-top:2px;">They left unhappy, so a call comes first.</div>' : '') +
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
     (call && d ? '<a href="tel:+' + esc(d) + '" style="' + btn + 'background:#188663;color:#fff;">&#128222; Call</a>' : '') +
@@ -5550,7 +5567,7 @@ function outreach(id, kind, sub){
   if (officeMail !== true){ toast(NO_OFFICE_TEXT); return; }
   var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
   ouBusy = true; toast('Drawing up the note…');
-  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'outreach', key: KEY, id: id, kind: kind, sub: sub, preview: true, now: todayPrice(l) }) })
+  fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'outreach', key: KEY, id: id, kind: kind, sub: sub, preview: true, now: todayPrice(l), plan: (todayOffer(l) || {}).plan || '' }) })
     .then(function(r){ return r.json(); })
     .then(function(d){ ouBusy = false; if (!d || !d.ok){ toast(d && d.error ? 'No note: ' + d.error : 'No note'); return; } showOutreach(l, d, kind, sub); })
     .catch(function(){ ouBusy = false; toast('No connection'); });
