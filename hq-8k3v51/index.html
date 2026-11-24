@@ -1216,7 +1216,7 @@ function rollupHtml(){
     '<div class="sub" style="margin-top:4px;">Leads are counted in the month they asked; customers in the month they started. The All Meta and All Google lines add up the lines under them and are not counted twice in the total.' +
     (T.rows.some(function(r){ return r.name === ROLL_UNTAGGED; }) ? ' <strong>' + ROLL_UNTAGGED + '</strong> opened the site inside the Facebook or Instagram app with nothing on the link to say ad or post, so it could be either. Put URL parameters on every ad and these move to Meta Ads.' : '') + '</div>' +
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;"><button class="copybtn" onclick="rollCopy()">&#128203; Copy for a spreadsheet</button>' +
-    (T.more || rollMonths > 6 ? '<button class="copybtn" onclick="rollMonths = rollMonths > 6 ? 6 : 24; renderInsights();">' + (rollMonths > 6 ? 'Show 6 months' : 'Show every month') + '</button>' : '') + '</div>';
+    [3, 6, 12, 24].map(function(n){ return '<button class="chip' + (rollMonths === n ? ' on' : '') + '" onclick="rollMonths = ' + n + '; renderInsights();">' + (n === 24 ? '2 years' : n + ' months') + '</button>'; }).join('') + '</div>';
   return h;
 }
 /* Two blocks, tab-separated, so it pastes straight into Excel or Sheets. */
@@ -7230,6 +7230,7 @@ function money(n){ return '$' + Math.round(n).toLocaleString(); }
 
 /* Every closed deal in a month, split by where the lead came from. */
 function monthBreakdown(mk){
+  var mset = {}; (Array.isArray(mk) ? mk : [mk]).forEach(function(m){ mset[m] = 1; });
   var by = {}, totals = { mrr: 0, fees: 0, once: 0, leads: 0, closed: 0, cxv: 0, cxy1: 0 };
   var bucket = function(s){
     if (!by[s]) by[s] = { src: s, leads: 0, closed: 0, mrr: 0, fees: 0, once: 0, cxv: 0, cxy1: 0 };
@@ -7239,13 +7240,13 @@ function monthBreakdown(mk){
   leads.forEach(function(l){
     var fu = fuParse(l.crmnotes);
     var src = fu.src || 'Not tagged';
-    if (String(l.created || '').slice(0, 7) === mk){ bucket(src).leads++; totals.leads++; }
+    if (mset[String(l.created || '').slice(0, 7)]){ bucket(src).leads++; totals.leads++; }
     // a customer who later cancelled still closed in the month they closed:
     // the ad money won them, however long they stayed
     var stB = l.status || 'new';
     if (stB !== 'closed' && stB !== 'cancelled') return;
     var cd = fu.cd || String(l.created || '').slice(0, 10);
-    if (String(cd).slice(0, 7) !== mk) return;
+    if (!mset[String(cd).slice(0, 7)]) return;
     var b = bucket(src);
     b.closed++; totals.closed++;
     var pp = parsePrice(l);
@@ -7278,6 +7279,7 @@ function monthBreakdown(mk){
 }
 function spendFor(mk, ch){ return (spends[mk + '|' + ch] || {}).amt || 0; }
 function saveSpend(){
+  if (roiRangeN(roiMonth)) return;   // spend is entered a month at a time
   var mk = roiMonth, saved = [];
   CHANNELS.forEach(function(c){
     var el = document.getElementById('sp-' + c.k.replace(/\W/g, ''));
@@ -7305,6 +7307,34 @@ function toggleSpendForm(){
   f.style.display = f.style.display === 'none' ? 'block' : 'none';
 }
 function setRoiMonth(v){ roiMonth = v; renderROI(); }
+/* Corey: "we need to be able to at least see up to six months to a year of
+   data, at minimal three months." The panel takes one month, or the last
+   3, 6 or 12 months added together (r3, r6, r12), this month included. */
+var ROI_RANGES = [['r3', 3], ['r6', 6], ['r12', 12]];
+function roiRangeN(v){ var r = ROI_RANGES.filter(function(x){ return x[0] === v; })[0]; return r ? r[1] : 0; }
+function roiMonthList(){
+  var n = roiRangeN(roiMonth); if (!n) return [roiMonth];
+  var d = new Date(), out = [];
+  for (var i = 0; i < n; i++) out.push(monthKeyOf(new Date(d.getFullYear(), d.getMonth() - i, 1)));
+  return out;
+}
+function roiSpend(ch){ return roiMonthList().reduce(function(s, m){ return s + spendFor(m, ch); }, 0); }
+function roiLabel(){ var n = roiRangeN(roiMonth); return n ? 'the last ' + n + ' months' : monthLabel(roiMonth); }
+/* In a range: one line per month, so a good month and a bad one can be told apart. */
+function roiMonthTable(){
+  if (!roiRangeN(roiMonth)) return '';
+  var td = 'padding:5px 7px;border-bottom:1px solid #eef1f0;text-align:right;white-space:nowrap;', tS = 0, tL = 0, tC = 0, tB = 0;
+  var rows = roiMonthList().map(function(m){
+    var b = monthBreakdown(m), sp = CHANNELS.reduce(function(s, c){ return s + spendFor(m, c.k); }, 0), back = CHANNELS.reduce(function(s, c){ return s + b.by[c.k].ltv; }, 0);
+    var adLeads = CHANNELS.reduce(function(s, c){ return s + b.by[c.k].leads; }, 0), adClosed = CHANNELS.reduce(function(s, c){ return s + b.by[c.k].closed; }, 0);
+    tS += sp; tL += adLeads; tC += adClosed; tB += back;
+    return '<tr><td style="' + td + 'text-align:left;">' + esc(monthLabel(m)) + '</td><td style="' + td + '">' + (sp ? money(sp) : '<span style="color:#b45309;">not entered</span>') + '</td><td style="' + td + '">' + adLeads + '</td><td style="' + td + '">' + adClosed + '</td><td style="' + td + 'color:#0F6E56;font-weight:700;">' + money(back) + '</td><td style="' + td + '">' + (sp ? (back / sp).toFixed(1) + '&times;' : '&middot;') + '</td></tr>';
+  }).join('');
+  return '<div id="roi-months" style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin:8px 0 10px;"><table style="border-collapse:collapse;font-size:12px;min-width:100%;">' +
+    '<tr style="color:#707070;"><th style="' + td + 'text-align:left;">Month</th><th style="' + td + '">Ad spend</th><th style="' + td + '">Ad leads</th><th style="' + td + '">Ad customers</th><th style="' + td + '">Back</th><th style="' + td + '">Return</th></tr>' + rows +
+    '<tr style="font-weight:700;background:#F3F8F5;"><td style="' + td + 'text-align:left;">Total</td><td style="' + td + '">' + money(tS) + '</td><td style="' + td + '">' + tL + '</td><td style="' + td + '">' + tC + '</td><td style="' + td + 'color:#0F6E56;">' + money(tB) + '</td><td style="' + td + '">' + (tS ? (tB / tS).toFixed(1) + '&times;' : '&middot;') + '</td></tr></table>' +
+    '<div style="font-size:10.5px;color:#9aa5a0;margin-top:3px;">Ads only (Google Ads and Meta Ads). A month marked "not entered" has no ad spend saved, so its return cannot be worked out; tap that month above to enter it.</div></div>';
+}
 function renderROI(){
   var box = document.getElementById('roi');
   if (!box) return;
@@ -7321,15 +7351,16 @@ function renderROI(){
     if (mk) monthSet[mk] = true;
   });
   var months = Object.keys(monthSet).sort().reverse().slice(0, 6);
-  if (!roiMonth || months.indexOf(roiMonth) < 0) roiMonth = months[0];
+  if (!roiMonth || (months.indexOf(roiMonth) < 0 && !roiRangeN(roiMonth))) roiMonth = months[0];
+  var ranged = !!roiRangeN(roiMonth);
 
-  var mb = monthBreakdown(roiMonth);
-  var totalSpend = CHANNELS.reduce(function(s, c){ return s + spendFor(roiMonth, c.k); }, 0);
+  var mb = monthBreakdown(roiMonthList());
+  var totalSpend = CHANNELS.reduce(function(s, c){ return s + roiSpend(c.k); }, 0);
 
   var picker = months.map(function(m){
     return '<button class="chip' + (m === roiMonth ? ' on' : '') + '" onclick="setRoiMonth(\'' + m + '\')">' +
       monthLabel(m) + (m === thisMonth ? ' &middot; now' : '') + '</button>';
-  }).join('');
+  }).join('') + ROI_RANGES.map(function(r){ return '<button class="chip' + (r[0] === roiMonth ? ' on' : '') + '" onclick="setRoiMonth(\'' + r[0] + '\')">Last ' + r[1] + ' months</button>'; }).join('');
 
   // Headline: what the whole month did, tying out to the revenue panel above.
   var t = mb.totals;
@@ -7345,14 +7376,14 @@ function renderROI(){
      down already said "leads take weeks to close" - while the box above it
      shouted red. Hold the verdict for the first ten days of the current
      month; a past month, or a month with a close in it, is judged as is. */
-  var tooEarly = roiMonth === thisMonth && new Date().getDate() <= 10 && !t.closed;
+  var tooEarly = !ranged && roiMonth === thisMonth && new Date().getDate() <= 10 && !t.closed;
   var headline =
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#eee;border-radius:10px;overflow:hidden;margin:10px 0 4px;">' +
       '<div style="background:#fff;padding:9px 11px;">' +
         '<div style="font-size:10.5px;color:#707070;letter-spacing:.04em;">SPENT ON ADS</div>' +
         '<div style="font-size:19px;font-weight:800;">' + money(totalSpend) + '</div></div>' +
       '<div style="background:#fff;padding:9px 11px;">' +
-        '<div style="font-size:10.5px;color:#707070;letter-spacing:.04em;">CLOSED THIS MONTH</div>' +
+        '<div style="font-size:10.5px;color:#707070;letter-spacing:.04em;">' + (ranged ? 'CLOSED IN ' + roiRangeN(roiMonth) + ' MONTHS' : 'CLOSED THIS MONTH') + '</div>' +
         '<div style="font-size:19px;font-weight:800;color:#0F6E56;">' + money(t.ltv) + '</div>' +
         '<div style="font-size:10.5px;color:#707070;">worth over ' + (LMx % 12 === 0 ? (LMx / 12) + ' year' + (LMx === 12 ? '' : 's') : LMx + ' months') +
         (lifetimeInfo().measured ? ' (measured)' : ' (your estimate)') +
@@ -7369,16 +7400,16 @@ function renderROI(){
           overallY1.toFixed(1) + '&times; in year one alone)</span></div>'
       : '') +
     (earnedBits.length
-      ? '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">' + esc(monthLabel(roiMonth)) + ' closed: ' + earnedBits.join(' &middot; ') +
+      ? '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">' + esc(roiLabel()) + ' closed: ' + earnedBits.join(' &middot; ') +
         ' &mdash; ' + t.closed + ' customer' + (t.closed === 1 ? '' : 's') + '</div>'
-      : '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">Nothing closed in ' + esc(monthLabel(roiMonth)) + ' yet.</div>');
+      : '<div style="font-size:11.5px;color:#707070;margin-bottom:8px;">Nothing closed in ' + esc(roiLabel()) + ' yet.</div>');
 
   // Paid channels: spend vs return
   var scale = Math.max.apply(null, CHANNELS.map(function(c){
-    return Math.max(spendFor(roiMonth, c.k), (mb.by[c.k] || {}).ltv || 0);
+    return Math.max(roiSpend(c.k), (mb.by[c.k] || {}).ltv || 0);
   }).concat([1]));
   var paid = CHANNELS.map(function(c){
-    var r = mb.by[c.k], spend = spendFor(roiMonth, c.k);
+    var r = mb.by[c.k], spend = roiSpend(c.k);
     var pct = function(v){ return Math.max(v > 0 ? 3 : 0, Math.round(v / scale * 100)); };
     var mult = spend > 0 ? r.ltv / spend : 0;
     var verdictTxt = spend > 0
@@ -7427,13 +7458,13 @@ function renderROI(){
   // Paying for a channel while all its leads land in the organic bucket usually
   // means click tagging is off in the ad account, not that the ads did nothing.
   var mixups = CHANNELS.map(function(c){
-    var paidRow = mb.by[c.k], spend = spendFor(roiMonth, c.k);
+    var paidRow = mb.by[c.k], spend = roiSpend(c.k);
     var organicKey = c.k === 'Meta Ads' ? 'Meta (organic)' : 'Google (organic)';
     var org = mb.by[organicKey];
     if (!spend || !org || !org.leads || (paidRow && paidRow.leads)) return '';
     return '<div style="background:#FDF3DC;border-radius:9px;padding:9px 11px;margin-top:10px;font-size:12px;color:#7a5c00;line-height:1.5;">' +
       '&#9888;&#65039; ' + money(spend) + ' spent on ' + esc(c.label) + ', but all ' + org.leads + ' ' +
-      esc(organicKey.split(' ')[0]) + ' lead' + (org.leads === 1 ? '' : 's') + ' this month came in as <strong>organic</strong>' +
+      esc(organicKey.split(' ')[0]) + ' lead' + (org.leads === 1 ? '' : 's') + ' ' + (ranged ? 'in ' + roiLabel() : 'this month') + ' came in as <strong>organic</strong>' +
       (org.year1 ? ' (worth ' + money(org.year1) + ')' : '') + '. Either the ads genuinely closed nobody, or the clicks aren\u2019t being tagged as ads. ' +
       (c.k === 'Google Ads'
         ? 'Check <strong>Google Ads &rarr; Settings &rarr; Account settings &rarr; Auto-tagging</strong> is switched ON.'
@@ -7450,7 +7481,7 @@ function renderROI(){
 
   // Where the next dollar goes
   var verdict = '';
-  var withSpend = CHANNELS.map(function(c){ return { c: c, spend: spendFor(roiMonth, c.k), ltv: mb.by[c.k].ltv }; })
+  var withSpend = CHANNELS.map(function(c){ return { c: c, spend: roiSpend(c.k), ltv: mb.by[c.k].ltv }; })
                           .filter(function(r){ return r.spend > 0; });
   if (withSpend.length){
     var ranked = withSpend.slice().sort(function(a, b){ return (b.ltv / b.spend) - (a.ltv / a.spend); });
@@ -7465,32 +7496,32 @@ function renderROI(){
         '. Next advertising dollar goes to ' + esc(w.c.label) + '.</div>';
     } else {
       verdict = '<div style="background:#FDF3DC;border-radius:9px;padding:9px 11px;margin-top:11px;font-size:12.5px;color:#7a5c00;font-weight:600;line-height:1.5;">' +
-        '&#9888;&#65039; ' + money(totalSpend) + ' spent in ' + esc(monthLabel(roiMonth)) +
+        '&#9888;&#65039; ' + money(totalSpend) + ' spent in ' + esc(roiLabel()) +
         ' and no ad-sourced customer closed' + (t.closed ? ' &mdash; the ' + t.closed + ' that did close came from elsewhere' : ' yet') +
         '. Leads can take weeks to close, so check next month too.</div>';
     }
   }
 
   var form = '<div id="sp-form" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid #eee;">' +
-    '<div style="font-size:12.5px;font-weight:700;margin-bottom:7px;">What did we spend in ' + esc(monthLabel(roiMonth)) + '?</div>' +
+    '<div style="font-size:12.5px;font-weight:700;margin-bottom:7px;">What did we spend in ' + esc(roiLabel()) + '?</div>' +
     CHANNELS.map(function(c){
-      var cur = spendFor(roiMonth, c.k);
+      var cur = roiSpend(c.k);
       return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">' +
         '<label for="sp-' + c.k.replace(/\W/g, '') + '" style="font-size:12.5px;flex:1;">' + esc(c.label) + '</label>' +
         '<span style="color:#707070;font-size:13px;">$</span>' +
         '<input id="sp-' + c.k.replace(/\W/g, '') + '" type="text" inputmode="decimal" placeholder="0" value="' + (cur || '') +
           '" style="width:92px;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;text-align:right;"></div>';
     }).join('') +
-    '<button class="copybtn" style="margin-top:3px;background:#188663;color:#fff;border-color:#188663;" onclick="saveSpend()">Save ' + esc(monthLabel(roiMonth)) + ' spend</button>' +
+    '<button class="copybtn" style="margin-top:3px;background:#188663;color:#fff;border-color:#188663;" onclick="saveSpend()">Save ' + esc(roiLabel()) + ' spend</button>' +
     '<div style="font-size:11px;color:#707070;margin-top:6px;">Leave a box empty to leave that channel unchanged. Saving again replaces the old number.</div>' +
   '</div>';
 
   box.innerHTML =
     '<div style="font-weight:800;font-size:14px;margin-bottom:7px;">&#128181; Ad spend &rarr; what came back</div>' +
     '<div class="chips" style="margin-bottom:2px;">' + picker + '</div>' +
-    headline + paid + freeBlock + mixups + nudge + verdict + waiverBlock() + lifetimeBlock() +
+    headline + roiMonthTable() + paid + freeBlock + mixups + nudge + verdict + waiverBlock() + lifetimeBlock() +
     '<div style="margin-top:11px;">' +
-      '<button class="copybtn" onclick="toggleSpendForm()">&#9998; ' + (totalSpend ? 'Update' : 'Enter') + ' ' + esc(monthLabel(roiMonth)) + ' ad spend</button>' +
+      (ranged ? '<span style="font-size:11.5px;color:#707070;">To enter or change ad spend, tap a single month above.</span>' : '<button class="copybtn" onclick="toggleSpendForm()">&#9998; ' + (totalSpend ? 'Update' : 'Enter') + ' ' + esc(roiLabel()) + ' ad spend</button>') +
     '</div>' + form +
     '<div style="font-size:10.5px;color:#bbb;margin-top:8px;line-height:1.5;">Leads counted by the month they came in; revenue by the month the deal closed. "Back" values a customer over their whole stay &mdash; currently set to ' + lifetimeMonths() + ' months, changeable in the &#9881;&#65039; settings. That estimate is not measured from this data, so if it is optimistic these returns are too.</div>';
 }

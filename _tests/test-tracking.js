@@ -129,6 +129,28 @@ for (let d = 0; d < 40; d++) ROWS.push({ id:'v' + d, type:'VIEW', name:'Home', y
   ok('a customer who later cancelled still counts as closed in the month they closed',
      /Interested|CLOSED/.test(await txt('#stats')));
 
+  /* ---- the ad panel over several months: 3, 6 or 12 added together ---- */
+  {
+    const chips = await p.$$eval('#roi .chips .chip', els => els.map(e => e.textContent.trim()));
+    ok('beside the single months there are Last 3, 6 and 12 months', ['Last 3 months', 'Last 6 months', 'Last 12 months'].every(c => chips.includes(c)), chips.join(' | '));
+    const R = await p.evaluate(() => {
+      const d = new Date(), mk = (i) => monthKeyOf(new Date(d.getFullYear(), d.getMonth() - i, 1));
+      spends[mk(0) + '|Google Ads'] = { amt: 100, created: 'x' }; spends[mk(1) + '|Meta Ads'] = { amt: 200, created: 'x' };
+      const one = [0, 1, 2].map(i => monthBreakdown(mk(i)).totals);
+      setRoiMonth('r3');
+      const three = monthBreakdown(roiMonthList()).totals, box = document.getElementById('roi');
+      const out = { list: roiMonthList().join() === [mk(0), mk(1), mk(2)].join(), sumClosed: one.reduce((s, x) => s + x.closed, 0), sumLeads: one.reduce((s, x) => s + x.leads, 0), closed: three.closed, leads: three.leads,
+        text: box.textContent.replace(/\s+/g, ' '), rows: box.querySelectorAll('#roi-months tr').length, form: !!box.querySelector('#sp-form') && /Update|Enter/.test((box.querySelector('button[onclick="toggleSpendForm()"]') || {}).textContent || '') };
+      setRoiMonth('r12'); out.rows12 = document.querySelectorAll('#roi-months tr').length; out.wide = document.documentElement.scrollWidth <= window.innerWidth;
+      setRoiMonth(mk(0)); out.backToOne = !document.querySelector('#roi-months') && /CLOSED THIS MONTH/.test(document.getElementById('roi').textContent);
+      return out;
+    });
+    ok('Last 3 months is this month and the two before it, and its leads and customers are the three single months added up', R.list && R.closed === R.sumClosed && R.leads === R.sumLeads && R.closed > 0, JSON.stringify({ c: R.closed, s: R.sumClosed, l: R.leads, sl: R.sumLeads }));
+    ok('the spend is added up across the months, and a table shows each month on its own line with a total', /SPENT ON ADS\s*\$300/.test(R.text) && /CLOSED IN 3 MONTHS/.test(R.text) && R.rows === 5 && /Month\s*Ad spend\s*Ad leads\s*Ad customers\s*Back\s*Return/.test(R.text) && /Total\s*\$300/.test(R.text), R.text.slice(0, 500) + ' rows ' + R.rows);
+    ok('a month with no spend saved says so instead of showing a made-up return, and spend is still entered one month at a time', /not entered/.test(R.text) && /tap a single month above/.test(R.text) && !R.form, R.text.slice(-400));
+    ok('Last 12 months lists twelve months, fits the phone, and a single month goes back to the old view', R.rows12 === 14 && R.wide && R.backToOne, JSON.stringify({ r: R.rows12, w: R.wide, b: R.backToOne }));
+  }
+
   /* ---- 4. close rate by tier and by source ---- */
   ok('Premium closes 1 of 2 (50%)', /Premium 50% of 2/.test(ins), ins.match(/Premium[^S]{0,40}/) && ins.match(/Premium[^S]{0,40}/)[0]);
   ok('Standard shows its rate with the no count', /Standard \d+% of \d+/.test(ins));
