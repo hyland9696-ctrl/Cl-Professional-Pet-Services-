@@ -7385,7 +7385,7 @@ function roiAdTable(){
   leads.forEach(function(l){
     if (!isLead(l) || !mset[String(l.created || '').slice(0, 7)]) return;
     var f = fuParse(l.crmnotes), src = f.src || 'Not tagged', won = (l.status || 'new') === 'closed' || l.status === 'cancelled';
-    if (f.camp || f.ad){ var k = (f.camp || '(no campaign)') + (f.ad ? ' › ' + f.ad : ''); var b = by[k] = by[k] || { src: src, q: 0, c: 0 }; b.q++; if (won) b.c++; }
+    if (f.camp || f.ad){ var plus = function(s){ return String(s || '').replace(/\+/g, ' ').replace(/\s+/g, ' ').trim(); }; var k = (plus(f.camp) || '(no campaign)') + (f.ad ? ' › ' + plus(f.ad) : ''); var b = by[k] = by[k] || { src: src, q: 0, c: 0 }; b.q++; if (won) b.c++; }
     if (paidK.indexOf(src) >= 0){ paidLeads++; var tn = townOf(zipOf(l), l) || 'No ZIP'; var tw = towns[tn] = towns[tn] || {}; var x = tw[src] = tw[src] || [0, 0]; x[0]++; if (won) x[1]++; }
   });
   var ak = Object.keys(by).sort(function(a, b){ return by[b].c - by[a].c || by[b].q - by[a].q; }).slice(0, 15);
