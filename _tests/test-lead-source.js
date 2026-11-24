@@ -124,6 +124,38 @@ for (const [name, o, src, how] of cases){
     ok('no page errors', errs.length === 0, errs.join('; '));
     await ctx.close();
   }
+  // the monthly roll-up: a row per source, a column per month, leads / customers
+  {
+    const ctx = await b.newContext({ viewport:{ width:390, height:1400 } });
+    const p = await ctx.newPage();
+    await p.clock.install({ time: new Date('2026-11-20T15:00:00Z') });
+    const errs = []; p.on('pageerror', e => errs.push(e.message));
+    const L = (id, created, src, status, extra) => ({ id, type:'ENQUIRY', name:'Person ' + id, phone:'63637501' + id.slice(1).padStart(2, '0'), zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status, crmnotes:'[SID:s' + id + '] ' + (src ? '[SRC:' + src + '] ' : '') + (extra || '') + '[QA:w] ', created });
+    stubNetwork(p, { leads: [
+      L('a1', '2026-11-03T10:00:00Z', 'Meta Ads', 'new'),
+      L('a2', '2026-11-05T10:00:00Z', 'Meta (organic)', 'new'),                               // in the app, no tag: could be an ad
+      L('a3', '2026-11-06T10:00:00Z', 'Meta (organic)', 'closed', '[CD:2026-11-10] '),        // a real facebook.com referrer
+      L('a4', '2026-10-28T10:00:00Z', 'Google Ads', 'closed', '[CD:2026-11-02] '),            // asked in October, started in November
+      L('a5', '2026-10-12T10:00:00Z', 'Yard sign QR (St. Peters)', 'new'),
+      L('a6', '2026-10-15T10:00:00Z', '', 'lost'),
+      { id:'v2', type:'VIEW', name:'home', zip:'', yard:'sa2', service:'Meta (organic)', notes:'how=app:meta', created:'2026-11-05T09:58:00Z' },
+      { id:'v3', type:'VIEW', name:'home', zip:'', yard:'sa3', service:'Meta (organic)', notes:'how=ref:l.facebook.com', created:'2026-11-06T09:58:00Z' },
+    ] });
+    await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(1200);
+    const R = await p.evaluate(() => { const T = rollRows(); const o = { mos: T.mos }; T.rows.forEach(r => o[r.name] = r.per.map(c => c.join('/')).join(' ') + ' = ' + r.all.join('/')); return o; });
+    ok('months newest first; a lead counts in the month they asked and a customer in the month they started', R.mos.join() === '2026-11,2026-10' && R['Google Ads'] === '0/1 1/0 = 1/1', JSON.stringify(R));
+    ok('a Meta lead that opened inside the app with no tag is on its own line, not called organic; a real Facebook referrer stays organic', R['Meta (in app, no tag)'] === '1/0 0/0 = 1/0' && R['Meta (organic)'] === '1/1 0/0 = 1/1' && R['Meta Ads'] === '1/0 0/0 = 1/0', JSON.stringify(R));
+    ok('All Meta adds the three Meta lines; yard signs from every town are one line; an untagged lead is Not tagged; the total counts each lead once', R['All Meta'] === '3/1 0/0 = 3/1' && R['Yard sign'] === '0/0 1/0 = 1/0' && R['Not tagged'] === '0/0 1/0 = 1/0' && R['TOTAL'] === '3/2 3/0 = 6/2', JSON.stringify(R));
+    await p.evaluate(() => { try { localStorage.setItem('clpps_numbers', '1'); } catch (e) {} });
+    await p.click('#numbersBtn'); await p.waitForTimeout(1500);
+    const tx = (await p.textContent('#insights')).replace(/\s+/g, ' ');
+    ok('the table is in the Numbers panel with the months across the top and the note about untagged Meta', /Monthly roll-up by source/.test(tx) && /Nov 26/.test(tx) && /Oct 26/.test(tx) && /could be either/.test(tx) && (await p.$$('#insights button:has-text("Copy for a spreadsheet")')).length === 1, tx.slice(tx.indexOf('Monthly roll-up'), tx.indexOf('Monthly roll-up') + 300));
+    ok('on a phone the table scrolls inside its own box and the page stays the width of the screen', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+    const tsv = await p.evaluate(() => { let got = ''; window.copyText = (s) => { got = s; }; rollCopy(); return got; });
+    ok('Copy gives two tab-separated blocks, leads then customers, ready for a spreadsheet', /^Leads by source\tNov 26\tOct 26\tTotal\n/.test(tsv) && /\nAll Meta\t3\t0\t3\n/.test(tsv) && /\n\nCustomers started by source\tNov 26\tOct 26\tTotal\n/.test(tsv) && /\nTOTAL\t2\t0\t2$/.test(tsv), tsv);
+    ok('no page errors', errs.length === 0, errs.join('; '));
+    await ctx.close();
+  }
   await b.close();
   done();
 })();

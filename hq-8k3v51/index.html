@@ -1149,6 +1149,75 @@ function refShareRow(l){
     (fuParse(l.crmnotes).np ? '<span style="color:#707070;">texted ' + esc(fuParse(l.crmnotes).np) + '</span>' : '') +
     (neighborsWon(l) ? '<span style="color:#188663;font-weight:700;">' + neighborsWon(l) + ' neighbor' + (neighborsWon(l) === 1 ? '' : 's') + ' started: ' + (Math.min(neighborsWon(l), NEIGHBOR_MAX) * NEIGHBOR_PCT) + '% off earned' + (neighborsWon(l) >= NEIGHBOR_MAX ? ' (the most)' : '') + '</span>' : '') + '</div>';
 }
+/* ---- the monthly roll-up ----
+   Corey: "I'm struggling with being able to do a roll up of our leads. Like
+   easily tell the source for each month. Also number of closed customers
+   and where they come from." One table: a row per source, a column per
+   month, leads asked / customers started. A Meta lead that opened inside
+   the Facebook or Instagram app with no tag on the link is shown on its own
+   line, because nobody can say whether it was an ad or a post. */
+var rollHowIdx = null, rollHowN = -1;
+function rollHow(l){
+  if (rollHowN !== views.length){ rollHowIdx = {}; rollHowN = views.length;
+    views.forEach(function(v){ if (!v.yard) return; var c = rollHowIdx[v.yard]; if (!c || String(v.created) < c.t){ var m = String(v.notes || '').match(/how=([^\s]*)/); rollHowIdx[v.yard] = { t: String(v.created), how: m ? m[1] : '' }; } }); }
+  var sid = fuParse(l.crmnotes).sid, hit = sid && rollHowIdx[sid];
+  return hit ? hit.how : '';
+}
+var ROLL_UNTAGGED = 'Meta (in app, no tag)';
+function rollSrc(l){
+  var s = fuParse(l.crmnotes).src || 'Not tagged';
+  if (/^Yard sign/i.test(s)) return 'Yard sign';
+  if (s === 'Meta (organic)' && rollHow(l) === 'app:meta') return ROLL_UNTAGGED;
+  return s;
+}
+function rollup(){
+  var cells = {}, months = {}, add = function(src, mo, i){ if (!/^\d{4}-\d{2}$/.test(mo)) return; months[mo] = 1; var r = cells[src] = cells[src] || {}; var c = r[mo] = r[mo] || [0, 0]; c[i]++; };
+  leads.forEach(function(l){
+    if (!isLead(l) || l.status === 'deleted') return;
+    var src = rollSrc(l), m = fuParse(l.crmnotes), st = l.status || 'new';
+    add(src, String(l.created || '').slice(0, 7), 0);
+    if (st === 'closed' || st === 'cancelled') add(src, String(m.cd || l.created || '').slice(0, 7), 1);
+  });
+  var mos = Object.keys(months).sort().reverse();
+  var tot = function(src, list){ var a = [0, 0]; list.forEach(function(mo){ var c = (cells[src] || {})[mo]; if (c){ a[0] += c[0]; a[1] += c[1]; } }); return a; };
+  var srcs = Object.keys(cells).sort(function(a, b){ return tot(b, mos.slice(0, 12))[0] - tot(a, mos.slice(0, 12))[0] || a.localeCompare(b); });
+  return { cells: cells, months: mos, srcs: srcs, tot: tot };
+}
+var rollMonths = 6;
+function rollLabel(mo){ return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(mo.slice(5), 10) - 1] + ' ' + mo.slice(2, 4); }
+function rollRows(){
+  var R = rollup(), mos = R.months.slice(0, rollMonths), rows = [];
+  var sum = function(list){ return function(mo){ var a = [0, 0]; list.forEach(function(s){ var c = (R.cells[s] || {})[mo]; if (c){ a[0] += c[0]; a[1] += c[1]; } }); return a; }; };
+  var line = function(name, f, bold){ var per = mos.map(f), all = [0, 0]; per.forEach(function(c){ all[0] += c[0]; all[1] += c[1]; }); rows.push({ name: name, per: per, all: all, bold: bold }); };
+  var meta = R.srcs.filter(function(s){ return /^Meta/.test(s); }), goog = R.srcs.filter(function(s){ return /^Google/.test(s); });
+  if (meta.length > 1) line('All Meta', sum(meta), true);
+  if (goog.length > 1) line('All Google', sum(goog), true);
+  R.srcs.forEach(function(s){ line(s, sum([s]), false); });
+  rows = rows.filter(function(r){ return r.all[0] || r.all[1]; });
+  line('TOTAL', sum(R.srcs), true);
+  return { mos: mos, rows: rows, more: R.months.length > rollMonths };
+}
+function rollupHtml(){
+  var T; try { T = rollRows(); } catch (e) { return ''; }
+  if (!T.mos.length) return '';
+  var td = 'padding:5px 8px;border-bottom:1px solid #eef1f0;text-align:right;white-space:nowrap;', cell = function(c){ return c[0] || c[1] ? c[0] + ' <span style="color:#188663;font-weight:700;">/ ' + c[1] + '</span>' : '<span style="color:#c8d0cc;">&middot;</span>'; };
+  var h = '<h4>&#128197; Monthly roll-up by source <span class="sub">(leads <span style="color:#188663;font-weight:700;">/ customers</span>)</span></h4>' +
+    '<div id="rollup" style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table style="border-collapse:collapse;font-size:12px;min-width:100%;"><tr><th style="' + td + 'text-align:left;">Source</th>' +
+    T.mos.map(function(mo){ return '<th style="' + td + '">' + rollLabel(mo) + '</th>'; }).join('') + '<th style="' + td + '">' + T.mos.length + ' mo</th></tr>' +
+    T.rows.map(function(r){ return '<tr style="' + (r.bold ? 'font-weight:700;background:#F3F8F5;' : '') + '"><td style="' + td + 'text-align:left;">' + esc(r.name) + '</td>' + r.per.map(function(c){ return '<td style="' + td + '">' + cell(c) + '</td>'; }).join('') + '<td style="' + td + '">' + cell(r.all) + '</td></tr>'; }).join('') +
+    '</table></div>' +
+    '<div class="sub" style="margin-top:4px;">Leads are counted in the month they asked; customers in the month they started. The All Meta and All Google lines add up the lines under them and are not counted twice in the total.' +
+    (T.rows.some(function(r){ return r.name === ROLL_UNTAGGED; }) ? ' <strong>' + ROLL_UNTAGGED + '</strong> opened the site inside the Facebook or Instagram app with nothing on the link to say ad or post, so it could be either. Put URL parameters on every ad and these move to Meta Ads.' : '') + '</div>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;"><button class="copybtn" onclick="rollCopy()">&#128203; Copy for a spreadsheet</button>' +
+    (T.more || rollMonths > 6 ? '<button class="copybtn" onclick="rollMonths = rollMonths > 6 ? 6 : 24; renderInsights();">' + (rollMonths > 6 ? 'Show 6 months' : 'Show every month') + '</button>' : '') + '</div>';
+  return h;
+}
+/* Two blocks, tab-separated, so it pastes straight into Excel or Sheets. */
+function rollCopy(){
+  var keep = rollMonths; rollMonths = 24; var T = rollRows(); rollMonths = keep;
+  var block = function(title, i){ return [title + '\t' + T.mos.map(rollLabel).join('\t') + '\tTotal'].concat(T.rows.map(function(r){ return r.name + '\t' + r.per.map(function(c){ return c[i]; }).join('\t') + '\t' + r.all[i]; })).join('\n'); };
+  copyText(block('Leads by source', 0) + '\n\n' + block('Customers started by source', 1));
+}
 function copyText(t){
   try { navigator.clipboard.writeText(t).then(function(){ toast('Copied'); }, function(){ prompt('Copy this:', t); }); } catch (e) { prompt('Copy this:', t); }
 }
@@ -1480,6 +1549,8 @@ function renderInsights(){
     : '<div class="sub">No leads in the window.</div>';
   h += '<h4>&#128227; Close rate by source <span class="sub">(' + W + ' days)</span></h4>';
   h += recent.length ? rateRows(bySrc, ['Google Ads','Meta Ads','Google (organic)','Meta (organic)','Referral','Yard sign','Nextdoor','Other','Not tagged']) : '';
+
+  h += rollupHtml();
 
   // ---- manual quotes: what the by-hand path costs ----
   var man = recent.filter(function(l){ return l.manual === 'YES' || fuParse(l.crmnotes).mr; });
