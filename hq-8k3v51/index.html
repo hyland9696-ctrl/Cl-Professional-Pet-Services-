@@ -814,8 +814,15 @@ function loadLeads(showToast, cb, isRetry, daysWanted){
       var seen = {};
       var merged = [];
       remote.forEach(function(l){ if (!seen[l.id]){ seen[l.id] = true; merged.push(l); } });
+      // An id the sheet already holds is not "local only", even when its row
+      // was folded into the same person's newer card above. Without this a
+      // phone that still had the folded id put the card back and re-sent it
+      // on every sync, forever: one lost quote filled the sheet with 275
+      // copies in a day and pushed everything else out of the activity log.
+      var inSheet = {};
+      newestRows.forEach(function(l){ inSheet[l.id] = true; });
       leads.forEach(function(l){
-        if (!seen[l.id] && !deadIds[l.id]){
+        if (!seen[l.id] && !deadIds[l.id] && !inSheet[l.id]){
           seen[l.id] = true;
           merged.push(l);
           // a row this phone already knows about is never news to the office

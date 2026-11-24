@@ -56,6 +56,25 @@ const { ok, done } = reporter();
     await ctx.close();
   }
 
+  /* ---- a phone that still holds a folded id must not put it back or re-send it ---- */
+  {
+    const ctx = await b.newContext({ viewport:{ width:430, height:1400 } });
+    const p = await ctx.newPage();
+    const now = Date.now(), at = (m) => new Date(now - m * 60000).toISOString();
+    const older = { id:'s2', type:'ENQUIRY', name:'Stefany Freeman', phone:'19493904971', zip:'63042', dogs:'1', service:'weekly', price:'$107/mo', status:'lost', crmnotes:'[SID:b] [QA:w] ', created: at(60) };
+    const localOnly = { id:'loc1', type:'ENQUIRY', name:'Only Here Olga', phone:'6363754399', zip:'63376', dogs:'1', service:'weekly', price:'$85/mo', status:'new', crmnotes:'', created: at(2) };
+    const posts = [];
+    stubNetwork(p, { posts, leads: [
+      { id:'s3', type:'ACTIVATE', name:'Stefany Freeman', phone:'19493904971', zip:'63042', dogs:'1', service:'weekly', price:'$107/mo', status:'new', crmnotes:'[SID:c] [QA:a] ', created: at(10) },
+      older ] });
+    await p.addInitScript((rows) => { try { localStorage.setItem('clpps_leads', JSON.stringify(rows)); } catch (e) {} }, [older, localOnly]);
+    await p.goto(ORIGIN + '/hq-8k3v51/'); await p.waitForTimeout(1500);
+    const who = await p.$$eval('#list .card .who', els => els.map(e => e.textContent.trim()));
+    ok('a card the sheet already folded into the same person is not put back from the phone\'s copy', who.filter(w => /Stefany/.test(w)).length === 1, who.join(' | '));
+    ok('and is not sent to the sheet again; a card the sheet has never seen still is', !posts.some(l => l && l.id === 's2') && posts.some(l => l && l.id === 'loc1') && who.includes('Only Here Olga'), posts.map(l => l && l.id).join(','));
+    await ctx.close();
+  }
+
   /* ---- the tracker: three rows, one Stefany ---- */
   {
     const ctx = await b.newContext({ viewport:{ width:430, height:1400 } });
