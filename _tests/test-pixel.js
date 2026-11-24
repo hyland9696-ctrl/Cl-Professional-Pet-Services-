@@ -52,6 +52,8 @@ async function toPrice(p, who){
     await p.check('#qf2-tos');
     // a yes moves on to the thank-you page; hold that move here so the events on this page can be read
     let wentTo = ''; await p.route('**/thank-you/**', r => { wentTo = r.request().url(); r.fulfill({ status: 204, body: '' }); });
+    const means = (await p.textContent('#q-yes-means')).replace(/\s+/g, ' ').trim();
+    ok('right above the Yes button the page says what it does: added to the active schedule, wants to get started, with the first invoice', await p.isVisible('#q-yes-means') && /^By clicking Yes, you are getting added to our active schedule and want to get started\. Your first invoice is \$\d+\.$/.test(means), means);
     await p.click('#q-yes-btn'); await p.waitForTimeout(800);
     ev = await events(p);
     ok('and then heads for the thank-you page, with the sale noted for it', /\/thank-you\/\?t=start$/.test(wentTo) && (await p.evaluate(() => (JSON.parse(sessionStorage.getItem('clpps_ty') || '{}')).k)) === 'start', wentTo);

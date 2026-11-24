@@ -1012,6 +1012,10 @@
             <input type="checkbox" id="qf2-tos" />
             <label for="qf2-tos">I have read and accept the <a href="#tos-modal" onclick="qTos(true);return false;" style="color:#0F6E56;font-weight:600;">Terms of Service</a>. <strong>By accepting these terms, I am choosing to activate service</strong> at the quoted price of <strong id="q-agree-price">$&mdash;</strong>, and CL Professional Pet Services will contact me to confirm my start date. My quote assumes a yard up to &frac14; acre.</label>
           </div>
+          <!-- Jesse: "people are hitting yes and then they're not actually
+               wanting to start". Say what Yes does, right above the button.
+               Wording only: no second question, which would lose real sign-ups. -->
+          <div id="q-yes-means" style="background:#FFF8E6;border:1px solid #F0DDA8;border-radius:10px;padding:12px 14px;margin:0 0 10px;font-size:14px;color:#5b4a12;line-height:1.55;"><strong id="q-means-text">By clicking Yes, you are getting added to our active schedule and want to get started.</strong></div>
           <button class="submit-btn" id="q-yes-btn" onclick="qAnswer(true)">Yes &mdash; Start My Service</button>
           <div class="q-sub" style="margin-top:14px;text-align:center;">Not what you were hoping for?</div>
           <button class="q-back" style="width:100%;margin-top:6px;padding:14px;" id="q-no-btn" onclick="qDeclineOpen()">No thanks, this isn&rsquo;t for me</button>
@@ -1919,6 +1923,8 @@
     }
     // "Start My Service" is wrong for a single cleanup, and wronger still for
     // a 5-dog yard where there is no price on screen to agree to yet.
+    document.getElementById('q-yes-means').style.display = p.manual ? 'none' : 'block';
+    document.getElementById('q-means-text').textContent = p.manual ? '' : (q.freq === 'onetime' ? 'By clicking Yes, you are booking this cleanup and want to get started. We will contact you to set the day.' : 'By clicking Yes, you are getting added to our active schedule and want to get started. Your first invoice is $' + p.first + '.');
     document.getElementById('q-yes-btn').textContent =
       p.manual ? 'Yes — Have Someone Quote Me'
                : (q.freq === 'onetime' ? 'Yes — Book My Cleanup' : 'Yes — Start My Service');
