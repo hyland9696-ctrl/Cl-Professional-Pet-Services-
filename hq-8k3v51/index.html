@@ -423,6 +423,7 @@
       <div class="owner-only" style="display:flex;gap:6px;align-items:center;margin:-4px 0 10px;flex-wrap:wrap;font-size:12px;"><span>Monday email to:</span><input id="owner-email" type="email" placeholder="Corey's email (blank = the office mailbox)" style="flex:1 1 200px;padding:7px 9px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;min-width:0;"><button onclick="saveOwnerEmail()" style="padding:6px 10px;min-height:32px;font-size:11.5px;">Save</button></div>
       <div style="display:flex;align-items:center;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;flex-wrap:wrap;"><span style="flex:1 1 200px;"><strong>Referral links to every customer.</strong> Each active customer gets their own link and their account page, once in six months. You see the email first.</span><button class="copybtn" onclick="refInvite(false)">&#128279; Send referral links</button></div>
       <div style="background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="flex:1 1 200px;"><strong>&#127873; Neighbor promo by text.</strong> A neighbor starts through their link and both get 10% off for 3 months, the neighbor&rsquo;s initial clean waived. It stacks, up to 5 neighbors (50%).</span><button class="copybtn" onclick="neighborList()">&#128172; Text list</button></div><div id="npList"></div></div>
+      <div style="background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="flex:1 1 200px;"><strong>&#128075; Quote check-in by text.</strong> Everyone marked called or not interested: &ldquo;we never heard back about your quote, it was $85/mo, call or text us.&rdquo; No offer attached.</span><button class="copybtn" onclick="checkinList()">&#128172; Text list</button></div><div id="qcList"></div></div>
       <div style="font-weight:700;font-size:13px;margin:4px 0;">Campaign calendar</div>
       <div style="font-size:11.5px;color:#707070;margin-bottom:6px;">Four seasonal emails, each on its date, once a year, to the people it is for. Tick the ones you want; change a date if you like. Each needs the office mailbox, like everything else here.</div>
       <div id="campaign-cal" style="margin-bottom:10px;"></div>
@@ -1111,6 +1112,47 @@ function buildRefIndex(){
 }
 /* Who referred them: the name typed on the card, else the customer whose link they used. */
 function referrerOf(fu){ if (fu.rb) return fu.rb; var r = fu.rf && refIdx[fu.rf]; return r ? String(r.name || '').trim() : ''; }
+/* The quote check-in. Jesse: "for everyone who I put as called or not
+   interested... 'Hey, just wanted to reach back out to you. We never heard
+   from you regarding your quote. If you're still interested, your quote was
+   [quote amount], please give us a call or text.'" No offer, no pressure:
+   the price they were given and how to reach us. */
+function checkinOk(l){ var st = l.status || 'new'; return isLead(l) && (st === 'called' || st === 'lost') && !!smsDigits(l); }
+function checkinQuote(l){
+  var pp = parsePrice(l), sv = String(l.service || '').toLowerCase().trim();
+  if (!pp || !(pp.amt > 0)) return '';
+  if (!pp.isMo) return 'from $' + pp.amt + ' for a one-time cleanup';
+  return '$' + pp.amt + '/mo' + (/week|twice|other/.test(sv) ? ' for ' + sv + ' service' : '');
+}
+function checkinText(l){
+  var first = String(l.name || '').trim().split(/\s+/)[0] || 'there', qt = checkinQuote(l);
+  return 'Hi ' + first + ", it's Jesse with CL Professional Pet Services. Just wanted to reach back out; we never heard back from you about your quote. If you're still interested, " + (qt ? 'your quote was ' + qt + '.' : 'we still have your quote on file.') + ' Give us a call or text at (636) 375-4342 any time.';
+}
+function checkinTexted(id){
+  var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return;
+  var m = fuParse(l.crmnotes); m.qc = new Date().toISOString().slice(0, 10); stampBy(m);
+  l.crmnotes = fuCompose(m); l.updated = new Date().toISOString(); saveLocal(); render();
+  var qb = document.getElementById('qcList'); if (qb && qb.innerHTML) checkinList(true);
+  post({ action:'update', key:KEY, id:id, notes:l.crmnotes }, 'Quote check-in texted');
+}
+function checkinBtn(l, label){
+  return '<a class="qc-text" href="sms:' + esc(smsDigits(l)) + '?&body=' + encodeURIComponent(checkinText(l)).replace(/'/g, '%27') + '" onclick="checkinTexted(\'' + esc(l.id) + '\')" style="display:inline-block;background:#fff;color:#0F6E56;border:1.5px solid #0F6E56;border-radius:8px;padding:5px 9px;min-height:32px;line-height:20px;font-size:11.5px;font-weight:700;text-decoration:none;">&#128075; ' + label + '</a>';
+}
+function checkinRow(l){
+  if (!checkinOk(l)) return '';
+  var qc = fuParse(l.crmnotes).qc, qt = checkinQuote(l);
+  return '<div class="qc-card" style="margin-top:6px;font-size:12px;color:#555;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">Never heard back? ' + checkinBtn(l, 'Text a check-in') +
+    '<span style="color:#707070;">' + (qt ? 'reminds them of ' + esc(qt) : 'no price on this card, so no amount is named') + (qc ? ' &middot; sent ' + esc(qc) : '') + '</span></div>';
+}
+/* The list to work down: called and not-interested quotes, newest first, not yet checked in on. */
+function checkinList(keep){
+  var box = document.getElementById('qcList'); if (!box) return;
+  if (!keep && box.innerHTML){ box.innerHTML = ''; return; }
+  var all = leads.filter(checkinOk), todo = all.filter(function(l){ return !fuParse(l.crmnotes).qc; });
+  todo.sort(function(a, b){ return String(b.created).localeCompare(String(a.created)); });
+  box.innerHTML = '<div class="sub" style="margin:6px 0;">' + (all.length - todo.length) + ' of ' + all.length + ' texted. Each tap opens the text on your phone, ready to send, and ticks them off.</div>' +
+    (todo.length ? todo.map(function(l){ var st = l.status || 'new'; return '<div class="bar qc-row"><span style="flex:1;font-size:12.5px;"><strong>' + esc(l.name || '') + '</strong> <span class="sub">' + (st === 'called' ? 'called' : 'not interested') + ' &middot; ' + esc(checkinQuote(l) || 'no price') + ' &middot; asked ' + esc(String(l.created || '').slice(0, 10)) + '</span></span>' + checkinBtn(l, 'Text') + '</div>'; }).join('') : '<div class="sub">Everyone has had it.</div>');
+}
 /* The neighbor promo. Jesse: "if any of their neighbors use their referral
    link, they and their neighbor will get 10% off for three months. And that
    promotion can stack, so if they get two neighbors, it is 20% off." */
@@ -1786,13 +1828,13 @@ function fuParse(crmnotes){
   // cx/cxr = cancelled on (date) and why. dr = why they said no, as a tag.
   // rb/rw = who referred them, and the date their referrer got the reward.
   var m = { date: '', att: 0, attDate: '', t1: '', cd: '', sd: '', qs: '', ic: '', src: '', sid: '', rv: '', qa: '', wb: '', mr: '',
-            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', cf: '', wk: '', lr: '', rt: '', an: '', ng: '', ou: '', pl: '', ri: '', np: '', sc: '', pp: '', be: '', text: '' };
+            cx: '', cxr: '', dr: '', rb: '', rw: '', rf: '', day: '', sv: '', em: '', noem: '', ll: '', sgid: '', pz: '', et: '', hh: '', sgc: '', qp: '', fe: '', we: '', pm: '', os: '', ss: '', aka: '', cm: '', pr: '', cf: '', wk: '', lr: '', rt: '', an: '', ng: '', ou: '', pl: '', ri: '', np: '', qc: '', sc: '', pp: '', be: '', text: '' };
   // rf = the referral code the site saw (/?ref=code): a customer's own link.
   // day = the weekday this customer is serviced (mon..sun). sv = the save
   // offer made before the account closed: a date, or skip.
   // em = promotions emailed, tag@date, comma-separated. noem = asked not to be emailed.
   // ll = lat,lng from Sweep&Go's dispatch board; sgid = their client id. Both written by the nightly sync.
-  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR|CF|WK|LR|RT|AN|NG|OU|PL|RI|SC|PP|BE|NP):([^\]]*)\]\s*/;
+  var re = /^\[(FU|ATT|TX|T1|CD|SD|QS|IC|SRC|SID|RV|QA|WB|WC|MR|CXR|CX|DR|RB|RW|TM|CAMP|AD|OW|BY|RF|DAY|SV|EM|NOEM|LL|SGID|PZ|ET|HH|SGC|QP|FE|WE|PM|OS|SS|AKA|CM|PR|CF|WK|LR|RT|AN|NG|OU|PL|RI|SC|PP|BE|NP|QC):([^\]]*)\]\s*/;
   var hit;
   while ((hit = s.match(re))){
     if (hit[1] === 'FU') m.date = hit[2];
@@ -1846,6 +1888,7 @@ function fuParse(crmnotes){
     else if (hit[1] === 'AN') m.an = hit[2];                                 // anniversary email: year@date
     else if (hit[1] === 'OU') m.ou = hit[2];                                 // a one-off note from the Win back or Upsell card: kind-sub@date
     else if (hit[1] === 'PL') m.pl = hit[2];                                 // collections ladder: the notice sent, step@date
+    else if (hit[1] === 'QC') m.qc = hit[2];                                 // quote check-in texted, date
     else if (hit[1] === 'NP') m.np = hit[2];                                 // neighbor promo texted, date
     else if (hit[1] === 'RI') m.ri = hit[2];                                 // referral link emailed, date
     else if (hit[1] === 'SC') m.sc = hit[2];
@@ -1899,7 +1942,7 @@ function fuCompose(m){
          (m.fe ? m.fe.split(',').map(function(x){ return '[FE:' + x + '] '; }).join('') : '') +
          (m.we ? m.we.split(',').map(function(x){ return '[WE:' + x + '] '; }).join('') : '') +
          (m.pm ? '[PM:' + m.pm + '] ' : '') +
-         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.cf ? '[CF:' + m.cf + '] ' : '') + (m.wk ? '[WK:' + m.wk + '] ' : '') + (m.lr ? '[LR:' + m.lr + '] ' : '') + (m.rt ? '[RT:' + m.rt + '] ' : '') + (m.an ? '[AN:' + m.an + '] ' : '') + (m.ng ? '[NG:' + m.ng + '] ' : '') + (m.ou ? '[OU:' + m.ou + '] ' : '') + (m.pl ? '[PL:' + m.pl + '] ' : '') + (m.ri ? '[RI:' + m.ri + '] ' : '') + (m.np ? '[NP:' + m.np + '] ' : '') + (m.sc ? '[SC:' + m.sc + '] ' : '') + (m.pp ? '[PP:' + m.pp + '] ' : '') + (m.be ? '[BE:' + m.be + '] ' : '') + (m.text || '');
+         (m.os ? '[OS:' + m.os + '] ' : '') + (m.ss ? '[SS:' + m.ss + '] ' : '') + (m.aka ? '[AKA:' + m.aka + '] ' : '') + (m.cm ? '[CM:' + m.cm + '] ' : '') + (m.pr ? '[PR:' + m.pr + '] ' : '') + (m.cf ? '[CF:' + m.cf + '] ' : '') + (m.wk ? '[WK:' + m.wk + '] ' : '') + (m.lr ? '[LR:' + m.lr + '] ' : '') + (m.rt ? '[RT:' + m.rt + '] ' : '') + (m.an ? '[AN:' + m.an + '] ' : '') + (m.ng ? '[NG:' + m.ng + '] ' : '') + (m.ou ? '[OU:' + m.ou + '] ' : '') + (m.pl ? '[PL:' + m.pl + '] ' : '') + (m.ri ? '[RI:' + m.ri + '] ' : '') + (m.np ? '[NP:' + m.np + '] ' : '') + (m.qc ? '[QC:' + m.qc + '] ' : '') + (m.sc ? '[SC:' + m.sc + '] ' : '') + (m.pp ? '[PP:' + m.pp + '] ' : '') + (m.be ? '[BE:' + m.be + '] ' : '') + (m.text || '');
 }
 function removeLead(id){
   var l = leads.filter(function(x){ return x.id === id; })[0];
@@ -7320,6 +7363,42 @@ function roiMonthList(){
 }
 function roiSpend(ch){ return roiMonthList().reduce(function(s, m){ return s + spendFor(m, ch); }, 0); }
 function roiLabel(){ var n = roiRangeN(roiMonth); return n ? 'the last ' + n + ' months' : monthLabel(roiMonth); }
+/* Corey wants this to optimise the ads: for the month or the months picked,
+   every source on one line with what it cost and what it brought, then the
+   campaigns and ads by name, then the towns the paid leads came from. */
+function roiSourceTable(mb){
+  var td = 'padding:5px 7px;border-bottom:1px solid #eef1f0;text-align:right;white-space:nowrap;', paidK = CHANNELS.map(function(c){ return c.k; });
+  var keys = Object.keys(mb.by).filter(function(k){ return mb.by[k].leads || mb.by[k].closed || paidK.indexOf(k) >= 0; })
+    .sort(function(a, b){ return (paidK.indexOf(b) >= 0) - (paidK.indexOf(a) >= 0) || mb.by[b].leads - mb.by[a].leads || mb.by[b].closed - mb.by[a].closed; });
+  var dash = '<span style="color:#c8d0cc;">&middot;</span>';
+  var rows = keys.map(function(k){
+    var r = mb.by[k], paid = paidK.indexOf(k) >= 0, sp = paid ? roiSpend(k) : 0;
+    return '<tr' + (paid ? ' style="font-weight:700;background:#F3F8F5;"' : '') + '><td style="' + td + 'text-align:left;">' + esc(k) + '</td><td style="' + td + '">' + (paid ? (sp ? money(sp) : '<span style="color:#b45309;font-weight:400;">not entered</span>') : dash) + '</td><td style="' + td + '">' + r.leads + '</td><td style="' + td + '">' + r.closed + '</td><td style="' + td + '">' + (r.leads ? Math.round(100 * r.closed / r.leads) + '%' : dash) + '</td><td style="' + td + '">' + (sp && r.leads ? money(sp / r.leads) : dash) + '</td><td style="' + td + '">' + (sp && r.closed ? money(sp / r.closed) : dash) + '</td><td style="' + td + 'color:#0F6E56;">' + money(r.ltv) + '</td><td style="' + td + '">' + (sp ? (r.ltv / sp).toFixed(1) + '&times;' : dash) + '</td></tr>';
+  }).join('');
+  return '<div style="font-size:12.5px;font-weight:700;margin:12px 0 4px;">Where the leads came from, ' + esc(roiLabel()) + '</div>' +
+    '<div id="roi-sources" style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table style="border-collapse:collapse;font-size:12px;min-width:100%;"><tr style="color:#707070;"><th style="' + td + 'text-align:left;">Source</th><th style="' + td + '">Spend</th><th style="' + td + '">Leads</th><th style="' + td + '">Customers</th><th style="' + td + '">Close</th><th style="' + td + '">Per lead</th><th style="' + td + '">Per customer</th><th style="' + td + '">Back</th><th style="' + td + '">Return</th></tr>' + rows + '</table></div>' +
+    '<div style="font-size:10.5px;color:#9aa5a0;margin-top:3px;">Per lead and per customer are the ad spend divided by what it brought. Close is customers started divided by leads asked in the same period, so a lead from late in the period that starts next month is not in it yet.</div>';
+}
+function roiAdTable(){
+  var mset = {}; roiMonthList().forEach(function(m){ mset[m] = 1; });
+  var by = {}, towns = {}, td = 'padding:5px 7px;border-bottom:1px solid #eef1f0;text-align:right;white-space:nowrap;', paidK = CHANNELS.map(function(c){ return c.k; }), paidLeads = 0;
+  leads.forEach(function(l){
+    if (!isLead(l) || !mset[String(l.created || '').slice(0, 7)]) return;
+    var f = fuParse(l.crmnotes), src = f.src || 'Not tagged', won = (l.status || 'new') === 'closed' || l.status === 'cancelled';
+    if (f.camp || f.ad){ var k = (f.camp || '(no campaign)') + (f.ad ? ' › ' + f.ad : ''); var b = by[k] = by[k] || { src: src, q: 0, c: 0 }; b.q++; if (won) b.c++; }
+    if (paidK.indexOf(src) >= 0){ paidLeads++; var tn = townOf(zipOf(l), l) || 'No ZIP'; var tw = towns[tn] = towns[tn] || {}; var x = tw[src] = tw[src] || [0, 0]; x[0]++; if (won) x[1]++; }
+  });
+  var ak = Object.keys(by).sort(function(a, b){ return by[b].c - by[a].c || by[b].q - by[a].q; }).slice(0, 15);
+  var h = '<div style="font-size:12.5px;font-weight:700;margin:12px 0 4px;">By campaign and ad</div>' + (ak.length
+    ? '<div id="roi-ads" style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table style="border-collapse:collapse;font-size:12px;min-width:100%;"><tr style="color:#707070;"><th style="' + td + 'text-align:left;">Campaign &rsaquo; ad</th><th style="' + td + '">Source</th><th style="' + td + '">Leads</th><th style="' + td + '">Customers</th></tr>' +
+      ak.map(function(k){ return '<tr><td style="' + td + 'text-align:left;white-space:normal;">' + esc(k) + '</td><td style="' + td + '">' + esc(by[k].src) + '</td><td style="' + td + '">' + by[k].q + '</td><td style="' + td + '">' + by[k].c + '</td></tr>'; }).join('') + '</table></div>'
+    : '<div style="font-size:11.5px;color:#707070;">No lead in this period carried a campaign or ad name. They only show once the ad links carry them (URL parameters on every ad).</div>');
+  var tk = Object.keys(towns).sort(function(a, b){ var s = function(t){ return paidK.reduce(function(n, k){ return n + ((towns[t][k] || [0])[0]); }, 0); }; return s(b) - s(a); }).slice(0, 10);
+  if (tk.length) h += '<div style="font-size:12.5px;font-weight:700;margin:12px 0 4px;">Ad leads by town <span style="font-weight:400;color:#707070;">(leads / customers)</span></div>' +
+    '<div id="roi-towns" style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table style="border-collapse:collapse;font-size:12px;min-width:100%;"><tr style="color:#707070;"><th style="' + td + 'text-align:left;">Town</th>' + CHANNELS.map(function(c){ return '<th style="' + td + '">' + esc(c.label) + '</th>'; }).join('') + '</tr>' +
+    tk.map(function(tn){ return '<tr><td style="' + td + 'text-align:left;">' + esc(tn) + '</td>' + CHANNELS.map(function(c){ var x = towns[tn][c.k]; return '<td style="' + td + '">' + (x ? x[0] + ' <span style="color:#188663;font-weight:700;">/ ' + x[1] + '</span>' : '<span style="color:#c8d0cc;">&middot;</span>') + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>';
+  return h;
+}
 /* In a range: one line per month, so a good month and a bad one can be told apart. */
 function roiMonthTable(){
   if (!roiRangeN(roiMonth)) return '';
@@ -7520,7 +7599,7 @@ function renderROI(){
   box.innerHTML =
     '<div style="font-weight:800;font-size:14px;margin-bottom:7px;">&#128181; Ad spend &rarr; what came back</div>' +
     '<div class="chips" style="margin-bottom:2px;">' + picker + '</div>' +
-    headline + roiMonthTable() + paid + freeBlock + mixups + nudge + verdict + waiverBlock() + lifetimeBlock() +
+    headline + roiMonthTable() + paid + freeBlock + roiSourceTable(mb) + roiAdTable() + mixups + nudge + verdict + waiverBlock() + lifetimeBlock() +
     '<div style="margin-top:11px;">' +
       (ranged ? '<span style="font-size:11.5px;color:#707070;">To enter or change ad spend, tap a single month above.</span>' : '<button class="copybtn" onclick="toggleSpendForm()">&#9998; ' + (totalSpend ? 'Update' : 'Enter') + ' ' + esc(roiLabel()) + ' ad spend</button>') +
     '</div>' + form +
@@ -7955,7 +8034,7 @@ function render(){
         (digits2 ? ' <a href="sms:' + esc(digits2) + '?&body=' + encodeURIComponent(expBody).replace(/'/g, '%27') + '" onclick="textLead(\'' + esc(l.id) + '\')" style="display:inline-block;margin-left:6px;background:#188663;color:#fff;border-radius:8px;padding:7px 11px;font-size:12px;text-decoration:none;">&#128172; Text them</a>' : '') + '</div>';
     }
     var wcRow = '';
-    wcRow = winbackCardRow(l);
+    wcRow = winbackCardRow(l) + checkinRow(l);
     if (st === 'closed' && isPaused(l)){ var pzo = pauseOf(l); wcRow = '<div style="color:#707070;font-size:12px;font-weight:600;margin-top:6px;">&#9208;&#65039; Paused in Sweep&amp;Go' + (pzo.to ? ' until ' + esc(pzo.to) : '') + ' &mdash; off the route, still a customer</div>' + wcRow; }
     if (fu.sv && fu.sv !== 'skip') wcRow = '<div style="color:#7a4a00;font-size:12px;font-weight:600;margin-top:6px;">&#128737;&#65039; Save offer made ' + esc(fu.sv) + (st === 'closed' ? ' &mdash; still active' : '') + '</div>' + wcRow;
     var weLine = fu.we ? '<div style="font-size:12px;color:#555;margin-top:6px;">&#128075; Welcome email' + (fu.we.indexOf(',') > 0 ? 's' : '') + ' sent ' + esc(fu.we.split(',').map(function(x){ var p = x.split('@'); return (p[0] === '1' ? 'day 1' : 'day 30, with the review ask') + ' (' + p[1] + ')'; }).join(', ')) + '</div>' : '';

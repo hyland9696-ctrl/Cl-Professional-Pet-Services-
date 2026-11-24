@@ -92,6 +92,14 @@ const refCode = (l) => { const first = String(l.name).trim().split(/\s+/)[0].toL
     ok('and says the reward is owed', /both are owed 10% off for 3 months/.test(await t('G1')));
     ok('a code that matches nobody asks for the name', /referral link \(nobody-zzz\) that matches nobody/.test(await t('H1')));
     ok('a lead that is not a customer has no link of its own', !/Their referral link/.test(await t('H1')));
+    /* ---- the quote check-in: called and not-interested quotes we never heard back from ---- */
+    const qc = decodeURIComponent(await p.getAttribute('#card-W1 .qc-card a.qc-text', 'href'));
+    ok('a called quote has a Text a check-in button: never heard back, the quote amount, call or text, and no offer', /^sms:16363750006\?&body=Hi Waiting, it's Jesse with CL Professional Pet Services\. Just wanted to reach back out; we never heard back from you about your quote\. If you're still interested, your quote was \$85\/mo for weekly service\. Give us a call or text at \(636\) 375-4342 any time\.$/.test(qc) && !/% off|waived/.test(qc), qc);
+    ok('a new lead and an active customer have no check-in button', (await p.$$('#card-H1 .qc-text')).length === 0 && (await p.$$('#card-D1 .qc-text')).length === 0);
+    await p.evaluate(() => checkinList()); await p.waitForTimeout(150);
+    ok('the text list has everyone marked called or not interested who has not had it', /0 of 1 texted/.test(await p.textContent('#qcList')) && /Waiting Wanda/.test(await p.textContent('#qcList')) && (await p.$$('#qcList .qc-text')).length === 1, await p.textContent('#qcList'));
+    await p.evaluate(() => checkinTexted('W1')); await p.waitForTimeout(200);
+    ok('sending it stamps the card with the date, tells the script, and takes them off the list', /sent 2\d{3}-\d\d-\d\d/.test(await p.textContent('#card-W1 .qc-card')) && posts.some(x => x.action === 'update' && x.id === 'W1' && /\[QC:\d{4}-\d\d-\d\d\]/.test(x.notes) && /\[QA:w\]/.test(x.notes)) && /1 of 1 texted/.test(await p.textContent('#qcList')) && /Everyone has had it/.test(await p.textContent('#qcList')));
     /* ---- the neighbor promo ---- */
     const np = decodeURIComponent(await p.getAttribute('#card-E1 .np-card a.np-text', 'href'));
     ok('every active customer has a Text the promo button: both get 10% off for 3 months, the neighbor\'s initial clean waived, 10% each up to 5, with their own link', /^sms:16363750002\?&body=Hi Eddie, it's Jesse with CL Professional Pet Services\./.test(np) && /you BOTH get 10% off for 3 months, and their \$40 initial clean fee is waived\. It stacks: 10% for each neighbor, up to 5 \(50% off your bill\)\. Your link: https:\/\/clpropetservices\.com\/\?ref=eddie-/.test(np), np);
