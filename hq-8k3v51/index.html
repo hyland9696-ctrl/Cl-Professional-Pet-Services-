@@ -7323,16 +7323,17 @@ function roiLabel(){ var n = roiRangeN(roiMonth); return n ? 'the last ' + n + '
 /* In a range: one line per month, so a good month and a bad one can be told apart. */
 function roiMonthTable(){
   if (!roiRangeN(roiMonth)) return '';
-  var td = 'padding:5px 7px;border-bottom:1px solid #eef1f0;text-align:right;white-space:nowrap;', tS = 0, tL = 0, tC = 0, tB = 0;
+  var td = 'padding:5px 7px;border-bottom:1px solid #eef1f0;text-align:right;white-space:nowrap;', tS = 0, tL = 0, tC = 0, tB = 0, tBs = 0, missing = 0;
   var rows = roiMonthList().map(function(m){
     var b = monthBreakdown(m), sp = CHANNELS.reduce(function(s, c){ return s + spendFor(m, c.k); }, 0), back = CHANNELS.reduce(function(s, c){ return s + b.by[c.k].ltv; }, 0);
     var adLeads = CHANNELS.reduce(function(s, c){ return s + b.by[c.k].leads; }, 0), adClosed = CHANNELS.reduce(function(s, c){ return s + b.by[c.k].closed; }, 0);
-    tS += sp; tL += adLeads; tC += adClosed; tB += back;
+    tS += sp; tL += adLeads; tC += adClosed; tB += back; if (sp) tBs += back; else if (adLeads || adClosed) missing++;
     return '<tr><td style="' + td + 'text-align:left;">' + esc(monthLabel(m)) + '</td><td style="' + td + '">' + (sp ? money(sp) : '<span style="color:#b45309;">not entered</span>') + '</td><td style="' + td + '">' + adLeads + '</td><td style="' + td + '">' + adClosed + '</td><td style="' + td + 'color:#0F6E56;font-weight:700;">' + money(back) + '</td><td style="' + td + '">' + (sp ? (back / sp).toFixed(1) + '&times;' : '&middot;') + '</td></tr>';
   }).join('');
   return '<div id="roi-months" style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin:8px 0 10px;"><table style="border-collapse:collapse;font-size:12px;min-width:100%;">' +
     '<tr style="color:#707070;"><th style="' + td + 'text-align:left;">Month</th><th style="' + td + '">Ad spend</th><th style="' + td + '">Ad leads</th><th style="' + td + '">Ad customers</th><th style="' + td + '">Back</th><th style="' + td + '">Return</th></tr>' + rows +
-    '<tr style="font-weight:700;background:#F3F8F5;"><td style="' + td + 'text-align:left;">Total</td><td style="' + td + '">' + money(tS) + '</td><td style="' + td + '">' + tL + '</td><td style="' + td + '">' + tC + '</td><td style="' + td + 'color:#0F6E56;">' + money(tB) + '</td><td style="' + td + '">' + (tS ? (tB / tS).toFixed(1) + '&times;' : '&middot;') + '</td></tr></table>' +
+    '<tr style="font-weight:700;background:#F3F8F5;"><td style="' + td + 'text-align:left;">Total</td><td style="' + td + '">' + money(tS) + '</td><td style="' + td + '">' + tL + '</td><td style="' + td + '">' + tC + '</td><td style="' + td + 'color:#0F6E56;">' + money(tB) + '</td><td style="' + td + '">' + (tS ? (tBs / tS).toFixed(1) + '&times;' + (missing ? '*' : '') : '&middot;') + '</td></tr></table>' +
+    (missing ? '<div style="font-size:11px;color:#b45309;margin-top:3px;">* The total return leaves out ' + missing + ' month' + (missing === 1 ? '' : 's') + ' with ad leads but no spend entered, so it is not flattered by them.</div>' : '') +
     '<div style="font-size:10.5px;color:#9aa5a0;margin-top:3px;">Ads only (Google Ads and Meta Ads). A month marked "not entered" has no ad spend saved, so its return cannot be worked out; tap that month above to enter it.</div></div>';
 }
 function renderROI(){
