@@ -143,4 +143,11 @@ ok('an unlisted Missouri ZIP falls to Value, the floor',
    tier('63999') === 'Value', tier('63999'));
 ok('a ZIP outside our route prefixes is out of area', inArea('33101') === false);
 
+/* The Terms must say what the quote charges. The waiver ended 2026-11-19 and
+   the Terms went on saying "currently waived" for a week. */
+{
+  const home = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const tos = (home.match(/<strong>2\. Quotes &amp; pricing\.<\/strong>[^]*?<\/p>/) || [''])[0];
+  ok('the Terms match the price list: while the waiver is off they say the $40 initial clean is charged, and waived only where the quote says so', P.waiveInitialClean === false && /charged a one-time \$40 initial clean on the first invoice\./.test(tos) && /waived only where your quote says so/.test(tos) && !/currently waived/.test(tos), tos.slice(0, 500));
+}
 done();
