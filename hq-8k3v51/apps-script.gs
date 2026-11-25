@@ -154,13 +154,16 @@ function msSend_(c, o) {
   var msg = {
     message: {
       subject: String(o.subject || ''),
-      body: { contentType: 'Text', content: String(o.body || '') },
+      body: o.html ? { contentType: 'HTML', content: String(o.html) } : { contentType: 'Text', content: String(o.body || '') },
       toRecipients: String(o.to).split(',').map(function(a) { return { emailAddress: { address: a.trim() } }; }).filter(function(x) { return x.emailAddress.address; }),
       replyTo: [{ emailAddress: { address: o.replyTo || c.from, name: o.name || 'CL Professional Pet Services' } }]
     },
     saveToSentItems: true
   };
-  if (o.attachments && o.attachments.length) msg.message.attachments = o.attachments.map(function(a) { return { '@odata.type': '#microsoft.graph.fileAttachment', name: a.name, contentType: a.type || 'text/plain', contentBytes: a.bytes ? Utilities.base64Encode(a.bytes) : Utilities.base64Encode(a.content, Utilities.Charset.UTF_8) }; });
+  if (o.attachments && o.attachments.length) msg.message.attachments = o.attachments.map(function(a) { var x = { '@odata.type': '#microsoft.graph.fileAttachment', name: a.name, contentType: a.type || 'text/plain', contentBytes: a.b64 ? a.b64 : a.bytes ? Utilities.base64Encode(a.bytes) : Utilities.base64Encode(a.content, Utilities.Charset.UTF_8) };
+    // a picture shown inside a designed email: the HTML points at it as cid:<name>
+    if (a.cid) { x.isInline = true; x.contentId = a.cid; }
+    return x; });
   var r = UrlFetchApp.fetch(MS_GRAPH + 'users/' + encodeURIComponent(c.from) + '/sendMail', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true,
     headers: { Authorization: 'Bearer ' + msToken_(c) }, payload: JSON.stringify(msg)
@@ -2789,7 +2792,30 @@ function setupSweepAndGo() {
    promotion and the tracker can show who was reached. Gmail allows about
    100 recipients a day from a plain Gmail account (1,500 on Workspace);
    the tracker asks for the remaining quota first and sends what fits. */
-var BLAST_MAX = 60, BLAST_SUBJECT_MAX = 150, BLAST_BODY_MAX = 6000;
+var BLAST_MAX = 60, BLAST_SUBJECT_MAX = 150, BLAST_BODY_MAX = 6000, BLAST_HTML_MAX = 15000;   // a whole post is capped at MAX_POST_BYTES
+/* DESIGNED EMAILS. Jesse: "a pretty-looking email... like the Mailchimp
+   emails where they add graphics and even little animations... and it will
+   load up in Outlook without a problem with the graphics and everything."
+   The tracker builds the HTML and names up to three pictures. Each picture
+   is fetched once from the site's own /email/ folder and sent INSIDE the
+   message, so Outlook shows it without asking to download pictures.
+   Nothing but our own pictures can be attached this way. */
+function htmlEsc_(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function fillBlastHtml_(html, r) { return fillBlast_(html, { first: htmlEsc_(String(r.first || '').trim() || 'there'), price: htmlEsc_(r.price), plan: htmlEsc_(r.plan) }); }
+function blastImages_(list) {
+  var out = [];
+  (Array.isArray(list) ? list : []).slice(0, 3).forEach(function(im) {
+    var cid = String(im && im.cid || '').replace(/[^a-z0-9]/gi, '').slice(0, 20), url = String(im && im.url || '');
+    var m = url.match(/^https:\/\/clpropetservices\.com\/email\/([a-z0-9][a-z0-9._-]{0,60})\.(gif|png|jpg)$/i);
+    if (!cid || !m) throw new Error('picture not allowed: ' + url.slice(0, 80));
+    var r = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    if (r.getResponseCode() !== 200) throw new Error('picture not found (' + r.getResponseCode() + '): ' + m[1] + '.' + m[2]);
+    var bytes = r.getContent(); if (bytes.length > 1500000) throw new Error('picture too large: ' + m[1]);
+    var ext = m[2].toLowerCase();
+    out.push({ name: m[1] + '.' + ext, type: ext === 'jpg' ? 'image/jpeg' : 'image/' + ext, b64: Utilities.base64Encode(bytes), cid: cid });
+  });
+  return out;
+}
 function fillBlast_(text, r) {
   var first = String(r.first || '').trim() || 'there';
   var price = String(r.price || '').trim() || 'your quoted price';
@@ -2798,17 +2824,32 @@ function fillBlast_(text, r) {
 }
 function blast_(body) {
   var subject = clip_(body.subject, BLAST_SUBJECT_MAX).trim(), text = clip_(body.body, BLAST_BODY_MAX);
+  var html = body.html ? String(body.html) : '';
+  if (html.length > BLAST_HTML_MAX) return { ok:false, error:'email too large' };
   var tag = String(body.tag || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24) || 'promo';
   var to = Array.isArray(body.to) ? body.to.slice(0, BLAST_MAX) : [];
-  if (!subject || !text.trim() || !to.length) return { ok:false, error:'nothing to send' };
+  if (!subject || !(html || text.trim()) || !(to.length || body.test)) return { ok:false, error:'nothing to send' };
   if (!officeMailReady_()) return { ok:false, error: NO_OFFICE_MAIL };
+  var pics = [];
+  if (html) { try { pics = blastImages_(body.images); } catch (e) { return { ok:false, error: String(e && e.message || e).slice(0, 120) }; } }
+  var mail = function(email, r) {
+    var o = { to: email, subject: fillBlast_(subject, r) };
+    if (html) { o.html = fillBlastHtml_(html, r); if (pics.length) o.attachments = pics; } else o.body = fillBlast_(text, r);
+    sendCustomerMail_(o);
+  };
+  // a test goes to the office mailbox only, and stamps nobody
+  if (body.test) {
+    var c = msCfg_();
+    try { mail(c.from, { first: String(body.testFirst || 'Jesse').slice(0, 30) }); } catch (e) { return { ok:false, error: String(e && e.message || e).slice(0, 160) }; }
+    return { ok:true, test:true, to: c.from };
+  }
   var sent = [], failed = [], stamp = '[EM:' + tag + '@' + new Date().toISOString().slice(0, 10) + '] ';
   var sh = sheet_(), data = sh.getDataRange().getValues(), idCol = HEADERS.indexOf('id'), nCol = HEADERS.indexOf('crmnotes');
   for (var k = 0; k < to.length; k++) {
     var r = to[k] || {}, email = String(r.email || '').trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { failed.push({ id:r.id, error:'bad email' }); continue; }
     try {
-      sendCustomerMail_({ to: email, subject: fillBlast_(subject, r), body: fillBlast_(text, r) });
+      mail(email, r);
       sent.push(r.id);
       // stamp every row that carries the id, same as an update
       for (var i = 1; i < data.length; i++) {

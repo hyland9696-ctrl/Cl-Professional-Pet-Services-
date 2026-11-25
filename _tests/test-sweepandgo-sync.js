@@ -117,6 +117,7 @@ let throttle = 0;   // how many times in a row Sweep&Go answers 429
 let googleReviews = 40;   // what Google says the review count is
 function fakeFetch(url, opts){
   calls.push(url);
+  if (/^https:\/\/clpropetservices\.com\/email\//.test(url)) return /missing/.test(url) ? { getResponseCode: () => 404, getContent: () => [] } : { getResponseCode: () => 200, getContent: () => [71, 73, 70, 56] };
   if (/residential\/onboarding$/.test(url)){
     const b = JSON.parse(opts.payload || '{}'); onboardings.push(b);
     if (b.email === 'taken@gmail.com') return { getResponseCode: () => 409, getContentText: () => '{"errors":["exists"]}' };
@@ -853,5 +854,20 @@ function build(leadRows){
   ok('a new password works, the old one does not', rs.ok && F.who_(rs.password).name === 'Mike' && F.who_(addT.password) === null);
   P({ action:'users', key:'owner-secret-123', op:'role', id: mikeId, role:'office' });
   ok('a role can change', F.who_(rs.password).role === 'office');
+  /* ---- designed emails: HTML through the office mailbox, the picture inside the message ---- */
+  const deNotes = (id) => sheets.leads.rows.filter(r => r[0] === id).pop()[HEADERS.indexOf('crmnotes')];
+  const deHtml = '<html><body><img src="cid:hero"><h1>Happy Thanksgiving, {first}!</h1></body></html>', dePic = [{ cid: 'hero', url: 'https://clpropetservices.com/email/thanksgiving-2026.gif' }];
+  const DE = (o) => P(Object.assign({ action:'blast', key:'owner-secret-123', tag:'thanksgiving26', subject:'Happy Thanksgiving, {first}!', html: deHtml, images: dePic }, o));
+  let deN = sentMs().length;
+  const deT = DE({ test: true, testFirst: 'Jesse' }), deTm = msCalls.filter(c => c.body && c.body.message).pop().body.message;
+  ok('a designed email test goes to the office mailbox only, as HTML, with the first name filled and nobody stamped', deT.ok && deT.test && deT.to === 'info@clpropetservices.com' && sentMs().length === deN + 1 && deTm.toRecipients.length === 1 && deTm.toRecipients[0].emailAddress.address === 'info@clpropetservices.com' && deTm.body.contentType === 'HTML' && /Happy Thanksgiving, Jesse!/.test(deTm.body.content) && deTm.subject === 'Happy Thanksgiving, Jesse!' && !/\[EM:thanksgiving26/.test(deNotes('goodgreg')), JSON.stringify(deT));
+  ok('the picture is fetched from the site and travels inside the message, so Outlook shows it without asking', deTm.attachments.length === 1 && deTm.attachments[0].isInline === true && deTm.attachments[0].contentId === 'hero' && deTm.attachments[0].contentType === 'image/gif' && deTm.attachments[0].name === 'thanksgiving-2026.gif' && !!deTm.attachments[0].contentBytes, JSON.stringify(deTm.attachments[0]).slice(0, 200));
+  deN = sentMs().length;
+  const deR = DE({ to: [{ id:'goodgreg', email:'greg@gmail.com', first:'Greg <b>&' }] }), deRm = msCalls.filter(c => c.body && c.body.message).pop().body.message;
+  ok('the real send goes to the customer, stamps their row, and a name cannot break the HTML', deR.ok && deR.sent.join() === 'goodgreg' && sentMs().length === deN + 1 && deRm.toRecipients[0].emailAddress.address === 'greg@gmail.com' && /Happy Thanksgiving, Greg &lt;b&gt;&amp;!/.test(deRm.body.content) && /\[EM:thanksgiving26@\d{4}-\d\d-\d\d\]/.test(deNotes('goodgreg')), JSON.stringify(deR) + deRm.body.content);
+  deN = sentMs().length;
+  const deBad = DE({ test: true, images: [{ cid:'hero', url:'https://evil.example/x.gif' }] }), deGone = DE({ test: true, images: [{ cid:'hero', url:'https://clpropetservices.com/email/missing.gif' }] }), deBig = DE({ test: true, html: new Array(15002).join('x') });
+  ok('only pictures from our own /email/ folder are allowed; a missing picture or an oversized email stops the send and says why', deBad.ok === false && /picture not allowed/.test(deBad.error) && deGone.ok === false && /picture not found \(404\)/.test(deGone.error) && deBig.ok === false && /too (large|big)/.test(deBig.error) && sentMs().length === deN, JSON.stringify([deBad, deGone, deBig]));
+  ok('a wrong password cannot send it', DE({ test: true, key: 'nope' }).ok === false);
 }
 done();

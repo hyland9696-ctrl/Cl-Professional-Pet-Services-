@@ -416,6 +416,25 @@
         <button onclick="toggleBlast()" style="background:none;border:none;color:#707070;font-size:13px;cursor:pointer;font-family:inherit;min-height:40px;">Close</button>
       </div>
       <div style="font-size:12.5px;color:#555;line-height:1.6;margin-bottom:10px;">One message, sent as a separate email to each person from the office mailbox, info@clpropetservices.com, through Microsoft. Replies land in Outlook. Use <code>{first}</code>, <code>{price}</code> and <code>{plan}</code> and they fill in per person. Everyone emailed gets stamped, so running the same promotion twice only reaches the people it missed. <span id="bl-quota" style="color:#0F6E56;font-weight:700;"></span></div>
+      <div id="designBox" style="border:2px solid #E0A458;background:#FFF9EF;border-radius:12px;padding:12px;margin-bottom:12px;">
+        <div style="font-weight:800;font-size:14px;margin-bottom:2px;">&#10024; Designed emails</div>
+        <div style="font-size:12px;color:#555;line-height:1.5;margin-bottom:8px;">A finished email with a moving header picture, for a holiday, a weather notice or an event. Change any of the words, look at it, send one to the office first, then send it to every active customer.</div>
+        <div id="de-picks" class="chips" style="margin-bottom:8px;"></div>
+        <div style="display:grid;gap:7px;font-size:12.5px;">
+          <label>Subject<input id="de-subject" oninput="designPreview()" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;"></label>
+          <label>Greeting line<input id="de-head" oninput="designPreview()" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;"></label>
+          <label>Opening words<textarea id="de-intro" rows="3" oninput="designPreview()" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;"></textarea></label>
+          <label>The notice, one point per line: picture | heading | words<textarea id="de-rows" rows="5" oninput="designPreview()" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;"></textarea></label>
+          <label>Closing words<textarea id="de-close" rows="2" oninput="designPreview()" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;"></textarea></label>
+        </div>
+        <div style="font-size:11.5px;color:#707070;margin:8px 0 4px;">How it will look (the snow and leaves move in the real thing too):</div>
+        <iframe id="de-preview" title="Email preview" sandbox="" style="width:100%;height:560px;border:1px solid #E4D6BE;border-radius:10px;background:#fff;"></iframe>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:9px;">
+          <button class="copybtn" id="de-test" onclick="designSend(true)">&#128232; Send a test to the office</button>
+          <button class="copybtn" id="de-send" onclick="designSend(false)" style="background:#188663;color:#fff;border-color:#188663;">Send</button>
+        </div>
+        <div id="de-status" style="font-size:12px;color:#555;margin-top:6px;line-height:1.5;"></div>
+      </div>
       <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="fu-auto-box" onchange="toggleFuEmails(this.checked)" style="margin-top:3px;"><span><strong>Automatic follow-ups for quotes that went quiet.</strong> <span class="office-note" style="color:#b45309;"></span> Two days after a quote with no answer, a short email from Jesse with their price; one more at six days; then it stops. It also stops the moment they accept, decline, get a call or a text, or ask to be left alone. Sent from the business account each morning at 9. <span id="fu-stat" style="color:#0F6E56;"></span></span></label>
       <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="we-auto-box" onchange="toggleWelcomeEmails(this.checked)" style="margin-top:3px;"><span><strong>Welcome sequence for new customers.</strong> <span class="office-note" style="color:#b45309;"></span> The day after someone starts, a what-to-expect email with their day and how to reach us. A month in, a how-are-we-doing with the Google review link (counts as the review ask, so the card does not ask again). Nothing for paused customers or opt-outs. <span id="we-stat" style="color:#0F6E56;"></span></span></label>
       <label style="display:flex;align-items:flex-start;gap:8px;background:#F3F8F5;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px;"><input type="checkbox" id="pr-auto-box" onchange="togglePayReminders(this.checked)" style="margin-top:3px;"><span><strong>Payment reminders every Monday.</strong> <span class="office-note" style="color:#b45309;"></span> Anyone 14 or more days behind gets one plain note from the office with the amount; never twice inside 14 days, never to opt-outs. The Remind button on the Owed list does the same for one person. <span id="pr-stat" style="color:#0F6E56;"></span></span></label>
@@ -4047,7 +4066,7 @@ function toggleBlast(){
   var wb = document.getElementById('we-auto-box'); if (wb) wb.checked = welcomeOn();
   var pb = document.getElementById('pr-auto-box'); if (pb) pb.checked = payRemindersOn();
   var pn = leads.filter(function(l){ return isLead(l) && fuParse(l.crmnotes).pr; }).length, ps = document.getElementById('pr-stat'); if (ps) ps.textContent = pn ? pn + ' reminded so far.' : '';
-  renderAutoSwitches(); renderCampaignCal();
+  renderAutoSwitches(); renderCampaignCal(); renderDesign();
   var ew = emailWeek(), ewb = document.getElementById('email-week'); if (ewb) ewb.innerHTML = '<strong>This week:</strong> ' + ew.fu + ' follow-up' + (ew.fu === 1 ? '' : 's') + ' &middot; ' + ew.we + ' welcome' + (ew.we === 1 ? '' : 's') + ' &middot; ' + ew.pr + ' payment reminder' + (ew.pr === 1 ? '' : 's') + ' &middot; ' + ew.other + ' other' + (officeMail === false ? ' &middot; <span style="color:#b45309;">nothing can go until the office mailbox is connected</span>' : '');
   var wn = leads.filter(function(l){ return isLead(l) && fuParse(l.crmnotes).we; }).length, ws = document.getElementById('we-stat'); if (ws) ws.textContent = wn ? wn + ' customer' + (wn === 1 ? '' : 's') + ' welcomed so far.' : '';
   var fs = fuEmailStats(), fst = document.getElementById('fu-stat'); if (fst) fst.textContent = fs.sent ? fs.sent + ' emailed so far, ' + fs.won + ' became customers.' : '';
@@ -4078,12 +4097,136 @@ function renderOfficeMail(){
     else if (officeMail === false) q.innerHTML = '<span style="color:#b45309;">' + esc(NO_OFFICE_TEXT) + '</span>';
     else q.textContent = 'Checking the office mailbox\u2026';
   }
+  try { designPreview(); } catch (e) {}
   if (btn){ if (officeMail !== true) btn.disabled = true; else if (document.getElementById('blastPanel') && document.getElementById('blastPanel').style.display !== 'none') renderBlast(); }
   Array.prototype.forEach.call(document.querySelectorAll('.office-note'), function(n){ n.textContent = officeMail === false ? 'Waits for the office mailbox to be connected; the switch can be on, nothing goes until then.' : ''; });
   if (document.getElementById('email-week')) { var ew2 = emailWeek(), ewb2 = document.getElementById('email-week'); ewb2.innerHTML = '<strong>This week:</strong> ' + ew2.fu + ' follow-up' + (ew2.fu === 1 ? '' : 's') + ' &middot; ' + ew2.we + ' welcome' + (ew2.we === 1 ? '' : 's') + ' &middot; ' + ew2.pr + ' payment reminder' + (ew2.pr === 1 ? '' : 's') + ' &middot; ' + ew2.other + ' other' + (officeMail === false ? ' &middot; <span style="color:#b45309;">nothing can go until the office mailbox is connected</span>' : ''); }
   renderPricePlan();
 }
 var blastBusy = false;
+/* ---- DESIGNED EMAILS ------------------------------------------------
+   Jesse: "a pretty-looking email... like the Mailchimp emails where they
+   add graphics and even little animations." Each design is a header
+   picture in /email/ (an animated GIF whose first frame is a whole
+   picture, for the Outlook that never animates) and the words under it.
+   The layout is tables with the styles written on every cell, because
+   that is the only thing every mail program draws the same. The picture
+   travels inside the message, so Outlook shows it without asking. To add
+   a design: put the picture in /email/ and add an entry here. */
+var EMAIL_DESIGNS = [
+  { key: 'thanksgiving26', name: '&#129411; Thanksgiving + snow notice', hero: 'thanksgiving-2026.gif', heroAlt: 'Happy Thanksgiving from CL Professional Pet Services',
+    accent: '#B4521A', soft: '#FFF4E3', line: '#F1D9B5',
+    subject: 'Happy Thanksgiving, {first}! A note about this week’s schedule',
+    head: 'Happy Thanksgiving, {first}!',
+    intro: 'From our family to yours, thank you for trusting us with your yard this year. We are grateful for you, and for your pups.',
+    boxTitle: 'A heads-up about this week',
+    rows: '🦃 | Thanksgiving is this Thursday | With the holiday, our regular schedule will run a little differently this week.\n❄️ | A big snow may be on the way | If it comes through, it can move our route around as well.\n✅ | Your yard is covered | Everyone will be taken care of this week. Your visit may just land on a different day than usual.\n📱 | Nothing you need to do | Questions? Call or text us at (636) 375-4342.',
+    close: 'Stay warm, enjoy the turkey, and give the dogs an extra treat from us.' }
+];
+var designKey = '';
+function designOf(){ return EMAIL_DESIGNS.filter(function(d){ return d.key === designKey; })[0] || EMAIL_DESIGNS[0]; }
+function designPick(k){
+  designKey = k; var d = designOf();
+  ['subject', 'head', 'intro', 'rows', 'close'].forEach(function(f){ var el = document.getElementById('de-' + f); if (el) el.value = d[f]; });
+  renderDesign();
+}
+function designWords(){ var v = function(f){ return String((document.getElementById('de-' + f) || {}).value || ''); }; return { subject: v('subject').trim(), head: v('head').trim(), intro: v('intro').trim(), rows: v('rows'), close: v('close').trim() }; }
+/* The email itself. heroSrc is cid:hero when sent, the site path in the preview. */
+function designHtml(d, w, heroSrc){
+  var F = "font-family:Arial,Helvetica,sans-serif;", S = "font-family:Georgia,'Times New Roman',serif;";
+  var para = function(s){ return esc(s).split(/\n+/).filter(Boolean).map(function(x){ return '<p style="margin:0 0 12px;' + F + 'font-size:16px;line-height:25px;color:#3b3b3b;">' + x + '</p>'; }).join(''); };
+  var rows = String(w.rows || '').split('\n').map(function(r){ return r.split('|').map(function(x){ return x.trim(); }); }).filter(function(r){ return r.length >= 2 && (r[1] || r[2]); });
+  var rowHtml = rows.map(function(r, i){
+    return '<tr><td width="52" valign="top" style="padding:' + (i ? '14px' : '0') + ' 0 0 0;font-size:28px;line-height:34px;" align="center">' + esc(r[0]) + '</td>' +
+      '<td valign="top" style="padding:' + (i ? '14px' : '0') + ' 0 0 10px;' + F + '"><div style="font-size:16px;line-height:22px;font-weight:bold;color:#2b2b2b;">' + esc(r[1]) + '</div>' + (r[2] ? '<div style="font-size:15px;line-height:22px;color:#555555;padding-top:2px;">' + esc(r[2]) + '</div>' : '') + '</td></tr>';
+  }).join('');
+  return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><title>' + esc(w.subject) + '</title>' +
+    '<style>@media only screen and (max-width:620px){.de-wrap{width:100% !important}.de-pad{padding-left:22px !important;padding-right:22px !important}.de-h1{font-size:27px !important;line-height:33px !important}}</style></head>' +
+    '<body style="margin:0;padding:0;background-color:#F3EEE6;">' +
+    '<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#F3EEE6;font-size:1px;line-height:1px;">' + esc(rows.map(function(r){ return r[1]; }).slice(0, 3).join('. ')) + '.</div>' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F3EEE6" style="background-color:#F3EEE6;"><tr><td align="center" style="padding:18px 10px;">' +
+    '<!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->' +
+    '<table role="presentation" class="de-wrap" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="width:100%;max-width:600px;background-color:#FFFFFF;border-radius:14px;overflow:hidden;">' +
+    '<tr><td bgcolor="' + d.accent + '" style="background-color:' + d.accent + ';font-size:0;line-height:0;"><img src="' + esc(heroSrc) + '" width="600" alt="' + esc(d.heroAlt) + '" style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;text-decoration:none;' + S + 'font-size:24px;line-height:60px;color:#FFFFFF;text-align:center;"></td></tr>' +
+    '<tr><td class="de-pad" style="padding:30px 40px 6px 40px;"><h1 class="de-h1" style="margin:0 0 14px;' + S + 'font-size:31px;line-height:38px;font-weight:bold;color:' + d.accent + ';">' + esc(w.head) + '</h1>' + para(w.intro) + '</td></tr>' +
+    (rowHtml ? '<tr><td class="de-pad" style="padding:8px 40px 8px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="' + d.soft + '" style="background-color:' + d.soft + ';border:1px solid ' + d.line + ';border-radius:12px;"><tr><td style="padding:20px 20px 22px 20px;">' +
+      '<div style="' + F + 'font-size:12px;line-height:16px;letter-spacing:2px;font-weight:bold;color:' + d.accent + ';text-transform:uppercase;padding-bottom:14px;">' + esc(d.boxTitle) + '</div>' +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' + rowHtml + '</table></td></tr></table></td></tr>' : '') +
+    '<tr><td class="de-pad" style="padding:18px 40px 6px 40px;">' + para(w.close) + '<p style="margin:14px 0 0;' + S + 'font-size:18px;line-height:26px;font-style:italic;color:#2b2b2b;">&mdash; Jesse and the CL Professional Pet Services team</p></td></tr>' +
+    '<tr><td class="de-pad" align="center" style="padding:22px 40px 30px 40px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#188663" style="background-color:#188663;border-radius:30px;"><a href="sms:+16363754342" style="display:inline-block;padding:13px 30px;' + F + 'font-size:16px;line-height:20px;font-weight:bold;color:#FFFFFF;text-decoration:none;">Text us: (636) 375-4342</a></td></tr></table></td></tr>' +
+    '<tr><td bgcolor="#0F6E56" align="center" style="background-color:#0F6E56;padding:20px 30px;' + F + 'font-size:12.5px;line-height:19px;color:#D7EDE5;">CL Professional Pet Services LLC &middot; St. Peters, MO<br><a href="tel:+16363754342" style="color:#FFFFFF;text-decoration:none;">(636) 375-4342</a> &middot; <a href="https://clpropetservices.com" style="color:#FFFFFF;text-decoration:underline;">clpropetservices.com</a><br><span style="color:#A9D3C6;">You are getting this because you are a customer of ours. Reply STOP and we will leave you off emails like this one.</span></td></tr>' +
+    '</table><!--[if mso]></td></tr></table><![endif]--></td></tr></table></body></html>';
+}
+/* Active customers with a usable address, once per address, not already sent this design. */
+function designAudience(){
+  var d = designOf(), seen = {}, list = [], skip = { noEmail: 0, noem: 0, done: 0, dup: 0 };
+  leads.forEach(function(l){
+    if (!isLead(l) || (l.status || 'new') !== 'closed') return;
+    var fu = fuParse(l.crmnotes); if (fu.tm) return;
+    if (!blastEmailOk(l.email)){ skip.noEmail++; return; }
+    if (fu.noem){ skip.noem++; return; }
+    var key = String(l.email).trim().toLowerCase();
+    if (emailedTags(fu).indexOf(d.key) >= 0){ skip.done++; seen[key] = 1; return; }
+    if (seen[key]){ skip.dup++; return; }
+    seen[key] = 1; list.push(l);
+  });
+  return { list: list, skip: skip };
+}
+function designPreview(){
+  var fr = document.getElementById('de-preview'); if (!fr) return;
+  var d = designOf(), w = designWords(), a = designAudience(), first = a.list[0] ? blastFields(a.list[0]).first : 'Jesse';
+  fr.srcdoc = fillBlast(designHtml(d, w, '/email/' + d.hero), { first: esc(first) });
+  var btn = document.getElementById('de-send'), tb = document.getElementById('de-test'), ok = !!(w.subject && w.head) && officeMail === true && !blastBusy;
+  if (btn){ btn.textContent = 'Send to ' + a.list.length + ' active customer' + (a.list.length === 1 ? '' : 's'); btn.disabled = !ok || !a.list.length; }
+  if (tb) tb.disabled = !ok;
+  var s = a.skip, notes = [];
+  if (s.done) notes.push(s.done + ' already got it');
+  if (s.noEmail) notes.push(s.noEmail + ' have no email on their card');
+  if (s.noem) notes.push(s.noem + ' asked for no emails');
+  if (s.dup) notes.push(s.dup + ' share an address with someone else');
+  var st = document.getElementById('de-status');
+  if (st && !blastBusy) st.innerHTML = (officeMail === true ? 'Goes from ' + esc(officeFrom || 'the office mailbox') + ', one email each, shown with their first name. ' : '<span style="color:#b45309;">' + esc(officeMail === false ? NO_OFFICE_TEXT : 'Checking the office mailbox…') + '</span> ') + (notes.length ? 'Left out: ' + notes.join(', ') + '.' : '');
+}
+function renderDesign(){
+  var pk = document.getElementById('de-picks'); if (!pk) return;
+  if (!designKey){ designPick(EMAIL_DESIGNS[0].key); return; }
+  pk.innerHTML = EMAIL_DESIGNS.map(function(d){ return '<button class="chip' + (d.key === designKey ? ' on' : '') + '" onclick="designPick(\'' + d.key + '\')">' + d.name + '</button>'; }).join('');
+  designPreview();
+}
+function designSend(test){
+  if (blastBusy) return;
+  var d = designOf(), w = designWords(), a = designAudience(), st = document.getElementById('de-status');
+  if (officeMail !== true){ toast(NO_OFFICE_TEXT); return; }
+  if (!w.subject || !w.head) return;
+  if (designHtml(d, w, 'cid:hero').length > 14000){ st.innerHTML = '<strong style="color:#b45309;">That is too many words for one email. Shorten the notice a little and try again.</strong>'; return; }
+  var base = { action: 'blast', key: KEY, tag: d.key, subject: w.subject, html: designHtml(d, w, 'cid:hero'), images: [{ cid: 'hero', url: 'https://clpropetservices.com/email/' + d.hero }] };
+  var call = function(extra){ var b = {}; Object.keys(base).forEach(function(k){ b[k] = base[k]; }); Object.keys(extra).forEach(function(k){ b[k] = extra[k]; }); return fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(b) }).then(function(r){ return r.json(); }); };
+  if (test){
+    blastBusy = true; st.textContent = 'Sending the test…';
+    call({ test: true, testFirst: 'Jesse' }).then(function(r){ blastBusy = false; designPreview(); st.innerHTML = r && r.ok ? '<strong style="color:#0F6E56;">Test sent to ' + esc(r.to || 'the office mailbox') + '.</strong> Open it in Outlook and on your phone before sending to everyone.' : '<strong style="color:#b45309;">The test did not send: ' + esc(r && r.error || 'no answer') + '</strong>' + (r && /nothing to send|bad pin/.test(r.error || '') ? '' : ' If this says the picture was not found, the site has not finished publishing it yet; wait a minute and try again.'); })
+      .catch(function(){ blastBusy = false; designPreview(); st.innerHTML = '<strong style="color:#b45309;">The test did not send: no connection.</strong>'; });
+    return;
+  }
+  if (!a.list.length) return;
+  if (!confirm('Send “' + fillBlast(w.subject, blastFields(a.list[0])) + '” to ' + a.list.length + ' active customers now? Each gets their own email from ' + (officeFrom || 'the office mailbox') + '.')) return;
+  blastBusy = true; designPreview();
+  var todo = a.list.map(blastFields), i = 0, sent = 0, failed = [], stopped = false, today = new Date().toISOString().slice(0, 10);
+  var next = function(){
+    if (i >= todo.length || stopped){
+      blastBusy = false; saveLocal(); render(); designPreview();
+      st.innerHTML = '<strong style="color:#0F6E56;">' + sent + ' sent.</strong>' + (failed.length ? ' <span style="color:#b45309;">' + failed.length + ' not sent: ' + esc(failed.slice(0, 12).map(function(f){ return f.name + (f.error ? ' (' + f.error + ')' : ''); }).join(', ')) + '. Press Send again to retry just those.</span>' : ' Each card now shows the date under More.');
+      return;
+    }
+    var batch = todo.slice(i, i + 12); i += batch.length;
+    st.textContent = 'Sending ' + Math.min(i, todo.length) + ' of ' + todo.length + '… keep this page open.';
+    call({ to: batch }).then(function(r){
+      if (!r || !r.ok){ batch.forEach(function(x){ failed.push({ name: x.first, error: r && r.error ? r.error : 'no answer' }); }); stopped = true; return; }
+      (r.sent || []).forEach(function(id){ sent++; var l = leads.filter(function(x){ return x.id === id; })[0]; if (!l) return; var m = fuParse(l.crmnotes); m.em = (m.em ? m.em + ',' : '') + d.key + '@' + today; l.crmnotes = fuCompose(m); });
+      (r.failed || []).forEach(function(f){ var x = batch.filter(function(y){ return y.id === f.id; })[0]; failed.push({ name: x ? x.first : f.id, error: f.error }); });
+    }).catch(function(){ batch.forEach(function(x){ failed.push({ name: x.first, error: 'no connection' }); }); stopped = true; }).then(function(){ setTimeout(next, 300); });
+  };
+  next();
+}
 function sendBlast(){
   if (blastBusy) return;
   var a = blastAudience(), tag = blastTag(), subj = document.getElementById('bl-subject').value.trim(), body = document.getElementById('bl-body').value + BLAST_FOOTER;

@@ -15,7 +15,7 @@ const { ok, done } = reporter();
   ok('and has words for the blanks', fill('Hi {first}, {price} for {plan}', {}) === 'Hi there, your quoted price for your plan');
   ok('blast and quota need the key', /action === 'blast'[^]*?bad pin/.test(gs) && /action === 'quota'[^]*?bad pin/.test(gs));
   ok('a batch is capped and the message clipped', /BLAST_MAX = 60/.test(gs) && /slice\(0, BLAST_MAX\)/.test(gs) && /clip_\(body\.body, BLAST_BODY_MAX\)/.test(gs));
-  ok('every send is stamped on the lead and goes through the office mailbox only, reply-to the office', /\[EM:' \+ tag \+ '@/.test(gs) && /sendCustomerMail_\(\{ to: email, subject: fillBlast_/.test(gs) && /if \(!officeMailReady_\(\)\) return \{ ok:false, error: NO_OFFICE_MAIL \};/.test(gs) && /address: o\.replyTo \|\| c\.from/.test(gs) && !/MailApp\.sendEmail\(\{ to: o\.to/.test(gs));
+  ok('every send is stamped on the lead and goes through the office mailbox only, reply-to the office', /\[EM:' \+ tag \+ '@/.test(gs) && /var o = \{ to: email, subject: fillBlast_\(subject, r\) \};/.test(gs) && /sendCustomerMail_\(o\);/.test(gs) && /if \(!officeMailReady_\(\)\) return \{ ok:false, error: NO_OFFICE_MAIL \};/.test(gs) && /address: o\.replyTo \|\| c\.from/.test(gs) && !/MailApp\.sendEmail\(\{ to: o\.to/.test(gs));
 }
 
 (async () => {
@@ -45,6 +45,7 @@ const { ok, done } = reporter();
     if (body.action) posts.push(body);
     if (body.action === 'quota') return r.fulfill({ contentType:'application/json', body: JSON.stringify(officeUp ? { ok:true, office:true, from:'info@clpropetservices.com', remaining: 10000 } : { ok:true, office:false, from:'', remaining: 0 }) });
     if (body.action === 'blast'){
+      if (body.test) return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, test:true, to:'info@clpropetservices.com' }) });
       // the backend sends all but one, whose address bounces
       const sent = body.to.filter(x => x.id !== 'q2').map(x => x.id), failed = body.to.filter(x => x.id === 'q2').map(x => ({ id: x.id, error: 'Invalid email' }));
       return r.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true, sent, failed, remaining: 97 - sent.length, tag: body.tag }) });
@@ -101,6 +102,30 @@ const { ok, done } = reporter();
   await p.evaluate(() => sendBlast());
   await p.waitForTimeout(300);
   ok('even called directly, nothing is posted', posts.filter(x => x.action === 'blast').length === before && /office mailbox is not connected/.test(await p.textContent('#toast')));
+  /* ---- designed emails: a finished email with a moving header, previewed, tested, then sent ---- */
+  {
+    const gif = fs.readFileSync(path.join(ROOT, 'email', 'thanksgiving-2026.gif'));
+    ok('the header picture is a real animated GIF on the site, small enough to travel inside an email', gif.slice(0, 6).toString() === 'GIF89a' && gif.length < 600000 && gif.includes(Buffer.from('NETSCAPE2.0')), gif.length + ' bytes');
+    officeUp = true;
+    const annWas = await p.evaluate(() => { const l = leads.filter(x => x.id === 'a1')[0], was = l.crmnotes; const m = fuParse(l.crmnotes); m.noem = ''; l.crmnotes = fuCompose(m); officeMail = true; officeFrom = 'info@clpropetservices.com'; renderDesign(); return was; }); await p.waitForTimeout(300);
+    const src = await p.getAttribute('#de-preview', 'srcdoc');
+    ok('the Email panel opens on the Thanksgiving design with every word filled in and changeable', /Thanksgiving \+ snow notice/.test(await p.textContent('#de-picks')) && /Happy Thanksgiving, \{first\}!/.test(await p.inputValue('#de-subject')) && /Thanksgiving is this Thursday/.test(await p.inputValue('#de-rows')) && /big snow/.test(await p.inputValue('#de-rows')) && /taken care of this week/.test(await p.inputValue('#de-rows')));
+    ok('the preview is the real email for the first customer: the greeting up front, the picture, the notice, the footer', /<h1[^>]*>Happy Thanksgiving, Active!<\/h1>/.test(src) && /<img src="\/email\/thanksgiving-2026\.gif" width="600" alt="Happy Thanksgiving from CL Professional Pet Services"/.test(src) && /A heads-up about this week/.test(src) && /Your yard is covered/.test(src) && /Reply STOP/.test(src) && /\(636\) 375-4342/.test(src), src.slice(0, 300));
+    ok('it is built the way Outlook needs: tables, widths and colours written on the cells, no scripts, no outside styles', /<table role="presentation"/.test(src) && /<!--\[if mso\]>/.test(src) && /bgcolor="#FFFFFF"/.test(src) && !/<script|<link|@import|background-image/i.test(src));
+    ok('only active customers with an email are counted', /Send to 1 active customer$/.test((await p.textContent('#de-send')).trim()) && !(await p.$eval('#de-send', e => e.disabled)), await p.textContent('#de-send'));
+    await p.fill('#de-rows', '❄️ | Snow day | We <b>will</b> be out Friday instead.'); await p.waitForTimeout(200);
+    const src2 = await p.getAttribute('#de-preview', 'srcdoc');
+    ok('changing the words changes the preview, and anything typed is shown as words, never run as code', /Snow day/.test(src2) && /We &lt;b&gt;will&lt;\/b&gt; be out Friday instead\./.test(src2) && !/Thanksgiving is this Thursday/.test(src2));
+    const n0 = posts.filter(x => x.action === 'blast').length;
+    await p.click('#de-test'); await p.waitForTimeout(600);
+    const tp = posts.filter(x => x.action === 'blast').pop();
+    ok('Send a test posts the email once for the office only: the picture named for embedding, nobody on the list', posts.filter(x => x.action === 'blast').length === n0 + 1 && tp.test === true && !tp.to && tp.tag === 'thanksgiving26' && /src="cid:hero"/.test(tp.html) && /\{first\}/.test(tp.html) && tp.images.length === 1 && tp.images[0].cid === 'hero' && tp.images[0].url === 'https://clpropetservices.com/email/thanksgiving-2026.gif' && JSON.stringify(tp).length < 19000 && /Test sent to info@clpropetservices\.com/.test(await p.textContent('#de-status')), JSON.stringify(tp).length + ' ' + await p.textContent('#de-status'));
+    await p.click('#de-send'); await p.waitForTimeout(1200);
+    const sp = posts.filter(x => x.action === 'blast').pop();
+    ok('Send goes to the active customer, by id and first name, under the design\'s name', !sp.test && sp.tag === 'thanksgiving26' && sp.to.length === 1 && sp.to[0].id === 'a1' && sp.to[0].email === 'ann@gmail.com' && sp.to[0].first === 'Active', JSON.stringify(sp.to));
+    ok('afterwards it says how many went, the card carries the date, and a second press reaches nobody', /1 sent\./.test(await p.textContent('#de-status')) && /Send to 0 active customers/.test(await p.textContent('#de-send')) && await p.$eval('#de-send', e => e.disabled) && await p.evaluate(() => /thanksgiving26@\d{4}-\d\d-\d\d/.test(fuParse(leads.filter(l => l.id === 'a1')[0].crmnotes).em)), await p.textContent('#de-status'));
+    ok('the panel still fits the phone', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  }
   ok('no page errors', errs.length === 0, errs.join('; '));
   await ctx.close(); await b.close();
   done();
