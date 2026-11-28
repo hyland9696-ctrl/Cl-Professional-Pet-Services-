@@ -504,14 +504,14 @@ function build(leadRows){
   ok('two "Too Many Attempts" in a row are waited out and the preview still comes back whole', s.ok && s.clients === 11 && s.errors.length === 0 && retryWaits().length === 2 && retryWaits()[0] === 15000 && retryWaits()[1] === 30000, JSON.stringify({ errors: s.errors, sleeps }));
   throttle = 4; sleeps.length = 0;
   const s2 = F.sgSync(true);
-  ok('a limit that never lifts is reported as an error after three waits, not an endless loop', s2.errors.length >= 1 && /429/.test(s2.errors[0]) && retryWaits().length === 3 && retryWaits()[2] === 60000, JSON.stringify({ errors: s2.errors.slice(0, 1), sleeps }));
+  ok('a limit that never lifts is reported as an error after three waits, not an endless loop', s2.errors.length >= 1 && /429/.test(s2.errors[0]) && sleeps.slice(0, 3).join() === '15000,30000,60000' && sleeps.filter(x => x === 15000 || x === 30000).length === 2, JSON.stringify({ errors: s2.errors.slice(0, 1), sleeps }));
   throttle = 0;
   // pacing: past forty calls in a minute the script holds back before each further one
   sleeps.length = 0; calls.length = 0;
   const { F: F2 } = build(seed());
   F2.sgSync(false); F2.sgBillingSync(); F2.sgSync(false);
   const made = calls.filter(u => /sweepandgo/.test(u)).length;
-  ok('a full sync, the billing pull and another sync are paced: more than forty calls, and a hold before each one past the fortieth', made > 40 && sleeps.filter(x => ![15000, 30000, 60000].includes(x)).length >= made - 40, JSON.stringify({ made, holds: sleeps.length }));
+  ok('a full sync, the billing pull and another sync are paced: more than forty calls, and a hold before each one past the fortieth', made > 40 && sleeps.filter(x => x !== 15000 && x !== 30000).length >= made - 40, JSON.stringify({ made, holds: sleeps.length }));
 }
 
 /* ---- only the recent pages each night ---- */
